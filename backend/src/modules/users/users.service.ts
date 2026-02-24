@@ -10,7 +10,7 @@ export class UsersService {
     private readonly userModel: Model<UserDocument>,
   ) {}
 
-  findByFirebaseUid(firebaseUid: string): Promise<User | null> {
+  async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
     return this.userModel.findOne({ firebaseUid }).exec();
   }
 }

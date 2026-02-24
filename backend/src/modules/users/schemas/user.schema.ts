@@ -5,7 +5,7 @@ export type UserDocument = HydratedDocument<User>;
 
 @Schema({ timestamps: true })
 export class User {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
   firebaseUid!: string;
 
   @Prop({ required: true })
@@ -20,3 +20,4 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.index({ firebaseUid: 1 }, { unique: true });
+UserSchema.index({ companyId: 1 });
