@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsMongoId, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsIn, IsMongoId, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -6,14 +6,14 @@ export class UpdateUserDto {
   firebaseUid?: string;
 
   @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
   @IsMongoId()
   companyId?: string;
 
   @IsOptional()
-  @IsIn(['admin', 'employee'])
-  role?: 'admin' | 'employee';
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
+  @IsIn(['owner', 'admin', 'member'])
+  role?: 'owner' | 'admin' | 'member';
 }

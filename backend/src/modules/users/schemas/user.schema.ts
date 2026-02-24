@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { Company } from '../../companies/schemas/company.schema';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -9,14 +8,15 @@ export class User {
   @Prop({ required: true, unique: true })
   firebaseUid!: string;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: Company.name })
+  @Prop({ required: true })
+  email!: string;
+
+  @Prop({ required: true, type: Types.ObjectId, ref: 'Company' })
   companyId!: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['admin', 'employee'] })
-  role!: 'admin' | 'employee';
-
-  @Prop({ default: true })
-  isActive!: boolean;
+  @Prop({ required: true, enum: ['owner', 'admin', 'member'], default: 'member' })
+  role!: 'owner' | 'admin' | 'member';
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.index({ firebaseUid: 1 }, { unique: true });
