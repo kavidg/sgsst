@@ -1,11 +1,12 @@
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
 
-export async function fetchUserByFirebaseUid(uid: string, idToken: string) {
-  const response = await fetch(`${BACKEND_URL}/users/by-firebase/${uid}`, {
-    method: 'GET',
+export async function apiFetch<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${BACKEND_URL}${path}`, {
+    ...init,
     headers: {
-      Authorization: `Bearer ${idToken}`,
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(init?.headers ?? {}),
     },
   });
 
@@ -16,5 +17,9 @@ export async function fetchUserByFirebaseUid(uid: string, idToken: string) {
     throw new Error(Array.isArray(message) ? message.join(', ') : message);
   }
 
-  return data;
+  return data as T;
+}
+
+export function fetchUserByFirebaseUid(uid: string, token: string) {
+  return apiFetch(`/users/by-firebase/${uid}`, token, { method: 'GET' });
 }

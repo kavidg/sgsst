@@ -9,7 +9,7 @@ function App() {
   const [password, setPassword] = useState('');
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [idToken, setIdToken] = useState('');
-  const [apiResponse, setApiResponse] = useState<string>('');
+  const [apiResponse, setApiResponse] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -82,7 +82,7 @@ function App() {
             required
           />
           <button type="submit" disabled={loading}>
-            {loading ? 'Ingresando...' : 'Login con Firebase'}
+            {loading ? 'Ingresando...' : 'Login'}
           </button>
         </form>
       ) : (
