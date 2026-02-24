@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { DecodedIdToken, getAuth } from 'firebase-admin/auth';
+import { CreateRequest, DecodedIdToken, UserRecord, getAuth } from 'firebase-admin/auth';
 
 @Injectable()
 export class FirebaseAdminService {
   async verifyIdToken(token: string): Promise<DecodedIdToken> {
     const app = this.getOrInitializeApp();
     return getAuth(app).verifyIdToken(token);
+  }
+
+  async createUser(userData: CreateRequest): Promise<UserRecord> {
+    const app = this.getOrInitializeApp();
+    return getAuth(app).createUser(userData);
   }
 
   private getOrInitializeApp() {
