@@ -1,8 +1,10 @@
+type FirebaseUser = {
+  uid: string;
+  getIdToken: () => Promise<string>;
+};
+
 type FirebaseUserCredential = {
-  user: {
-    uid: string;
-    getIdToken: () => Promise<string>;
-  };
+  user: FirebaseUser;
 };
 
 type FirebaseAuth = {
@@ -25,6 +27,12 @@ declare global {
   }
 }
 
+const firebase = window.firebase;
+
+if (!firebase) {
+  throw new Error('Firebase SDK no está cargado. Revisa los scripts en index.html');
+}
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -32,15 +40,22 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const firebase = window.firebase;
-
-if (!firebase) {
-  throw new Error('Firebase SDK no está cargado. Revisa los scripts en index.html');
-}
-
 if (firebase.apps.length === 0) {
   firebase.initializeApp(firebaseConfig);
 }
 
-export const auth = firebase.auth();
-export type { FirebaseUserCredential };
+const auth = firebase.auth();
+
+export async function signInWithEmailAndPassword(email: string, password: string) {
+  return auth.signInWithEmailAndPassword(email, password);
+}
+
+export async function getIdToken(user: FirebaseUser) {
+  return user.getIdToken();
+}
+
+export async function signOut() {
+  return auth.signOut();
+}
+
+export type { FirebaseUser, FirebaseUserCredential };
