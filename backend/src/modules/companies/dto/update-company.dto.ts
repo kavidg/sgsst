@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsMongoId, IsOptional, IsString } from 'class-validator';
 
 export class UpdateCompanyDto {
   @IsOptional()
@@ -6,14 +6,6 @@ export class UpdateCompanyDto {
   name?: string;
 
   @IsOptional()
-  @IsString()
-  nit?: string;
-
-  @IsOptional()
-  @IsString()
-  plan?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
+  @IsMongoId()
+  ownerId?: string;
 }
