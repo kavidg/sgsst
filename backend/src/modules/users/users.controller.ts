@@ -30,7 +30,18 @@ export class UsersController {
   }
 
   @Get('by-firebase/:uid')
-  async findByFirebaseUid(@Param('uid') uid: string): Promise<User> {
+  @UseGuards(FirebaseAuthGuard)
+  async findByFirebaseUid(
+    @CurrentUser() authenticatedUser: AuthenticatedUser | undefined,
+    @Param('uid') uid: string,
+  ): Promise<User> {
+    if (!authenticatedUser) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    if (authenticatedUser.uid !== uid) {
+      throw new UnauthorizedException('Firebase uid does not match authenticated user');
+    }
     const user = await this.usersService.findByFirebaseUid(uid);
 
     if (!user) {

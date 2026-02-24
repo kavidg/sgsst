@@ -1,13 +1,16 @@
 import { FormEvent, useState } from 'react';
-import { auth, FirebaseUserCredential } from './firebase';
 import { fetchUserByFirebaseUid } from './api';
-
-type AuthenticatedUser = FirebaseUserCredential['user'];
+import {
+  FirebaseUser,
+  getIdToken,
+  signInWithEmailAndPassword,
+  signOut,
+} from './firebase';
 
 function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [idToken, setIdToken] = useState('');
   const [apiResponse, setApiResponse] = useState('');
   const [error, setError] = useState('');
@@ -20,8 +23,8 @@ function App() {
     setLoading(true);
 
     try {
-      const credential = await auth.signInWithEmailAndPassword(email, password);
-      const token = await credential.user.getIdToken();
+      const credential = await signInWithEmailAndPassword(email, password);
+      const token = await getIdToken(credential.user);
       setCurrentUser(credential.user);
       setIdToken(token);
     } catch (loginError) {
@@ -59,7 +62,7 @@ function App() {
   };
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await signOut();
     setCurrentUser(null);
     setIdToken('');
     setApiResponse('');
