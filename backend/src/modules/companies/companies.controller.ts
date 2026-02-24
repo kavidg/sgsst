@@ -1,20 +1,9 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
-import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesService } from './companies.service';
 
 @Controller('companies')
-@UseGuards(FirebaseAuthGuard)
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
 
