@@ -1,9 +1,9 @@
-import { IsMongoId, IsString } from 'class-validator';
+import { IsString } from 'class-validator';
 
 export class CreateCompanyDto {
   @IsString()
   name!: string;
 
-  @IsMongoId()
-  ownerId!: string;
+  @IsString()
+  nit!: string;
 }
