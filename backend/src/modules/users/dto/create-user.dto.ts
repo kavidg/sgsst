@@ -1,4 +1,4 @@
-import { IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsMongoId, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
@@ -14,4 +14,8 @@ export class CreateUserDto {
 
   @IsIn(['owner', 'admin', 'member'])
   role!: 'owner' | 'admin' | 'member';
+
+  @IsOptional()
+  @IsMongoId()
+  companyId?: string;
 }
