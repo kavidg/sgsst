@@ -27,6 +27,7 @@ function App() {
       const token = await getIdToken(credential.user);
       setCurrentUser(credential.user);
       setIdToken(token);
+      console.log(await credential.user.getIdToken())
     } catch (loginError) {
       const message =
         loginError instanceof Error
