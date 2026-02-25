@@ -8,6 +8,9 @@ export class Company {
   @Prop({ required: true })
   name!: string;
 
+  @Prop({ required: true })
+  nit!: string;
+
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   ownerId!: Types.ObjectId;
 }

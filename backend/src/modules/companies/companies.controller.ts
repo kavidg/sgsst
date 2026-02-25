@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { AuthenticatedUser } from '../auth/auth.types';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesService } from './companies.service';
@@ -8,8 +21,16 @@ export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
 
   @Post()
-  create(@Body() createCompanyDto: CreateCompanyDto) {
-    return this.companiesService.create(createCompanyDto);
+  @UseGuards(FirebaseAuthGuard)
+  create(
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Body() createCompanyDto: CreateCompanyDto,
+  ) {
+    if (!user) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.companiesService.create(user.uid, createCompanyDto);
   }
 
   @Get()
