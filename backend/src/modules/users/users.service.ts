@@ -5,8 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
+import { Company, CompanyDocument } from '../companies/schemas/company.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User, UserDocument } from './schemas/user.schema';
 
@@ -15,6 +16,8 @@ export class UsersService {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(Company.name)
+    private readonly companyModel: Model<CompanyDocument>,
     private readonly firebaseAdminService: FirebaseAdminService,
   ) {}
 
@@ -43,6 +46,12 @@ export class UsersService {
       throw new ForbiddenException('Admins can only create member users');
     }
 
+    if (requestingUser.role === 'admin' && dto.companyId) {
+      throw new ForbiddenException('Admins cannot assign companyId when creating users');
+    }
+
+    const companyId = await this.resolveTargetCompanyId(requestingUser, dto);
+
     const existingUser = await this.userModel.findOne({ email: dto.email }).exec();
 
     if (existingUser) {
@@ -59,7 +68,28 @@ export class UsersService {
       firebaseUid: firebaseUser.uid,
       email: dto.email,
       role: dto.role,
-      companyId: requestingUser.companyId,
+      companyId,
     });
+  }
+
+  private async resolveTargetCompanyId(
+    requestingUser: UserDocument,
+    dto: CreateUserDto,
+  ): Promise<Types.ObjectId> {
+    if (requestingUser.role === 'owner') {
+      if (!dto.companyId) {
+        throw new BadRequestException('Owners must provide companyId when creating admin users');
+      }
+
+      const company = await this.companyModel.findById(dto.companyId).exec();
+
+      if (!company) {
+        throw new NotFoundException(`Company with id ${dto.companyId} not found`);
+      }
+
+      return company._id;
+    }
+
+    return requestingUser.companyId;
   }
 }
