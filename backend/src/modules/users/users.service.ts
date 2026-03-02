@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
+import { CompanyUser, CompanyUserDocument } from '../companies/schemas/company-user.schema';
 import { Company, CompanyDocument } from '../companies/schemas/company.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -21,6 +22,8 @@ export class UsersService {
     private readonly userModel: Model<UserDocument>,
     @InjectModel(Company.name)
     private readonly companyModel: Model<CompanyDocument>,
+    @InjectModel(CompanyUser.name)
+    private readonly companyUserModel: Model<CompanyUserDocument>,
     private readonly firebaseAdminService: FirebaseAdminService,
   ) {}
 
@@ -138,12 +141,20 @@ export class UsersService {
       displayName: dto.displayName,
     });
 
-    return this.userModel.create({
+    const user = await this.userModel.create({
       firebaseUid: firebaseUser.uid,
       email: dto.email,
       role: dto.role,
       companyId,
     });
+
+    await this.companyUserModel.updateOne(
+      { companyId, userId: user._id },
+      { $setOnInsert: { companyId, userId: user._id } },
+      { upsert: true },
+    );
+
+    return user;
   }
 
   private async ensureOwner(uid: string): Promise<UserDocument> {
@@ -196,6 +207,14 @@ export class UsersService {
       }
 
       return company._id;
+    }
+
+    const adminCompanyMembership = await this.companyUserModel
+      .findOne({ userId: requestingUser._id, companyId: requestingUser.companyId })
+      .exec();
+
+    if (!adminCompanyMembership) {
+      throw new ForbiddenException('Admin user is not linked to the target company');
     }
 
     return requestingUser.companyId;
