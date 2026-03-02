@@ -70,6 +70,19 @@ function App() {
     }
   };
 
+  const loadAdminResources = async (token: string, activeCompanyId: string) => {
+    const [companyData, memberData] = await Promise.all([
+      fetchCompanies(token),
+      fetchMembers(token),
+    ]);
+
+    const scopedMembers = memberData.filter((member) => member.companyId === activeCompanyId);
+    setCompanies(companyData);
+    setMembers(scopedMembers);
+    setAdmins([]);
+    setNewMemberCompanyId(activeCompanyId);
+  };
+
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -86,6 +99,11 @@ function App() {
 
       if (userProfile.role === 'owner') {
         await loadOwnerResources(token);
+      }
+
+      if (userProfile.role === 'admin') {
+        await loadAdminResources(token, userProfile.companyId);
+        setOwnerSection('members');
       }
     } catch (loginError) {
       const message =
@@ -119,7 +137,13 @@ function App() {
     setError('');
 
     try {
-      await loadOwnerResources(idToken);
+      if (profile?.role === 'owner') {
+        await loadOwnerResources(idToken);
+      }
+
+      if (profile?.role === 'admin') {
+        await loadAdminResources(idToken, profile.companyId);
+      }
     } catch (requestError) {
       const message =
         requestError instanceof Error
@@ -158,11 +182,13 @@ function App() {
     setError('');
 
     try {
+      const companyId = profile?.role === 'admin' ? profile.companyId : newMemberCompanyId;
+
       await createMember(idToken, {
         email: newMemberEmail,
         password: newMemberPassword,
         role: 'member',
-        companyId: newMemberCompanyId,
+        companyId,
       });
       setNewMemberEmail('');
       setNewMemberPassword('');
@@ -217,12 +243,12 @@ function App() {
           </p>
           <button onClick={handleLogout}>Cerrar sesión</button>
 
-          {profile?.role === 'owner' ? (
+          {profile?.role === 'owner' || profile?.role === 'admin' ? (
             <>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button onClick={() => setOwnerSection('admins')}>Crear Admin</button>
+                {profile?.role === 'owner' ? <button onClick={() => setOwnerSection('admins')}>Crear Admin</button> : null}
                 <button onClick={() => setOwnerSection('members')}>Crear Usuario</button>
-                <button onClick={() => setOwnerSection('companies')}>Crear Empresa</button>
+                {profile?.role === 'owner' ? <button onClick={() => setOwnerSection('companies')}>Crear Empresa</button> : null}
                 <button onClick={refreshOwnerData} disabled={loading}>Recargar</button>
               </div>
 
@@ -263,25 +289,38 @@ function App() {
                   <form onSubmit={handleCreateMember} style={{ display: 'grid', gap: '0.5rem' }}>
                     <input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email usuario" required />
                     <input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Password usuario" required />
-                    <select value={newMemberCompanyId} onChange={(event) => setNewMemberCompanyId(event.target.value)} required>
-                      <option value="">Selecciona empresa</option>
-                      {companies.map((company) => (
-                        <option key={company._id} value={company._id}>{company.name}</option>
-                      ))}
-                    </select>
+                    {profile?.role === 'owner' ? (
+                      <select value={newMemberCompanyId} onChange={(event) => setNewMemberCompanyId(event.target.value)} required>
+                        <option value="">Selecciona empresa</option>
+                        {companies.map((company) => (
+                          <option key={company._id} value={company._id}>{company.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p style={{ margin: 0 }}>
+                        Empresa activa:{' '}
+                        <strong>{companies.find((company) => company._id === profile?.companyId)?.name ?? profile?.companyId}</strong>
+                      </p>
+                    )}
                     <button type="submit" disabled={loading}>Guardar Usuario</button>
                   </form>
                   {members.map((member) => (
                     <div key={member._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
                       <p>{member.email}</p>
-                      <select
-                        defaultValue={member.companyId}
-                        onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(refreshOwnerData).catch((e) => setError(e.message))}
-                      >
-                        {companies.map((company) => (
-                          <option key={company._id} value={company._id}>{company.name}</option>
-                        ))}
-                      </select>
+                      {profile?.role === 'owner' ? (
+                        <select
+                          defaultValue={member.companyId}
+                          onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(refreshOwnerData).catch((e) => setError(e.message))}
+                        >
+                          {companies.map((company) => (
+                            <option key={company._id} value={company._id}>{company.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p style={{ margin: 0 }}>
+                          Empresa: <strong>{companies.find((company) => company._id === member.companyId)?.name ?? member.companyId}</strong>
+                        </p>
+                      )}
                       <button onClick={() => deleteMember(idToken, member._id).then(refreshOwnerData).catch((e) => setError(e.message))}>Eliminar</button>
                     </div>
                   ))}
@@ -307,7 +346,7 @@ function App() {
               ) : null}
             </>
           ) : (
-            <p>Este dashboard extendido está disponible solo para rol owner.</p>
+            <p>Este dashboard extendido está disponible para owner o admin.</p>
           )}
         </section>
       )}
