@@ -16,15 +16,7 @@ export class CompaniesService {
   ) {}
 
   async create(firebaseUid: string, createCompanyDto: CreateCompanyDto): Promise<Company> {
-    const user = await this.userModel.findOne({ firebaseUid }).exec();
-
-    if (!user) {
-      throw new NotFoundException(`User with firebase uid ${firebaseUid} not found`);
-    }
-
-    if (user.role !== 'owner') {
-      throw new ForbiddenException('Only owners can create companies');
-    }
+    const user = await this.ensureOwner(firebaseUid);
 
     const company = new this.companyModel({
       name: createCompanyDto.name,
@@ -35,12 +27,15 @@ export class CompaniesService {
     return company.save();
   }
 
-  findAll(): Promise<Company[]> {
-    return this.companyModel.find().exec();
+  async findAllByOwner(firebaseUid: string): Promise<Company[]> {
+    const owner = await this.ensureOwner(firebaseUid);
+
+    return this.companyModel.find({ ownerId: owner._id }).sort({ createdAt: -1 }).exec();
   }
 
-  async findOne(id: string): Promise<Company> {
-    const company = await this.companyModel.findById(id).exec();
+  async findOneByOwner(firebaseUid: string, id: string): Promise<Company> {
+    const owner = await this.ensureOwner(firebaseUid);
+    const company = await this.companyModel.findOne({ _id: id, ownerId: owner._id }).exec();
 
     if (!company) {
       throw new NotFoundException(`Company with id ${id} not found`);
@@ -49,9 +44,10 @@ export class CompaniesService {
     return company;
   }
 
-  async update(id: string, updateCompanyDto: UpdateCompanyDto): Promise<Company> {
+  async updateByOwner(firebaseUid: string, id: string, updateCompanyDto: UpdateCompanyDto): Promise<Company> {
+    const owner = await this.ensureOwner(firebaseUid);
     const company = await this.companyModel
-      .findByIdAndUpdate(id, updateCompanyDto, {
+      .findOneAndUpdate({ _id: id, ownerId: owner._id }, updateCompanyDto, {
         new: true,
         runValidators: true,
       })
@@ -64,11 +60,26 @@ export class CompaniesService {
     return company;
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.companyModel.findByIdAndDelete(id).exec();
+  async removeByOwner(firebaseUid: string, id: string): Promise<void> {
+    const owner = await this.ensureOwner(firebaseUid);
+    const result = await this.companyModel.findOneAndDelete({ _id: id, ownerId: owner._id }).exec();
 
     if (!result) {
       throw new NotFoundException(`Company with id ${id} not found`);
     }
+  }
+
+  private async ensureOwner(firebaseUid: string): Promise<UserDocument> {
+    const user = await this.userModel.findOne({ firebaseUid }).exec();
+
+    if (!user) {
+      throw new NotFoundException(`User with firebase uid ${firebaseUid} not found`);
+    }
+
+    if (user.role !== 'owner') {
+      throw new ForbiddenException('Only owners can perform this action');
+    }
+
+    return user;
   }
 }
