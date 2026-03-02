@@ -78,7 +78,7 @@ export class UsersController {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
-    return this.usersService.listUsersByRoleForOwner(user.uid, 'member');
+    return this.usersService.listMembersForManager(user.uid);
   }
 
   @Post('members')
@@ -87,7 +87,7 @@ export class UsersController {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
-    return this.usersService.createUserForOwner(user.uid, 'member', dto);
+    return this.usersService.createMemberForManager(user.uid, dto);
   }
 
   @Patch('members/:id')
@@ -100,7 +100,7 @@ export class UsersController {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
-    return this.usersService.updateUserForOwner(user.uid, userId, 'member', dto);
+    return this.usersService.updateMemberForManager(user.uid, userId, dto);
   }
 
   @Delete('members/:id')
@@ -109,7 +109,7 @@ export class UsersController {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
-    return this.usersService.removeUserForOwner(user.uid, userId, 'member');
+    return this.usersService.removeMemberForManager(user.uid, userId);
   }
 
   @Get('by-firebase/:uid')
