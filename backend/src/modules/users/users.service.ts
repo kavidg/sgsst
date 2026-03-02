@@ -9,7 +9,10 @@ import { Model, Types } from 'mongoose';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { Company, CompanyDocument } from '../companies/schemas/company.schema';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserDocument } from './schemas/user.schema';
+
+type ManagedRole = 'admin' | 'member';
 
 @Injectable()
 export class UsersService {
@@ -26,9 +29,7 @@ export class UsersService {
   }
 
   async createUserByRole(requestingUserUid: string, dto: CreateUserDto): Promise<User> {
-    const requestingUser = await this.userModel
-      .findOne({ firebaseUid: requestingUserUid })
-      .exec();
+    const requestingUser = await this.userModel.findOne({ firebaseUid: requestingUserUid }).exec();
 
     if (!requestingUser) {
       throw new NotFoundException(`Requesting user with firebase uid ${requestingUserUid} not found`);
@@ -52,6 +53,79 @@ export class UsersService {
 
     const companyId = await this.resolveTargetCompanyId(requestingUser, dto);
 
+    return this.createFirebaseAndMongoUser(dto, companyId);
+  }
+
+  async listUsersByRoleForOwner(ownerUid: string, role: ManagedRole): Promise<User[]> {
+    const owner = await this.ensureOwner(ownerUid);
+    const companies = await this.companyModel.find({ ownerId: owner._id }, { _id: 1 }).exec();
+    const companyIds = companies.map((company) => company._id);
+
+    return this.userModel.find({ role, companyId: { $in: companyIds } }).sort({ createdAt: -1 }).exec();
+  }
+
+  async createUserForOwner(ownerUid: string, role: ManagedRole, dto: CreateUserDto): Promise<User> {
+    await this.ensureOwner(ownerUid);
+
+    if (dto.role !== role) {
+      throw new BadRequestException(`Role must be ${role}`);
+    }
+
+    const companyId = await this.resolveOwnerCompanyId(ownerUid, dto.companyId);
+
+    return this.createFirebaseAndMongoUser(dto, companyId);
+  }
+
+  async updateUserForOwner(
+    ownerUid: string,
+    userId: string,
+    role: ManagedRole,
+    dto: UpdateUserDto,
+  ): Promise<User> {
+    const owner = await this.ensureOwner(ownerUid);
+    const targetUser = await this.userModel.findById(userId).exec();
+
+    if (!targetUser || targetUser.role !== role) {
+      throw new NotFoundException(`User with id ${userId} and role ${role} not found`);
+    }
+
+    await this.ensureUserBelongsToOwnerCompanies(owner._id, targetUser.companyId);
+
+    if (dto.role && dto.role !== role) {
+      throw new BadRequestException(`Role cannot be changed from ${role}`);
+    }
+
+    const updatePayload: Partial<User> = {};
+
+    if (dto.companyId) {
+      updatePayload.companyId = await this.resolveOwnerCompanyId(ownerUid, dto.companyId);
+    }
+
+    const updatedUser = await this.userModel
+      .findByIdAndUpdate(userId, updatePayload, { new: true, runValidators: true })
+      .exec();
+
+    if (!updatedUser) {
+      throw new NotFoundException(`User with id ${userId} not found`);
+    }
+
+    return updatedUser;
+  }
+
+  async removeUserForOwner(ownerUid: string, userId: string, role: ManagedRole): Promise<void> {
+    const owner = await this.ensureOwner(ownerUid);
+    const user = await this.userModel.findById(userId).exec();
+
+    if (!user || user.role !== role) {
+      throw new NotFoundException(`User with id ${userId} and role ${role} not found`);
+    }
+
+    await this.ensureUserBelongsToOwnerCompanies(owner._id, user.companyId);
+
+    await this.userModel.findByIdAndDelete(userId).exec();
+  }
+
+  private async createFirebaseAndMongoUser(dto: CreateUserDto, companyId: Types.ObjectId): Promise<User> {
     const existingUser = await this.userModel.findOne({ email: dto.email }).exec();
 
     if (existingUser) {
@@ -72,10 +146,44 @@ export class UsersService {
     });
   }
 
-  private async resolveTargetCompanyId(
-    requestingUser: UserDocument,
-    dto: CreateUserDto,
-  ): Promise<Types.ObjectId> {
+  private async ensureOwner(uid: string): Promise<UserDocument> {
+    const user = await this.userModel.findOne({ firebaseUid: uid }).exec();
+
+    if (!user) {
+      throw new NotFoundException(`User with firebase uid ${uid} not found`);
+    }
+
+    if (user.role !== 'owner') {
+      throw new ForbiddenException('Only owners can perform this action');
+    }
+
+    return user;
+  }
+
+  private async ensureUserBelongsToOwnerCompanies(ownerId: Types.ObjectId, companyId: Types.ObjectId): Promise<void> {
+    const company = await this.companyModel.findOne({ _id: companyId, ownerId }).exec();
+
+    if (!company) {
+      throw new ForbiddenException('Target user does not belong to one of your companies');
+    }
+  }
+
+  private async resolveOwnerCompanyId(ownerUid: string, companyId: string | undefined): Promise<Types.ObjectId> {
+    if (!companyId) {
+      throw new BadRequestException('companyId is required');
+    }
+
+    const owner = await this.ensureOwner(ownerUid);
+    const company = await this.companyModel.findOne({ _id: companyId, ownerId: owner._id }).exec();
+
+    if (!company) {
+      throw new NotFoundException(`Company with id ${companyId} not found for owner`);
+    }
+
+    return company._id;
+  }
+
+  private async resolveTargetCompanyId(requestingUser: UserDocument, dto: CreateUserDto): Promise<Types.ObjectId> {
     if (requestingUser.role === 'owner') {
       if (!dto.companyId) {
         throw new BadRequestException('Owners must provide companyId when creating admin users');
