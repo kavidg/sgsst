@@ -17,11 +17,11 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesService } from './companies.service';
 
 @Controller('companies')
+@UseGuards(FirebaseAuthGuard)
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
 
   @Post()
-  @UseGuards(FirebaseAuthGuard)
   create(
     @CurrentUser() user: AuthenticatedUser | undefined,
     @Body() createCompanyDto: CreateCompanyDto,
@@ -34,22 +34,42 @@ export class CompaniesController {
   }
 
   @Get()
-  findAll() {
-    return this.companiesService.findAll();
+  findAll(@CurrentUser() user: AuthenticatedUser | undefined) {
+    if (!user) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.companiesService.findAllByOwner(user.uid);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.companiesService.findOne(id);
+  findOne(@CurrentUser() user: AuthenticatedUser | undefined, @Param('id') id: string) {
+    if (!user) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.companiesService.findOneByOwner(user.uid, id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCompanyDto: UpdateCompanyDto) {
-    return this.companiesService.update(id, updateCompanyDto);
+  update(
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Param('id') id: string,
+    @Body() updateCompanyDto: UpdateCompanyDto,
+  ) {
+    if (!user) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.companiesService.updateByOwner(user.uid, id, updateCompanyDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.companiesService.remove(id);
+  remove(@CurrentUser() user: AuthenticatedUser | undefined, @Param('id') id: string) {
+    if (!user) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.companiesService.removeByOwner(user.uid, id);
   }
 }
