@@ -14,7 +14,7 @@ import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
-import { CompaniesService } from './companies.service';
+import { CompaniesService, MyCompanyResponse } from './companies.service';
 
 @Controller('companies')
 @UseGuards(FirebaseAuthGuard)
@@ -40,6 +40,15 @@ export class CompaniesController {
     }
 
     return this.companiesService.findAllByOwner(user.uid);
+  }
+
+  @Get('my-companies')
+  findMyCompanies(@CurrentUser() user: AuthenticatedUser | undefined): Promise<MyCompanyResponse[]> {
+    if (!user) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.companiesService.findMyCompanies(user.uid);
   }
 
   @Get(':id')

@@ -1,7 +1,9 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import {
   CompanyModel,
+  MyCompanyModel,
   UserModel,
+  clearActiveCompanyId,
   createAdmin,
   createCompany,
   createMember,
@@ -11,17 +13,16 @@ import {
   fetchAdmins,
   fetchCompanies,
   fetchMembers,
+  fetchMyCompanies,
   fetchUserByFirebaseUid,
+  getActiveCompanyId,
+  setActiveCompanyId,
   updateAdmin,
   updateCompany,
   updateMember,
 } from './api';
-import {
-  FirebaseUser,
-  getIdToken,
-  signInWithEmailAndPassword,
-  signOut,
-} from './firebase';
+import { CompanySelector } from './CompanySelector';
+import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from './firebase';
 
 type OwnerSection = 'admins' | 'members' | 'companies';
 
@@ -38,6 +39,8 @@ function App() {
   const [admins, setAdmins] = useState<UserModel[]>([]);
   const [members, setMembers] = useState<UserModel[]>([]);
   const [companies, setCompanies] = useState<CompanyModel[]>([]);
+  const [myCompanies, setMyCompanies] = useState<MyCompanyModel[]>([]);
+  const [activeCompanyId, setActiveCompanyIdState] = useState('');
 
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
@@ -45,18 +48,46 @@ function App() {
 
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
-  const [newMemberCompanyId, setNewMemberCompanyId] = useState('');
 
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
 
-  const loadOwnerResources = async (token: string) => {
-    const [companyData, adminData, memberData] = await Promise.all([
+  const handleSelectCompany = async (companyId: string) => {
+    setActiveCompanyId(companyId);
+    setActiveCompanyIdState(companyId);
+    if (idToken) {
+      await refreshOwnerData(idToken, companyId);
+    }
+  };
+
+  const hydrateActiveCompany = (availableCompanies: MyCompanyModel[]): string => {
+    const stored = getActiveCompanyId();
+
+    if (stored && availableCompanies.some((company) => company.id === stored)) {
+      setActiveCompanyIdState(stored);
+      return stored;
+    }
+
+    if (availableCompanies.length === 1) {
+      setActiveCompanyId(availableCompanies[0].id);
+      setActiveCompanyIdState(availableCompanies[0].id);
+      return availableCompanies[0].id;
+    }
+
+    setActiveCompanyIdState('');
+    clearActiveCompanyId();
+    return '';
+  };
+
+  const loadOwnerResources = async (token: string, selectedCompanyId: string) => {
+    const [myCompanyData, companyData, adminData, memberData] = await Promise.all([
+      fetchMyCompanies(token),
       fetchCompanies(token),
       fetchAdmins(token),
-      fetchMembers(token),
+      selectedCompanyId ? fetchMembers(token) : Promise.resolve([]),
     ]);
 
+    setMyCompanies(myCompanyData);
     setCompanies(companyData);
     setAdmins(adminData);
     setMembers(memberData);
@@ -64,23 +95,39 @@ function App() {
     if (!newAdminCompanyId && companyData[0]) {
       setNewAdminCompanyId(companyData[0]._id);
     }
-
-    if (!newMemberCompanyId && companyData[0]) {
-      setNewMemberCompanyId(companyData[0]._id);
-    }
   };
 
-  const loadAdminResources = async (token: string, activeCompanyId: string) => {
-    const [companyData, memberData] = await Promise.all([
+  const loadAdminResources = async (token: string, selectedCompanyId: string) => {
+    const [myCompanyData, companyData, memberData] = await Promise.all([
+      fetchMyCompanies(token),
       fetchCompanies(token),
-      fetchMembers(token),
+      selectedCompanyId ? fetchMembers(token) : Promise.resolve([]),
     ]);
 
-    const scopedMembers = memberData.filter((member) => member.companyId === activeCompanyId);
+    setMyCompanies(myCompanyData);
     setCompanies(companyData);
-    setMembers(scopedMembers);
+    setMembers(memberData);
     setAdmins([]);
-    setNewMemberCompanyId(activeCompanyId);
+    setOwnerSection('members');
+  };
+
+  const refreshOwnerData = async (token: string = idToken, selectedCompanyId: string = activeCompanyId) => {
+    if (!token) {
+      return;
+    }
+
+    if ((profile?.role === 'owner' || profile?.role === 'admin') && !selectedCompanyId) {
+      setMembers([]);
+      return;
+    }
+
+    if (profile?.role === 'owner') {
+      await loadOwnerResources(token, selectedCompanyId);
+    }
+
+    if (profile?.role === 'admin') {
+      await loadAdminResources(token, selectedCompanyId);
+    }
   };
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
@@ -92,24 +139,23 @@ function App() {
       const credential = await signInWithEmailAndPassword(email, password);
       const token = await getIdToken(credential.user);
       const userProfile = await fetchUserByFirebaseUid(credential.user.uid, token);
+      const availableCompanies = await fetchMyCompanies(token);
+      const selectedCompany = hydrateActiveCompany(availableCompanies);
 
       setCurrentUser(credential.user);
       setIdToken(token);
       setProfile(userProfile);
+      setMyCompanies(availableCompanies);
 
       if (userProfile.role === 'owner') {
-        await loadOwnerResources(token);
+        await loadOwnerResources(token, selectedCompany);
       }
 
       if (userProfile.role === 'admin') {
-        await loadAdminResources(token, userProfile.companyId);
-        setOwnerSection('members');
+        await loadAdminResources(token, selectedCompany);
       }
     } catch (loginError) {
-      const message =
-        loginError instanceof Error
-          ? loginError.message
-          : 'No fue posible iniciar sesión con Firebase.';
+      const message = loginError instanceof Error ? loginError.message : 'No fue posible iniciar sesión con Firebase.';
       setError(message);
     } finally {
       setLoading(false);
@@ -118,6 +164,7 @@ function App() {
 
   const handleLogout = async () => {
     await signOut();
+    clearActiveCompanyId();
     setCurrentUser(null);
     setIdToken('');
     setProfile(null);
@@ -126,34 +173,24 @@ function App() {
     setAdmins([]);
     setMembers([]);
     setCompanies([]);
+    setMyCompanies([]);
+    setActiveCompanyIdState('');
   };
 
-  const refreshOwnerData = async () => {
+  useEffect(() => {
     if (!idToken) {
       return;
     }
 
-    setLoading(true);
-    setError('');
-
-    try {
-      if (profile?.role === 'owner') {
-        await loadOwnerResources(idToken);
-      }
-
-      if (profile?.role === 'admin') {
-        await loadAdminResources(idToken, profile.companyId);
-      }
-    } catch (requestError) {
-      const message =
-        requestError instanceof Error
-          ? requestError.message
-          : 'No fue posible cargar la información del owner.';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchMyCompanies(idToken)
+      .then((companyData) => {
+        setMyCompanies(companyData);
+        if (!activeCompanyId) {
+          hydrateActiveCompany(companyData);
+        }
+      })
+      .catch(() => undefined);
+  }, [idToken]);
 
   const handleCreateAdmin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -172,6 +209,7 @@ function App() {
       await refreshOwnerData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible crear el admin.');
+    } finally {
       setLoading(false);
     }
   };
@@ -182,19 +220,17 @@ function App() {
     setError('');
 
     try {
-      const companyId = profile?.role === 'admin' ? profile.companyId : newMemberCompanyId;
-
       await createMember(idToken, {
         email: newMemberEmail,
         password: newMemberPassword,
         role: 'member',
-        companyId,
       });
       setNewMemberEmail('');
       setNewMemberPassword('');
       await refreshOwnerData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible crear el usuario.');
+    } finally {
       setLoading(false);
     }
   };
@@ -211,6 +247,7 @@ function App() {
       await refreshOwnerData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible crear la empresa.');
+    } finally {
       setLoading(false);
     }
   };
@@ -222,37 +259,30 @@ function App() {
       {!currentUser ? (
         <form onSubmit={handleLogin} style={{ display: 'grid', gap: '0.5rem' }}>
           <input type="email" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-          <button type="submit" disabled={loading}>
-            {loading ? 'Ingresando...' : 'Login'}
-          </button>
+          <input type="password" placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <button type="submit" disabled={loading}>{loading ? 'Ingresando...' : 'Login'}</button>
         </form>
       ) : (
         <section style={{ display: 'grid', gap: '0.75rem' }}>
-          <p>
-            Sesión iniciada con UID: <strong>{currentUser.uid}</strong>
-          </p>
-          <p style={{ margin: 0 }}>
-            Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong>
-          </p>
+          <p>Sesión iniciada con UID: <strong>{currentUser.uid}</strong></p>
+          <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p>
+          <CompanySelector companies={myCompanies} activeCompanyId={activeCompanyId} onSelectCompany={handleSelectCompany} />
           <button onClick={handleLogout}>Cerrar sesión</button>
 
-          {profile?.role === 'owner' || profile?.role === 'admin' ? (
+          {!activeCompanyId ? (
+            <p style={{ color: 'darkorange' }}>Selecciona una empresa para continuar</p>
+          ) : null}
+
+          {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
             <>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {profile?.role === 'owner' ? <button onClick={() => setOwnerSection('admins')}>Crear Admin</button> : null}
                 <button onClick={() => setOwnerSection('members')}>Crear Usuario</button>
                 {profile?.role === 'owner' ? <button onClick={() => setOwnerSection('companies')}>Crear Empresa</button> : null}
-                <button onClick={refreshOwnerData} disabled={loading}>Recargar</button>
+                <button onClick={() => refreshOwnerData()} disabled={loading}>Recargar</button>
               </div>
 
-              {ownerSection === 'admins' ? (
+              {ownerSection === 'admins' && profile?.role === 'owner' ? (
                 <section>
                   <h2>CRUD Admins</h2>
                   <form onSubmit={handleCreateAdmin} style={{ display: 'grid', gap: '0.5rem' }}>
@@ -260,24 +290,17 @@ function App() {
                     <input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Password admin" required />
                     <select value={newAdminCompanyId} onChange={(event) => setNewAdminCompanyId(event.target.value)} required>
                       <option value="">Selecciona empresa</option>
-                      {companies.map((company) => (
-                        <option key={company._id} value={company._id}>{company.name}</option>
-                      ))}
+                      {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
                     </select>
                     <button type="submit" disabled={loading}>Guardar Admin</button>
                   </form>
                   {admins.map((admin) => (
                     <div key={admin._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
                       <p>{admin.email}</p>
-                      <select
-                        defaultValue={admin.companyId}
-                        onChange={(event) => updateAdmin(idToken, admin._id, { companyId: event.target.value }).then(refreshOwnerData).catch((e) => setError(e.message))}
-                      >
-                        {companies.map((company) => (
-                          <option key={company._id} value={company._id}>{company.name}</option>
-                        ))}
+                      <select defaultValue={admin.companyId} onChange={(event) => updateAdmin(idToken, admin._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
+                        {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
                       </select>
-                      <button onClick={() => deleteAdmin(idToken, admin._id).then(refreshOwnerData).catch((e) => setError(e.message))}>Eliminar</button>
+                      <button onClick={() => deleteAdmin(idToken, admin._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
                     </div>
                   ))}
                 </section>
@@ -289,45 +312,23 @@ function App() {
                   <form onSubmit={handleCreateMember} style={{ display: 'grid', gap: '0.5rem' }}>
                     <input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email usuario" required />
                     <input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Password usuario" required />
-                    {profile?.role === 'owner' ? (
-                      <select value={newMemberCompanyId} onChange={(event) => setNewMemberCompanyId(event.target.value)} required>
-                        <option value="">Selecciona empresa</option>
-                        {companies.map((company) => (
-                          <option key={company._id} value={company._id}>{company.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p style={{ margin: 0 }}>
-                        Empresa activa:{' '}
-                        <strong>{companies.find((company) => company._id === profile?.companyId)?.name ?? profile?.companyId}</strong>
-                      </p>
-                    )}
                     <button type="submit" disabled={loading}>Guardar Usuario</button>
                   </form>
                   {members.map((member) => (
                     <div key={member._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
                       <p>{member.email}</p>
                       {profile?.role === 'owner' ? (
-                        <select
-                          defaultValue={member.companyId}
-                          onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(refreshOwnerData).catch((e) => setError(e.message))}
-                        >
-                          {companies.map((company) => (
-                            <option key={company._id} value={company._id}>{company.name}</option>
-                          ))}
+                        <select defaultValue={member.companyId} onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
+                          {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
                         </select>
-                      ) : (
-                        <p style={{ margin: 0 }}>
-                          Empresa: <strong>{companies.find((company) => company._id === member.companyId)?.name ?? member.companyId}</strong>
-                        </p>
-                      )}
-                      <button onClick={() => deleteMember(idToken, member._id).then(refreshOwnerData).catch((e) => setError(e.message))}>Eliminar</button>
+                      ) : null}
+                      <button onClick={() => deleteMember(idToken, member._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
                     </div>
                   ))}
                 </section>
               ) : null}
 
-              {ownerSection === 'companies' ? (
+              {ownerSection === 'companies' && profile?.role === 'owner' ? (
                 <section>
                   <h2>CRUD Empresas</h2>
                   <form onSubmit={handleCreateCompany} style={{ display: 'grid', gap: '0.5rem' }}>
@@ -338,8 +339,8 @@ function App() {
                   {companies.map((company) => (
                     <div key={company._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
                       <p>{company.name} - {company.nit}</p>
-                      <button onClick={() => updateCompany(idToken, company._id, { name: `${company.name} (editada)` }).then(refreshOwnerData).catch((e) => setError(e.message))}>Editar nombre</button>
-                      <button onClick={() => deleteCompany(idToken, company._id).then(refreshOwnerData).catch((e) => setError(e.message))}>Eliminar</button>
+                      <button onClick={() => updateCompany(idToken, company._id, { name: `${company.name} (editada)` }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Editar nombre</button>
+                      <button onClick={() => deleteCompany(idToken, company._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
                     </div>
                   ))}
                 </section>
