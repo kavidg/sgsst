@@ -6,6 +6,7 @@ import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-use
 import { User, UserSchema } from './schemas/user.schema';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { UsersController } from './users.controller';
     ]),
   ],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService, CompanyAccessGuard],
   exports: [UsersService],
 })
 export class UsersModule {}

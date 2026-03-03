@@ -67,14 +67,19 @@ export class UsersService {
     return this.userModel.find({ role, companyId: { $in: companyIds } }).sort({ createdAt: -1 }).exec();
   }
 
-  async listMembersForManager(managerUid: string): Promise<User[]> {
+  async listMembersForManager(managerUid: string, activeCompanyId: Types.ObjectId): Promise<User[]> {
     const manager = await this.ensureOwnerOrAdmin(managerUid);
 
     if (manager.role === 'owner') {
-      return this.listUsersByRoleForOwner(managerUid, 'member');
+      await this.ensureUserBelongsToOwnerCompanies(manager._id, activeCompanyId);
+      return this.userModel.find({ role: 'member', companyId: activeCompanyId }).sort({ createdAt: -1 }).exec();
     }
 
-    return this.userModel.find({ role: 'member', companyId: manager.companyId }).sort({ createdAt: -1 }).exec();
+    if (!manager.companyId.equals(activeCompanyId)) {
+      throw new ForbiddenException('Admins can only access members from their own company');
+    }
+
+    return this.userModel.find({ role: 'member', companyId: activeCompanyId }).sort({ createdAt: -1 }).exec();
   }
 
   async createUserForOwner(ownerUid: string, role: ManagedRole, dto: CreateUserDto): Promise<User> {
@@ -89,19 +94,24 @@ export class UsersService {
     return this.createFirebaseAndMongoUser(dto, companyId);
   }
 
-  async createMemberForManager(managerUid: string, dto: CreateUserDto): Promise<User> {
+  async createMemberForManager(managerUid: string, dto: CreateUserDto, activeCompanyId: Types.ObjectId): Promise<User> {
     const manager = await this.ensureOwnerOrAdmin(managerUid);
 
     if (dto.role !== 'member') {
       throw new BadRequestException('Role must be member');
     }
 
-    const companyId =
-      manager.role === 'owner'
-        ? await this.resolveOwnerCompanyId(managerUid, dto.companyId)
-        : manager.companyId;
+    const companyId = manager.role === 'owner' ? activeCompanyId : manager.companyId;
 
-    return this.createFirebaseAndMongoUser(dto, companyId);
+    if (manager.role === 'admin' && !manager.companyId.equals(activeCompanyId)) {
+      throw new ForbiddenException('Admins can only create members in their own company');
+    }
+
+    if (manager.role === 'owner') {
+      await this.ensureUserBelongsToOwnerCompanies(manager._id, activeCompanyId);
+    }
+
+    return this.createFirebaseAndMongoUser({ ...dto, companyId: undefined }, companyId);
   }
 
   async updateUserForOwner(
