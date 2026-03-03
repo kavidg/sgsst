@@ -3,14 +3,23 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import { CompanyUser, CompanyUserDocument } from './schemas/company-user.schema';
 import { Company, CompanyDocument } from './schemas/company.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
+
+export interface MyCompanyResponse {
+  id: string;
+  name: string;
+  nit: string;
+}
 
 @Injectable()
 export class CompaniesService {
   constructor(
     @InjectModel(Company.name)
     private readonly companyModel: Model<CompanyDocument>,
+    @InjectModel(CompanyUser.name)
+    private readonly companyUserModel: Model<CompanyUserDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
   ) {}
@@ -31,6 +40,27 @@ export class CompaniesService {
     const owner = await this.ensureOwner(firebaseUid);
 
     return this.companyModel.find({ ownerId: owner._id }).sort({ createdAt: -1 }).exec();
+  }
+
+  async findMyCompanies(firebaseUid: string): Promise<MyCompanyResponse[]> {
+    const user = await this.userModel.findOne({ firebaseUid }, { _id: 1 }).exec();
+
+    if (!user) {
+      throw new NotFoundException(`User with firebase uid ${firebaseUid} not found`);
+    }
+
+    const memberships = await this.companyUserModel
+      .find({ userId: user._id })
+      .populate<{ companyId: CompanyDocument }>('companyId')
+      .exec();
+
+    return memberships
+      .filter((membership) => !!membership.companyId)
+      .map((membership) => ({
+        id: membership.companyId._id.toString(),
+        name: membership.companyId.name,
+        nit: membership.companyId.nit,
+      }));
   }
 
   async findOneByOwner(firebaseUid: string, id: string): Promise<Company> {

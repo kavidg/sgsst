@@ -1,4 +1,5 @@
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
+const ACTIVE_COMPANY_STORAGE_KEY = 'activeCompanyId';
 
 export type UserRole = 'owner' | 'admin' | 'member';
 
@@ -15,6 +16,12 @@ export interface CompanyModel {
   name: string;
   nit: string;
   ownerId: string;
+}
+
+export interface MyCompanyModel {
+  id: string;
+  name: string;
+  nit: string;
 }
 
 interface CreateUserPayload {
@@ -38,14 +45,23 @@ interface UpdateCompanyPayload {
   nit?: string;
 }
 
-export async function apiFetch<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+function withCompanyHeader(headers: HeadersInit = {}): HeadersInit {
+  const companyId = localStorage.getItem(ACTIVE_COMPANY_STORAGE_KEY);
+
+  return {
+    ...headers,
+    ...(companyId ? { 'x-company-id': companyId } : {}),
+  };
+}
+
+async function apiFetch<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BACKEND_URL}${path}`, {
     ...init,
-    headers: {
+    headers: withCompanyHeader({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
       ...(init?.headers ?? {}),
-    },
+    }),
   });
 
   const data = await response.json().catch(() => null);
@@ -58,8 +74,24 @@ export async function apiFetch<T>(path: string, token: string, init?: RequestIni
   return data as T;
 }
 
+export function getActiveCompanyId(): string | null {
+  return localStorage.getItem(ACTIVE_COMPANY_STORAGE_KEY);
+}
+
+export function setActiveCompanyId(companyId: string) {
+  localStorage.setItem(ACTIVE_COMPANY_STORAGE_KEY, companyId);
+}
+
+export function clearActiveCompanyId() {
+  localStorage.removeItem(ACTIVE_COMPANY_STORAGE_KEY);
+}
+
 export function fetchUserByFirebaseUid(uid: string, token: string) {
   return apiFetch<UserModel>(`/users/by-firebase/${uid}`, token, { method: 'GET' });
+}
+
+export function fetchMyCompanies(token: string) {
+  return apiFetch<MyCompanyModel[]>('/companies/my-companies', token, { method: 'GET' });
 }
 
 export function fetchAdmins(token: string) {

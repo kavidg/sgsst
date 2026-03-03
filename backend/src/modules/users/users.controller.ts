@@ -2,21 +2,24 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
   Patch,
   Post,
+  Req,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
-import { AuthenticatedUser } from '../auth/auth.types';
+import { AuthenticatedUser, RequestWithUser } from '../auth/auth.types';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 import { User } from './schemas/user.schema';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 
 @Controller('users')
 @UseGuards(FirebaseAuthGuard)
@@ -73,24 +76,42 @@ export class UsersController {
   }
 
   @Get('members')
-  async findOwnerMembers(@CurrentUser() user: AuthenticatedUser | undefined): Promise<User[]> {
+  @UseGuards(CompanyAccessGuard)
+  async findOwnerMembers(
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Req() request: RequestWithUser,
+  ): Promise<User[]> {
     if (!user) {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
-    return this.usersService.listMembersForManager(user.uid);
+    if (!request.companyId) {
+      throw new ForbiddenException('Missing active company context');
+    }
+
+    return this.usersService.listMembersForManager(user.uid, request.companyId);
   }
 
   @Post('members')
-  async createMember(@CurrentUser() user: AuthenticatedUser | undefined, @Body() dto: CreateUserDto): Promise<User> {
+  @UseGuards(CompanyAccessGuard)
+  async createMember(
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Req() request: RequestWithUser,
+    @Body() dto: CreateUserDto,
+  ): Promise<User> {
     if (!user) {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
-    return this.usersService.createMemberForManager(user.uid, dto);
+    if (!request.companyId) {
+      throw new ForbiddenException('Missing active company context');
+    }
+
+    return this.usersService.createMemberForManager(user.uid, dto, request.companyId);
   }
 
   @Patch('members/:id')
+  @UseGuards(CompanyAccessGuard)
   async updateMember(
     @CurrentUser() user: AuthenticatedUser | undefined,
     @Param('id') userId: string,
@@ -104,6 +125,7 @@ export class UsersController {
   }
 
   @Delete('members/:id')
+  @UseGuards(CompanyAccessGuard)
   async removeMember(@CurrentUser() user: AuthenticatedUser | undefined, @Param('id') userId: string): Promise<void> {
     if (!user) {
       throw new UnauthorizedException('Missing authenticated user');
