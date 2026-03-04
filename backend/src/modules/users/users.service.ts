@@ -75,9 +75,7 @@ export class UsersService {
       return this.userModel.find({ role: 'member', companyId: activeCompanyId }).sort({ createdAt: -1 }).exec();
     }
 
-    if (!manager.companyId.equals(activeCompanyId)) {
-      throw new ForbiddenException('Admins can only access members from their own company');
-    }
+    await this.ensureUserBelongsToCompany(manager._id, activeCompanyId);
 
     return this.userModel.find({ role: 'member', companyId: activeCompanyId }).sort({ createdAt: -1 }).exec();
   }
@@ -101,17 +99,13 @@ export class UsersService {
       throw new BadRequestException('Role must be member');
     }
 
-    const companyId = manager.role === 'owner' ? activeCompanyId : manager.companyId;
-
-    if (manager.role === 'admin' && !manager.companyId.equals(activeCompanyId)) {
-      throw new ForbiddenException('Admins can only create members in their own company');
-    }
-
     if (manager.role === 'owner') {
       await this.ensureUserBelongsToOwnerCompanies(manager._id, activeCompanyId);
+    } else {
+      await this.ensureUserBelongsToCompany(manager._id, activeCompanyId);
     }
 
-    return this.createFirebaseAndMongoUser({ ...dto, companyId: undefined }, companyId);
+    return this.createFirebaseAndMongoUser({ ...dto, companyId: undefined }, activeCompanyId);
   }
 
   async updateUserForOwner(
@@ -163,7 +157,12 @@ export class UsersService {
     await this.userModel.findByIdAndDelete(userId).exec();
   }
 
-  async updateMemberForManager(managerUid: string, userId: string, dto: UpdateUserDto): Promise<User> {
+  async updateMemberForManager(
+    managerUid: string,
+    userId: string,
+    dto: UpdateUserDto,
+    activeCompanyId: Types.ObjectId,
+  ): Promise<User> {
     const manager = await this.ensureOwnerOrAdmin(managerUid);
     const targetUser = await this.userModel.findById(userId).exec();
 
@@ -184,12 +183,14 @@ export class UsersService {
         updatePayload.companyId = await this.resolveOwnerCompanyId(managerUid, dto.companyId);
       }
     } else {
-      if (!targetUser.companyId.equals(manager.companyId)) {
-        throw new ForbiddenException('Target user does not belong to your company');
+      await this.ensureUserBelongsToCompany(manager._id, activeCompanyId);
+
+      if (!targetUser.companyId.equals(activeCompanyId)) {
+        throw new ForbiddenException('Target user does not belong to the active company');
       }
 
-      if (dto.companyId && dto.companyId !== manager.companyId.toString()) {
-        throw new ForbiddenException('Admins can only manage members from their own company');
+      if (dto.companyId && dto.companyId !== activeCompanyId.toString()) {
+        throw new ForbiddenException('Admins can only manage members from their active company');
       }
     }
 
@@ -204,7 +205,11 @@ export class UsersService {
     return updatedUser;
   }
 
-  async removeMemberForManager(managerUid: string, userId: string): Promise<void> {
+  async removeMemberForManager(
+    managerUid: string,
+    userId: string,
+    activeCompanyId: Types.ObjectId,
+  ): Promise<void> {
     const manager = await this.ensureOwnerOrAdmin(managerUid);
     const user = await this.userModel.findById(userId).exec();
 
@@ -214,8 +219,12 @@ export class UsersService {
 
     if (manager.role === 'owner') {
       await this.ensureUserBelongsToOwnerCompanies(manager._id, user.companyId);
-    } else if (!user.companyId.equals(manager.companyId)) {
-      throw new ForbiddenException('Target user does not belong to your company');
+    } else {
+      await this.ensureUserBelongsToCompany(manager._id, activeCompanyId);
+
+      if (!user.companyId.equals(activeCompanyId)) {
+        throw new ForbiddenException('Target user does not belong to the active company');
+      }
     }
 
     await this.userModel.findByIdAndDelete(userId).exec();
@@ -283,6 +292,14 @@ export class UsersService {
 
     if (!company) {
       throw new ForbiddenException('Target user does not belong to one of your companies');
+    }
+  }
+
+  private async ensureUserBelongsToCompany(userId: Types.ObjectId, companyId: Types.ObjectId): Promise<void> {
+    const membership = await this.companyUserModel.findOne({ userId, companyId }).exec();
+
+    if (!membership) {
+      throw new ForbiddenException('You do not belong to the requested company');
     }
   }
 
