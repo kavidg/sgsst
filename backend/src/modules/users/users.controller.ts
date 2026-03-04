@@ -114,6 +114,7 @@ export class UsersController {
   @UseGuards(CompanyAccessGuard)
   async updateMember(
     @CurrentUser() user: AuthenticatedUser | undefined,
+    @Req() request: RequestWithUser,
     @Param('id') userId: string,
     @Body() dto: UpdateUserDto,
   ): Promise<User> {
@@ -121,17 +122,29 @@ export class UsersController {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
-    return this.usersService.updateMemberForManager(user.uid, userId, dto);
+    if (!request.companyId) {
+      throw new ForbiddenException('Missing active company context');
+    }
+
+    return this.usersService.updateMemberForManager(user.uid, userId, dto, request.companyId);
   }
 
   @Delete('members/:id')
   @UseGuards(CompanyAccessGuard)
-  async removeMember(@CurrentUser() user: AuthenticatedUser | undefined, @Param('id') userId: string): Promise<void> {
+  async removeMember(
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Req() request: RequestWithUser,
+    @Param('id') userId: string,
+  ): Promise<void> {
     if (!user) {
       throw new UnauthorizedException('Missing authenticated user');
     }
 
-    return this.usersService.removeMemberForManager(user.uid, userId);
+    if (!request.companyId) {
+      throw new ForbiddenException('Missing active company context');
+    }
+
+    return this.usersService.removeMemberForManager(user.uid, userId, request.companyId);
   }
 
   @Get('by-firebase/:uid')
