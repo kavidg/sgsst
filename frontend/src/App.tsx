@@ -98,11 +98,17 @@ function App() {
   };
 
   const loadAdminResources = async (token: string, selectedCompanyId: string) => {
-    const [myCompanyData, companyData, memberData] = await Promise.all([
+    const [myCompanyData, memberData] = await Promise.all([
       fetchMyCompanies(token),
-      fetchCompanies(token),
       selectedCompanyId ? fetchMembers(token) : Promise.resolve([]),
     ]);
+
+    const companyData: CompanyModel[] = myCompanyData.map((company) => ({
+      _id: company.id,
+      name: company.name,
+      nit: company.nit,
+      ownerId: '',
+    }));
 
     setMyCompanies(myCompanyData);
     setCompanies(companyData);
