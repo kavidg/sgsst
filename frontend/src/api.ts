@@ -24,6 +24,21 @@ export interface MyCompanyModel {
   nit: string;
 }
 
+export interface EvaluationModel {
+  _id: string;
+  companyId: string;
+  standard: string;
+  description: string;
+  complies: boolean;
+  observation?: string;
+}
+
+export interface ComplianceResponse {
+  total: number;
+  complies: number;
+  percentage: number;
+}
+
 interface CreateUserPayload {
   email: string;
   password: string;
@@ -43,6 +58,19 @@ interface CreateCompanyPayload {
 interface UpdateCompanyPayload {
   name?: string;
   nit?: string;
+}
+
+interface CreateEvaluationPayload {
+  companyId: string;
+  standard: string;
+  description: string;
+  complies: boolean;
+  observation?: string;
+}
+
+interface UpdateEvaluationPayload {
+  complies?: boolean;
+  observation?: string;
 }
 
 function withCompanyHeader(headers: HeadersInit = {}): HeadersInit {
@@ -140,4 +168,20 @@ export function updateCompany(token: string, id: string, payload: UpdateCompanyP
 
 export function deleteCompany(token: string, id: string) {
   return apiFetch<void>(`/companies/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchEvaluationsByCompany(token: string, companyId: string) {
+  return apiFetch<EvaluationModel[]>(`/evaluations/company/${companyId}`, token, { method: 'GET' });
+}
+
+export function createEvaluation(token: string, payload: CreateEvaluationPayload) {
+  return apiFetch<EvaluationModel>('/evaluations', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateEvaluation(token: string, id: string, payload: UpdateEvaluationPayload) {
+  return apiFetch<EvaluationModel>(`/evaluations/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function fetchComplianceByCompany(token: string, companyId: string) {
+  return apiFetch<ComplianceResponse>(`/evaluations/company/${companyId}/compliance`, token, { method: 'GET' });
 }
