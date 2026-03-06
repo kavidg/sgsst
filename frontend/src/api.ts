@@ -39,6 +39,35 @@ export interface ComplianceResponse {
   percentage: number;
 }
 
+export interface EmployeeModel {
+  _id: string;
+  name: string;
+  document: string;
+  position: string;
+  area: string;
+  contractType: string;
+  status: string;
+  companyId: string;
+}
+
+interface CreateEmployeePayload {
+  name: string;
+  document: string;
+  position: string;
+  area: string;
+  contractType: string;
+  status: string;
+}
+
+interface UpdateEmployeePayload {
+  name?: string;
+  document?: string;
+  position?: string;
+  area?: string;
+  contractType?: string;
+  status?: string;
+}
+
 interface CreateUserPayload {
   email: string;
   password: string;
@@ -184,4 +213,21 @@ export function updateEvaluation(token: string, id: string, payload: UpdateEvalu
 
 export function fetchComplianceByCompany(token: string, companyId: string) {
   return apiFetch<ComplianceResponse>(`/evaluations/company/${companyId}/compliance`, token, { method: 'GET' });
+}
+
+
+export function fetchEmployees(token: string) {
+  return apiFetch<EmployeeModel[]>('/employees', token, { method: 'GET' });
+}
+
+export function createEmployee(token: string, payload: CreateEmployeePayload) {
+  return apiFetch<EmployeeModel>('/employees', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateEmployee(token: string, id: string, payload: UpdateEmployeePayload) {
+  return apiFetch<EmployeeModel>(`/employees/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteEmployee(token: string, id: string) {
+  return apiFetch<void>(`/employees/${id}`, token, { method: 'DELETE' });
 }
