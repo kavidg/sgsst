@@ -30,6 +30,7 @@ import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
 import { RisksPage } from './pages/RisksPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { IncidentsPage } from './pages/IncidentsPage';
+import { TrainingsPage } from './pages/TrainingsPage';
 
 function App() {
   const [email, setEmail] = useState('');
@@ -409,6 +410,18 @@ function App() {
     </>
   );
 
+
+  const TrainingsRoutePage = () => (
+    <>
+      <SharedHeader />
+      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+        <TrainingsPage token={idToken} />
+      ) : (
+        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+      )}
+    </>
+  );
+
   const RisksRoutePage = () => (
     <>
       <SharedHeader />
@@ -445,6 +458,7 @@ function App() {
         <Route path="/risks" element={<RisksRoutePage />} />
         <Route path="/documents" element={<DocumentsRoutePage />} />
         <Route path="/incidents" element={<IncidentsRoutePage />} />
+        <Route path="/trainings" element={<TrainingsRoutePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

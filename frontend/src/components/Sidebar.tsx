@@ -9,6 +9,7 @@ const links = [
   { to: '/risks', label: 'Matriz de riesgos' },
   { to: '/documents', label: 'Documentos' },
   { to: '/incidents', label: 'Incidentes' },
+  { to: '/trainings', label: 'Capacitaciones' },
 ];
 
 export function Sidebar() {
