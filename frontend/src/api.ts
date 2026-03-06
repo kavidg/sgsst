@@ -102,6 +102,44 @@ export interface UpdateIncidentPayload {
   status?: string;
 }
 
+
+export interface TrainingModel {
+  _id: string;
+  companyId: string;
+  topic: string;
+  date: string;
+  instructor: string;
+  description: string;
+  evidenceUrl?: string;
+}
+
+export interface CreateTrainingPayload {
+  topic: string;
+  date: string;
+  instructor: string;
+  description: string;
+  evidenceUrl?: string;
+}
+
+export interface UpdateTrainingPayload {
+  topic?: string;
+  date?: string;
+  instructor?: string;
+  description?: string;
+  evidenceUrl?: string;
+}
+
+export interface TrainingAttendanceModel {
+  _id: string;
+  trainingId: string;
+  employeeId: EmployeeModel;
+  companyId: string;
+}
+
+export interface CreateTrainingAttendancePayload {
+  employeeId: string;
+}
+
 export interface DocumentUploadedByModel {
   _id: string;
   email: string;
@@ -395,4 +433,36 @@ export function fetchDocument(token: string, id: string) {
 
 export function deleteDocument(token: string, id: string) {
   return apiFetch<void>(`/documents/${id}`, token, { method: 'DELETE' });
+}
+
+
+export function fetchTrainings(token: string) {
+  return apiFetch<TrainingModel[]>('/trainings', token, { method: 'GET' });
+}
+
+export function fetchTraining(token: string, id: string) {
+  return apiFetch<TrainingModel>(`/trainings/${id}`, token, { method: 'GET' });
+}
+
+export function createTraining(token: string, payload: CreateTrainingPayload) {
+  return apiFetch<TrainingModel>('/trainings', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateTraining(token: string, id: string, payload: UpdateTrainingPayload) {
+  return apiFetch<TrainingModel>(`/trainings/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteTraining(token: string, id: string) {
+  return apiFetch<void>(`/trainings/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchTrainingAttendance(token: string, trainingId: string) {
+  return apiFetch<TrainingAttendanceModel[]>(`/trainings/${trainingId}/attendance`, token, { method: 'GET' });
+}
+
+export function createTrainingAttendance(token: string, trainingId: string, payload: CreateTrainingAttendancePayload) {
+  return apiFetch<TrainingAttendanceModel>(`/trainings/${trainingId}/attendance`, token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
