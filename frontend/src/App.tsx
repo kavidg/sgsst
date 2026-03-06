@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import {
   CompanyModel,
   MyCompanyModel,
@@ -22,11 +23,10 @@ import {
   updateMember,
 } from './api';
 import { CompanySelector } from './CompanySelector';
+import { Layout } from './components/Layout';
 import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from './firebase';
 import { EmployeesPage } from './pages/EmployeesPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
-
-type OwnerSection = 'admins' | 'members' | 'companies' | 'employees' | 'evaluations';
 
 function App() {
   const [email, setEmail] = useState('');
@@ -36,7 +36,6 @@ function App() {
   const [profile, setProfile] = useState<UserModel | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [ownerSection, setOwnerSection] = useState<OwnerSection>('admins');
 
   const [admins, setAdmins] = useState<UserModel[]>([]);
   const [members, setMembers] = useState<UserModel[]>([]);
@@ -116,7 +115,6 @@ function App() {
     setCompanies(companyData);
     setMembers(memberData);
     setAdmins([]);
-    setOwnerSection('members');
   };
 
   const refreshOwnerData = async (token: string = idToken, selectedCompanyId: string = activeCompanyId) => {
@@ -260,120 +258,155 @@ function App() {
     }
   };
 
-  return (
-    <main style={{ fontFamily: 'sans-serif', maxWidth: 900, margin: '2rem auto' }}>
-      <h1>SG-SST Frontend Auth</h1>
+  const SharedHeader = () => (
+    <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
+      <p>Sesión iniciada con UID: <strong>{currentUser?.uid}</strong></p>
+      <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p>
+      <CompanySelector companies={myCompanies} activeCompanyId={activeCompanyId} onSelectCompany={handleSelectCompany} />
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+        <button onClick={() => refreshOwnerData()} disabled={loading}>Recargar</button>
+        <button onClick={handleLogout}>Cerrar sesión</button>
+      </div>
+      {!activeCompanyId ? <p style={{ color: 'darkorange' }}>Selecciona una empresa para continuar</p> : null}
+      {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
+    </section>
+  );
 
-      {!currentUser ? (
+  const DashboardPage = () => (
+    <>
+      <SharedHeader />
+      <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
+        <h2 style={{ marginTop: 0 }}>Dashboard</h2>
+        <p>Bienvenido al panel SG-SST. Usa el menú lateral para administrar el sistema.</p>
+      </section>
+    </>
+  );
+
+  const UsersPage = () => (
+    <>
+      <SharedHeader />
+      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+        <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
+          <h2>CRUD Usuarios</h2>
+          <form onSubmit={handleCreateMember} style={{ display: 'grid', gap: '0.5rem' }}>
+            <input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email usuario" required />
+            <input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Password usuario" required />
+            <button type="submit" disabled={loading}>Guardar Usuario</button>
+          </form>
+          {members.map((member) => (
+            <div key={member._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
+              <p>{member.email}</p>
+              {profile?.role === 'owner' ? (
+                <select defaultValue={member.companyId} onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
+                  {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
+                </select>
+              ) : null}
+              <button onClick={() => deleteMember(idToken, member._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
+            </div>
+          ))}
+
+          {profile?.role === 'owner' ? (
+            <>
+              <h3>CRUD Admins</h3>
+              <form onSubmit={handleCreateAdmin} style={{ display: 'grid', gap: '0.5rem' }}>
+                <input value={newAdminEmail} onChange={(event) => setNewAdminEmail(event.target.value)} placeholder="Email admin" required />
+                <input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Password admin" required />
+                <select value={newAdminCompanyId} onChange={(event) => setNewAdminCompanyId(event.target.value)} required>
+                  <option value="">Selecciona empresa</option>
+                  {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
+                </select>
+                <button type="submit" disabled={loading}>Guardar Admin</button>
+              </form>
+              {admins.map((admin) => (
+                <div key={admin._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
+                  <p>{admin.email}</p>
+                  <select defaultValue={admin.companyId} onChange={(event) => updateAdmin(idToken, admin._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
+                    {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
+                  </select>
+                  <button onClick={() => deleteAdmin(idToken, admin._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
+                </div>
+              ))}
+            </>
+          ) : null}
+        </section>
+      ) : (
+        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+      )}
+    </>
+  );
+
+  const CompaniesPage = () => (
+    <>
+      <SharedHeader />
+      {profile?.role === 'owner' ? (
+        <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
+          <h2>CRUD Empresas</h2>
+          <form onSubmit={handleCreateCompany} style={{ display: 'grid', gap: '0.5rem' }}>
+            <input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Nombre empresa" required />
+            <input value={newCompanyNit} onChange={(event) => setNewCompanyNit(event.target.value)} placeholder="NIT" required />
+            <button type="submit" disabled={loading}>Guardar Empresa</button>
+          </form>
+          {companies.map((company) => (
+            <div key={company._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
+              <p>{company.name} - {company.nit}</p>
+              <button onClick={() => updateCompany(idToken, company._id, { name: `${company.name} (editada)` }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Editar nombre</button>
+              <button onClick={() => deleteCompany(idToken, company._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
+            </div>
+          ))}
+        </section>
+      ) : (
+        <p>Este módulo está disponible solo para owner.</p>
+      )}
+    </>
+  );
+
+  const EmployeesRoutePage = () => (
+    <>
+      <SharedHeader />
+      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+        <EmployeesPage token={idToken} />
+      ) : (
+        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+      )}
+    </>
+  );
+
+  const EvaluationsRoutePage = () => (
+    <>
+      <SharedHeader />
+      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+        <EvaluationsPage token={idToken} companyId={activeCompanyId || profile?.companyId || ''} />
+      ) : (
+        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+      )}
+    </>
+  );
+
+  if (!currentUser) {
+    return (
+      <main style={{ fontFamily: 'sans-serif', maxWidth: 420, margin: '4rem auto', padding: '1.5rem', border: '1px solid #dbe3ee', borderRadius: 12 }}>
+        <h1 style={{ marginTop: 0 }}>SG-SST Frontend Auth</h1>
         <form onSubmit={handleLogin} style={{ display: 'grid', gap: '0.5rem' }}>
           <input type="email" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           <input type="password" placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)} required />
           <button type="submit" disabled={loading}>{loading ? 'Ingresando...' : 'Login'}</button>
         </form>
-      ) : (
-        <section style={{ display: 'grid', gap: '0.75rem' }}>
-          <p>Sesión iniciada con UID: <strong>{currentUser.uid}</strong></p>
-          <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p>
-          <CompanySelector companies={myCompanies} activeCompanyId={activeCompanyId} onSelectCompany={handleSelectCompany} />
-          <button onClick={handleLogout}>Cerrar sesión</button>
+        {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
+      </main>
+    );
+  }
 
-          {!activeCompanyId ? (
-            <p style={{ color: 'darkorange' }}>Selecciona una empresa para continuar</p>
-          ) : null}
-
-          {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-            <>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {profile?.role === 'owner' ? <button onClick={() => setOwnerSection('admins')}>Crear Admin</button> : null}
-                <button onClick={() => setOwnerSection('members')}>Crear Usuario</button>
-                {profile?.role === 'owner' ? <button onClick={() => setOwnerSection('companies')}>Crear Empresa</button> : null}
-                <button onClick={() => setOwnerSection('employees')}>Empleados</button>
-                <button onClick={() => setOwnerSection('evaluations')}>Evaluación SG-SST</button>
-                <button onClick={() => refreshOwnerData()} disabled={loading}>Recargar</button>
-              </div>
-
-              {ownerSection === 'admins' && profile?.role === 'owner' ? (
-                <section>
-                  <h2>CRUD Admins</h2>
-                  <form onSubmit={handleCreateAdmin} style={{ display: 'grid', gap: '0.5rem' }}>
-                    <input value={newAdminEmail} onChange={(event) => setNewAdminEmail(event.target.value)} placeholder="Email admin" required />
-                    <input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Password admin" required />
-                    <select value={newAdminCompanyId} onChange={(event) => setNewAdminCompanyId(event.target.value)} required>
-                      <option value="">Selecciona empresa</option>
-                      {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
-                    </select>
-                    <button type="submit" disabled={loading}>Guardar Admin</button>
-                  </form>
-                  {admins.map((admin) => (
-                    <div key={admin._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
-                      <p>{admin.email}</p>
-                      <select defaultValue={admin.companyId} onChange={(event) => updateAdmin(idToken, admin._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
-                        {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
-                      </select>
-                      <button onClick={() => deleteAdmin(idToken, admin._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
-                    </div>
-                  ))}
-                </section>
-              ) : null}
-
-              {ownerSection === 'members' ? (
-                <section>
-                  <h2>CRUD Usuarios</h2>
-                  <form onSubmit={handleCreateMember} style={{ display: 'grid', gap: '0.5rem' }}>
-                    <input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email usuario" required />
-                    <input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Password usuario" required />
-                    <button type="submit" disabled={loading}>Guardar Usuario</button>
-                  </form>
-                  {members.map((member) => (
-                    <div key={member._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
-                      <p>{member.email}</p>
-                      {profile?.role === 'owner' ? (
-                        <select defaultValue={member.companyId} onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
-                          {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
-                        </select>
-                      ) : null}
-                      <button onClick={() => deleteMember(idToken, member._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
-                    </div>
-                  ))}
-                </section>
-              ) : null}
-
-
-
-              {ownerSection === 'employees' ? (
-                <EmployeesPage token={idToken} />
-              ) : null}
-
-              {ownerSection === 'evaluations' ? (
-                <EvaluationsPage token={idToken} companyId={activeCompanyId || profile?.companyId || ''} />
-              ) : null}
-
-              {ownerSection === 'companies' && profile?.role === 'owner' ? (
-                <section>
-                  <h2>CRUD Empresas</h2>
-                  <form onSubmit={handleCreateCompany} style={{ display: 'grid', gap: '0.5rem' }}>
-                    <input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Nombre empresa" required />
-                    <input value={newCompanyNit} onChange={(event) => setNewCompanyNit(event.target.value)} placeholder="NIT" required />
-                    <button type="submit" disabled={loading}>Guardar Empresa</button>
-                  </form>
-                  {companies.map((company) => (
-                    <div key={company._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
-                      <p>{company.name} - {company.nit}</p>
-                      <button onClick={() => updateCompany(idToken, company._id, { name: `${company.name} (editada)` }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Editar nombre</button>
-                      <button onClick={() => deleteCompany(idToken, company._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
-                    </div>
-                  ))}
-                </section>
-              ) : null}
-            </>
-          ) : (
-            <p>Este dashboard extendido está disponible para owner o admin.</p>
-          )}
-        </section>
-      )}
-
-      {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
-    </main>
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/companies" element={<CompaniesPage />} />
+        <Route path="/users" element={<UsersPage />} />
+        <Route path="/employees" element={<EmployeesRoutePage />} />
+        <Route path="/evaluations" element={<EvaluationsRoutePage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   );
 }
 
