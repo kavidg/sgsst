@@ -39,6 +39,39 @@ export interface ComplianceResponse {
   percentage: number;
 }
 
+
+export interface RiskModel {
+  _id: string;
+  companyId: string;
+  process: string;
+  activity: string;
+  hazard: string;
+  risk: string;
+  probability: number;
+  consequence: number;
+  riskLevel: number;
+  controlMeasures: string;
+}
+
+export interface CreateRiskPayload {
+  process: string;
+  activity: string;
+  hazard: string;
+  risk: string;
+  probability: number;
+  consequence: number;
+  controlMeasures: string;
+}
+
+export interface UpdateRiskPayload {
+  process?: string;
+  activity?: string;
+  hazard?: string;
+  risk?: string;
+  probability?: number;
+  consequence?: number;
+  controlMeasures?: string;
+}
 export interface EmployeeModel {
   _id: string;
   name: string;
@@ -231,3 +264,20 @@ export function updateEmployee(token: string, id: string, payload: UpdateEmploye
 export function deleteEmployee(token: string, id: string) {
   return apiFetch<void>(`/employees/${id}`, token, { method: 'DELETE' });
 }
+
+export function fetchRisks(token: string) {
+  return apiFetch<RiskModel[]>('/risks', token, { method: 'GET' });
+}
+
+export function createRisk(token: string, payload: CreateRiskPayload) {
+  return apiFetch<RiskModel>('/risks', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateRisk(token: string, id: string, payload: UpdateRiskPayload) {
+  return apiFetch<RiskModel>(`/risks/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteRisk(token: string, id: string) {
+  return apiFetch<void>(`/risks/${id}`, token, { method: 'DELETE' });
+}
+
