@@ -23,9 +23,10 @@ import {
 } from './api';
 import { CompanySelector } from './CompanySelector';
 import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from './firebase';
+import { EmployeesPage } from './pages/EmployeesPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
 
-type OwnerSection = 'admins' | 'members' | 'companies' | 'evaluations';
+type OwnerSection = 'admins' | 'members' | 'companies' | 'employees' | 'evaluations';
 
 function App() {
   const [email, setEmail] = useState('');
@@ -286,6 +287,7 @@ function App() {
                 {profile?.role === 'owner' ? <button onClick={() => setOwnerSection('admins')}>Crear Admin</button> : null}
                 <button onClick={() => setOwnerSection('members')}>Crear Usuario</button>
                 {profile?.role === 'owner' ? <button onClick={() => setOwnerSection('companies')}>Crear Empresa</button> : null}
+                <button onClick={() => setOwnerSection('employees')}>Empleados</button>
                 <button onClick={() => setOwnerSection('evaluations')}>Evaluación SG-SST</button>
                 <button onClick={() => refreshOwnerData()} disabled={loading}>Recargar</button>
               </div>
@@ -336,6 +338,11 @@ function App() {
                 </section>
               ) : null}
 
+
+
+              {ownerSection === 'employees' ? (
+                <EmployeesPage token={idToken} />
+              ) : null}
 
               {ownerSection === 'evaluations' ? (
                 <EvaluationsPage token={idToken} companyId={activeCompanyId || profile?.companyId || ''} />
