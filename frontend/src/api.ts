@@ -72,6 +72,28 @@ export interface UpdateRiskPayload {
   consequence?: number;
   controlMeasures?: string;
 }
+export interface DocumentUploadedByModel {
+  _id: string;
+  email: string;
+}
+
+export interface DocumentModel {
+  _id: string;
+  companyId: string;
+  name: string;
+  type: string;
+  fileUrl: string;
+  uploadedBy: DocumentUploadedByModel;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDocumentPayload {
+  name: string;
+  type?: string;
+  file: File;
+}
+
 export interface EmployeeModel {
   _id: string;
   name: string;
@@ -149,6 +171,27 @@ async function apiFetch<T>(path: string, token: string, init?: RequestInit): Pro
     ...init,
     headers: withCompanyHeader({
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(init?.headers ?? {}),
+    }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = data?.message ?? 'Error calling backend endpoint';
+    throw new Error(Array.isArray(message) ? message.join(', ') : message);
+  }
+
+  return data as T;
+}
+
+
+async function apiFetchFormData<T>(path: string, token: string, body: FormData, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${BACKEND_URL}${path}`, {
+    ...init,
+    body,
+    headers: withCompanyHeader({
       Authorization: `Bearer ${token}`,
       ...(init?.headers ?? {}),
     }),
@@ -281,3 +324,28 @@ export function deleteRisk(token: string, id: string) {
   return apiFetch<void>(`/risks/${id}`, token, { method: 'DELETE' });
 }
 
+
+export function fetchDocuments(token: string) {
+  return apiFetch<DocumentModel[]>('/documents', token, { method: 'GET' });
+}
+
+export function createDocument(token: string, payload: CreateDocumentPayload) {
+  const formData = new FormData();
+  formData.append('name', payload.name);
+
+  if (payload.type) {
+    formData.append('type', payload.type);
+  }
+
+  formData.append('file', payload.file);
+
+  return apiFetchFormData<DocumentModel>('/documents', token, formData, { method: 'POST' });
+}
+
+export function fetchDocument(token: string, id: string) {
+  return apiFetch<DocumentModel>(`/documents/${id}`, token, { method: 'GET' });
+}
+
+export function deleteDocument(token: string, id: string) {
+  return apiFetch<void>(`/documents/${id}`, token, { method: 'DELETE' });
+}

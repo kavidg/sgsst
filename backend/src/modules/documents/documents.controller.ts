@@ -1,0 +1,116 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  InternalServerErrorException,
+  Param,
+  Post,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { getStorage } from 'firebase-admin/storage';
+import { Types } from 'mongoose';
+import { RequestWithUser } from '../auth/auth.types';
+import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { FirebaseAdminService } from '../auth/firebase-admin.service';
+import { UsersService } from '../users/users.service';
+import { CreateDocumentDto } from './dto/create-document.dto';
+import { DocumentsService } from './documents.service';
+
+@Controller('documents')
+@UseGuards(FirebaseAuthGuard)
+export class DocumentsController {
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly usersService: UsersService,
+    private readonly firebaseAdminService: FirebaseAdminService,
+  ) {}
+
+  @Post()
+  @UseInterceptors(FileInterceptor('file'))
+  async create(
+    @Req() request: RequestWithUser,
+    @UploadedFile() file: UploadedBinaryFile,
+    @Body() createDocumentDto: CreateDocumentDto,
+  ) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const user = await this.resolveUserFromRequest(request);
+    const fileUrl = await this.uploadToFirebaseStorage(user.companyId, file);
+
+    return this.documentsService.create(user.companyId, (user as unknown as { _id: Types.ObjectId })._id, createDocumentDto, fileUrl);
+  }
+
+  @Get()
+  async findAll(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.documentsService.findAll(user.companyId);
+  }
+
+  @Get(':id')
+  async findOne(@Req() request: RequestWithUser, @Param('id') id: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.documentsService.findOne(id, user.companyId);
+  }
+
+  @Delete(':id')
+  async remove(@Req() request: RequestWithUser, @Param('id') id: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.documentsService.remove(id, user.companyId);
+  }
+
+  private async resolveUserFromRequest(request: RequestWithUser) {
+    const firebaseUid = request.user?.uid;
+
+    if (!firebaseUid) {
+      throw new ForbiddenException('Missing authenticated user');
+    }
+
+    const user = await this.usersService.findByFirebaseUid(firebaseUid);
+
+    if (!user) {
+      throw new ForbiddenException('Authenticated user is not registered');
+    }
+
+    return user;
+  }
+
+  private async uploadToFirebaseStorage(companyId: Types.ObjectId, file: UploadedBinaryFile): Promise<string> {
+    const app = this.firebaseAdminService.getApp();
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+
+    if (!bucketName) {
+      throw new InternalServerErrorException('Missing FIREBASE_STORAGE_BUCKET configuration');
+    }
+
+    const bucket = getStorage(app).bucket(bucketName);
+    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `documents/${companyId.toString()}/${Date.now()}-${sanitizedName}`;
+    const bucketFile = bucket.file(filePath);
+
+    await bucketFile.save(file.buffer, {
+      metadata: {
+        contentType: file.mimetype,
+      },
+      resumable: false,
+    });
+
+    await bucketFile.makePublic();
+
+    return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+  }
+}
+
+type UploadedBinaryFile = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+};
