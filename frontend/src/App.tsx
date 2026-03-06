@@ -27,6 +27,7 @@ import { Layout } from './components/Layout';
 import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from './firebase';
 import { EmployeesPage } from './pages/EmployeesPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
+import { RisksPage } from './pages/RisksPage';
 
 function App() {
   const [email, setEmail] = useState('');
@@ -382,6 +383,18 @@ function App() {
     </>
   );
 
+
+  const RisksRoutePage = () => (
+    <>
+      <SharedHeader />
+      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+        <RisksPage token={idToken} />
+      ) : (
+        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+      )}
+    </>
+  );
+
   if (!currentUser) {
     return (
       <main style={{ fontFamily: 'sans-serif', maxWidth: 420, margin: '4rem auto', padding: '1.5rem', border: '1px solid #dbe3ee', borderRadius: 12 }}>
@@ -404,6 +417,7 @@ function App() {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/employees" element={<EmployeesRoutePage />} />
         <Route path="/evaluations" element={<EvaluationsRoutePage />} />
+        <Route path="/risks" element={<RisksRoutePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

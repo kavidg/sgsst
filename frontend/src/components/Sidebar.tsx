@@ -6,6 +6,7 @@ const links = [
   { to: '/users', label: 'Usuarios' },
   { to: '/employees', label: 'Empleados' },
   { to: '/evaluations', label: 'Evaluaciones' },
+  { to: '/risks', label: 'Matriz de riesgos' },
 ];
 
 export function Sidebar() {
