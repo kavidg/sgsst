@@ -72,6 +72,36 @@ export interface UpdateRiskPayload {
   consequence?: number;
   controlMeasures?: string;
 }
+
+export interface IncidentModel {
+  _id: string;
+  employeeId: string;
+  companyId: string;
+  type: string;
+  date: string;
+  description: string;
+  severity: string;
+  status: string;
+}
+
+export interface CreateIncidentPayload {
+  employeeId: string;
+  type: string;
+  date: string;
+  description: string;
+  severity: string;
+  status: string;
+}
+
+export interface UpdateIncidentPayload {
+  employeeId?: string;
+  type?: string;
+  date?: string;
+  description?: string;
+  severity?: string;
+  status?: string;
+}
+
 export interface DocumentUploadedByModel {
   _id: string;
   email: string;
@@ -322,6 +352,23 @@ export function updateRisk(token: string, id: string, payload: UpdateRiskPayload
 
 export function deleteRisk(token: string, id: string) {
   return apiFetch<void>(`/risks/${id}`, token, { method: 'DELETE' });
+}
+
+
+export function fetchIncidents(token: string) {
+  return apiFetch<IncidentModel[]>('/incidents', token, { method: 'GET' });
+}
+
+export function createIncident(token: string, payload: CreateIncidentPayload) {
+  return apiFetch<IncidentModel>('/incidents', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateIncident(token: string, id: string, payload: UpdateIncidentPayload) {
+  return apiFetch<IncidentModel>(`/incidents/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteIncident(token: string, id: string) {
+  return apiFetch<void>(`/incidents/${id}`, token, { method: 'DELETE' });
 }
 
 
