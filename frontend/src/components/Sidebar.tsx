@@ -7,6 +7,7 @@ const links = [
   { to: '/employees', label: 'Empleados' },
   { to: '/evaluations', label: 'Evaluaciones' },
   { to: '/risks', label: 'Matriz de riesgos' },
+  { to: '/documents', label: 'Documentos' },
 ];
 
 export function Sidebar() {

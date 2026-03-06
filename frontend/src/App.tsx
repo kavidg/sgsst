@@ -28,6 +28,7 @@ import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from '.
 import { EmployeesPage } from './pages/EmployeesPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
 import { RisksPage } from './pages/RisksPage';
+import { DocumentsPage } from './pages/DocumentsPage';
 
 function App() {
   const [email, setEmail] = useState('');
@@ -384,6 +385,18 @@ function App() {
   );
 
 
+
+  const DocumentsRoutePage = () => (
+    <>
+      <SharedHeader />
+      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+        <DocumentsPage token={idToken} />
+      ) : (
+        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+      )}
+    </>
+  );
+
   const RisksRoutePage = () => (
     <>
       <SharedHeader />
@@ -418,6 +431,7 @@ function App() {
         <Route path="/employees" element={<EmployeesRoutePage />} />
         <Route path="/evaluations" element={<EvaluationsRoutePage />} />
         <Route path="/risks" element={<RisksRoutePage />} />
+        <Route path="/documents" element={<DocumentsRoutePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

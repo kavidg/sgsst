@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { CreateRequest, DecodedIdToken, UserRecord, getAuth } from 'firebase-admin/auth';
 
 @Injectable()
@@ -12,6 +12,10 @@ export class FirebaseAdminService {
   async createUser(userData: CreateRequest): Promise<UserRecord> {
     const app = this.getOrInitializeApp();
     return getAuth(app).createUser(userData);
+  }
+
+  getApp(): App {
+    return this.getOrInitializeApp();
   }
 
   private getOrInitializeApp() {
