@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import {
   CompanyModel,
@@ -31,6 +31,62 @@ import { RisksPage } from './pages/RisksPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { IncidentsPage } from './pages/IncidentsPage';
 import { TrainingsPage } from './pages/TrainingsPage';
+
+
+type CompaniesPageProps = {
+  companies: CompanyModel[];
+  errorSetter: (message: string) => void;
+  handleCreateCompany: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  loading: boolean;
+  newCompanyName: string;
+  newCompanyNit: string;
+  onDeleteCompany: (companyId: string) => Promise<void>;
+  onUpdateCompany: (companyId: string, companyName: string) => Promise<void>;
+  profileRole?: UserModel['role'];
+  setNewCompanyName: (value: string) => void;
+  setNewCompanyNit: (value: string) => void;
+  sharedHeader: ReactNode;
+};
+
+function CompaniesPage({
+  companies,
+  errorSetter,
+  handleCreateCompany,
+  loading,
+  newCompanyName,
+  newCompanyNit,
+  onDeleteCompany,
+  onUpdateCompany,
+  profileRole,
+  setNewCompanyName,
+  setNewCompanyNit,
+  sharedHeader,
+}: CompaniesPageProps) {
+  return (
+    <>
+      {sharedHeader}
+      {profileRole === 'owner' ? (
+        <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
+          <h2>CRUD Empresas</h2>
+          <form onSubmit={handleCreateCompany} style={{ display: 'grid', gap: '0.5rem' }}>
+            <input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Nombre empresa" required />
+            <input value={newCompanyNit} onChange={(event) => setNewCompanyNit(event.target.value)} placeholder="NIT" required />
+            <button type="submit" disabled={loading}>Guardar Empresa</button>
+          </form>
+          {companies.map((company) => (
+            <div key={company._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
+              <p>{company.name} - {company.nit}</p>
+              <button onClick={() => onUpdateCompany(company._id, company.name).catch((e) => errorSetter(e.message))}>Editar nombre</button>
+              <button onClick={() => onDeleteCompany(company._id).catch((e) => errorSetter(e.message))}>Eliminar</button>
+            </div>
+          ))}
+        </section>
+      ) : (
+        <p>Este módulo está disponible solo para owner.</p>
+      )}
+    </>
+  );
+}
 
 function App() {
   const [email, setEmail] = useState('');
@@ -339,30 +395,7 @@ function App() {
     </>
   );
 
-  const CompaniesPage = () => (
-    <>
-      <SharedHeader />
-      {profile?.role === 'owner' ? (
-        <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
-          <h2>CRUD Empresas</h2>
-          <form onSubmit={handleCreateCompany} style={{ display: 'grid', gap: '0.5rem' }}>
-            <input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Nombre empresa" required />
-            <input value={newCompanyNit} onChange={(event) => setNewCompanyNit(event.target.value)} placeholder="NIT" required />
-            <button type="submit" disabled={loading}>Guardar Empresa</button>
-          </form>
-          {companies.map((company) => (
-            <div key={company._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
-              <p>{company.name} - {company.nit}</p>
-              <button onClick={() => updateCompany(idToken, company._id, { name: `${company.name} (editada)` }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Editar nombre</button>
-              <button onClick={() => deleteCompany(idToken, company._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
-            </div>
-          ))}
-        </section>
-      ) : (
-        <p>Este módulo está disponible solo para owner.</p>
-      )}
-    </>
-  );
+
 
   const EmployeesRoutePage = () => (
     <>
@@ -451,7 +484,25 @@ function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/companies" element={<CompaniesPage />} />
+        <Route
+          path="/companies"
+          element={
+            <CompaniesPage
+              companies={companies}
+              errorSetter={setError}
+              handleCreateCompany={handleCreateCompany}
+              loading={loading}
+              newCompanyName={newCompanyName}
+              newCompanyNit={newCompanyNit}
+              onDeleteCompany={(companyId) => deleteCompany(idToken, companyId).then(() => refreshOwnerData())}
+              onUpdateCompany={(companyId, companyName) => updateCompany(idToken, companyId, { name: `${companyName} (editada)` }).then(() => refreshOwnerData())}
+              profileRole={profile?.role}
+              setNewCompanyName={setNewCompanyName}
+              setNewCompanyNit={setNewCompanyNit}
+              sharedHeader={<SharedHeader />}
+            />
+          }
+        />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/employees" element={<EmployeesRoutePage />} />
         <Route path="/evaluations" element={<EvaluationsRoutePage />} />
