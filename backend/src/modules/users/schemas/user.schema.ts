@@ -14,8 +14,8 @@ export class User {
   @Prop({ required: true, type: Types.ObjectId, ref: 'Company' })
   companyId!: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['owner', 'admin', 'member'], default: 'member' })
-  role!: 'owner' | 'admin' | 'member';
+  @Prop({ required: true, enum: ['owner', 'admin', 'member', 'manager'], default: 'member' })
+  role!: 'owner' | 'admin' | 'member' | 'manager';
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
