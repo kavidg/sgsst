@@ -13,6 +13,8 @@ import {
 import { Types } from 'mongoose';
 import { RequestWithUser } from '../auth/auth.types';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { Roles } from '../questions/roles.decorator';
+import { RolesGuard } from '../questions/roles.guard';
 import { UsersService } from '../users/users.service';
 import { CreateTrainingAttendanceDto } from './dto/create-training-attendance.dto';
 import { CreateTrainingDto } from './dto/create-training.dto';
@@ -20,7 +22,7 @@ import { UpdateTrainingDto } from './dto/update-training.dto';
 import { TrainingsService } from './trainings.service';
 
 @Controller('trainings')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard)
 export class TrainingsController {
   constructor(
     private readonly trainingsService: TrainingsService,
@@ -28,24 +30,28 @@ export class TrainingsController {
   ) {}
 
   @Post()
+  @Roles('owner', 'admin')
   async create(@Req() request: RequestWithUser, @Body() createTrainingDto: CreateTrainingDto) {
     const companyId = await this.resolveCompanyId(request);
     return this.trainingsService.create(companyId, createTrainingDto);
   }
 
   @Get()
+  @Roles('owner', 'admin', 'manager')
   async findAll(@Req() request: RequestWithUser) {
     const companyId = await this.resolveCompanyId(request);
     return this.trainingsService.findAll(companyId);
   }
 
   @Get(':id')
+  @Roles('owner', 'admin', 'manager')
   async findOne(@Req() request: RequestWithUser, @Param('id') id: string) {
     const companyId = await this.resolveCompanyId(request);
     return this.trainingsService.findOne(id, companyId);
   }
 
   @Patch(':id')
+  @Roles('owner', 'admin')
   async update(
     @Req() request: RequestWithUser,
     @Param('id') id: string,
@@ -56,12 +62,14 @@ export class TrainingsController {
   }
 
   @Delete(':id')
+  @Roles('owner', 'admin')
   async remove(@Req() request: RequestWithUser, @Param('id') id: string) {
     const companyId = await this.resolveCompanyId(request);
     return this.trainingsService.remove(id, companyId);
   }
 
   @Post(':id/attendance')
+  @Roles('owner', 'admin')
   async createAttendance(
     @Req() request: RequestWithUser,
     @Param('id') id: string,
@@ -72,6 +80,7 @@ export class TrainingsController {
   }
 
   @Get(':id/attendance')
+  @Roles('owner', 'admin', 'manager')
   async findAttendance(@Req() request: RequestWithUser, @Param('id') id: string) {
     const companyId = await this.resolveCompanyId(request);
     return this.trainingsService.findAttendance(id, companyId);
