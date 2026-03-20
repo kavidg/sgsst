@@ -13,7 +13,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserDocument } from './schemas/user.schema';
 
-type ManagedRole = 'admin' | 'member';
+type ManagedRole = 'admin' | 'member' | 'manager';
 
 @Injectable()
 export class UsersService {
@@ -38,16 +38,16 @@ export class UsersService {
       throw new NotFoundException(`Requesting user with firebase uid ${requestingUserUid} not found`);
     }
 
-    if (requestingUser.role === 'member') {
-      throw new ForbiddenException('Members are not allowed to create users');
+    if (requestingUser.role === 'member' || requestingUser.role === 'manager') {
+      throw new ForbiddenException('Members and managers are not allowed to create users');
     }
 
     if (requestingUser.role === 'owner' && dto.role !== 'admin') {
       throw new ForbiddenException('Owners can only create admin users');
     }
 
-    if (requestingUser.role === 'admin' && dto.role !== 'member') {
-      throw new ForbiddenException('Admins can only create member users');
+    if (requestingUser.role === 'admin' && dto.role !== 'member' && dto.role !== 'manager') {
+      throw new ForbiddenException('Admins can only create member or manager users');
     }
 
     if (requestingUser.role === 'admin' && dto.companyId) {

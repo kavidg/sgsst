@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { UserRole } from '../api';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard' },
@@ -12,7 +13,19 @@ const links = [
   { to: '/trainings', label: 'Capacitaciones' },
 ];
 
-export function Sidebar() {
+const managerLinks = [
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/reports', label: 'Reports' },
+  { to: '/indicators', label: 'Indicators' },
+];
+
+type SidebarProps = {
+  role?: UserRole;
+};
+
+export function Sidebar({ role }: SidebarProps) {
+  const visibleLinks = role === 'manager' ? managerLinks : links;
+
   return (
     <aside
       style={{
@@ -29,7 +42,7 @@ export function Sidebar() {
     >
       <h2 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.1rem' }}>SG-SST</h2>
       <nav style={{ display: 'grid', gap: '0.5rem' }}>
-        {links.map((link) => (
+        {visibleLinks.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}

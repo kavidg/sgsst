@@ -12,43 +12,43 @@ export class EvaluationAnswersController {
   constructor(private readonly evaluationAnswersService: EvaluationAnswersService) {}
 
   @Post()
-  @Roles('owner', 'admin', 'user')
+  @Roles('owner', 'admin')
   create(@Body() createEvaluationAnswerDto: CreateEvaluationAnswerDto) {
     return this.evaluationAnswersService.create(createEvaluationAnswerDto);
   }
 
   @Get()
-  @Roles('owner')
+  @Roles('owner', 'admin', 'manager')
   findAll() {
     return this.evaluationAnswersService.findAll();
   }
 
   @Get('evaluation/:evaluationId/score')
-  @Roles('owner')
+  @Roles('owner', 'admin', 'manager')
   calculateEvaluationScore(@Param('evaluationId') evaluationId: string) {
     return this.evaluationAnswersService.calculateEvaluationScore(evaluationId);
   }
 
   @Get('evaluation/:evaluationId')
-  @Roles('owner')
+  @Roles('owner', 'admin', 'manager')
   findByEvaluation(@Param('evaluationId') evaluationId: string) {
     return this.evaluationAnswersService.findByEvaluation(evaluationId);
   }
 
   @Get(':id')
-  @Roles('owner')
+  @Roles('owner', 'admin', 'manager')
   findOne(@Param('id') id: string) {
     return this.evaluationAnswersService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles('owner')
+  @Roles('owner', 'admin')
   update(@Param('id') id: string, @Body() updateEvaluationAnswerDto: UpdateEvaluationAnswerDto) {
     return this.evaluationAnswersService.update(id, updateEvaluationAnswerDto);
   }
 
   @Delete(':id')
-  @Roles('owner')
+  @Roles('owner', 'admin')
   remove(@Param('id') id: string) {
     return this.evaluationAnswersService.remove(id);
   }
