@@ -1,7 +1,7 @@
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
 const ACTIVE_COMPANY_STORAGE_KEY = 'activeCompanyId';
 
-export type UserRole = 'owner' | 'admin' | 'member';
+export type UserRole = 'owner' | 'admin' | 'member' | 'manager';
 
 export interface UserModel {
   _id: string;

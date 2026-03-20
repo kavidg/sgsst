@@ -12,8 +12,8 @@ export class CreateUserDto {
   @IsString()
   displayName?: string;
 
-  @IsIn(['owner', 'admin', 'member'])
-  role!: 'owner' | 'admin' | 'member';
+  @IsIn(['owner', 'admin', 'member', 'manager'])
+  role!: 'owner' | 'admin' | 'member' | 'manager';
 
   @IsOptional()
   @IsMongoId()

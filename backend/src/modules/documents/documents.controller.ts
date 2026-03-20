@@ -19,12 +19,14 @@ import { Types } from 'mongoose';
 import { RequestWithUser } from '../auth/auth.types';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
+import { Roles } from '../questions/roles.decorator';
+import { RolesGuard } from '../questions/roles.guard';
 import { UsersService } from '../users/users.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { DocumentsService } from './documents.service';
 
 @Controller('documents')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard)
 export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
@@ -33,6 +35,7 @@ export class DocumentsController {
   ) {}
 
   @Post()
+  @Roles('owner', 'admin')
   @UseInterceptors(FileInterceptor('file'))
   async create(
     @Req() request: RequestWithUser,
@@ -50,18 +53,21 @@ export class DocumentsController {
   }
 
   @Get()
+  @Roles('owner', 'admin', 'manager')
   async findAll(@Req() request: RequestWithUser) {
     const user = await this.resolveUserFromRequest(request);
     return this.documentsService.findAll(user.companyId);
   }
 
   @Get(':id')
+  @Roles('owner', 'admin', 'manager')
   async findOne(@Req() request: RequestWithUser, @Param('id') id: string) {
     const user = await this.resolveUserFromRequest(request);
     return this.documentsService.findOne(id, user.companyId);
   }
 
   @Delete(':id')
+  @Roles('owner', 'admin')
   async remove(@Req() request: RequestWithUser, @Param('id') id: string) {
     const user = await this.resolveUserFromRequest(request);
     return this.documentsService.remove(id, user.companyId);
