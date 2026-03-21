@@ -7,7 +7,7 @@ import {
   clearActiveCompanyId,
   createAdmin,
   createCompany,
-  createMember,
+  createUser,
   deleteAdmin,
   deleteCompany,
   deleteMember,
@@ -89,6 +89,8 @@ function CompaniesPage({
 }
 
 function App() {
+  type CreatableRole = 'admin' | 'member' | 'manager';
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
@@ -109,6 +111,7 @@ function App() {
 
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState<CreatableRole | ''>('');
 
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
@@ -309,13 +312,19 @@ function App() {
     setError('');
 
     try {
-      await createMember(idToken, {
+      if (!newMemberRole) {
+        setError('Debes seleccionar un rol para crear el usuario.');
+        return;
+      }
+
+      await createUser(idToken, {
         email: newMemberEmail,
         password: newMemberPassword,
-        role: 'member',
+        role: newMemberRole,
       });
       setNewMemberEmail('');
       setNewMemberPassword('');
+      setNewMemberRole('');
       await refreshOwnerData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible crear el usuario.');
@@ -371,6 +380,23 @@ function App() {
           <form onSubmit={handleCreateMember} style={{ display: 'grid', gap: '0.5rem' }}>
             <input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email usuario" required />
             <input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Password usuario" required />
+            <label htmlFor="member-role">Rol del usuario</label>
+            <select
+              id="member-role"
+              value={newMemberRole}
+              onChange={(event) => setNewMemberRole(event.target.value as CreatableRole | '')}
+              required
+            >
+              <option value="">Selecciona rol</option>
+              <option value="admin">Admin (gestiona sistema)</option>
+              <option value="member">Member (operativo)</option>
+              <option value="manager">Manager (solo visualización)</option>
+            </select>
+            {newMemberRole === 'manager' ? (
+              <p style={{ margin: 0, color: '#4a5568' }}>
+                Este usuario solo podrá ver indicadores y reportes, no podrá editar información.
+              </p>
+            ) : null}
             <button type="submit" disabled={loading}>Guardar Usuario</button>
           </form>
           {members.map((member) => (
