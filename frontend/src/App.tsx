@@ -350,7 +350,7 @@ function App() {
     }
   };
 
-  const SharedHeader = () => (
+  const renderSharedHeader = () => (
     <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
       <p>Sesión iniciada con UID: <strong>{currentUser?.uid}</strong></p>
       <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p>
@@ -364,16 +364,16 @@ function App() {
     </section>
   );
 
-  const ManagerDashboardRoutePage = () => (
+  const renderManagerDashboardRoutePage = () => (
     <>
-      <SharedHeader />
+      {renderSharedHeader()}
       {activeCompanyId ? <DashboardPage token={idToken} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
     </>
   );
 
-  const UsersPage = () => (
+  const renderUsersPage = () => (
     <>
-      <SharedHeader />
+      {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
           <h2>CRUD Usuarios</h2>
@@ -441,9 +441,9 @@ function App() {
     </>
   );
 
-  const EmployeesRoutePage = () => (
+  const renderEmployeesRoutePage = () => (
     <>
-      <SharedHeader />
+      {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <EmployeesPage token={idToken} />
       ) : (
@@ -452,9 +452,9 @@ function App() {
     </>
   );
 
-  const EvaluationsRoutePage = () => (
+  const renderEvaluationsRoutePage = () => (
     <>
-      <SharedHeader />
+      {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <EvaluationsPage token={idToken} companyId={activeCompanyId || profile?.companyId || ''} />
       ) : (
@@ -463,9 +463,9 @@ function App() {
     </>
   );
 
-  const DocumentsRoutePage = () => (
+  const renderDocumentsRoutePage = () => (
     <>
-      <SharedHeader />
+      {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <DocumentsPage token={idToken} />
       ) : (
@@ -474,9 +474,9 @@ function App() {
     </>
   );
 
-  const IncidentsRoutePage = () => (
+  const renderIncidentsRoutePage = () => (
     <>
-      <SharedHeader />
+      {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <IncidentsPage token={idToken} />
       ) : (
@@ -485,9 +485,9 @@ function App() {
     </>
   );
 
-  const TrainingsRoutePage = () => (
+  const renderTrainingsRoutePage = () => (
     <>
-      <SharedHeader />
+      {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <TrainingsPage token={idToken} />
       ) : (
@@ -496,9 +496,9 @@ function App() {
     </>
   );
 
-  const RisksRoutePage = () => (
+  const renderRisksRoutePage = () => (
     <>
-      <SharedHeader />
+      {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <RisksPage token={idToken} />
       ) : (
@@ -524,7 +524,7 @@ function App() {
   return (
     <Routes>
       <Route element={<Layout role={profile?.role} />}>
-        <Route path="/dashboard" element={<ManagerDashboardRoutePage />} />
+        <Route path="/dashboard" element={renderManagerDashboardRoutePage()} />
         <Route
           path="/companies"
           element={
@@ -543,18 +543,18 @@ function App() {
                 profileRole={profile?.role}
                 setNewCompanyName={setNewCompanyName}
                 setNewCompanyNit={setNewCompanyNit}
-                sharedHeader={<SharedHeader />}
+                sharedHeader={renderSharedHeader()}
               />
             )
           }
         />
-        <Route path="/users" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <UsersPage />} />
-        <Route path="/employees" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <EmployeesRoutePage />} />
-        <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <EvaluationsRoutePage />} />
-        <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <RisksRoutePage />} />
-        <Route path="/documents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <DocumentsRoutePage />} />
-        <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <IncidentsRoutePage />} />
-        <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <TrainingsRoutePage />} />
+        <Route path="/users" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderUsersPage()} />
+        <Route path="/employees" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEmployeesRoutePage()} />
+        <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEvaluationsRoutePage()} />
+        <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderRisksRoutePage()} />
+        <Route path="/documents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage()} />
+        <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderIncidentsRoutePage()} />
+        <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
