@@ -13,12 +13,8 @@ import {
   deleteMember,
   fetchAdmins,
   fetchCompanies,
-  fetchComplianceByCompany,
-  fetchEmployees,
-  fetchIncidents,
   fetchMembers,
   fetchMyCompanies,
-  fetchTrainings,
   fetchUserByFirebaseUid,
   getActiveCompanyId,
   setActiveCompanyId,
@@ -29,13 +25,13 @@ import {
 import { CompanySelector } from './CompanySelector';
 import { Layout } from './components/Layout';
 import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from './firebase';
-import { EmployeesPage } from './pages/EmployeesPage';
-import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
-import { RisksPage } from './pages/RisksPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
+import { EmployeesPage } from './pages/EmployeesPage';
 import { IncidentsPage } from './pages/IncidentsPage';
+import { RisksPage } from './pages/RisksPage';
 import { TrainingsPage } from './pages/TrainingsPage';
-
+import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
 
 type CompaniesPageProps = {
   companies: CompanyModel[];
@@ -116,12 +112,6 @@ function App() {
 
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
-  const [dashboardStats, setDashboardStats] = useState({
-    totalEmployees: 0,
-    totalIncidents: 0,
-    compliancePercentage: 0,
-    totalTrainings: 0,
-  });
 
   const handleSelectCompany = async (companyId: string) => {
     setActiveCompanyId(companyId);
@@ -291,34 +281,6 @@ function App() {
       .catch(() => undefined);
   }, [idToken]);
 
-  useEffect(() => {
-    if (!idToken || !activeCompanyId) {
-      setDashboardStats({
-        totalEmployees: 0,
-        totalIncidents: 0,
-        compliancePercentage: 0,
-        totalTrainings: 0,
-      });
-      return;
-    }
-
-    Promise.all([
-      fetchEmployees(idToken),
-      fetchIncidents(idToken),
-      fetchComplianceByCompany(idToken, activeCompanyId).catch(() => ({ total: 0, complies: 0, percentage: 0 })),
-      fetchTrainings(idToken),
-    ])
-      .then(([employeesData, incidentsData, complianceData, trainingsData]) => {
-        setDashboardStats({
-          totalEmployees: employeesData.length,
-          totalIncidents: incidentsData.length,
-          compliancePercentage: complianceData.percentage ?? 0,
-          totalTrainings: trainingsData.length,
-        });
-      })
-      .catch(() => undefined);
-  }, [idToken, activeCompanyId]);
-
   const handleCreateAdmin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
@@ -393,59 +355,10 @@ function App() {
     </section>
   );
 
-  const DashboardPage = () => (
+  const ManagerDashboardRoutePage = () => (
     <>
       <SharedHeader />
-      <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
-        <h2 style={{ marginTop: 0 }}>Dashboard</h2>
-        <p>Vista general de indicadores clave del SG-SST.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginTop: '1rem' }}>
-          <article style={{ border: '1px solid #ddd', borderRadius: 10, padding: '0.75rem' }}>
-            <strong>Total empleados</strong>
-            <p style={{ fontSize: '1.3rem', margin: '0.5rem 0 0' }}>{dashboardStats.totalEmployees}</p>
-          </article>
-          <article style={{ border: '1px solid #ddd', borderRadius: 10, padding: '0.75rem' }}>
-            <strong>Total incidentes</strong>
-            <p style={{ fontSize: '1.3rem', margin: '0.5rem 0 0' }}>{dashboardStats.totalIncidents}</p>
-          </article>
-          <article style={{ border: '1px solid #ddd', borderRadius: 10, padding: '0.75rem' }}>
-            <strong>% cumplimiento</strong>
-            <p style={{ fontSize: '1.3rem', margin: '0.5rem 0 0' }}>{dashboardStats.compliancePercentage.toFixed(2)}%</p>
-          </article>
-          <article style={{ border: '1px solid #ddd', borderRadius: 10, padding: '0.75rem' }}>
-            <strong>Total capacitaciones</strong>
-            <p style={{ fontSize: '1.3rem', margin: '0.5rem 0 0' }}>{dashboardStats.totalTrainings}</p>
-          </article>
-        </div>
-      </section>
-    </>
-  );
-
-  const ReportsPage = () => (
-    <>
-      <SharedHeader />
-      <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
-        <h2 style={{ marginTop: 0 }}>Reports</h2>
-        <p>Resumen rápido para seguimiento ejecutivo.</p>
-        <ul>
-          <li>Incidentes registrados: {dashboardStats.totalIncidents}</li>
-          <li>Capacitaciones completadas: {dashboardStats.totalTrainings}</li>
-        </ul>
-      </section>
-    </>
-  );
-
-  const IndicatorsPage = () => (
-    <>
-      <SharedHeader />
-      <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
-        <h2 style={{ marginTop: 0 }}>Indicators</h2>
-        <p>KPIs principales de la organización:</p>
-        <ul>
-          <li>Empleados activos: {dashboardStats.totalEmployees}</li>
-          <li>Cumplimiento SG-SST: {dashboardStats.compliancePercentage.toFixed(2)}%</li>
-        </ul>
-      </section>
+      {activeCompanyId ? <DashboardPage token={idToken} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
     </>
   );
 
@@ -502,8 +415,6 @@ function App() {
     </>
   );
 
-
-
   const EmployeesRoutePage = () => (
     <>
       <SharedHeader />
@@ -526,8 +437,6 @@ function App() {
     </>
   );
 
-
-
   const DocumentsRoutePage = () => (
     <>
       <SharedHeader />
@@ -549,7 +458,6 @@ function App() {
       )}
     </>
   );
-
 
   const TrainingsRoutePage = () => (
     <>
@@ -590,35 +498,37 @@ function App() {
   return (
     <Routes>
       <Route element={<Layout role={profile?.role} />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/reports" element={profile?.role === 'manager' ? <ReportsPage /> : <Navigate to="/dashboard" replace />} />
-        <Route path="/indicators" element={profile?.role === 'manager' ? <IndicatorsPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<ManagerDashboardRoutePage />} />
         <Route
           path="/companies"
           element={
-            <CompaniesPage
-              companies={companies}
-              errorSetter={setError}
-              handleCreateCompany={handleCreateCompany}
-              loading={loading}
-              newCompanyName={newCompanyName}
-              newCompanyNit={newCompanyNit}
-              onDeleteCompany={(companyId) => deleteCompany(idToken, companyId).then(() => refreshOwnerData())}
-              onUpdateCompany={(companyId, companyName) => updateCompany(idToken, companyId, { name: `${companyName} (editada)` }).then(() => refreshOwnerData())}
-              profileRole={profile?.role}
-              setNewCompanyName={setNewCompanyName}
-              setNewCompanyNit={setNewCompanyNit}
-              sharedHeader={<SharedHeader />}
-            />
+            profile?.role === 'manager' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <CompaniesPage
+                companies={companies}
+                errorSetter={setError}
+                handleCreateCompany={handleCreateCompany}
+                loading={loading}
+                newCompanyName={newCompanyName}
+                newCompanyNit={newCompanyNit}
+                onDeleteCompany={(companyId) => deleteCompany(idToken, companyId).then(() => refreshOwnerData())}
+                onUpdateCompany={(companyId, companyName) => updateCompany(idToken, companyId, { name: `${companyName} (editada)` }).then(() => refreshOwnerData())}
+                profileRole={profile?.role}
+                setNewCompanyName={setNewCompanyName}
+                setNewCompanyNit={setNewCompanyNit}
+                sharedHeader={<SharedHeader />}
+              />
+            )
           }
         />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/employees" element={<EmployeesRoutePage />} />
-        <Route path="/evaluations" element={<EvaluationsRoutePage />} />
-        <Route path="/risks" element={<RisksRoutePage />} />
-        <Route path="/documents" element={<DocumentsRoutePage />} />
-        <Route path="/incidents" element={<IncidentsRoutePage />} />
-        <Route path="/trainings" element={<TrainingsRoutePage />} />
+        <Route path="/users" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <UsersPage />} />
+        <Route path="/employees" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <EmployeesRoutePage />} />
+        <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <EvaluationsRoutePage />} />
+        <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <RisksRoutePage />} />
+        <Route path="/documents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <DocumentsRoutePage />} />
+        <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <IncidentsRoutePage />} />
+        <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <TrainingsRoutePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

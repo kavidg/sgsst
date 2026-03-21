@@ -13,11 +13,7 @@ const links = [
   { to: '/trainings', label: 'Capacitaciones' },
 ];
 
-const managerLinks = [
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/reports', label: 'Reports' },
-  { to: '/indicators', label: 'Indicators' },
-];
+const managerLinks = [{ to: '/dashboard', label: 'Dashboard' }];
 
 type SidebarProps = {
   role?: UserRole;
