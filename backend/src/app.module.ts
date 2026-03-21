@@ -12,6 +12,7 @@ import { IncidentsModule } from './modules/incidents/incidents.module';
 import { TrainingsModule } from './modules/trainings/trainings.module';
 import { QuestionsModule } from './modules/questions/questions.module';
 import { EvaluationAnswersModule } from './modules/evaluation-answers/evaluation-answers.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { EvaluationAnswersModule } from './modules/evaluation-answers/evaluation
     TrainingsModule,
     QuestionsModule,
     EvaluationAnswersModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}
