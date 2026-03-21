@@ -312,6 +312,10 @@ export function createAdmin(token: string, payload: CreateUserPayload) {
   return apiFetch<UserModel>('/users/admins', token, { method: 'POST', body: JSON.stringify(payload) });
 }
 
+export function createUser(token: string, payload: CreateUserPayload) {
+  return apiFetch<UserModel>('/users', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
 export function updateAdmin(token: string, id: string, payload: UpdateUserPayload) {
   return apiFetch<UserModel>(`/users/admins/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
 }
