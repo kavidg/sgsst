@@ -40,6 +40,15 @@ export interface ComplianceResponse {
 }
 
 
+export interface DashboardResponse {
+  employees: number;
+  incidents: number;
+  trainings: number;
+  compliance: number;
+  highRisks: number;
+}
+
+
 export interface RiskModel {
   _id: string;
   companyId: string;
@@ -465,4 +474,9 @@ export function createTrainingAttendance(token: string, trainingId: string, payl
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+
+export function fetchDashboard(token: string) {
+  return apiFetch<DashboardResponse>('/dashboard', token, { method: 'GET' });
 }
