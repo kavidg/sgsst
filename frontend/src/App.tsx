@@ -24,6 +24,10 @@ import {
 } from './api';
 import { CompanySelector } from './CompanySelector';
 import { Layout } from './components/Layout';
+import { Button } from './components/ui/Button';
+import { Card } from './components/ui/Card';
+import { Input } from './components/ui/Input';
+import { Select } from './components/ui/Select';
 import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from './firebase';
 import { DashboardPage } from './pages/DashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
@@ -66,21 +70,21 @@ function CompaniesPage({
     <>
       {sharedHeader}
       {profileRole === 'owner' ? (
-        <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
+        <Card>
           <h2>CRUD Empresas</h2>
-          <form onSubmit={handleCreateCompany} style={{ display: 'grid', gap: '0.5rem' }}>
-            <input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Nombre empresa" required />
-            <input value={newCompanyNit} onChange={(event) => setNewCompanyNit(event.target.value)} placeholder="NIT" required />
-            <button type="submit" disabled={loading}>Guardar Empresa</button>
+          <form onSubmit={handleCreateCompany} className="form-grid">
+            <Input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Nombre empresa" required />
+            <Input value={newCompanyNit} onChange={(event) => setNewCompanyNit(event.target.value)} placeholder="NIT" required />
+            <Button type="submit" disabled={loading}>Guardar Empresa</Button>
           </form>
           {companies.map((company) => (
-            <div key={company._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
+            <div key={company._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
               <p>{company.name} - {company.nit}</p>
-              <button onClick={() => onUpdateCompany(company._id, company.name).catch((e) => errorSetter(e.message))}>Editar nombre</button>
-              <button onClick={() => onDeleteCompany(company._id).catch((e) => errorSetter(e.message))}>Eliminar</button>
+              <Button type="button" variant="secondary" onClick={() => onUpdateCompany(company._id, company.name).catch((e) => errorSetter(e.message))}>Editar nombre</Button>
+              <Button type="button" variant="danger" onClick={() => onDeleteCompany(company._id).catch((e) => errorSetter(e.message))}>Eliminar</Button>
             </div>
           ))}
-        </section>
+        </Card>
       ) : (
         <p>Este módulo está disponible solo para owner.</p>
       )}
@@ -351,17 +355,17 @@ function App() {
   };
 
   const renderSharedHeader = () => (
-    <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
+    <Card className="grid" style={{ marginBottom: '1rem' }}>
       <p>Sesión iniciada con UID: <strong>{currentUser?.uid}</strong></p>
       <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p>
       <CompanySelector companies={myCompanies} activeCompanyId={activeCompanyId} onSelectCompany={handleSelectCompany} />
-      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-        <button onClick={() => refreshOwnerData()} disabled={loading}>Recargar</button>
-        <button onClick={handleLogout}>Cerrar sesión</button>
+      <div className="actions" style={{ marginTop: '.75rem' }}>
+        <Button type="button" variant="secondary" onClick={() => refreshOwnerData()} disabled={loading}>Recargar</Button>
+        <Button type="button" variant="danger" onClick={handleLogout}>Cerrar sesión</Button>
       </div>
-      {!activeCompanyId ? <p style={{ color: 'darkorange' }}>Selecciona una empresa para continuar</p> : null}
-      {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
-    </section>
+      {!activeCompanyId ? <p className="muted">Selecciona una empresa para continuar</p> : null}
+      {error ? <pre className="error">{error}</pre> : null}
+    </Card>
   );
 
   const renderManagerDashboardRoutePage = () => (
@@ -375,13 +379,13 @@ function App() {
     <>
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-        <section style={{ background: '#fff', border: '1px solid #dbe3ee', borderRadius: 12, padding: '1rem' }}>
+        <Card>
           <h2>CRUD Usuarios</h2>
-          <form onSubmit={handleCreateMember} style={{ display: 'grid', gap: '0.5rem' }}>
-            <input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email usuario" required />
-            <input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Password usuario" required />
+          <form onSubmit={handleCreateMember} className="form-grid">
+            <Input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email usuario" required />
+            <Input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Password usuario" required />
             <label htmlFor="member-role">Rol del usuario</label>
-            <select
+            <Select
               id="member-role"
               value={newMemberRole}
               onChange={(event) => setNewMemberRole(event.target.value as CreatableRole | '')}
@@ -391,50 +395,50 @@ function App() {
               <option value="admin">Admin (gestiona sistema)</option>
               <option value="member">Member (operativo)</option>
               <option value="manager">Manager (solo visualización)</option>
-            </select>
+            </Select>
             {newMemberRole === 'manager' ? (
               <p style={{ margin: 0, color: '#4a5568' }}>
                 Este usuario solo podrá ver indicadores y reportes, no podrá editar información.
               </p>
             ) : null}
-            <button type="submit" disabled={loading}>Guardar Usuario</button>
+            <Button type="submit" disabled={loading}>Guardar Usuario</Button>
           </form>
           {members.map((member) => (
-            <div key={member._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
+            <div key={member._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
               <p>{member.email}</p>
               {profile?.role === 'owner' ? (
-                <select defaultValue={member.companyId} onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
+                <Select defaultValue={member.companyId} onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
                   {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
-                </select>
+                </Select>
               ) : null}
-              <button onClick={() => deleteMember(idToken, member._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
+              <Button type="button" variant="danger" onClick={() => deleteMember(idToken, member._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</Button>
             </div>
           ))}
 
           {profile?.role === 'owner' ? (
             <>
               <h3>CRUD Admins</h3>
-              <form onSubmit={handleCreateAdmin} style={{ display: 'grid', gap: '0.5rem' }}>
-                <input value={newAdminEmail} onChange={(event) => setNewAdminEmail(event.target.value)} placeholder="Email admin" required />
-                <input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Password admin" required />
-                <select value={newAdminCompanyId} onChange={(event) => setNewAdminCompanyId(event.target.value)} required>
+              <form onSubmit={handleCreateAdmin} className="form-grid">
+                <Input value={newAdminEmail} onChange={(event) => setNewAdminEmail(event.target.value)} placeholder="Email admin" required />
+                <Input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Password admin" required />
+                <Select value={newAdminCompanyId} onChange={(event) => setNewAdminCompanyId(event.target.value)} required>
                   <option value="">Selecciona empresa</option>
                   {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
-                </select>
-                <button type="submit" disabled={loading}>Guardar Admin</button>
+                </Select>
+                <Button type="submit" disabled={loading}>Guardar Admin</Button>
               </form>
               {admins.map((admin) => (
-                <div key={admin._id} style={{ border: '1px solid #ddd', padding: '0.5rem', marginTop: '0.5rem' }}>
+                <div key={admin._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
                   <p>{admin.email}</p>
-                  <select defaultValue={admin.companyId} onChange={(event) => updateAdmin(idToken, admin._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
+                  <Select defaultValue={admin.companyId} onChange={(event) => updateAdmin(idToken, admin._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
                     {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
-                  </select>
-                  <button onClick={() => deleteAdmin(idToken, admin._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</button>
+                  </Select>
+                  <Button type="button" variant="danger" onClick={() => deleteAdmin(idToken, admin._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</Button>
                 </div>
               ))}
             </>
           ) : null}
-        </section>
+        </Card>
       ) : (
         <p>Este módulo está disponible para owner o admin con empresa activa.</p>
       )}
@@ -509,15 +513,15 @@ function App() {
 
   if (!currentUser) {
     return (
-      <main style={{ fontFamily: 'sans-serif', maxWidth: 420, margin: '4rem auto', padding: '1.5rem', border: '1px solid #dbe3ee', borderRadius: 12 }}>
+      <main className="auth-wrap"><div className="card">
         <h1 style={{ marginTop: 0 }}>SG-SST Frontend Auth</h1>
-        <form onSubmit={handleLogin} style={{ display: 'grid', gap: '0.5rem' }}>
-          <input type="email" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          <input type="password" placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-          <button type="submit" disabled={loading}>{loading ? 'Ingresando...' : 'Login'}</button>
+        <form onSubmit={handleLogin} className="form-grid">
+          <Input type="email" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+          <Input type="password" placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <Button type="submit" disabled={loading}>{loading ? 'Ingresando...' : 'Login'}</Button>
         </form>
-        {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
-      </main>
+        {error ? <pre className="error">{error}</pre> : null}
+      </div></main>
     );
   }
 

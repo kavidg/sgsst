@@ -1,61 +1,57 @@
 import { NavLink } from 'react-router-dom';
 import { UserRole } from '../api';
+import { Icons } from './Icons';
 
-const links = [
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/companies', label: 'Empresas' },
-  { to: '/users', label: 'Usuarios' },
-  { to: '/employees', label: 'Empleados' },
-  { to: '/evaluations', label: 'Evaluaciones' },
-  { to: '/risks', label: 'Matriz de riesgos' },
-  { to: '/documents', label: 'Documentos' },
-  { to: '/incidents', label: 'Incidentes' },
-  { to: '/trainings', label: 'Capacitaciones' },
+type SidebarLink = {
+  to: string;
+  label: string;
+  icon: () => JSX.Element;
+};
+
+const links: SidebarLink[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: Icons.dashboard },
+  { to: '/companies', label: 'Companies', icon: Icons.companies },
+  { to: '/users', label: 'Users', icon: Icons.users },
+  { to: '/employees', label: 'Employees', icon: Icons.users },
+  { to: '/evaluations', label: 'Evaluations', icon: Icons.chart },
+  { to: '/incidents', label: 'Incidents', icon: Icons.alert },
+  { to: '/risks', label: 'Risks', icon: Icons.shield },
+  { to: '/documents', label: 'Documents', icon: Icons.file },
+  { to: '/trainings', label: 'Trainings', icon: Icons.chart },
 ];
 
-const managerLinks = [{ to: '/dashboard', label: 'Dashboard' }];
+const managerLinks = [{ to: '/dashboard', label: 'Dashboard', icon: Icons.dashboard }];
 
 type SidebarProps = {
   role?: UserRole;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
 };
 
-export function Sidebar({ role }: SidebarProps) {
+export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
   const visibleLinks = role === 'manager' ? managerLinks : links;
 
   return (
-    <aside
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        width: 240,
-        background: '#0f172a',
-        color: '#f8fafc',
-        padding: '1.5rem 1rem',
-        borderRight: '1px solid #1e293b',
-      }}
-    >
-      <h2 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.1rem' }}>SG-SST</h2>
-      <nav style={{ display: 'grid', gap: '0.5rem' }}>
-        {visibleLinks.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            style={({ isActive }) => ({
-              textDecoration: 'none',
-              color: '#f8fafc',
-              background: isActive ? '#334155' : 'transparent',
-              border: isActive ? '1px solid #475569' : '1px solid transparent',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              fontSize: '0.95rem',
-            })}
-          >
-            {link.label}
-          </NavLink>
-        ))}
-      </nav>
-    </aside>
+    <>
+      {mobileOpen ? <button className="sidebar-backdrop" onClick={onCloseMobile} aria-label="Close menu" /> : null}
+      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`.trim()}>
+        <div className="sidebar-header">
+          <h2 style={{ margin: 0, fontSize: '1rem' }}>SG-SST</h2>
+        </div>
+        <nav>
+          {visibleLinks.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              onClick={onCloseMobile}
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`.trim()}
+            >
+              <link.icon />
+              <span>{link.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+    </>
   );
 }

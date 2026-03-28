@@ -10,6 +10,11 @@ import {
   fetchIncidents,
   updateIncident,
 } from '../api';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Table } from '../components/ui/Table';
 
 interface IncidentsPageProps {
   token: string;
@@ -124,107 +129,43 @@ export function IncidentsPage({ token }: IncidentsPageProps) {
   };
 
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
-      <h2>Módulo de incidentes y accidentes</h2>
+    <section className="grid">
+      <Card title="Módulo de incidentes y accidentes">
+        <form onSubmit={handleSubmit} className="form-grid">
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Empleado</span>
+              <Select value={form.employeeId} onChange={(event) => setForm((prev) => ({ ...prev, employeeId: event.target.value }))} required>
+                {!employees.length ? <option value="">No hay empleados disponibles</option> : null}
+                {employees.map((employee) => <option key={employee._id} value={employee._id}>{employee.name}</option>)}
+              </Select>
+            </label>
+            <label className="field"><span className="label">Tipo</span><Input value={form.type} onChange={(event) => setForm((prev) => ({ ...prev, type: event.target.value }))} placeholder="incidente/accidente" required /></label>
+            <label className="field"><span className="label">Fecha</span><Input type="date" value={form.date} onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Severidad</span><Input value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Estado</span><Input value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} required /></label>
+          </div>
+          <label className="field"><span className="label">Descripción</span><textarea className="textarea" value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} required rows={3} /></label>
+          <div className="actions">
+            <Button type="submit" disabled={loading || !employees.length}>{editingIncidentId ? 'Editar incidente' : 'Crear incidente'}</Button>
+            {editingIncidentId ? <Button type="button" variant="secondary" onClick={resetForm}>Cancelar edición</Button> : null}
+          </div>
+        </form>
+      </Card>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.5rem' }}>
-        <select
-          value={form.employeeId}
-          onChange={(event) => setForm((prev) => ({ ...prev, employeeId: event.target.value }))}
-          required
-        >
-          {!employees.length ? <option value="">No hay empleados disponibles</option> : null}
-          {employees.map((employee) => (
-            <option key={employee._id} value={employee._id}>
-              {employee.name}
-            </option>
-          ))}
-        </select>
-
-        <input
-          value={form.type}
-          onChange={(event) => setForm((prev) => ({ ...prev, type: event.target.value }))}
-          placeholder="Tipo (incidente/accidente)"
-          required
-        />
-        <input
-          type="date"
-          value={form.date}
-          onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))}
-          required
-        />
-        <textarea
-          value={form.description}
-          onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-          placeholder="Descripción"
-          required
-          rows={3}
-        />
-        <input
-          value={form.severity}
-          onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))}
-          placeholder="Severidad"
-          required
-        />
-        <input
-          value={form.status}
-          onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
-          placeholder="Estado"
-          required
-        />
-
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button type="submit" disabled={loading || !employees.length}>
-            {editingIncidentId ? 'Editar incidente' : 'Crear incidente'}
-          </button>
-          {editingIncidentId ? (
-            <button type="button" onClick={resetForm}>
-              Cancelar edición
-            </button>
-          ) : null}
-        </div>
-      </form>
-
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th align="left">Empleado</th>
-            <th align="left">Tipo</th>
-            <th align="left">Fecha</th>
-            <th align="left">Severidad</th>
-            <th align="left">Estado</th>
-            <th align="left">Acciones</th>
-          </tr>
-        </thead>
+      <Table>
+        <thead><tr><th>Empleado</th><th>Tipo</th><th>Fecha</th><th>Severidad</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody>
           {incidents.map((incident) => (
             <tr key={incident._id}>
-              <td>{employeeNames.get(incident.employeeId) ?? incident.employeeId}</td>
-              <td>{incident.type}</td>
-              <td>{new Date(incident.date).toLocaleDateString('es-CO')}</td>
-              <td>{incident.severity}</td>
-              <td>{incident.status}</td>
-              <td>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => handleEdit(incident)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => handleDelete(incident._id)}>
-                    Eliminar
-                  </button>
-                </div>
-              </td>
+              <td>{employeeNames.get(incident.employeeId) ?? incident.employeeId}</td><td>{incident.type}</td><td>{new Date(incident.date).toLocaleDateString('es-CO')}</td><td>{incident.severity}</td><td>{incident.status}</td>
+              <td><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(incident)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(incident._id)}>Eliminar</Button></div></td>
             </tr>
           ))}
-          {!incidents.length ? (
-            <tr>
-              <td colSpan={6}>No hay incidentes registrados.</td>
-            </tr>
-          ) : null}
+          {!incidents.length ? <tr><td colSpan={6}>No hay incidentes registrados.</td></tr> : null}
         </tbody>
-      </table>
+      </Table>
 
-      {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
+      {error ? <pre className="error">{error}</pre> : null}
     </section>
   );
 }
