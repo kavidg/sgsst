@@ -13,6 +13,11 @@ import {
   fetchTrainings,
   updateTraining,
 } from '../api';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Table } from '../components/ui/Table';
 
 interface TrainingsPageProps {
   token: string;
@@ -162,135 +167,71 @@ export function TrainingsPage({ token }: TrainingsPageProps) {
   const selectedAttendance = selectedTrainingId ? attendanceByTraining[selectedTrainingId] ?? [] : [];
 
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
-      <h2>Módulo de capacitaciones</h2>
+    <section className="grid">
+      <Card title="Módulo de capacitaciones">
+        <form onSubmit={handleSubmitTraining} className="form-grid">
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Tema</span><Input value={form.topic} onChange={(event) => setForm((prev) => ({ ...prev, topic: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Fecha</span><Input type="date" value={form.date} onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Instructor</span><Input value={form.instructor} onChange={(event) => setForm((prev) => ({ ...prev, instructor: event.target.value }))} required /></label>
+          </div>
+          <label className="field"><span className="label">Descripción</span><textarea className="textarea" value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} rows={3} required /></label>
+          <div className="actions">
+            <Button type="submit" disabled={loading}>{editingTrainingId ? 'Editar capacitación' : 'Crear capacitación'}</Button>
+            {editingTrainingId ? <Button type="button" variant="secondary" onClick={resetTrainingForm}>Cancelar edición</Button> : null}
+          </div>
+        </form>
+      </Card>
 
-      <form onSubmit={handleSubmitTraining} style={{ display: 'grid', gap: '0.5rem' }}>
-        <input
-          value={form.topic}
-          onChange={(event) => setForm((prev) => ({ ...prev, topic: event.target.value }))}
-          placeholder="Tema"
-          required
-        />
-        <input
-          type="date"
-          value={form.date}
-          onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))}
-          required
-        />
-        <input
-          value={form.instructor}
-          onChange={(event) => setForm((prev) => ({ ...prev, instructor: event.target.value }))}
-          placeholder="Instructor"
-          required
-        />
-        <textarea
-          value={form.description}
-          onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-          placeholder="Descripción"
-          rows={3}
-          required
-        />
-
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button type="submit" disabled={loading}>
-            {editingTrainingId ? 'Editar capacitación' : 'Crear capacitación'}
-          </button>
-          {editingTrainingId ? (
-            <button type="button" onClick={resetTrainingForm}>
-              Cancelar edición
-            </button>
-          ) : null}
-        </div>
-      </form>
-
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th align="left">Tema</th>
-            <th align="left">Fecha</th>
-            <th align="left">Instructor</th>
-            <th align="left">Cantidad de asistentes</th>
-            <th align="left">Acciones</th>
-          </tr>
-        </thead>
+      <Table>
+        <thead><tr><th>Tema</th><th>Fecha</th><th>Instructor</th><th>Asistentes</th><th>Acciones</th></tr></thead>
         <tbody>
           {trainings.map((training) => (
             <tr key={training._id}>
-              <td>{training.topic}</td>
-              <td>{new Date(training.date).toLocaleDateString()}</td>
-              <td>{training.instructor}</td>
-              <td>{attendanceCount[training._id] ?? 0}</td>
-              <td>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => handleEditTraining(training)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => handleDeleteTraining(training._id)}>
-                    Eliminar
-                  </button>
-                  <button type="button" onClick={() => openAttendance(training._id)}>
-                    Ver asistentes
-                  </button>
-                </div>
-              </td>
+              <td>{training.topic}</td><td>{new Date(training.date).toLocaleDateString()}</td><td>{training.instructor}</td><td>{attendanceCount[training._id] ?? 0}</td>
+              <td><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEditTraining(training)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDeleteTraining(training._id)}>Eliminar</Button><Button type="button" variant="ghost" onClick={() => openAttendance(training._id)}>Ver asistentes</Button></div></td>
             </tr>
           ))}
-          {!trainings.length ? (
-            <tr>
-              <td colSpan={5}>No hay capacitaciones registradas.</td>
-            </tr>
-          ) : null}
+          {!trainings.length ? <tr><td colSpan={5}>No hay capacitaciones registradas.</td></tr> : null}
         </tbody>
-      </table>
+      </Table>
 
       {selectedTrainingId ? (
-        <section style={{ border: '1px solid #dbe3ee', borderRadius: 8, padding: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Asistencia de la capacitación</h3>
-
-          <form onSubmit={handleSaveAttendance} style={{ display: 'grid', gap: '0.5rem' }}>
-            <select
-              multiple
-              value={selectedEmployees}
-              onChange={(event) => {
-                const values = Array.from(event.target.selectedOptions, (option) => option.value);
-                setSelectedEmployees(values);
-              }}
-              style={{ minHeight: 180 }}
-            >
-              {employees.map((employee) => (
-                <option key={employee._id} value={employee._id}>
-                  {employee.name} - {employee.document}
-                </option>
-              ))}
-            </select>
-
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="submit" disabled={loading}>
-                Guardar asistentes
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedTrainingId(null);
-                  setSelectedEmployees([]);
+        <Card title="Asistencia de la capacitación">
+          <form onSubmit={handleSaveAttendance} className="form-grid">
+            <label className="field">
+              <span className="label">Empleados asistentes</span>
+              <Select
+                multiple
+                value={selectedEmployees}
+                onChange={(event) => {
+                  const values = Array.from(event.target.selectedOptions, (option) => option.value);
+                  setSelectedEmployees(values);
                 }}
+                className="select"
+                style={{ minHeight: 190 }}
               >
-                Cerrar
-              </button>
-            </div>
+                {employees.map((employee) => (
+                  <option key={employee._id} value={employee._id}>{employee.name}</option>
+                ))}
+              </Select>
+            </label>
+            <div className="actions"><Button type="submit" disabled={loading}>Guardar asistentes</Button><Button type="button" variant="secondary" onClick={() => setSelectedTrainingId(null)}>Cerrar</Button></div>
           </form>
 
-          <ul style={{ marginBottom: 0 }}>
-            {selectedAttendance.map((attendance) => (
-              <li key={attendance._id}>{attendance.employeeId.name}</li>
-            ))}
-            {!selectedAttendance.length ? <li>Sin asistentes registrados.</li> : null}
-          </ul>
-        </section>
+          <Table>
+            <thead><tr><th>Empleado</th><th>Fecha de registro</th></tr></thead>
+            <tbody>
+              {selectedAttendance.map((entry) => (
+                <tr key={entry._id}><td>{entry.employeeId.name}</td><td>-</td></tr>
+              ))}
+              {!selectedAttendance.length ? <tr><td colSpan={2}>No hay asistentes registrados para esta capacitación.</td></tr> : null}
+            </tbody>
+          </Table>
+        </Card>
       ) : null}
 
-      {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
+      {error ? <pre className="error">{error}</pre> : null}
     </section>
   );
 }

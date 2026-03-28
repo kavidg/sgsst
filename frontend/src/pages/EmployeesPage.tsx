@@ -6,6 +6,10 @@ import {
   fetchEmployees,
   updateEmployee,
 } from '../api';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Table } from '../components/ui/Table';
 
 interface EmployeesPageProps {
   token: string;
@@ -108,69 +112,42 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
   };
 
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
-      <h2>Módulo de empleados</h2>
+    <section className="grid">
+      <Card title="Módulo de empleados">
+        <form onSubmit={handleSubmit} className="form-grid">
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Nombre</span><Input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Documento</span><Input value={form.document} onChange={(event) => setForm((prev) => ({ ...prev, document: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Cargo</span><Input value={form.position} onChange={(event) => setForm((prev) => ({ ...prev, position: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Área</span><Input value={form.area} onChange={(event) => setForm((prev) => ({ ...prev, area: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Tipo de contrato</span><Input value={form.contractType} onChange={(event) => setForm((prev) => ({ ...prev, contractType: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Estado</span><Input value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} required /></label>
+          </div>
+          <div className="actions">
+            <Button type="submit" disabled={loading}>{editingEmployeeId ? 'Editar empleado' : 'Crear empleado'}</Button>
+            {editingEmployeeId ? <Button type="button" variant="secondary" onClick={resetForm}>Cancelar edición</Button> : null}
+          </div>
+        </form>
+      </Card>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.5rem' }}>
-        <input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Nombre" required />
-        <input value={form.document} onChange={(event) => setForm((prev) => ({ ...prev, document: event.target.value }))} placeholder="Documento" required />
-        <input value={form.position} onChange={(event) => setForm((prev) => ({ ...prev, position: event.target.value }))} placeholder="Cargo" required />
-        <input value={form.area} onChange={(event) => setForm((prev) => ({ ...prev, area: event.target.value }))} placeholder="Área" required />
-        <input value={form.contractType} onChange={(event) => setForm((prev) => ({ ...prev, contractType: event.target.value }))} placeholder="Tipo de contrato" required />
-        <input value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} placeholder="Estado" required />
-
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button type="submit" disabled={loading}>
-            {editingEmployeeId ? 'Editar empleado' : 'Crear empleado'}
-          </button>
-          {editingEmployeeId ? (
-            <button type="button" onClick={resetForm}>
-              Cancelar edición
-            </button>
-          ) : null}
-        </div>
-      </form>
-
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <Table>
         <thead>
           <tr>
-            <th align="left">Nombre</th>
-            <th align="left">Documento</th>
-            <th align="left">Cargo</th>
-            <th align="left">Área</th>
-            <th align="left">Estado</th>
-            <th align="left">Acciones</th>
+            <th>Nombre</th><th>Documento</th><th>Cargo</th><th>Área</th><th>Estado</th><th>Acciones</th>
           </tr>
         </thead>
         <tbody>
           {employees.map((employee) => (
             <tr key={employee._id}>
-              <td>{employee.name}</td>
-              <td>{employee.document}</td>
-              <td>{employee.position}</td>
-              <td>{employee.area}</td>
-              <td>{employee.status}</td>
-              <td>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => handleEdit(employee)}>
-                    Editar empleado
-                  </button>
-                  <button type="button" onClick={() => handleDelete(employee._id)}>
-                    Eliminar empleado
-                  </button>
-                </div>
-              </td>
+              <td>{employee.name}</td><td>{employee.document}</td><td>{employee.position}</td><td>{employee.area}</td><td>{employee.status}</td>
+              <td><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(employee)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(employee._id)}>Eliminar</Button></div></td>
             </tr>
           ))}
-          {!employees.length ? (
-            <tr>
-              <td colSpan={6}>No hay empleados registrados.</td>
-            </tr>
-          ) : null}
+          {!employees.length ? <tr><td colSpan={6}>No hay empleados registrados.</td></tr> : null}
         </tbody>
-      </table>
+      </Table>
 
-      {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
+      {error ? <pre className="error">{error}</pre> : null}
     </section>
   );
 }
