@@ -5,6 +5,10 @@ import {
   deleteDocument,
   fetchDocuments,
 } from '../api';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Table } from '../components/ui/Table';
 
 interface DocumentsPageProps {
   token: string;
@@ -73,54 +77,37 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
   };
 
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
-      <h2>Gestión documental</h2>
+    <section className="grid">
+      <Card title="Gestión documental">
+        <form onSubmit={handleSubmit} className="form-grid">
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Nombre del documento</span><Input value={name} onChange={(event) => setName(event.target.value)} required /></label>
+            <label className="field"><span className="label">Tipo</span><Input value={type} onChange={(event) => setType(event.target.value)} /></label>
+          </div>
+          <label className="field"><span className="label">Archivo</span><Input type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required /></label>
+          <div className="actions"><Button type="submit" disabled={loading}>Subir documento</Button></div>
+        </form>
+      </Card>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.5rem' }}>
-        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nombre del documento" required />
-        <input value={type} onChange={(event) => setType(event.target.value)} placeholder="Tipo" />
-        <input
-          type="file"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          required
-        />
-        <button type="submit" disabled={loading}>Subir documento</button>
-      </form>
-
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th align="left">Nombre</th>
-            <th align="left">Tipo</th>
-            <th align="left">Subido por</th>
-            <th align="left">Fecha</th>
-            <th align="left">Acciones</th>
-          </tr>
-        </thead>
+      <Table>
+        <thead><tr><th>Nombre</th><th>Tipo</th><th>Subido por</th><th>Fecha</th><th>Acciones</th></tr></thead>
         <tbody>
           {documents.map((document) => (
             <tr key={document._id}>
-              <td>{document.name}</td>
-              <td>{document.type}</td>
-              <td>{document.uploadedBy.email}</td>
-              <td>{new Date(document.createdAt).toLocaleString()}</td>
+              <td>{document.name}</td><td>{document.type}</td><td>{document.uploadedBy.email}</td><td>{new Date(document.createdAt).toLocaleString()}</td>
               <td>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <a href={document.fileUrl} target="_blank" rel="noreferrer">Descargar</a>
-                  <button type="button" onClick={() => handleDelete(document._id)}>Eliminar</button>
+                <div className="actions">
+                  <a className="btn btn-secondary" href={document.fileUrl} target="_blank" rel="noreferrer">Descargar</a>
+                  <Button type="button" variant="danger" onClick={() => handleDelete(document._id)}>Eliminar</Button>
                 </div>
               </td>
             </tr>
           ))}
-          {!documents.length ? (
-            <tr>
-              <td colSpan={5}>No hay documentos cargados.</td>
-            </tr>
-          ) : null}
+          {!documents.length ? <tr><td colSpan={5}>No hay documentos cargados.</td></tr> : null}
         </tbody>
-      </table>
+      </Table>
 
-      {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
+      {error ? <pre className="error">{error}</pre> : null}
     </section>
   );
 }

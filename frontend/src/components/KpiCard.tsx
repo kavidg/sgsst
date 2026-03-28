@@ -1,35 +1,20 @@
+import { ReactNode } from 'react';
+
 type KpiCardProps = {
   title: string;
   value: string | number;
+  icon?: ReactNode;
   emphasizeValue?: boolean;
 };
 
-export function KpiCard({ title, value, emphasizeValue = false }: KpiCardProps) {
+export function KpiCard({ title, value, icon, emphasizeValue = false }: KpiCardProps) {
   return (
-    <article
-      style={{
-        background: '#fff',
-        border: '1px solid #dbe3ee',
-        borderRadius: 12,
-        padding: '1rem',
-        minHeight: 120,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-      }}
-    >
-      <h3 style={{ margin: 0, fontSize: '1rem', color: '#334155' }}>{title}</h3>
-      <p
-        style={{
-          margin: '0.75rem 0 0',
-          fontSize: emphasizeValue ? '2.2rem' : '1.8rem',
-          fontWeight: 700,
-          color: '#0f172a',
-          lineHeight: 1.1,
-        }}
-      >
-        {value}
-      </p>
+    <article className="card kpi-card">
+      <div className="actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 className="kpi-title">{title}</h3>
+        {icon}
+      </div>
+      <p className="kpi-value" style={{ fontSize: emphasizeValue ? '2.3rem' : '2rem' }}>{value}</p>
     </article>
   );
 }

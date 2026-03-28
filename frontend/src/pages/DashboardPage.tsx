@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DashboardResponse, fetchDashboard } from '../api';
+import { Icons } from '../components/Icons';
 import { KpiCard } from '../components/KpiCard';
 
 type DashboardPageProps = {
@@ -35,16 +36,18 @@ export function DashboardPage({ token }: DashboardPageProps) {
   }, [token]);
 
   return (
-    <section>
-      <h2 style={{ marginTop: 0 }}>Dashboard Ejecutivo</h2>
-      <p style={{ color: '#475569' }}>Indicadores clave del SG-SST para tu empresa.</p>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
-        <KpiCard title="Cumplimiento SG-SST (%)" value={`${dashboard.compliance}%`} emphasizeValue />
-        <KpiCard title="Empleados" value={dashboard.employees} />
-        <KpiCard title="Incidentes" value={dashboard.incidents} />
-        <KpiCard title="Capacitaciones" value={dashboard.trainings} />
-        <KpiCard title="Riesgos altos" value={dashboard.highRisks} />
+    <section className="grid">
+      <div>
+        <h2 style={{ margin: '0 0 .2rem' }}>Dashboard Ejecutivo</h2>
+        <p className="muted">Indicadores clave del SG-SST para tu empresa.</p>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+      <div className="kpi-grid">
+        <KpiCard title="Cumplimiento SG-SST (%)" value={`${dashboard.compliance}%`} icon={<Icons.chart />} emphasizeValue />
+        <KpiCard title="Empleados" value={dashboard.employees} icon={<Icons.users />} />
+        <KpiCard title="Incidentes" value={dashboard.incidents} icon={<Icons.alert />} />
+        <KpiCard title="Capacitaciones" value={dashboard.trainings} icon={<Icons.dashboard />} />
+        <KpiCard title="Riesgos altos" value={dashboard.highRisks} icon={<Icons.shield />} />
       </div>
     </section>
   );
