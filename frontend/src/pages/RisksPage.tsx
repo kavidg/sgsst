@@ -8,6 +8,10 @@ import {
   fetchRisks,
   updateRisk,
 } from '../api';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Table } from '../components/ui/Table';
 
 interface RisksPageProps {
   token: string;
@@ -108,93 +112,40 @@ export function RisksPage({ token }: RisksPageProps) {
   };
 
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
-      <h2>Matriz de riesgos</h2>
+    <section className="grid">
+      <Card title="Matriz de riesgos">
+        <form onSubmit={handleSubmit} className="form-grid">
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Proceso</span><Input value={form.process} onChange={(event) => setForm((prev) => ({ ...prev, process: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Actividad</span><Input value={form.activity} onChange={(event) => setForm((prev) => ({ ...prev, activity: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Peligro</span><Input value={form.hazard} onChange={(event) => setForm((prev) => ({ ...prev, hazard: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Riesgo</span><Input value={form.risk} onChange={(event) => setForm((prev) => ({ ...prev, risk: event.target.value }))} required /></label>
+            <label className="field"><span className="label">Probabilidad</span><Input type="number" min={0} value={form.probability} onChange={(event) => setForm((prev) => ({ ...prev, probability: Number(event.target.value) || 0 }))} required /></label>
+            <label className="field"><span className="label">Consecuencia</span><Input type="number" min={0} value={form.consequence} onChange={(event) => setForm((prev) => ({ ...prev, consequence: Number(event.target.value) || 0 }))} required /></label>
+          </div>
+          <label className="field"><span className="label">Medidas de control</span><Input value={form.controlMeasures} onChange={(event) => setForm((prev) => ({ ...prev, controlMeasures: event.target.value }))} required /></label>
+          <div className="card" style={{ padding: '.6rem .8rem' }}>Nivel de riesgo (automático): <strong>{riskLevel}</strong></div>
+          <div className="actions">
+            <Button type="submit" disabled={loading}>{editingRiskId ? 'Editar riesgo' : 'Crear riesgo'}</Button>
+            {editingRiskId ? <Button type="button" variant="secondary" onClick={resetForm}>Cancelar edición</Button> : null}
+          </div>
+        </form>
+      </Card>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.5rem' }}>
-        <input value={form.process} onChange={(event) => setForm((prev) => ({ ...prev, process: event.target.value }))} placeholder="Proceso" required />
-        <input value={form.activity} onChange={(event) => setForm((prev) => ({ ...prev, activity: event.target.value }))} placeholder="Actividad" required />
-        <input value={form.hazard} onChange={(event) => setForm((prev) => ({ ...prev, hazard: event.target.value }))} placeholder="Peligro" required />
-        <input value={form.risk} onChange={(event) => setForm((prev) => ({ ...prev, risk: event.target.value }))} placeholder="Riesgo" required />
-
-        <input
-          type="number"
-          min={0}
-          value={form.probability}
-          onChange={(event) => setForm((prev) => ({ ...prev, probability: Number(event.target.value) || 0 }))}
-          placeholder="Probabilidad"
-          required
-        />
-        <input
-          type="number"
-          min={0}
-          value={form.consequence}
-          onChange={(event) => setForm((prev) => ({ ...prev, consequence: Number(event.target.value) || 0 }))}
-          placeholder="Consecuencia"
-          required
-        />
-
-        <input
-          value={form.controlMeasures}
-          onChange={(event) => setForm((prev) => ({ ...prev, controlMeasures: event.target.value }))}
-          placeholder="Medidas de control"
-          required
-        />
-
-        <div style={{ fontWeight: 600 }}>Nivel de riesgo (automático): {riskLevel}</div>
-
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button type="submit" disabled={loading}>
-            {editingRiskId ? 'Editar riesgo' : 'Crear riesgo'}
-          </button>
-          {editingRiskId ? (
-            <button type="button" onClick={resetForm}>
-              Cancelar edición
-            </button>
-          ) : null}
-        </div>
-      </form>
-
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th align="left">Proceso</th>
-            <th align="left">Actividad</th>
-            <th align="left">Peligro</th>
-            <th align="left">Riesgo</th>
-            <th align="left">Nivel</th>
-            <th align="left">Acciones</th>
-          </tr>
-        </thead>
+      <Table>
+        <thead><tr><th>Proceso</th><th>Actividad</th><th>Peligro</th><th>Riesgo</th><th>Nivel</th><th>Acciones</th></tr></thead>
         <tbody>
           {risks.map((riskItem) => (
             <tr key={riskItem._id}>
-              <td>{riskItem.process}</td>
-              <td>{riskItem.activity}</td>
-              <td>{riskItem.hazard}</td>
-              <td>{riskItem.risk}</td>
-              <td>{riskItem.riskLevel}</td>
-              <td>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => handleEdit(riskItem)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => handleDelete(riskItem._id)}>
-                    Eliminar
-                  </button>
-                </div>
-              </td>
+              <td>{riskItem.process}</td><td>{riskItem.activity}</td><td>{riskItem.hazard}</td><td>{riskItem.risk}</td><td>{riskItem.riskLevel}</td>
+              <td><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(riskItem)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(riskItem._id)}>Eliminar</Button></div></td>
             </tr>
           ))}
-          {!risks.length ? (
-            <tr>
-              <td colSpan={6}>No hay riesgos registrados.</td>
-            </tr>
-          ) : null}
+          {!risks.length ? <tr><td colSpan={6}>No hay riesgos registrados.</td></tr> : null}
         </tbody>
-      </table>
+      </Table>
 
-      {error ? <pre style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</pre> : null}
+      {error ? <pre className="error">{error}</pre> : null}
     </section>
   );
 }

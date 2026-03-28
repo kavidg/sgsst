@@ -1,4 +1,5 @@
 import { EvaluationModel } from '../../api';
+import { Table } from '../../components/ui/Table';
 
 interface EvaluationTableProps {
   evaluations: EvaluationModel[];
@@ -8,20 +9,20 @@ interface EvaluationTableProps {
 
 export function EvaluationTable({ evaluations, onToggleComplies, onChangeObservation }: EvaluationTableProps) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <Table>
       <thead>
         <tr>
-          <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>Estándar</th>
-          <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>Descripción</th>
-          <th style={{ textAlign: 'center', borderBottom: '1px solid #ddd' }}>Cumple</th>
-          <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>Observación</th>
+          <th>Estándar</th>
+          <th>Descripción</th>
+          <th style={{ textAlign: 'center' }}>Cumple</th>
+          <th>Observación</th>
         </tr>
       </thead>
       <tbody>
         {evaluations.map((evaluation) => (
           <tr key={evaluation._id}>
-            <td style={{ padding: '0.5rem 0' }}>{evaluation.standard}</td>
-            <td style={{ padding: '0.5rem 0' }}>{evaluation.description}</td>
+            <td>{evaluation.standard}</td>
+            <td>{evaluation.description}</td>
             <td style={{ textAlign: 'center' }}>
               <input
                 type="checkbox"
@@ -31,7 +32,7 @@ export function EvaluationTable({ evaluations, onToggleComplies, onChangeObserva
             </td>
             <td>
               <input
-                style={{ width: '100%' }}
+                className="input"
                 defaultValue={evaluation.observation ?? ''}
                 onBlur={(event) => onChangeObservation(evaluation, event.target.value)}
               />
@@ -39,6 +40,6 @@ export function EvaluationTable({ evaluations, onToggleComplies, onChangeObserva
           </tr>
         ))}
       </tbody>
-    </table>
+    </Table>
   );
 }

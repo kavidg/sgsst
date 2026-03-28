@@ -7,6 +7,7 @@ import {
   fetchEvaluationsByCompany,
   updateEvaluation,
 } from '../../api';
+import { Card } from '../../components/ui/Card';
 import { EvaluationForm } from './EvaluationForm';
 import { EvaluationTable } from './EvaluationTable';
 
@@ -89,16 +90,15 @@ export function EvaluationsPage({ token, companyId }: EvaluationsPageProps) {
   };
 
   return (
-    <section style={{ border: '1px solid #eee', borderRadius: 8, padding: '1rem', marginTop: '1rem' }}>
-      <h2 style={{ marginTop: 0 }}>Evaluación SG-SST</h2>
-      <p><strong>Cumplimiento SG-SST: {compliance.percentage}%</strong></p>
-      {loading ? <p>Cargando evaluaciones...</p> : null}
+    <Card title="Evaluación SG-SST">
+      <p style={{ marginTop: 0 }}><strong>Cumplimiento SG-SST: {compliance.percentage}%</strong></p>
+      {loading ? <p className="muted">Cargando evaluaciones...</p> : null}
       <EvaluationForm onAdd={handleAddStandard} />
       <EvaluationTable
         evaluations={evaluations}
         onToggleComplies={handleToggleComplies}
         onChangeObservation={handleObservationChange}
       />
-    </section>
+    </Card>
   );
 }

@@ -1,4 +1,5 @@
 import { MyCompanyModel } from './api';
+import { Select } from './components/ui/Select';
 
 interface CompanySelectorProps {
   companies: MyCompanyModel[];
@@ -8,16 +9,16 @@ interface CompanySelectorProps {
 
 export function CompanySelector({ companies, activeCompanyId, onSelectCompany }: CompanySelectorProps) {
   return (
-    <label style={{ display: 'grid', gap: '0.25rem', maxWidth: 320 }}>
-      Empresa activa
-      <select value={activeCompanyId} onChange={(event) => onSelectCompany(event.target.value)}>
+    <label className="field" style={{ maxWidth: 360 }}>
+      <span className="label">Empresa activa</span>
+      <Select value={activeCompanyId} onChange={(event) => onSelectCompany(event.target.value)}>
         <option value="">Selecciona una empresa</option>
         {companies.map((company) => (
           <option key={company.id} value={company.id}>
             {company.name}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 }
