@@ -9,18 +9,18 @@ type SidebarLink = {
 };
 
 const links: SidebarLink[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: Icons.dashboard },
-  { to: '/companies', label: 'Companies', icon: Icons.companies },
-  { to: '/users', label: 'Users', icon: Icons.users },
-  { to: '/employees', label: 'Employees', icon: Icons.users },
-  { to: '/evaluations', label: 'Evaluations', icon: Icons.chart },
-  { to: '/incidents', label: 'Incidents', icon: Icons.alert },
-  { to: '/risks', label: 'Risks', icon: Icons.shield },
-  { to: '/documents', label: 'Documents', icon: Icons.file },
-  { to: '/trainings', label: 'Trainings', icon: Icons.chart },
+  { to: '/dashboard', label: 'Panel', icon: Icons.dashboard },
+  { to: '/companies', label: 'Empresas', icon: Icons.companies },
+  { to: '/users', label: 'Usuarios', icon: Icons.users },
+  { to: '/employees', label: 'Empleados', icon: Icons.users },
+  { to: '/evaluations', label: 'Evaluaciones', icon: Icons.chart },
+  { to: '/incidents', label: 'Incidentes', icon: Icons.alert },
+  { to: '/risks', label: 'Riesgos', icon: Icons.shield },
+  { to: '/documents', label: 'Documentos', icon: Icons.file },
+  { to: '/trainings', label: 'Capacitaciones', icon: Icons.chart },
 ];
 
-const managerLinks = [{ to: '/dashboard', label: 'Dashboard', icon: Icons.dashboard }];
+const managerLinks = [{ to: '/dashboard', label: 'Panel', icon: Icons.dashboard }];
 
 type SidebarProps = {
   role?: UserRole;
