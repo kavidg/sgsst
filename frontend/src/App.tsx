@@ -30,12 +30,15 @@ import { Input } from './components/ui/Input';
 import { Select } from './components/ui/Select';
 import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from './firebase';
 import { DashboardPage } from './pages/DashboardPage';
-import { DocumentsPage } from './pages/DocumentsPage';
 import { EmployeesPage } from './pages/EmployeesPage';
 import { IncidentsPage } from './pages/IncidentsPage';
 import { RisksPage } from './pages/RisksPage';
 import { TrainingsPage } from './pages/TrainingsPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
+import { PlanPage } from './pages/documents/PlanPage';
+import { DoPage } from './pages/documents/DoPage';
+import { CheckPage } from './pages/documents/CheckPage';
+import { ActPage } from './pages/documents/ActPage';
 
 type CompaniesPageProps = {
   companies: CompanyModel[];
@@ -467,11 +470,11 @@ function App() {
     </>
   );
 
-  const renderDocumentsRoutePage = () => (
+  const renderDocumentsRoutePage = (page: ReactNode) => (
     <>
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-        <DocumentsPage token={idToken} />
+        page
       ) : (
         <p>Este módulo está disponible para owner o admin con empresa activa.</p>
       )}
@@ -556,7 +559,11 @@ function App() {
         <Route path="/employees" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEmployeesRoutePage()} />
         <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEvaluationsRoutePage()} />
         <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderRisksRoutePage()} />
-        <Route path="/documents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage()} />
+        <Route path="/documents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <Navigate to="/documents/plan" replace />} />
+        <Route path="/documents/plan" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<PlanPage />)} />
+        <Route path="/documents/do" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<DoPage />)} />
+        <Route path="/documents/check" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<CheckPage />)} />
+        <Route path="/documents/act" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<ActPage />)} />
         <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderIncidentsRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
       </Route>
