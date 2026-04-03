@@ -1,7 +1,7 @@
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { Card } from '../../components/ui/Card';
 
-const evaluationItems = [
+const financialResourcesItems = [
   {
     code: '1.1.1',
     title: 'Responsable del SG-SST',
@@ -76,17 +76,64 @@ const evaluationItems = [
   },
 ];
 
-export function PlanPage() {
+const trainingItems = [
+  {
+    code: '1.2.1',
+    title: 'Programa Capacitación PyP',
+    weight: 2,
+    modeReview:
+      'Solicitar el programa anual de capacitación en promoción y prevención (PyP) y verificar su aprobación, cronograma, responsables y cobertura por procesos.\nComprobar evidencias de ejecución (listas de asistencia, evaluaciones, materiales y actas) y seguimiento a indicadores de cumplimiento.',
+    criteria:
+      'La organización cuenta con un programa de capacitación PyP estructurado, actualizado y ejecutado, orientado al control de riesgos prioritarios y al fortalecimiento de la cultura de prevención.',
+  },
+  {
+    code: '1.2.2',
+    title: 'Inducción y Reinducción SG-SST',
+    weight: 2,
+    modeReview:
+      'Revisar el procedimiento de inducción y reinducción en SG-SST para trabajadores directos, contratistas y personal temporal.\nValidar registros de asistencia, evaluación de aprendizaje y periodicidad de reinducciones según cambios de proceso, cargo o normatividad.',
+    criteria:
+      'Se evidencia que todo el personal recibe inducción inicial y reinducción periódica en SG-SST con contenidos mínimos obligatorios, evaluación de comprensión y trazabilidad documental.',
+  },
+  {
+    code: '1.2.3',
+    title: 'Curso 50 horas SG-SST',
+    weight: 2,
+    modeReview:
+      'Verificar certificados vigentes del curso de 50 horas en SG-SST del responsable del sistema y de los perfiles que la organización haya definido como críticos para su implementación.\nCorroborar la autenticidad de los soportes y la actualización cuando aplique.',
+    criteria:
+      'La empresa demuestra que los roles obligados cuentan con certificación del curso virtual de 50 horas en SG-SST, conforme a los requisitos normativos y a las responsabilidades asignadas.',
+  },
+];
+
+type EvaluationEntry = {
+  code: string;
+  title: string;
+  weight: number;
+  modeReview: string;
+  criteria: string;
+};
+
+function EvaluationSection({ title, items }: { title: string; items: EvaluationEntry[] }) {
   return (
-    <Card title="Recursos financieros, técnicos, humanos... (4%)">
+    <Card title={title}>
       <div className="evaluation-list">
-        {evaluationItems.map((item, index) => (
+        {items.map((item, index) => (
           <div key={item.code} className="evaluation-list__row">
             <EvaluationItem {...item} />
-            {index < evaluationItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}
+            {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
           </div>
         ))}
       </div>
     </Card>
+  );
+}
+
+export function PlanPage() {
+  return (
+    <div className="grid">
+      <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} />
+      <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} />
+    </div>
   );
 }
