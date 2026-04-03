@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { UserRole } from '../api';
 import { Icons } from './Icons';
 
@@ -6,6 +7,11 @@ type SidebarLink = {
   to: string;
   label: string;
   icon: () => JSX.Element;
+};
+
+type DocumentsSubmenuLink = {
+  to: string;
+  label: string;
 };
 
 const links: SidebarLink[] = [
@@ -16,8 +22,14 @@ const links: SidebarLink[] = [
   { to: '/evaluations', label: 'Evaluaciones', icon: Icons.chart },
   { to: '/incidents', label: 'Incidentes', icon: Icons.alert },
   { to: '/risks', label: 'Riesgos', icon: Icons.shield },
-  { to: '/documents', label: 'Documentos', icon: Icons.file },
   { to: '/trainings', label: 'Capacitaciones', icon: Icons.chart },
+];
+
+const documentsSubmenu: DocumentsSubmenuLink[] = [
+  { to: '/documents/plan', label: 'I. Planear (25%)' },
+  { to: '/documents/do', label: 'II. Hacer (60%)' },
+  { to: '/documents/check', label: 'III. Verificar (5%)' },
+  { to: '/documents/act', label: 'IV. Actuar (10%)' },
 ];
 
 const managerLinks = [{ to: '/dashboard', label: 'Panel', icon: Icons.dashboard }];
@@ -30,6 +42,14 @@ type SidebarProps = {
 
 export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
   const visibleLinks = role === 'manager' ? managerLinks : links;
+  const location = useLocation();
+  const [openDocuments, setOpenDocuments] = useState(false);
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/documents')) {
+      setOpenDocuments(true);
+    }
+  }, [location.pathname]);
 
   return (
     <>
@@ -50,6 +70,33 @@ export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
               <span>{link.label}</span>
             </NavLink>
           ))}
+
+          {role === 'manager' ? null : (
+            <div className="documents-menu-group">
+              <button
+                type="button"
+                onClick={() => setOpenDocuments((open) => !open)}
+                className={`nav-link documents-parent ${location.pathname.startsWith('/documents') ? 'active' : ''}`.trim()}
+              >
+                <Icons.file />
+                <span>Documentos</span>
+                <span className={`documents-chevron ${openDocuments ? 'open' : ''}`.trim()}><Icons.chevronDown /></span>
+              </button>
+
+              <div className={`documents-submenu ${openDocuments ? 'open' : ''}`.trim()}>
+                {documentsSubmenu.map((submenuLink) => (
+                  <NavLink
+                    key={submenuLink.to}
+                    to={submenuLink.to}
+                    onClick={onCloseMobile}
+                    className={({ isActive }) => `documents-submenu-link ${isActive ? 'active' : ''}`.trim()}
+                  >
+                    {submenuLink.label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
         </nav>
       </aside>
     </>
