@@ -127,6 +127,51 @@ a { color: inherit; }
   font-size:.8rem;
   font-weight:700;
 }
+
+
+.review-panel {
+  border:1px solid #e2e8f0;
+  border-radius:.9rem;
+  background:#f8fafc;
+  overflow:hidden;
+}
+.review-panel__toggle {
+  width:100%;
+  border:none;
+  background:transparent;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:.75rem .9rem;
+  cursor:pointer;
+  transition:all .2s ease;
+}
+.review-panel__toggle:hover {
+  background:#eff6ff;
+}
+.review-panel__chevron {
+  display:inline-flex;
+  color:#475569;
+  transition:transform .25s ease;
+}
+.review-panel__chevron.open {
+  transform:rotate(180deg);
+}
+.review-panel__content {
+  max-height:0;
+  opacity:0;
+  transition:all .3s ease;
+}
+.review-panel__content.open {
+  max-height:520px;
+  opacity:1;
+}
+.review-panel__body {
+  border-top:1px solid #e2e8f0;
+  padding:.85rem;
+  display:grid;
+  gap:.75rem;
+}
 .evaluation-item__text {
   margin:0;
   border:1px solid #e5e7eb;
