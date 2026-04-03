@@ -1,4 +1,5 @@
 import { DragEvent, useId, useState } from 'react';
+import { Icons } from './Icons';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Modal } from './ui/Modal';
@@ -8,7 +9,7 @@ type EvaluationItemProps = {
   code: string;
   title: string;
   weight: number;
-  verificationMode: string;
+  modeReview: string;
   criteria: string;
 };
 
@@ -30,12 +31,13 @@ const initialPlan: ImprovementPlan = {
   notes: '',
 };
 
-export function EvaluationItem({ code, title, weight, verificationMode, criteria }: EvaluationItemProps) {
+export function EvaluationItem({ code, title, weight, modeReview, criteria }: EvaluationItemProps) {
   const fileInputId = useId();
   const [status, setStatus] = useState<ComplianceOption>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [openReview, setOpenReview] = useState(false);
   const [plan, setPlan] = useState<ImprovementPlan>(initialPlan);
 
   const onDropFile = (event: DragEvent<HTMLLabelElement>) => {
@@ -64,16 +66,32 @@ export function EvaluationItem({ code, title, weight, verificationMode, criteria
         <span className="evaluation-item__weight">Peso: {weight}%</span>
       </div>
 
-      <div className="grid grid-2">
-        <div className="field">
-          <span className="label">Modo de verificación</span>
-          <p className="evaluation-item__text">{verificationMode}</p>
+      <section className="review-panel">
+        <button
+          type="button"
+          className="review-panel__toggle"
+          onClick={() => setOpenReview((current) => !current)}
+          aria-expanded={openReview}
+        >
+          <span className="label">Modo de revisión</span>
+          <span className={`review-panel__chevron ${openReview ? 'open' : ''}`.trim()}>
+            <Icons.chevronDown />
+          </span>
+        </button>
+
+        <div className={`review-panel__content ${openReview ? 'open' : ''}`.trim()}>
+          <div className="review-panel__body">
+            <div className="field">
+              <span className="label">Instrucciones de verificación</span>
+              <p className="evaluation-item__text whitespace-pre-line">{modeReview}</p>
+            </div>
+            <div className="field">
+              <span className="label">Criterio</span>
+              <p className="evaluation-item__text whitespace-pre-line">{criteria}</p>
+            </div>
+          </div>
         </div>
-        <div className="field">
-          <span className="label">Criterio</span>
-          <p className="evaluation-item__text">{criteria}</p>
-        </div>
-      </div>
+      </section>
 
       <div className="grid grid-2">
         <label className="field">
