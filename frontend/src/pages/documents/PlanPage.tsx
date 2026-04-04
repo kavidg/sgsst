@@ -1,4 +1,6 @@
+import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
+import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 
 const financialResourcesItems = [
@@ -106,6 +108,108 @@ const trainingItems = [
   },
 ];
 
+const integralManagementItems = [
+  {
+    code: '2.1.1',
+    title: 'Política SST',
+    weight: 1,
+    modeReview:
+      'Solicitar la política de SST firmada por la alta dirección y verificar su divulgación, actualización y coherencia con los peligros y riesgos priorizados.',
+    criteria:
+      'La organización cuenta con política de SST vigente, aprobada, comunicada a todos los niveles y alineada con los objetivos del SG-SST.',
+  },
+  {
+    code: '2.2.1',
+    title: 'Objetivos SST',
+    weight: 1,
+    modeReview:
+      'Revisar los objetivos de SST y validar que sean medibles, con metas, responsables, recursos e indicadores de seguimiento.',
+    criteria:
+      'Existen objetivos de SST documentados, medibles y monitoreados periódicamente para asegurar su cumplimiento.',
+  },
+  {
+    code: '2.3.1',
+    title: 'Evaluación inicial',
+    weight: 1,
+    modeReview:
+      'Verificar el diagnóstico inicial del SG-SST, su metodología, alcance y plan de intervención derivado de los hallazgos.',
+    criteria:
+      'La empresa evidencia evaluación inicial del SG-SST con resultados documentados y plan de cierre de brechas.',
+  },
+  {
+    code: '2.4.1',
+    title: 'Plan anual de trabajo',
+    weight: 2,
+    modeReview:
+      'Solicitar el plan anual de trabajo y validar actividades, cronograma, responsables, presupuesto e indicadores de ejecución.',
+    criteria:
+      'La organización cuenta con plan anual de trabajo del SG-SST aprobado, ejecutado y con seguimiento documentado.',
+  },
+  {
+    code: '2.5.1',
+    title: 'Conservación documental',
+    weight: 2,
+    modeReview:
+      'Revisar el procedimiento de gestión documental del SG-SST, tiempos de retención, trazabilidad y controles de acceso.',
+    criteria:
+      'Se garantiza la conservación y disponibilidad de los documentos y registros del SG-SST conforme a la normatividad.',
+  },
+  {
+    code: '2.6.1',
+    title: 'Rendición de cuentas',
+    weight: 1,
+    modeReview:
+      'Validar evidencias de rendición de cuentas sobre resultados del SG-SST a trabajadores y partes interesadas internas.',
+    criteria:
+      'La empresa realiza rendición de cuentas periódica del SG-SST con soportes de comunicación y compromisos de mejora.',
+  },
+  {
+    code: '2.7.1',
+    title: 'Matriz legal',
+    weight: 2,
+    modeReview:
+      'Verificar matriz legal actualizada con requisitos aplicables, estado de cumplimiento y plan de acción frente a brechas.',
+    criteria:
+      'Existe matriz legal vigente del SG-SST, con actualización periódica y evaluación del cumplimiento normativo.',
+  },
+  {
+    code: '2.8.1',
+    title: 'Comunicación',
+    weight: 1,
+    modeReview:
+      'Revisar mecanismos de comunicación interna y externa del SG-SST, incluyendo medios, frecuencia y registros de difusión.',
+    criteria:
+      'La organización implementa estrategias de comunicación del SG-SST y conserva evidencias de socialización efectiva.',
+  },
+  {
+    code: '2.9.1',
+    title: 'Adquisiciones',
+    weight: 1,
+    modeReview:
+      'Validar criterios de SST incluidos en compras de bienes y servicios, así como su aplicación en procesos de selección.',
+    criteria:
+      'Los procesos de adquisición integran criterios de SST y cuentan con registros de evaluación de proveedores.',
+  },
+  {
+    code: '2.10.1',
+    title: 'Contratación',
+    weight: 2,
+    modeReview:
+      'Revisar requisitos de SST establecidos para contratistas y subcontratistas, incluyendo inducción, control y seguimiento.',
+    criteria:
+      'La contratación de terceros incorpora lineamientos de SST y evidencia control del cumplimiento durante la ejecución.',
+  },
+  {
+    code: '2.11.1',
+    title: 'Gestión del cambio',
+    weight: 1,
+    modeReview:
+      'Solicitar procedimiento de gestión del cambio y verificar evaluación de impactos en SST ante cambios de procesos o estructura.',
+    criteria:
+      'La empresa aplica gestión del cambio en SST con análisis de riesgos y acciones de control antes de implementar cambios.',
+  },
+];
+
 type EvaluationEntry = {
   code: string;
   title: string;
@@ -130,10 +234,27 @@ function EvaluationSection({ title, items }: { title: string; items: EvaluationE
 }
 
 export function PlanPage() {
+  const navigate = useNavigate();
+
   return (
     <div className="grid">
       <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} />
       <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} />
+      <Card title="Gestión Integral del SG-SST (15%)">
+        <div className="evaluation-list">
+          {integralManagementItems.map((item, index) => (
+            <div key={item.code} className="evaluation-list__row">
+              <EvaluationItem {...item} />
+              {index < integralManagementItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}
+            </div>
+          ))}
+        </div>
+        <div className="plan-next-action">
+          <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/do')}>
+            Siguiente → Hacer
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
