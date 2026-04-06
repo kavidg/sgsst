@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { Button } from '../../components/ui/Button';
@@ -92,7 +93,103 @@ const vigilanciaSalud: EvaluationEntry[] = [
   },
 ];
 
-function EvaluationSection({ title, items }: { title: string; items: EvaluationEntry[] }) {
+const identificacionPeligros: EvaluationEntry[] = [
+  {
+    code: '4.1.1',
+    title: 'Metodología',
+    weight: 4,
+    modeReview:
+      'Verificar que la organización cuente con una metodología documentada para la identificación de peligros, evaluación y valoración de riesgos, aplicable a todos los procesos y cargos.',
+    criteria:
+      'Existe metodología formal para identificar peligros y valorar riesgos, actualizada y aplicada de manera consistente en la organización.',
+  },
+  {
+    code: '4.1.2',
+    title: 'Participación trabajadores',
+    weight: 4,
+    modeReview:
+      'Revisar evidencias de participación de trabajadores y representantes en la identificación de peligros y valoración de riesgos, incluyendo reuniones, inspecciones y reportes.',
+    criteria:
+      'La identificación de peligros incorpora participación activa de los trabajadores y deja trazabilidad de sus aportes.',
+  },
+  {
+    code: '4.1.3',
+    title: 'Sustancias peligrosas',
+    weight: 3,
+    modeReview:
+      'Validar inventario de sustancias químicas peligrosas, hojas de datos de seguridad y controles implementados para su manipulación, almacenamiento y disposición.',
+    criteria:
+      'La empresa identifica y gestiona los riesgos asociados a sustancias peligrosas con soportes documentales y medidas de control.',
+  },
+  {
+    code: '4.1.4',
+    title: 'Mediciones ambientales',
+    weight: 4,
+    modeReview:
+      'Solicitar mediciones higiénicas ambientales (físicos, químicos, biológicos u otros) según riesgos priorizados y verificar su periodicidad, análisis y acciones derivadas.',
+    criteria:
+      'Se realizan mediciones ambientales cuando aplica, con análisis de resultados y ejecución de acciones de intervención.',
+  },
+];
+
+const medidasControl: EvaluationEntry[] = [
+  {
+    code: '4.2.1',
+    title: 'Implementación medidas',
+    weight: 2.5,
+    modeReview:
+      'Revisar el plan de intervención para riesgos priorizados y verificar implementación de controles de ingeniería, administrativos y de protección personal.',
+    criteria:
+      'La organización implementa medidas de prevención y control acordes con la jerarquía de controles y riesgos identificados.',
+  },
+  {
+    code: '4.2.2',
+    title: 'Verificación aplicación',
+    weight: 2.5,
+    modeReview:
+      'Evaluar evidencias de seguimiento al cumplimiento y efectividad de las medidas implementadas mediante inspecciones, observaciones y registros.',
+    criteria:
+      'Existe verificación periódica de la aplicación de controles y seguimiento al cierre de hallazgos.',
+  },
+  {
+    code: '4.2.3',
+    title: 'Procedimientos e instructivos',
+    weight: 2.5,
+    modeReview:
+      'Solicitar procedimientos e instructivos seguros para tareas críticas, verificando actualización, divulgación y comprensión por parte de los trabajadores.',
+    criteria:
+      'La empresa dispone de procedimientos e instructivos de trabajo seguro vigentes y aplicados en actividades de riesgo.',
+  },
+  {
+    code: '4.2.4',
+    title: 'Inspecciones',
+    weight: 2.5,
+    modeReview:
+      'Revisar programa de inspecciones planeadas de seguridad, frecuencia, cobertura y seguimiento a condiciones subestándar detectadas.',
+    criteria:
+      'Se ejecutan inspecciones periódicas con registro de hallazgos, responsables y verificación de acciones correctivas.',
+  },
+  {
+    code: '4.2.5',
+    title: 'Mantenimiento',
+    weight: 2.5,
+    modeReview:
+      'Verificar programa de mantenimiento preventivo y correctivo de equipos, instalaciones y herramientas con impacto en SST.',
+    criteria:
+      'La organización realiza mantenimiento con trazabilidad documental para prevenir fallas que generen riesgos laborales.',
+  },
+  {
+    code: '4.2.6',
+    title: 'EPP',
+    weight: 2.5,
+    modeReview:
+      'Comprobar matriz de EPP por cargo o tarea, entrega, reposición, capacitación y supervisión del uso adecuado.',
+    criteria:
+      'Se gestiona integralmente el uso de EPP con criterios técnicos, registros de entrega y evidencia de uso efectivo.',
+  },
+];
+
+function EvaluationSection({ title, items, children }: { title: string; items: EvaluationEntry[]; children?: ReactNode }) {
   return (
     <Card title={title}>
       <div className="evaluation-list">
@@ -103,6 +200,7 @@ function EvaluationSection({ title, items }: { title: string; items: EvaluationE
           </div>
         ))}
       </div>
+      {children}
     </Card>
   );
 }
@@ -118,23 +216,19 @@ export function DoPage() {
 
       <EvaluationSection title="Condiciones de salud en el trabajo (9%)" items={condicionesSalud} />
       <EvaluationSection title="Registro e investigación (5%)" items={registroInvestigacion} />
+      <EvaluationSection title="Vigilancia de la salud (6%)" items={vigilanciaSalud} />
 
-      <Card title="Vigilancia de la salud (6%)">
-        <div className="evaluation-list">
-          {vigilanciaSalud.map((item, index) => (
-            <div key={item.code} className="evaluation-list__row">
-              <EvaluationItem {...item} />
-              {index < vigilanciaSalud.length - 1 ? <hr className="evaluation-list__divider" /> : null}
-            </div>
-          ))}
-        </div>
-
+      <Card title="Gestión de Peligros y Riesgos (30%)">
+        <p className="muted">Control de peligros y riesgos prioritarios</p>
+      </Card>
+      <EvaluationSection title="Identificación de peligros (15%)" items={identificacionPeligros} />
+      <EvaluationSection title="Medidas de prevención y control (15%)" items={medidasControl}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/check')}>
-            Siguiente → (siguiente módulo de Hacer)
+            Siguiente →
           </Button>
         </div>
-      </Card>
+      </EvaluationSection>
     </div>
   );
 }
