@@ -189,6 +189,27 @@ const medidasControl: EvaluationEntry[] = [
   },
 ];
 
+const gestionAmenazas: EvaluationEntry[] = [
+  {
+    code: '5.1.1',
+    title: 'Plan de emergencias',
+    weight: 5,
+    modeReview:
+      'Revisar que exista plan de prevención, preparación y respuesta ante emergencias, con identificación de amenazas, recursos, rutas de evacuación, responsables y mecanismos de actualización.',
+    criteria:
+      'La organización cuenta con plan de emergencias documentado, socializado y actualizado, con acciones preventivas y procedimientos de respuesta definidos.',
+  },
+  {
+    code: '5.1.2',
+    title: 'Brigada de emergencia',
+    weight: 5,
+    modeReview:
+      'Verificar la conformación de la brigada de emergencia, perfiles de brigadistas, capacitación, entrenamiento, simulacros y disponibilidad de equipos para atención de incidentes.',
+    criteria:
+      'Existe brigada de emergencia conformada y entrenada, con evidencias de preparación y capacidad de respuesta ante escenarios de emergencia.',
+  },
+];
+
 function EvaluationSection({ title, items, children }: { title: string; items: EvaluationEntry[]; children?: ReactNode }) {
   return (
     <Card title={title}>
@@ -222,10 +243,15 @@ export function DoPage() {
         <p className="muted">Control de peligros y riesgos prioritarios</p>
       </Card>
       <EvaluationSection title="Identificación de peligros (15%)" items={identificacionPeligros} />
-      <EvaluationSection title="Medidas de prevención y control (15%)" items={medidasControl}>
+      <EvaluationSection title="Medidas de prevención y control (15%)" items={medidasControl} />
+
+      <Card title="Gestión de Amenazas (10%)">
+        <p className="muted">Prevención, preparación y respuesta ante emergencias</p>
+      </Card>
+      <EvaluationSection title="Plan de Prevención, Preparación y Respuesta ante Emergencias (10%)" items={gestionAmenazas}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/check')}>
-            Siguiente →
+            Siguiente → Verificar (5%)
           </Button>
         </div>
       </EvaluationSection>
