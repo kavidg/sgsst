@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
+import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useDocumentsEvaluation } from './evaluationState';
@@ -54,17 +55,21 @@ const verificacionItems: EvaluationEntry[] = [
 
 export function CheckPage() {
   const navigate = useNavigate();
-  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
   useEffect(() => {
-    registerSection(
-      'check-verificacion',
-      verificacionItems.map((item) => item.code),
-    );
+    registerSection('check-verificacion', {
+      title: 'Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)',
+      items: verificacionItems.map((item) => ({ code: item.code, weight: item.weight })),
+    });
   }, [registerSection]);
 
   return (
     <div className="grid">
+      <ComplianceProgress
+        total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
+        sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
+      />
       <Card title="Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)" className={sectionErrors.has('check-verificacion') ? 'card--error' : ''}>
         <p className="muted">Gestión y resultados del SG-SST (5%)</p>
         <div className="evaluation-list" style={{ marginTop: '1rem' }}>

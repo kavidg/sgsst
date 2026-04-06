@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
+import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useDocumentsEvaluation } from './evaluationState';
@@ -54,13 +55,13 @@ const actuarItems: EvaluationEntry[] = [
 
 export function ActPage() {
   const navigate = useNavigate();
-  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, validateAll } = useDocumentsEvaluation();
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, validateAll, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
   useEffect(() => {
-    registerSection(
-      'act-mejoramiento',
-      actuarItems.map((item) => item.code),
-    );
+    registerSection('act-mejoramiento', {
+      title: 'Mejoramiento (10%)',
+      items: actuarItems.map((item) => ({ code: item.code, weight: item.weight })),
+    });
   }, [registerSection]);
 
   const handleFinish = () => {
@@ -76,6 +77,10 @@ export function ActPage() {
 
   return (
     <div className="grid">
+      <ComplianceProgress
+        total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
+        sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
+      />
       <Card title="Mejoramiento (10%)" className={sectionErrors.has('act-mejoramiento') ? 'card--error' : ''}>
         <div className="evaluation-list">
           {actuarItems.map((item, index) => (

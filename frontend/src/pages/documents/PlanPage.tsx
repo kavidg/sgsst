@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
+import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useDocumentsEvaluation } from './evaluationState';
@@ -224,11 +225,8 @@ function EvaluationSection({ title, items, sectionId }: { title: string; items: 
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
   useEffect(() => {
-    registerSection(
-      sectionId,
-      items.map((item) => item.code),
-    );
-  }, [items, registerSection, sectionId]);
+    registerSection(sectionId, { title, items: items.map((item) => ({ code: item.code, weight: item.weight })) });
+  }, [items, registerSection, sectionId, title]);
 
   return (
     <Card title={title} className={sectionErrors.has(sectionId) ? 'card--error' : ''}>
@@ -251,17 +249,21 @@ function EvaluationSection({ title, items, sectionId }: { title: string; items: 
 
 export function PlanPage() {
   const navigate = useNavigate();
-  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
   useEffect(() => {
-    registerSection(
-      'plan-gestion-integral',
-      integralManagementItems.map((item) => item.code),
-    );
+    registerSection('plan-gestion-integral', {
+      title: 'Gestión Integral del SG-SST (15%)',
+      items: integralManagementItems.map((item) => ({ code: item.code, weight: item.weight })),
+    });
   }, [registerSection]);
 
   return (
     <div className="grid">
+      <ComplianceProgress
+        total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
+        sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
+      />
       <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} sectionId="plan-capacitacion" />
       <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} sectionId="plan-recursos" />
       <Card title="Gestión Integral del SG-SST (15%)" className={sectionErrors.has('plan-gestion-integral') ? 'card--error' : ''}>

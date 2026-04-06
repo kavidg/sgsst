@@ -6,6 +6,19 @@ type AnswerValue = {
 
 type AnswersState = Record<string, AnswerValue>;
 
+type SectionItem = {
+  code: string;
+  weight: number;
+};
+
+type SectionCompliance = {
+  sectionId: string;
+  title: string;
+  completedWeight: number;
+  totalWeight: number;
+  percentage: number;
+};
+
 type ValidationResult = {
   isValid: boolean;
   missingCodes: string[];
@@ -16,9 +29,11 @@ type DocumentsEvaluationContextValue = {
   answers: AnswersState;
   missingCodes: Set<string>;
   sectionErrors: Set<string>;
-  registerSection: (sectionId: string, codes: string[]) => void;
+  registerSection: (sectionId: string, section: { title: string; items: SectionItem[] }) => void;
   setAnswerStatus: (code: string, status: string) => void;
   validateAll: () => ValidationResult;
+  totalCompliance: SectionCompliance;
+  sectionCompliance: SectionCompliance[];
 };
 
 const STORAGE_KEY = 'sgsst-documents-answers';
@@ -45,18 +60,19 @@ const loadInitialAnswers = (): AnswersState => {
 
 export function DocumentsEvaluationProvider({ children }: { children: ReactNode }) {
   const [answers, setAnswers] = useState<AnswersState>(() => loadInitialAnswers());
-  const [sectionCodes, setSectionCodes] = useState<Record<string, string[]>>({});
+  const [sections, setSections] = useState<Record<string, { title: string; items: SectionItem[] }>>({});
   const [missingCodes, setMissingCodes] = useState<Set<string>>(new Set());
   const [sectionErrors, setSectionErrors] = useState<Set<string>>(new Set());
 
-  const registerSection = useCallback((sectionId: string, codes: string[]) => {
-    setSectionCodes((current) => ({ ...current, [sectionId]: codes }));
+  const registerSection = useCallback((sectionId: string, section: { title: string; items: SectionItem[] }) => {
+    setSections((current) => ({ ...current, [sectionId]: section }));
 
     setAnswers((current) => {
       const next = { ...current };
       let changed = false;
 
-      for (const code of codes) {
+      for (const item of section.items) {
+        const code = item.code;
         if (!next[code]) {
           next[code] = { status: '' };
           changed = true;
@@ -98,8 +114,8 @@ export function DocumentsEvaluationProvider({ children }: { children: ReactNode 
       }
     });
 
-    const sectionErrorIds = Object.entries(sectionCodes)
-      .filter(([, codes]) => codes.some((code) => missing.includes(code)))
+    const sectionErrorIds = Object.entries(sections)
+      .filter(([, section]) => section.items.some((item) => missing.includes(item.code)))
       .map(([sectionId]) => sectionId);
 
     setMissingCodes(new Set(missing));
@@ -110,7 +126,41 @@ export function DocumentsEvaluationProvider({ children }: { children: ReactNode 
       missingCodes: missing,
       sectionErrors: sectionErrorIds,
     };
-  }, [answers, sectionCodes]);
+  }, [answers, sections]);
+
+  const sectionCompliance = useMemo<SectionCompliance[]>(() => {
+    return Object.entries(sections).map(([sectionId, section]) => {
+      const totalWeight = section.items.reduce((acc, item) => acc + item.weight, 0);
+      const completedWeight = section.items.reduce((acc, item) => {
+        const status = answers[item.code]?.status ?? '';
+        return status === 'Cumple totalmente' ? acc + item.weight : acc;
+      }, 0);
+
+      const percentage = totalWeight === 0 ? 0 : Number(((completedWeight / totalWeight) * 100).toFixed(2));
+
+      return {
+        sectionId,
+        title: section.title,
+        completedWeight,
+        totalWeight,
+        percentage,
+      };
+    });
+  }, [answers, sections]);
+
+  const totalCompliance = useMemo<SectionCompliance>(() => {
+    const completedWeight = sectionCompliance.reduce((acc, section) => acc + section.completedWeight, 0);
+    const totalWeight = sectionCompliance.reduce((acc, section) => acc + section.totalWeight, 0);
+    const percentage = totalWeight === 0 ? 0 : Number(((completedWeight / totalWeight) * 100).toFixed(2));
+
+    return {
+      sectionId: 'total',
+      title: 'Cumplimiento total SG-SST',
+      completedWeight,
+      totalWeight,
+      percentage,
+    };
+  }, [sectionCompliance]);
 
   const value = useMemo(
     () => ({
@@ -120,8 +170,10 @@ export function DocumentsEvaluationProvider({ children }: { children: ReactNode 
       registerSection,
       setAnswerStatus,
       validateAll,
+      totalCompliance,
+      sectionCompliance,
     }),
-    [answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, validateAll],
+    [answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, validateAll, totalCompliance, sectionCompliance],
   );
 
   return <DocumentsEvaluationContext.Provider value={value}>{children}</DocumentsEvaluationContext.Provider>;
