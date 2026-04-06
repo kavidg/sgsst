@@ -39,6 +39,7 @@ import { PlanPage } from './pages/documents/PlanPage';
 import { DoPage } from './pages/documents/DoPage';
 import { CheckPage } from './pages/documents/CheckPage';
 import { ActPage } from './pages/documents/ActPage';
+import { DocumentsEvaluationProvider } from './pages/documents/evaluationState';
 
 type CompaniesPageProps = {
   companies: CompanyModel[];
@@ -474,7 +475,7 @@ function App() {
     <>
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-        page
+        <DocumentsEvaluationProvider>{page}</DocumentsEvaluationProvider>
       ) : (
         <p>Este módulo está disponible para owner o admin con empresa activa.</p>
       )}
