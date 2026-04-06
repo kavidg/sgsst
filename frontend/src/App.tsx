@@ -48,11 +48,13 @@ type CompaniesPageProps = {
   loading: boolean;
   newCompanyName: string;
   newCompanyNit: string;
+  newCompanyStandardsType: string;
   onDeleteCompany: (companyId: string) => Promise<void>;
   onUpdateCompany: (companyId: string, companyName: string) => Promise<void>;
   profileRole?: UserModel['role'];
   setNewCompanyName: (value: string) => void;
   setNewCompanyNit: (value: string) => void;
+  setNewCompanyStandardsType: (value: string) => void;
   sharedHeader: ReactNode;
 };
 
@@ -63,11 +65,13 @@ function CompaniesPage({
   loading,
   newCompanyName,
   newCompanyNit,
+  newCompanyStandardsType,
   onDeleteCompany,
   onUpdateCompany,
   profileRole,
   setNewCompanyName,
   setNewCompanyNit,
+  setNewCompanyStandardsType,
   sharedHeader,
 }: CompaniesPageProps) {
   return (
@@ -79,6 +83,12 @@ function CompaniesPage({
           <form onSubmit={handleCreateCompany} className="form-grid">
             <Input value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} placeholder="Nombre empresa" required />
             <Input value={newCompanyNit} onChange={(event) => setNewCompanyNit(event.target.value)} placeholder="NIT" required />
+            <Select value={newCompanyStandardsType} onChange={(event) => setNewCompanyStandardsType(event.target.value)} required>
+              <option value="">Selecciona tipo de estándar</option>
+              <option value="7">7 Estándares</option>
+              <option value="21">21 Estándares</option>
+              <option value="60">60 Estándares</option>
+            </Select>
             <Button type="submit" disabled={loading}>Guardar Empresa</Button>
           </form>
           {companies.map((company) => (
@@ -123,6 +133,7 @@ function App() {
 
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
+  const [newCompanyStandardsType, setNewCompanyStandardsType] = useState('');
 
   const handleSelectCompany = async (companyId: string) => {
     setActiveCompanyId(companyId);
@@ -347,9 +358,10 @@ function App() {
     setError('');
 
     try {
-      await createCompany(idToken, { name: newCompanyName, nit: newCompanyNit });
+      await createCompany(idToken, { name: newCompanyName, nit: newCompanyNit, standardsType: newCompanyStandardsType });
       setNewCompanyName('');
       setNewCompanyNit('');
+      setNewCompanyStandardsType('');
       await refreshOwnerData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible crear la empresa.');
@@ -546,11 +558,13 @@ function App() {
                 loading={loading}
                 newCompanyName={newCompanyName}
                 newCompanyNit={newCompanyNit}
+                newCompanyStandardsType={newCompanyStandardsType}
                 onDeleteCompany={(companyId) => deleteCompany(idToken, companyId).then(() => refreshOwnerData())}
                 onUpdateCompany={(companyId, companyName) => updateCompany(idToken, companyId, { name: `${companyName} (editada)` }).then(() => refreshOwnerData())}
                 profileRole={profile?.role}
                 setNewCompanyName={setNewCompanyName}
                 setNewCompanyNit={setNewCompanyNit}
+                setNewCompanyStandardsType={setNewCompanyStandardsType}
                 sharedHeader={renderSharedHeader()}
               />
             )
