@@ -1,19 +1,57 @@
-import { IsBoolean, IsMongoId, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsMongoId,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { EvaluationStatus } from '../schemas/evaluation.schema';
 
-export class CreateEvaluationDto {
+class ImprovementPlanDto {
+  @IsOptional()
   @IsString()
-  standard!: string;
-
-  @IsString()
-  description!: string;
-
-  @IsBoolean()
-  complies!: boolean;
+  activity?: string;
 
   @IsOptional()
   @IsString()
-  observation?: string;
+  responsible?: string;
 
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @IsOptional()
+  @IsString()
+  observations?: string;
+}
+
+export class CreateEvaluationDto {
   @IsMongoId()
   companyId!: string;
+
+  @IsMongoId()
+  userId!: string;
+
+  @IsString()
+  code!: string;
+
+  @IsEnum(EvaluationStatus)
+  status!: EvaluationStatus;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  evidence?: string[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ImprovementPlanDto)
+  improvementPlan?: ImprovementPlanDto;
 }
