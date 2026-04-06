@@ -23,7 +23,11 @@ function getWeight(item: DashboardEvaluationModel) {
   return typeof item.weight === 'number' && Number.isFinite(item.weight) && item.weight > 0 ? item.weight : 1;
 }
 
-function getPhaseByCode(code: string): PhaseKey | null {
+function getPhaseByCode(code?: string): PhaseKey | null {
+  if (!code?.trim()) {
+    return null;
+  }
+
   const segment = Number.parseInt(code.split('.')[0], 10);
 
   if (segment >= 1 && segment <= 2) return 'PLANEAR';
@@ -136,7 +140,7 @@ export function DashboardPage({ token, companyId }: DashboardPageProps) {
             <ul className="dashboard-issues">
               {topIssues.map((item) => (
                 <li key={item._id} className="dashboard-issues__item">
-                  <strong>{item.code}</strong>
+                  <strong>{item.code?.trim() || 'Sin código'}</strong>
                   <span className="muted">{item.improvementPlan?.activity?.trim() || 'Sin plan de mejoramiento definido'}</span>
                 </li>
               ))}
