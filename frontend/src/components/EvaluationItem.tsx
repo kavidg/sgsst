@@ -11,6 +11,9 @@ type EvaluationItemProps = {
   weight: number;
   modeReview: string;
   criteria: string;
+  status?: ComplianceOption;
+  onStatusChange?: (code: string, status: ComplianceOption) => void;
+  hasError?: boolean;
 };
 
 type ComplianceOption = '' | 'Cumple totalmente' | 'No cumple' | 'No aplica';
@@ -31,9 +34,18 @@ const initialPlan: ImprovementPlan = {
   notes: '',
 };
 
-export function EvaluationItem({ code, title, weight, modeReview, criteria }: EvaluationItemProps) {
+export function EvaluationItem({
+  code,
+  title,
+  weight,
+  modeReview,
+  criteria,
+  status: controlledStatus,
+  onStatusChange,
+  hasError = false,
+}: EvaluationItemProps) {
   const fileInputId = useId();
-  const [status, setStatus] = useState<ComplianceOption>('');
+  const [status, setStatus] = useState<ComplianceOption>(controlledStatus ?? '');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,8 +69,17 @@ export function EvaluationItem({ code, title, weight, modeReview, criteria }: Ev
     setIsModalOpen(false);
   };
 
+  const currentStatus = controlledStatus ?? status;
+
+  const handleStatusChange = (nextStatus: ComplianceOption) => {
+    if (controlledStatus === undefined) {
+      setStatus(nextStatus);
+    }
+    onStatusChange?.(code, nextStatus);
+  };
+
   return (
-    <article className="evaluation-item">
+    <article className={`evaluation-item ${hasError ? 'evaluation-item--error' : ''}`.trim()}>
       <div className="evaluation-item__header">
         <h3 className="evaluation-item__title">
           {code} · {title}
@@ -96,7 +117,7 @@ export function EvaluationItem({ code, title, weight, modeReview, criteria }: Ev
       <div className="grid grid-2">
         <label className="field">
           <span className="label">Resultado de evaluación</span>
-          <Select value={status} onChange={(event) => setStatus(event.target.value as ComplianceOption)}>
+          <Select value={currentStatus} onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}>
             <option value="" disabled>
               Selecciona una opción
             </option>
@@ -132,7 +153,7 @@ export function EvaluationItem({ code, title, weight, modeReview, criteria }: Ev
       </div>
 
       <div className="actions" style={{ justifyContent: 'flex-end' }}>
-        <Button type="button" disabled={!status} onClick={() => setIsModalOpen(true)}>
+        <Button type="button" disabled={!currentStatus} onClick={() => setIsModalOpen(true)}>
           Ingresar plan de mejoramiento
         </Button>
       </div>
