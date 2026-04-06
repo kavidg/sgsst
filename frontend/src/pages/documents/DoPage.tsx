@@ -265,9 +265,12 @@ export function DoPage() {
         <p className="muted">Prevención, preparación y respuesta ante emergencias</p>
       </Card>
       <EvaluationSection title="Plan de Prevención, Preparación y Respuesta ante Emergencias (10%)" items={gestionAmenazas} sectionId="do-gestion-amenazas">
-        <div className="plan-next-action">
+        <div className="plan-next-action plan-next-action--between">
+          <Button type="button" className="plan-next-action__button" variant="secondary" onClick={() => navigate('/documents/plan')}>
+            ← Regresar (Planear)
+          </Button>
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/check')}>
-            Siguiente → Verificar (5%)
+            Siguiente → Verificar
           </Button>
         </div>
       </EvaluationSection>
