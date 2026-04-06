@@ -230,6 +230,7 @@ interface UpdateUserPayload {
 interface CreateCompanyPayload {
   name: string;
   nit: string;
+  standardsType: string;
 }
 
 interface UpdateCompanyPayload {
