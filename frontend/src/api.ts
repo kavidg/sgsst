@@ -48,6 +48,22 @@ export interface DashboardResponse {
   highRisks: number;
 }
 
+export type EvaluationStatus = 'CUMPLE' | 'NO_CUMPLE' | 'NO_APLICA';
+
+export interface DashboardEvaluationModel {
+  _id: string;
+  code: string;
+  status: EvaluationStatus;
+  improvementPlan?: {
+    activity?: string;
+    responsible?: string;
+    startDate?: string;
+    endDate?: string;
+    observations?: string;
+  };
+  weight?: number;
+}
+
 
 export interface RiskModel {
   _id: string;
@@ -483,4 +499,9 @@ export function createTrainingAttendance(token: string, trainingId: string, payl
 
 export function fetchDashboard(token: string) {
   return apiFetch<DashboardResponse>('/dashboard', token, { method: 'GET' });
+}
+
+export function fetchDashboardEvaluations(token: string, companyId: string) {
+  const query = new URLSearchParams({ companyId });
+  return apiFetch<DashboardEvaluationModel[]>(`/evaluations?${query.toString()}`, token, { method: 'GET' });
 }
