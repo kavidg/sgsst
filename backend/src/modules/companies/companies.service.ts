@@ -30,6 +30,7 @@ export class CompaniesService {
     const company = new this.companyModel({
       name: createCompanyDto.name,
       nit: createCompanyDto.nit,
+      standardsType: createCompanyDto.standardsType,
       ownerId: user._id,
     });
 
