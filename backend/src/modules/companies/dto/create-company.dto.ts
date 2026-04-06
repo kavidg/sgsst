@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsEnum, IsString } from 'class-validator';
 
 export class CreateCompanyDto {
   @IsString()
@@ -6,4 +6,7 @@ export class CreateCompanyDto {
 
   @IsString()
   nit!: string;
+
+  @IsEnum(['7', '21', '60'])
+  standardsType!: string;
 }

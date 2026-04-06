@@ -11,6 +11,9 @@ export class Company {
   @Prop({ required: true })
   nit!: string;
 
+  @Prop({ required: true, enum: ['7', '21', '60'] })
+  standardsType!: string;
+
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   ownerId!: Types.ObjectId;
 }
