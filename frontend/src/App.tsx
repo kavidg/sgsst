@@ -375,7 +375,7 @@ function App() {
   const renderManagerDashboardRoutePage = () => (
     <>
       {renderSharedHeader()}
-      {activeCompanyId ? <DashboardPage token={idToken} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
+      {activeCompanyId ? <DashboardPage token={idToken} companyId={activeCompanyId} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
     </>
   );
 
