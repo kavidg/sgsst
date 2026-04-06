@@ -1,11 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { PartialType } from '../../common/partial-type';
+import { CreateEvaluationDto } from './create-evaluation.dto';
 
-export class UpdateEvaluationDto {
-  @IsOptional()
-  @IsBoolean()
-  complies?: boolean;
-
-  @IsOptional()
-  @IsString()
-  observation?: string;
-}
+export class UpdateEvaluationDto extends PartialType(CreateEvaluationDto) {}
