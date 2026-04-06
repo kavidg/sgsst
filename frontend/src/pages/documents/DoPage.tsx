@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { useDocumentsEvaluation } from './evaluationState';
 
 type EvaluationEntry = {
   code: string;
@@ -210,13 +212,27 @@ const gestionAmenazas: EvaluationEntry[] = [
   },
 ];
 
-function EvaluationSection({ title, items, children }: { title: string; items: EvaluationEntry[]; children?: ReactNode }) {
+function EvaluationSection({ title, items, children, sectionId }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string }) {
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
+
+  useEffect(() => {
+    registerSection(
+      sectionId,
+      items.map((item) => item.code),
+    );
+  }, [items, registerSection, sectionId]);
+
   return (
-    <Card title={title}>
+    <Card title={title} className={sectionErrors.has(sectionId) ? 'card--error' : ''}>
       <div className="evaluation-list">
         {items.map((item, index) => (
           <div key={item.code} className="evaluation-list__row">
-            <EvaluationItem {...item} />
+            <EvaluationItem
+              {...item}
+              status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
+              hasError={missingCodes.has(item.code)}
+              onStatusChange={(code, status) => setAnswerStatus(code, status)}
+            />
             {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
           </div>
         ))}
@@ -235,20 +251,20 @@ export function DoPage() {
         <p className="muted">Gestión de la Salud (20%)</p>
       </Card>
 
-      <EvaluationSection title="Condiciones de salud en el trabajo (9%)" items={condicionesSalud} />
-      <EvaluationSection title="Registro e investigación (5%)" items={registroInvestigacion} />
-      <EvaluationSection title="Vigilancia de la salud (6%)" items={vigilanciaSalud} />
+      <EvaluationSection title="Condiciones de salud en el trabajo (9%)" items={condicionesSalud} sectionId="do-condiciones-salud" />
+      <EvaluationSection title="Registro e investigación (5%)" items={registroInvestigacion} sectionId="do-registro-investigacion" />
+      <EvaluationSection title="Vigilancia de la salud (6%)" items={vigilanciaSalud} sectionId="do-vigilancia-salud" />
 
       <Card title="Gestión de Peligros y Riesgos (30%)">
         <p className="muted">Control de peligros y riesgos prioritarios</p>
       </Card>
-      <EvaluationSection title="Identificación de peligros (15%)" items={identificacionPeligros} />
-      <EvaluationSection title="Medidas de prevención y control (15%)" items={medidasControl} />
+      <EvaluationSection title="Identificación de peligros (15%)" items={identificacionPeligros} sectionId="do-identificacion-peligros" />
+      <EvaluationSection title="Medidas de prevención y control (15%)" items={medidasControl} sectionId="do-medidas-control" />
 
       <Card title="Gestión de Amenazas (10%)">
         <p className="muted">Prevención, preparación y respuesta ante emergencias</p>
       </Card>
-      <EvaluationSection title="Plan de Prevención, Preparación y Respuesta ante Emergencias (10%)" items={gestionAmenazas}>
+      <EvaluationSection title="Plan de Prevención, Preparación y Respuesta ante Emergencias (10%)" items={gestionAmenazas} sectionId="do-gestion-amenazas">
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/check')}>
             Siguiente → Verificar (5%)

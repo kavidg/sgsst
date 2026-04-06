@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { useDocumentsEvaluation } from './evaluationState';
 
 type EvaluationEntry = {
   code: string;
@@ -52,15 +54,28 @@ const verificacionItems: EvaluationEntry[] = [
 
 export function CheckPage() {
   const navigate = useNavigate();
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
+
+  useEffect(() => {
+    registerSection(
+      'check-verificacion',
+      verificacionItems.map((item) => item.code),
+    );
+  }, [registerSection]);
 
   return (
     <div className="grid">
-      <Card title="Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)">
+      <Card title="Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)" className={sectionErrors.has('check-verificacion') ? 'card--error' : ''}>
         <p className="muted">Gestión y resultados del SG-SST (5%)</p>
         <div className="evaluation-list" style={{ marginTop: '1rem' }}>
           {verificacionItems.map((item, index) => (
             <div key={item.code} className="evaluation-list__row">
-              <EvaluationItem {...item} />
+              <EvaluationItem
+                {...item}
+                status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
+                hasError={missingCodes.has(item.code)}
+                onStatusChange={(code, status) => setAnswerStatus(code, status)}
+              />
               {index < verificacionItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}
             </div>
           ))}
