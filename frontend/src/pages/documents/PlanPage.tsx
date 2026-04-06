@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { useDocumentsEvaluation } from './evaluationState';
 
 const financialResourcesItems = [
   {
@@ -218,13 +220,27 @@ type EvaluationEntry = {
   criteria: string;
 };
 
-function EvaluationSection({ title, items }: { title: string; items: EvaluationEntry[] }) {
+function EvaluationSection({ title, items, sectionId }: { title: string; items: EvaluationEntry[]; sectionId: string }) {
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
+
+  useEffect(() => {
+    registerSection(
+      sectionId,
+      items.map((item) => item.code),
+    );
+  }, [items, registerSection, sectionId]);
+
   return (
-    <Card title={title}>
+    <Card title={title} className={sectionErrors.has(sectionId) ? 'card--error' : ''}>
       <div className="evaluation-list">
         {items.map((item, index) => (
           <div key={item.code} className="evaluation-list__row">
-            <EvaluationItem {...item} />
+            <EvaluationItem
+              {...item}
+              status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
+              hasError={missingCodes.has(item.code)}
+              onStatusChange={(code, status) => setAnswerStatus(code, status)}
+            />
             {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
           </div>
         ))}
@@ -235,16 +251,29 @@ function EvaluationSection({ title, items }: { title: string; items: EvaluationE
 
 export function PlanPage() {
   const navigate = useNavigate();
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
+
+  useEffect(() => {
+    registerSection(
+      'plan-gestion-integral',
+      integralManagementItems.map((item) => item.code),
+    );
+  }, [registerSection]);
 
   return (
     <div className="grid">
-      <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} />
-      <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} />
-      <Card title="Gestión Integral del SG-SST (15%)">
+      <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} sectionId="plan-capacitacion" />
+      <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} sectionId="plan-recursos" />
+      <Card title="Gestión Integral del SG-SST (15%)" className={sectionErrors.has('plan-gestion-integral') ? 'card--error' : ''}>
         <div className="evaluation-list">
           {integralManagementItems.map((item, index) => (
             <div key={item.code} className="evaluation-list__row">
-              <EvaluationItem {...item} />
+              <EvaluationItem
+                {...item}
+                status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
+                hasError={missingCodes.has(item.code)}
+                onStatusChange={(code, status) => setAnswerStatus(code, status)}
+              />
               {index < integralManagementItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}
             </div>
           ))}
