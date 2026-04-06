@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { DashboardEvaluationModel, fetchDashboardEvaluations } from '../api';
-import { KpiCard } from '../components/KpiCard';
-import { Card } from '../components/ui/Card';
 
 type DashboardPageProps = {
   token: string;
@@ -9,6 +7,8 @@ type DashboardPageProps = {
 };
 
 type PhaseKey = 'PLANEAR' | 'HACER' | 'VERIFICAR' | 'ACTUAR';
+
+type ComplianceScore = 'good' | 'medium' | 'bad';
 
 const PHASE_LABELS: Record<PhaseKey, string> = {
   PLANEAR: 'Planear',
@@ -37,10 +37,34 @@ function getPhaseByCode(code?: string): PhaseKey | null {
   return null;
 }
 
-function getComplianceScore(percentage: number) {
-  if (percentage >= 80) return 'good';
-  if (percentage >= 60) return 'medium';
+function getComplianceScore(percentage: number): ComplianceScore {
+  if (percentage > 85) return 'good';
+  if (percentage > 60) return 'medium';
   return 'bad';
+}
+
+function getScoreStyles(score: ComplianceScore) {
+  if (score === 'good') {
+    return {
+      textClass: 'dashboard-saas__text--good',
+      fillClass: 'dashboard-saas__bar-fill--good',
+      toneClass: 'dashboard-saas__card--good',
+    };
+  }
+
+  if (score === 'medium') {
+    return {
+      textClass: 'dashboard-saas__text--medium',
+      fillClass: 'dashboard-saas__bar-fill--medium',
+      toneClass: 'dashboard-saas__card--medium',
+    };
+  }
+
+  return {
+    textClass: 'dashboard-saas__text--bad',
+    fillClass: 'dashboard-saas__bar-fill--bad',
+    toneClass: 'dashboard-saas__card--bad',
+  };
 }
 
 export function DashboardPage({ token, companyId }: DashboardPageProps) {
@@ -73,6 +97,7 @@ export function DashboardPage({ token, companyId }: DashboardPageProps) {
   const globalCompliance = globalTotal > 0 ? (globalComplies / globalTotal) * 100 : 0;
   const globalComplianceRounded = Number(globalCompliance.toFixed(1));
   const globalComplianceScore = getComplianceScore(globalComplianceRounded);
+  const globalScoreStyles = getScoreStyles(globalComplianceScore);
 
   const phaseCompliance = PHASE_ORDER.map((phase) => {
     const phaseItems = evaluations.filter((item) => getPhaseByCode(item.code) === phase);
@@ -93,53 +118,71 @@ export function DashboardPage({ token, companyId }: DashboardPageProps) {
   const topIssues = noCumpleItems.slice(0, 5);
 
   return (
-    <section className="grid dashboard">
-      <div>
-        <h2 style={{ margin: '0 0 .2rem' }}>Dashboard Ejecutivo</h2>
-        <p className="muted">Cumplimiento SG-SST e indicadores críticos por fase PHVA.</p>
+    <section className="dashboard-saas">
+      <div className="dashboard-saas__header">
+        <h2 className="dashboard-saas__title">Dashboard Ejecutivo</h2>
+        <p className="dashboard-saas__subtitle">Cumplimiento SG-SST e indicadores críticos por fase PHVA.</p>
       </div>
+
       {loading ? <p className="muted">Cargando evaluaciones...</p> : null}
       {error ? <p className="error">{error}</p> : null}
 
-      <Card title="Cumplimiento Global">
-        <div className="dashboard-global">
-          <p className={`dashboard-global__value dashboard-global__value--${globalComplianceScore}`}>{globalComplianceRounded}%</p>
-          <div className="dashboard-progress">
-            <div className="dashboard-progress__track" aria-label="Cumplimiento global">
-              <div
-                className={`dashboard-progress__fill dashboard-progress__fill--${globalComplianceScore}`}
-                style={{ width: `${Math.min(globalComplianceRounded, 100)}%` }}
-              />
+      <div className="dashboard-saas__grid">
+        <article className="dashboard-saas__card dashboard-saas__card--summary">
+          <p className="dashboard-saas__label">Cumplimiento SG-SST</p>
+          <p className={`dashboard-saas__summary-value ${globalScoreStyles.textClass}`}>{globalComplianceRounded}%</p>
+          <div className="dashboard-saas__bar-track" aria-label="Cumplimiento global">
+            <div
+              className={`dashboard-saas__bar-fill ${globalScoreStyles.fillClass}`}
+              style={{ width: `${Math.min(globalComplianceRounded, 100)}%` }}
+            />
+          </div>
+        </article>
+
+        <article className="dashboard-saas__card dashboard-saas__card--alerts">
+          <h3 className="dashboard-saas__card-title">Alertas</h3>
+          <div className="dashboard-saas__alerts-grid">
+            <div className="dashboard-saas__alert-item dashboard-saas__card--bad">
+              <p className="dashboard-saas__metric-label">NO CUMPLE</p>
+              <p className="dashboard-saas__metric-value">{noCumpleItems.length}</p>
+            </div>
+            <div className="dashboard-saas__alert-item dashboard-saas__card--medium">
+              <p className="dashboard-saas__metric-label">Planes pendientes</p>
+              <p className="dashboard-saas__metric-value">{pendingPlans}</p>
             </div>
           </div>
-        </div>
-      </Card>
+        </article>
 
-      <div className="kpi-grid dashboard-kpi-grid">
-        {phaseCompliance.map((phase) => (
-          <KpiCard
-            key={phase.phase}
-            title={`${phase.label} %`}
-            value={`${phase.percentage}%`}
-            emphasizeValue
-            className={`dashboard-kpi dashboard-kpi--${phase.score}`}
-          />
-        ))}
-      </div>
+        <article className="dashboard-saas__card dashboard-saas__card--phases">
+          <h3 className="dashboard-saas__card-title">Avance por fase PHVA</h3>
+          <div className="dashboard-saas__phases-grid">
+            {phaseCompliance.map((phase) => {
+              const phaseScore = getScoreStyles(phase.score);
 
-      <div className="grid grid-2">
-        <Card title="Alertas">
-          <div className="dashboard-alerts">
-            <KpiCard title="Ítems NO_CUMPLE" value={noCumpleItems.length} className="dashboard-kpi dashboard-kpi--bad" />
-            <KpiCard title="Planes pendientes" value={pendingPlans} className="dashboard-kpi dashboard-kpi--medium" />
+              return (
+                <div key={phase.phase} className={`dashboard-saas__phase-card ${phaseScore.toneClass}`}>
+                  <div className="dashboard-saas__phase-header">
+                    <p className="dashboard-saas__phase-title">{phase.label}</p>
+                    <p className={`dashboard-saas__phase-value ${phaseScore.textClass}`}>{phase.percentage}%</p>
+                  </div>
+                  <div className="dashboard-saas__bar-track dashboard-saas__bar-track--small" aria-label={`Cumplimiento ${phase.label}`}>
+                    <div
+                      className={`dashboard-saas__bar-fill ${phaseScore.fillClass}`}
+                      style={{ width: `${Math.min(phase.percentage, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </Card>
+        </article>
 
-        <Card title="Top hallazgos críticos">
+        <article className="dashboard-saas__card dashboard-saas__card--issues">
+          <h3 className="dashboard-saas__card-title">Top 5 hallazgos NO_CUMPLE</h3>
           {topIssues.length > 0 ? (
-            <ul className="dashboard-issues">
+            <ul className="dashboard-saas__issues-list">
               {topIssues.map((item) => (
-                <li key={item._id} className="dashboard-issues__item">
+                <li key={item._id} className="dashboard-saas__issue-item">
                   <strong>{item.code?.trim() || 'Sin código'}</strong>
                   <span className="muted">{item.improvementPlan?.activity?.trim() || 'Sin plan de mejoramiento definido'}</span>
                 </li>
@@ -148,7 +191,7 @@ export function DashboardPage({ token, companyId }: DashboardPageProps) {
           ) : (
             <p className="muted">No hay ítems en estado NO_CUMPLE.</p>
           )}
-        </Card>
+        </article>
       </div>
     </section>
   );
