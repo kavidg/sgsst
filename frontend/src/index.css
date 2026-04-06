@@ -212,6 +212,38 @@ a { color: inherit; }
 .upload-zone__file { font-size:.85rem; color:#0f172a; }
 .card--error .card-title { color:#b91c1c; }
 
+.compliance-progress {
+  display: grid;
+  gap: .75rem;
+}
+
+.compliance-progress__row {
+  display: grid;
+  gap: .4rem;
+}
+
+.compliance-progress__row-header {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  align-items: center;
+  font-size: .92rem;
+}
+
+.compliance-progress__bar-track {
+  width: 100%;
+  height: .7rem;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.compliance-progress__bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #16a34a);
+  border-radius: 999px;
+}
+
 @media (max-width: 768px) {
   .evaluation-item__header { flex-direction:column; align-items:flex-start; }
 }

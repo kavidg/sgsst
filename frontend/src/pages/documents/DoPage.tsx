@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
+import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useDocumentsEvaluation } from './evaluationState';
@@ -216,11 +217,8 @@ function EvaluationSection({ title, items, children, sectionId }: { title: strin
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
   useEffect(() => {
-    registerSection(
-      sectionId,
-      items.map((item) => item.code),
-    );
-  }, [items, registerSection, sectionId]);
+    registerSection(sectionId, { title, items: items.map((item) => ({ code: item.code, weight: item.weight })) });
+  }, [items, registerSection, sectionId, title]);
 
   return (
     <Card title={title} className={sectionErrors.has(sectionId) ? 'card--error' : ''}>
@@ -244,9 +242,14 @@ function EvaluationSection({ title, items, children, sectionId }: { title: strin
 
 export function DoPage() {
   const navigate = useNavigate();
+  const { totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
   return (
     <div className="grid">
+      <ComplianceProgress
+        total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
+        sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
+      />
       <Card title="II. Hacer (60%)">
         <p className="muted">Gestión de la Salud (20%)</p>
       </Card>
