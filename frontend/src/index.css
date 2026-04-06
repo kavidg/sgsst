@@ -302,3 +302,220 @@ a { color: inherit; }
   .evaluation-item__header { flex-direction:column; align-items:flex-start; }
   .dashboard-alerts { grid-template-columns: 1fr; }
 }
+
+.dashboard-saas {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-saas__header {
+  display: grid;
+  gap: .15rem;
+}
+
+.dashboard-saas__title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dashboard-saas__subtitle {
+  margin: 0;
+  color: #64748b;
+}
+
+.dashboard-saas__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+.dashboard-saas__card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+  transition: all .25s ease;
+}
+
+.dashboard-saas__card:hover {
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .1);
+  transform: translateY(-1px);
+}
+
+.dashboard-saas__card-title {
+  margin: 0 0 .85rem;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.dashboard-saas__card--summary,
+.dashboard-saas__card--alerts,
+.dashboard-saas__card--phases,
+.dashboard-saas__card--issues {
+  min-height: 100%;
+}
+
+.dashboard-saas__label {
+  margin: 0;
+  font-size: .85rem;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.dashboard-saas__summary-value {
+  margin: .35rem 0 .75rem;
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.dashboard-saas__bar-track {
+  width: 100%;
+  height: .8rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.dashboard-saas__bar-track--small {
+  height: .55rem;
+}
+
+.dashboard-saas__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: all .3s ease;
+}
+
+.dashboard-saas__text--good { color: #15803d; }
+.dashboard-saas__text--medium { color: #a16207; }
+.dashboard-saas__text--bad { color: #b91c1c; }
+
+.dashboard-saas__bar-fill--good { background: linear-gradient(90deg, #22c55e, #15803d); }
+.dashboard-saas__bar-fill--medium { background: linear-gradient(90deg, #facc15, #ca8a04); }
+.dashboard-saas__bar-fill--bad { background: linear-gradient(90deg, #f87171, #dc2626); }
+
+.dashboard-saas__alerts-grid {
+  display: grid;
+  gap: .7rem;
+}
+
+.dashboard-saas__alert-item {
+  border-radius: .9rem;
+  border: 1px solid #e2e8f0;
+  padding: .8rem .9rem;
+}
+
+.dashboard-saas__metric-label {
+  margin: 0;
+  color: #475569;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  font-weight: 700;
+}
+
+.dashboard-saas__metric-value {
+  margin: .2rem 0 0;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.dashboard-saas__phases-grid {
+  display: grid;
+  gap: .7rem;
+}
+
+.dashboard-saas__phase-card {
+  border: 1px solid #e2e8f0;
+  border-radius: .9rem;
+  padding: .75rem .8rem;
+  display: grid;
+  gap: .4rem;
+  transition: all .25s ease;
+}
+
+.dashboard-saas__phase-card:hover {
+  box-shadow: 0 6px 14px rgba(15, 23, 42, .08);
+}
+
+.dashboard-saas__phase-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .65rem;
+}
+
+.dashboard-saas__phase-title {
+  margin: 0;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.dashboard-saas__phase-value {
+  margin: 0;
+  font-weight: 700;
+}
+
+.dashboard-saas__issues-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: .55rem;
+}
+
+.dashboard-saas__issue-item {
+  display: grid;
+  gap: .2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: .85rem;
+  padding: .65rem .75rem;
+  transition: all .2s ease;
+}
+
+.dashboard-saas__issue-item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.dashboard-saas__card--good {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.dashboard-saas__card--medium {
+  background: #fefce8;
+  border-color: #fde047;
+}
+
+.dashboard-saas__card--bad {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+@media (min-width: 768px) {
+  .dashboard-saas__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-saas__card--phases,
+  .dashboard-saas__card--issues {
+    grid-column: span 2;
+  }
+
+  .dashboard-saas__alerts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-saas__phases-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
