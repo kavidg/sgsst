@@ -80,9 +80,12 @@ export function CheckPage() {
             </div>
           ))}
         </div>
-        <div className="plan-next-action">
+        <div className="plan-next-action plan-next-action--between">
+          <Button type="button" className="plan-next-action__button" variant="secondary" onClick={() => navigate('/documents/do')}>
+            ← Regresar (Hacer)
+          </Button>
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/act')}>
-            Siguiente → Actuar (10%)
+            Siguiente → Actuar
           </Button>
         </div>
       </Card>
