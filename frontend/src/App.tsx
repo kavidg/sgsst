@@ -50,7 +50,7 @@ type CompaniesPageProps = {
   newCompanyNit: string;
   newCompanyStandardsType: string;
   onDeleteCompany: (companyId: string) => Promise<void>;
-  onUpdateCompany: (companyId: string, companyName: string) => Promise<void>;
+  onUpdateCompany: (company: CompanyModel) => Promise<void>;
   profileRole?: UserModel['role'];
   setNewCompanyName: (value: string) => void;
   setNewCompanyNit: (value: string) => void;
@@ -94,7 +94,7 @@ function CompaniesPage({
           {companies.map((company) => (
             <div key={company._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
               <p>{company.name} - {company.nit}</p>
-              <Button type="button" variant="secondary" onClick={() => onUpdateCompany(company._id, company.name).catch((e) => errorSetter(e.message))}>Editar nombre</Button>
+              <Button type="button" variant="secondary" onClick={() => onUpdateCompany(company).catch((e) => errorSetter(e.message))}>Editar empresa</Button>
               <Button type="button" variant="danger" onClick={() => onDeleteCompany(company._id).catch((e) => errorSetter(e.message))}>Eliminar</Button>
             </div>
           ))}
@@ -560,7 +560,19 @@ function App() {
                 newCompanyNit={newCompanyNit}
                 newCompanyStandardsType={newCompanyStandardsType}
                 onDeleteCompany={(companyId) => deleteCompany(idToken, companyId).then(() => refreshOwnerData())}
-                onUpdateCompany={(companyId, companyName) => updateCompany(idToken, companyId, { name: `${companyName} (editada)` }).then(() => refreshOwnerData())}
+                onUpdateCompany={async (company) => {
+                  const nextName = window.prompt('Nombre de la empresa', company.name)?.trim();
+                  if (!nextName) {
+                    return;
+                  }
+                  const nextNit = window.prompt('NIT de la empresa', company.nit)?.trim();
+                  if (!nextNit) {
+                    return;
+                  }
+
+                  await updateCompany(idToken, company._id, { name: nextName, nit: nextNit });
+                  await refreshOwnerData();
+                }}
                 profileRole={profile?.role}
                 setNewCompanyName={setNewCompanyName}
                 setNewCompanyNit={setNewCompanyNit}
