@@ -15,6 +15,7 @@ export interface CompanyModel {
   _id: string;
   name: string;
   nit: string;
+  standardsType?: string;
   ownerId: string;
 }
 
@@ -236,6 +237,7 @@ interface CreateCompanyPayload {
 interface UpdateCompanyPayload {
   name?: string;
   nit?: string;
+  standardsType?: string;
 }
 
 interface CreateEvaluationPayload {

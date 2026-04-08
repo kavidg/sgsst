@@ -93,7 +93,7 @@ function CompaniesPage({
           </form>
           {companies.map((company) => (
             <div key={company._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
-              <p>{company.name} - {company.nit}</p>
+              <p>{company.name} - {company.nit} - {company.standardsType ?? 'Sin estándar'}</p>
               <Button type="button" variant="secondary" onClick={() => onUpdateCompany(company).catch((e) => errorSetter(e.message))}>Editar empresa</Button>
               <Button type="button" variant="danger" onClick={() => onDeleteCompany(company._id).catch((e) => errorSetter(e.message))}>Eliminar</Button>
             </div>
@@ -569,8 +569,22 @@ function App() {
                   if (!nextNit) {
                     return;
                   }
+                  const nextStandardsType = window.prompt(
+                    'Tipo de estándar (7, 21 o 60)',
+                    company.standardsType ?? '',
+                  )?.trim();
+                  if (!nextStandardsType) {
+                    return;
+                  }
+                  if (!['7', '21', '60'].includes(nextStandardsType)) {
+                    throw new Error('El tipo de estándar debe ser 7, 21 o 60.');
+                  }
 
-                  await updateCompany(idToken, company._id, { name: nextName, nit: nextNit });
+                  await updateCompany(idToken, company._id, {
+                    name: nextName,
+                    nit: nextNit,
+                    standardsType: nextStandardsType,
+                  });
                   await refreshOwnerData();
                 }}
                 profileRole={profile?.role}
