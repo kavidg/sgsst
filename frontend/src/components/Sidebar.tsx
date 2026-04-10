@@ -79,7 +79,7 @@ export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
                 className={`nav-link documents-parent ${location.pathname.startsWith('/documents') ? 'active' : ''}`.trim()}
               >
                 <Icons.file />
-                <span>Documentos</span>
+                <span>Documentos - Autoevaluación</span>
                 <span className={`documents-chevron ${openDocuments ? 'open' : ''}`.trim()}><Icons.chevronDown /></span>
               </button>
 
