@@ -34,6 +34,7 @@ import { EmployeesPage } from './pages/EmployeesPage';
 import { IncidentsPage } from './pages/IncidentsPage';
 import { RisksPage } from './pages/RisksPage';
 import { TrainingsPage } from './pages/TrainingsPage';
+import { InspectionsPage } from './pages/InspectionsPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
 import { PlanPage } from './pages/documents/PlanPage';
 import { DoPage } from './pages/documents/DoPage';
@@ -516,6 +517,17 @@ function App() {
     </>
   );
 
+
+  const renderInspectionsRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+        <InspectionsPage />
+      ) : (
+        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+      )}
+    </>
+  );
   const renderRisksRoutePage = () => (
     <>
       {renderSharedHeader()}
@@ -607,6 +619,7 @@ function App() {
         <Route path="/documents/act" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<ActPage />)} />
         <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderIncidentsRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
+        <Route path="/inspections" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderInspectionsRoutePage()} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
