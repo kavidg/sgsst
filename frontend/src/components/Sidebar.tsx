@@ -23,6 +23,7 @@ const links: SidebarLink[] = [
   { to: '/incidents', label: 'Incidentes', icon: Icons.alert },
   { to: '/risks', label: 'Riesgos', icon: Icons.shield },
   { to: '/trainings', label: 'Capacitaciones', icon: Icons.chart },
+  { to: '/inspections', label: 'Inspecciones', icon: Icons.shield },
 ];
 
 const documentsSubmenu: DocumentsSubmenuLink[] = [
