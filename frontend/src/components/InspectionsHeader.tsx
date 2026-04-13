@@ -1,51 +1,73 @@
+const planningActivities = [
+  'Establecer objetivos y metas',
+  'Establecer indicadores de gestión',
+  'Establecer los mecanismos para controlar el riesgo',
+];
+
+const scheduleRows = [
+  { actividad: 'Definir objetivos y metas SST', responsable: 'Líder SST', frecuencia: 'Mensual', estado: 'Programada' },
+  {
+    actividad: 'Actualizar indicadores de gestión',
+    responsable: 'Coordinador HSE',
+    frecuencia: 'Trimestral',
+    estado: 'En seguimiento',
+  },
+  {
+    actividad: 'Revisar mecanismos de control del riesgo',
+    responsable: 'COPASST',
+    frecuencia: 'Mensual',
+    estado: 'Pendiente',
+  },
+];
+
 export function InspectionsHeader() {
   return (
     <section className="bg-white rounded-2xl shadow-sm p-6 md:p-8 space-y-6">
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Inspecciones SST</p>
-        <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">Programa de Inspecciones</h1>
-        <p className="text-slate-600 max-w-3xl">
-          Gestiona inspecciones planeadas para identificar actos y condiciones inseguras de forma oportuna,
-          promoviendo la prevención de accidentes y el fortalecimiento de la cultura de seguridad.
-        </p>
-      </div>
+      <table className="w-full border-2 border-black border-collapse text-sm md:text-base">
+        <thead>
+          <tr>
+            <th className="border border-black bg-slate-300 py-3 px-4 text-center font-bold tracking-wide" colSpan={2}>
+              ACTIVIDADES
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {planningActivities.map((activity, index) => (
+            <tr key={activity}>
+              {index === 0 ? (
+                <td
+                  className="border border-black bg-blue-500 text-white font-semibold text-center align-middle px-4 py-3"
+                  rowSpan={planningActivities.length}
+                >
+                  PLANEAR
+                </td>
+              ) : null}
+              <td className="border border-black border-dashed px-4 py-3">{activity}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 p-4 bg-slate-50/70 space-y-2">
-          <h2 className="text-base font-semibold text-slate-900">Cumplimiento</h2>
-          <p className="text-sm text-slate-600">Mide el porcentaje de inspecciones ejecutadas frente a las programadas.</p>
-          <p className="text-sm font-medium text-slate-800">Fórmula: (Inspecciones realizadas / Inspecciones programadas) × 100</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 p-4 bg-slate-50/70 space-y-2">
-          <h2 className="text-base font-semibold text-slate-900">Eficacia</h2>
-          <p className="text-sm text-slate-600">Evalúa el cierre efectivo de hallazgos críticos en el periodo definido.</p>
-          <p className="text-sm font-medium text-slate-800">Fórmula: (Hallazgos cerrados / Hallazgos detectados) × 100</p>
-        </article>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <article className="rounded-xl border border-slate-200 p-4 space-y-1">
-          <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">Responsable</h3>
-          <p className="text-sm text-slate-600">Líder SST y supervisores de área.</p>
-        </article>
-        <article className="rounded-xl border border-slate-200 p-4 space-y-1">
-          <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">Meta</h3>
-          <p className="text-sm text-slate-600">Cumplimiento ≥ 95% y eficacia ≥ 90% mensual.</p>
-        </article>
-        <article className="rounded-xl border border-slate-200 p-4 space-y-1">
-          <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">Frecuencia</h3>
-          <p className="text-sm text-slate-600">Seguimiento mensual con revisión trimestral.</p>
-        </article>
-      </div>
-
-      <article className="rounded-2xl border border-slate-200 p-4 md:p-5 bg-slate-50/60 space-y-2">
-        <h2 className="text-base font-semibold text-slate-900">Alcance</h2>
-        <p className="text-sm text-slate-600">
-          Aplica a todas las áreas operativas, administrativas y de apoyo de la organización, incluyendo
-          equipos, instalaciones, procesos críticos y condiciones de trabajo que puedan representar riesgos
-          para las personas, el ambiente o la continuidad operacional.
-        </p>
-      </article>
+      <table className="w-full border-2 border-black border-collapse text-sm md:text-base">
+        <thead>
+          <tr>
+            <th className="border border-black bg-slate-200 px-4 py-2 text-left font-semibold">Actividad programada</th>
+            <th className="border border-black bg-slate-200 px-4 py-2 text-left font-semibold">Responsable</th>
+            <th className="border border-black bg-slate-200 px-4 py-2 text-left font-semibold">Frecuencia</th>
+            <th className="border border-black bg-slate-200 px-4 py-2 text-left font-semibold">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scheduleRows.map((row) => (
+            <tr key={row.actividad}>
+              <td className="border border-black px-4 py-2">{row.actividad}</td>
+              <td className="border border-black px-4 py-2">{row.responsable}</td>
+              <td className="border border-black px-4 py-2">{row.frecuencia}</td>
+              <td className="border border-black px-4 py-2">{row.estado}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }
