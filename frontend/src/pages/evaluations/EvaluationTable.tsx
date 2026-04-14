@@ -12,25 +12,25 @@ export function EvaluationTable({ evaluations, onToggleComplies, onChangeObserva
     <Table>
       <thead>
         <tr>
-          <th>Estándar</th>
-          <th>Descripción</th>
-          <th style={{ textAlign: 'center' }}>Cumple</th>
-          <th>Observación</th>
+          <th className="border border-black p-3">Estándar</th>
+          <th className="border border-black p-3">Descripción</th>
+          <th className="border border-black p-3" style={{ textAlign: 'center' }}>Cumple</th>
+          <th className="border border-black p-3">Observación</th>
         </tr>
       </thead>
       <tbody>
         {evaluations.map((evaluation) => (
           <tr key={evaluation._id}>
-            <td>{evaluation.standard}</td>
-            <td>{evaluation.description}</td>
-            <td style={{ textAlign: 'center' }}>
+            <td className="border border-black p-3">{evaluation.standard}</td>
+            <td className="border border-black p-3">{evaluation.description}</td>
+            <td className="border border-black p-3" style={{ textAlign: 'center' }}>
               <input
                 type="checkbox"
                 checked={evaluation.complies}
                 onChange={(event) => onToggleComplies(evaluation, event.target.checked)}
               />
             </td>
-            <td>
+            <td className="border border-black p-3">
               <input
                 className="input"
                 defaultValue={evaluation.observation ?? ''}
