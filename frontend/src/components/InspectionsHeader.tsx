@@ -34,7 +34,7 @@ const initialSchedule: ScheduleItem[] = [
 
 function InspectionsHeaderTable() {
   return (
-    <table className="w-full border-2 border-black border-collapse text-sm md:text-base">
+    <table className="w-full border-2 border-black border-collapse border-solid text-sm md:text-base [&_th]:border-solid [&_td]:border-solid">
       <tbody>
         <tr>
           <th className="border border-black bg-gray-100 font-semibold text-left px-4 py-3 w-1/5">OBJETIVO</th>
@@ -97,7 +97,7 @@ export function InspectionsHeader() {
   };
 
   const InspectionsSchedule = () => (
-    <table className="w-full border-2 border-black border-collapse text-sm md:text-base">
+    <table className="w-full border-2 border-black border-collapse border-solid text-sm md:text-base [&_th]:border-solid [&_td]:border-solid">
       <thead>
         <tr>
           <th className="border border-black bg-gray-100 py-3 px-4 text-center font-semibold">Etapa</th>
