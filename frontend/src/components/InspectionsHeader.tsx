@@ -34,18 +34,18 @@ const initialSchedule: ScheduleItem[] = [
 
 function InspectionsHeaderTable() {
   return (
-    <table className="w-full border-2 border-black border-collapse border-solid text-sm md:text-base [&_th]:border-solid [&_td]:border-solid">
+    <table className="inspections-table">
       <tbody>
         <tr>
-          <th className="border border-black bg-gray-100 font-semibold text-left px-4 py-3 w-1/5">OBJETIVO</th>
-          <td className="border border-black px-4 py-3" colSpan={5}>
+          <th className="inspections-table__header-cell inspections-table__header-cell--narrow">OBJETIVO</th>
+          <td className="inspections-table__cell" colSpan={5}>
             Identificar condiciones inseguras en las instalaciones, verificar su intervención y medir el cumplimiento
             del programa de inspecciones.
           </td>
         </tr>
         <tr>
-          <th className="border border-black bg-gray-100 font-semibold text-left px-4 py-3">INDICADORES</th>
-          <td className="border border-black px-4 py-3" colSpan={2}>
+          <th className="inspections-table__header-cell">INDICADORES</th>
+          <td className="inspections-table__cell" colSpan={2}>
             <p>
               <span className="font-semibold">Cumplimiento:</span> (Inspecciones ejecutadas / Inspecciones programadas)
               × 100
@@ -54,26 +54,26 @@ function InspectionsHeaderTable() {
               <span className="font-semibold">Eficacia:</span> (Condiciones cerradas / Condiciones reportadas) × 100
             </p>
           </td>
-          <th className="border border-black bg-gray-100 font-semibold text-left px-4 py-3">RESPONSABLE</th>
-          <td className="border border-black px-4 py-3">SST</td>
-          <th className="border border-black bg-gray-100 font-semibold text-left px-4 py-3">FRECUENCIA</th>
-          <td className="border border-black px-4 py-3">Semestral</td>
+          <th className="inspections-table__header-cell">RESPONSABLE</th>
+          <td className="inspections-table__cell">SST</td>
+          <th className="inspections-table__header-cell">FRECUENCIA</th>
+          <td className="inspections-table__cell">Semestral</td>
         </tr>
         <tr>
-          <th className="border border-black bg-gray-100 font-semibold text-left px-4 py-3">META</th>
-          <td className="border border-black px-4 py-3" colSpan={2}>
+          <th className="inspections-table__header-cell">META</th>
+          <td className="inspections-table__cell" colSpan={2}>
             100% actividades
           </td>
-          <th className="border border-black bg-gray-100 font-semibold text-left px-4 py-3" colSpan={2}>
+          <th className="inspections-table__header-cell" colSpan={2}>
             META (Eficacia)
           </th>
-          <td className="border border-black px-4 py-3" colSpan={2}>
+          <td className="inspections-table__cell" colSpan={2}>
             100% condiciones cerradas
           </td>
         </tr>
         <tr>
-          <th className="border border-black bg-gray-100 font-semibold text-left px-4 py-3">ALCANCE</th>
-          <td className="border border-black px-4 py-3" colSpan={5}>
+          <th className="inspections-table__header-cell">ALCANCE</th>
+          <td className="inspections-table__cell" colSpan={5}>
             Aplica para todas las áreas.
           </td>
         </tr>
@@ -97,14 +97,14 @@ export function InspectionsHeader() {
   };
 
   const InspectionsSchedule = () => (
-    <table className="w-full border-2 border-black border-collapse border-solid text-sm md:text-base [&_th]:border-solid [&_td]:border-solid">
+    <table className="inspections-table">
       <thead>
         <tr>
-          <th className="border border-black bg-gray-100 py-3 px-4 text-center font-semibold">Etapa</th>
-          <th className="border border-black bg-gray-100 py-3 px-4 text-center font-semibold">Actividades</th>
-          <th className="border border-black bg-gray-100 py-3 px-4 text-center font-semibold">Responsable</th>
-          <th className="border border-black bg-gray-100 py-3 px-4 text-center font-semibold">Fecha</th>
-          <th className="border border-black bg-gray-100 py-3 px-4 text-center font-semibold">Estado</th>
+          <th className="inspections-table__header-cell inspections-table__header-cell--center">Etapa</th>
+          <th className="inspections-table__header-cell inspections-table__header-cell--center">Actividades</th>
+          <th className="inspections-table__header-cell inspections-table__header-cell--center">Responsable</th>
+          <th className="inspections-table__header-cell inspections-table__header-cell--center">Fecha</th>
+          <th className="inspections-table__header-cell inspections-table__header-cell--center">Estado</th>
         </tr>
       </thead>
       <tbody>
@@ -114,34 +114,34 @@ export function InspectionsHeader() {
           return (
             <tr key={`${row.etapa}-${row.actividad}`}>
               {showEtapa ? (
-                <td className="border border-black bg-blue-500 text-white font-semibold text-center align-middle px-4 py-3" rowSpan={etapaCounts[row.etapa]}>
+                <td className="inspections-table__stage-cell" rowSpan={etapaCounts[row.etapa]}>
                   {row.etapa.toUpperCase()}
                 </td>
               ) : null}
-              <td className="border border-black px-4 py-3">{row.actividad}</td>
-              <td className="border border-black px-4 py-3">
+              <td className="inspections-table__cell">{row.actividad}</td>
+              <td className="inspections-table__cell">
                 <input
                   type="text"
                   value={row.responsable}
                   onChange={(event) => handleFieldChange(index, 'responsable', event.target.value)}
-                  className="w-full border border-slate-400 rounded-md px-3 py-2"
+                  className="inspections-table__input"
                   placeholder="Asignar responsable"
                 />
               </td>
-              <td className="border border-black px-4 py-3">
+              <td className="inspections-table__cell">
                 <input
                   type="date"
                   value={row.fecha}
                   onChange={(event) => handleFieldChange(index, 'fecha', event.target.value)}
-                  className="w-full border border-slate-400 rounded-md px-3 py-2"
+                  className="inspections-table__input"
                 />
               </td>
-              <td className="border border-black px-4 py-3 text-center align-middle">
+              <td className="inspections-table__cell inspections-table__cell--center">
                 <input
                   type="checkbox"
                   checked={row.estado}
                   onChange={(event) => handleFieldChange(index, 'estado', event.target.checked)}
-                  className="h-5 w-5 accent-blue-600"
+                  className="inspections-table__checkbox"
                 />
               </td>
             </tr>
@@ -152,13 +152,13 @@ export function InspectionsHeader() {
   );
 
   return (
-    <section className="space-y-8">
+    <section className="inspections-section">
       <InspectionsHeaderTable />
       <InspectionsSchedule />
       <button
         type="button"
         onClick={() => console.log('Cronograma actual:', schedule)}
-        className="border-2 border-black rounded-md px-5 py-2 font-semibold hover:bg-slate-100 transition-colors"
+        className="inspections-section__save-button"
       >
         Guardar cronograma
       </button>
