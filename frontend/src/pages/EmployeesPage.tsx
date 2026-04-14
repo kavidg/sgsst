@@ -133,17 +133,17 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
       <Table>
         <thead>
           <tr>
-            <th>Nombre</th><th>Documento</th><th>Cargo</th><th>Área</th><th>Estado</th><th>Acciones</th>
+            <th className="border border-black p-3">Nombre</th><th className="border border-black p-3">Documento</th><th className="border border-black p-3">Cargo</th><th className="border border-black p-3">Área</th><th className="border border-black p-3">Estado</th><th className="border border-black p-3">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {employees.map((employee) => (
             <tr key={employee._id}>
-              <td>{employee.name}</td><td>{employee.document}</td><td>{employee.position}</td><td>{employee.area}</td><td>{employee.status}</td>
-              <td><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(employee)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(employee._id)}>Eliminar</Button></div></td>
+              <td className="border border-black p-3">{employee.name}</td><td className="border border-black p-3">{employee.document}</td><td className="border border-black p-3">{employee.position}</td><td className="border border-black p-3">{employee.area}</td><td className="border border-black p-3">{employee.status}</td>
+              <td className="border border-black p-3"><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(employee)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(employee._id)}>Eliminar</Button></div></td>
             </tr>
           ))}
-          {!employees.length ? <tr><td colSpan={6}>No hay empleados registrados.</td></tr> : null}
+          {!employees.length ? <tr><td className="border border-black p-3" colSpan={6}>No hay empleados registrados.</td></tr> : null}
         </tbody>
       </Table>
 
