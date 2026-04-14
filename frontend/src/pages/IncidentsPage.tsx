@@ -153,15 +153,15 @@ export function IncidentsPage({ token }: IncidentsPageProps) {
       </Card>
 
       <Table>
-        <thead><tr><th>Empleado</th><th>Tipo</th><th>Fecha</th><th>Severidad</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <thead><tr><th className="border border-black p-3">Empleado</th><th className="border border-black p-3">Tipo</th><th className="border border-black p-3">Fecha</th><th className="border border-black p-3">Severidad</th><th className="border border-black p-3">Estado</th><th className="border border-black p-3">Acciones</th></tr></thead>
         <tbody>
           {incidents.map((incident) => (
             <tr key={incident._id}>
-              <td>{employeeNames.get(incident.employeeId) ?? incident.employeeId}</td><td>{incident.type}</td><td>{new Date(incident.date).toLocaleDateString('es-CO')}</td><td>{incident.severity}</td><td>{incident.status}</td>
-              <td><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(incident)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(incident._id)}>Eliminar</Button></div></td>
+              <td className="border border-black p-3">{employeeNames.get(incident.employeeId) ?? incident.employeeId}</td><td className="border border-black p-3">{incident.type}</td><td className="border border-black p-3">{new Date(incident.date).toLocaleDateString('es-CO')}</td><td className="border border-black p-3">{incident.severity}</td><td className="border border-black p-3">{incident.status}</td>
+              <td className="border border-black p-3"><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(incident)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(incident._id)}>Eliminar</Button></div></td>
             </tr>
           ))}
-          {!incidents.length ? <tr><td colSpan={6}>No hay incidentes registrados.</td></tr> : null}
+          {!incidents.length ? <tr><td className="border border-black p-3" colSpan={6}>No hay incidentes registrados.</td></tr> : null}
         </tbody>
       </Table>
 

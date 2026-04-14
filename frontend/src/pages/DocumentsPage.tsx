@@ -90,12 +90,12 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
       </Card>
 
       <Table>
-        <thead><tr><th>Nombre</th><th>Tipo</th><th>Subido por</th><th>Fecha</th><th>Acciones</th></tr></thead>
+        <thead><tr><th className="border border-black p-3">Nombre</th><th className="border border-black p-3">Tipo</th><th className="border border-black p-3">Subido por</th><th className="border border-black p-3">Fecha</th><th className="border border-black p-3">Acciones</th></tr></thead>
         <tbody>
           {documents.map((document) => (
             <tr key={document._id}>
-              <td>{document.name}</td><td>{document.type}</td><td>{document.uploadedBy.email}</td><td>{new Date(document.createdAt).toLocaleString()}</td>
-              <td>
+              <td className="border border-black p-3">{document.name}</td><td className="border border-black p-3">{document.type}</td><td className="border border-black p-3">{document.uploadedBy.email}</td><td className="border border-black p-3">{new Date(document.createdAt).toLocaleString()}</td>
+              <td className="border border-black p-3">
                 <div className="actions">
                   <a className="btn btn-secondary" href={document.fileUrl} target="_blank" rel="noreferrer">Descargar</a>
                   <Button type="button" variant="danger" onClick={() => handleDelete(document._id)}>Eliminar</Button>
@@ -103,7 +103,7 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
               </td>
             </tr>
           ))}
-          {!documents.length ? <tr><td colSpan={5}>No hay documentos cargados.</td></tr> : null}
+          {!documents.length ? <tr><td className="border border-black p-3" colSpan={5}>No hay documentos cargados.</td></tr> : null}
         </tbody>
       </Table>
 

@@ -184,15 +184,15 @@ export function TrainingsPage({ token }: TrainingsPageProps) {
       </Card>
 
       <Table>
-        <thead><tr><th>Tema</th><th>Fecha</th><th>Instructor</th><th>Asistentes</th><th>Acciones</th></tr></thead>
+        <thead><tr><th className="border border-black p-3">Tema</th><th className="border border-black p-3">Fecha</th><th className="border border-black p-3">Instructor</th><th className="border border-black p-3">Asistentes</th><th className="border border-black p-3">Acciones</th></tr></thead>
         <tbody>
           {trainings.map((training) => (
             <tr key={training._id}>
-              <td>{training.topic}</td><td>{new Date(training.date).toLocaleDateString()}</td><td>{training.instructor}</td><td>{attendanceCount[training._id] ?? 0}</td>
-              <td><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEditTraining(training)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDeleteTraining(training._id)}>Eliminar</Button><Button type="button" variant="ghost" onClick={() => openAttendance(training._id)}>Ver asistentes</Button></div></td>
+              <td className="border border-black p-3">{training.topic}</td><td className="border border-black p-3">{new Date(training.date).toLocaleDateString()}</td><td className="border border-black p-3">{training.instructor}</td><td className="border border-black p-3">{attendanceCount[training._id] ?? 0}</td>
+              <td className="border border-black p-3"><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEditTraining(training)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDeleteTraining(training._id)}>Eliminar</Button><Button type="button" variant="ghost" onClick={() => openAttendance(training._id)}>Ver asistentes</Button></div></td>
             </tr>
           ))}
-          {!trainings.length ? <tr><td colSpan={5}>No hay capacitaciones registradas.</td></tr> : null}
+          {!trainings.length ? <tr><td className="border border-black p-3" colSpan={5}>No hay capacitaciones registradas.</td></tr> : null}
         </tbody>
       </Table>
 
@@ -220,12 +220,12 @@ export function TrainingsPage({ token }: TrainingsPageProps) {
           </form>
 
           <Table>
-            <thead><tr><th>Empleado</th><th>Fecha de registro</th></tr></thead>
+            <thead><tr><th className="border border-black p-3">Empleado</th><th className="border border-black p-3">Fecha de registro</th></tr></thead>
             <tbody>
               {selectedAttendance.map((entry) => (
-                <tr key={entry._id}><td>{entry.employeeId.name}</td><td>-</td></tr>
+                <tr key={entry._id}><td className="border border-black p-3">{entry.employeeId.name}</td><td className="border border-black p-3">-</td></tr>
               ))}
-              {!selectedAttendance.length ? <tr><td colSpan={2}>No hay asistentes registrados para esta capacitación.</td></tr> : null}
+              {!selectedAttendance.length ? <tr><td className="border border-black p-3" colSpan={2}>No hay asistentes registrados para esta capacitación.</td></tr> : null}
             </tbody>
           </Table>
         </Card>

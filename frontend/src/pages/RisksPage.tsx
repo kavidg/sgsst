@@ -133,15 +133,15 @@ export function RisksPage({ token }: RisksPageProps) {
       </Card>
 
       <Table>
-        <thead><tr><th>Proceso</th><th>Actividad</th><th>Peligro</th><th>Riesgo</th><th>Nivel</th><th>Acciones</th></tr></thead>
+        <thead><tr><th className="border border-black p-3">Proceso</th><th className="border border-black p-3">Actividad</th><th className="border border-black p-3">Peligro</th><th className="border border-black p-3">Riesgo</th><th className="border border-black p-3">Nivel</th><th className="border border-black p-3">Acciones</th></tr></thead>
         <tbody>
           {risks.map((riskItem) => (
             <tr key={riskItem._id}>
-              <td>{riskItem.process}</td><td>{riskItem.activity}</td><td>{riskItem.hazard}</td><td>{riskItem.risk}</td><td>{riskItem.riskLevel}</td>
-              <td><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(riskItem)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(riskItem._id)}>Eliminar</Button></div></td>
+              <td className="border border-black p-3">{riskItem.process}</td><td className="border border-black p-3">{riskItem.activity}</td><td className="border border-black p-3">{riskItem.hazard}</td><td className="border border-black p-3">{riskItem.risk}</td><td className="border border-black p-3">{riskItem.riskLevel}</td>
+              <td className="border border-black p-3"><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(riskItem)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(riskItem._id)}>Eliminar</Button></div></td>
             </tr>
           ))}
-          {!risks.length ? <tr><td colSpan={6}>No hay riesgos registrados.</td></tr> : null}
+          {!risks.length ? <tr><td className="border border-black p-3" colSpan={6}>No hay riesgos registrados.</td></tr> : null}
         </tbody>
       </Table>
 
