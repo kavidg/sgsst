@@ -132,6 +132,22 @@ const initialSchedule: ScheduleItem[] = [
     fecha: '',
     estado: false,
   },
+  {
+    etapa: 'Verificar',
+    actividad: 'Seguimiento a Indicadores',
+    responsable: '',
+    cronograma: emptyScheduleValues(),
+    fecha: '',
+    estado: false,
+  },
+  {
+    etapa: 'Verificar',
+    actividad: 'Seguimiento a las acciones tomadas frente a los hallazgos',
+    responsable: '',
+    cronograma: emptyScheduleValues(),
+    fecha: '',
+    estado: false,
+  },
 ];
 
 function InspectionsHeaderTable() {
