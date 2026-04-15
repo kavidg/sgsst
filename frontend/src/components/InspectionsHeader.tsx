@@ -160,48 +160,51 @@ const initialSchedule: ScheduleItem[] = [
 
 function InspectionsHeaderTable() {
   return (
-    <table className="inspections-table">
+    <table className="inspections-table inspections-summary-table">
       <tbody>
         <tr>
-          <th className="inspections-table__header-cell inspections-table__header-cell--narrow">OBJETIVO</th>
-          <td className="inspections-table__cell" colSpan={5}>
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell">OBJETIVO</th>
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell">NOMBRE DEL INDICADOR</th>
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell">FÓRMULA DEL INDICADOR</th>
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell">RESPONSABLE</th>
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell">META</th>
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell">FRECUENCIA</th>
+        </tr>
+        <tr>
+          <td className="inspections-table__cell inspections-summary-table__objective" rowSpan={2}>
             Identificar condiciones inseguras en las instalaciones, verificar su intervención y medir el cumplimiento
             del programa de inspecciones.
           </td>
+          <td className="inspections-table__cell inspections-summary-table__indicator-name">Cumplimiento</td>
+          <td className="inspections-table__cell">(Inspecciones ejecutadas / Inspecciones programadas) × 100</td>
+          <td className="inspections-table__cell inspections-table__cell--center">SST</td>
+          <td className="inspections-table__cell inspections-table__cell--center">100% actividades programadas</td>
+          <td className="inspections-table__cell inspections-table__cell--center">Semestral</td>
         </tr>
         <tr>
-          <th className="inspections-table__header-cell">INDICADORES</th>
-          <td className="inspections-table__cell" colSpan={2}>
-            <p>
-              <span className="font-semibold">Cumplimiento:</span> (Inspecciones ejecutadas / Inspecciones programadas)
-              × 100
-            </p>
-            <p>
-              <span className="font-semibold">Eficacia:</span> (Condiciones cerradas / Condiciones reportadas) × 100
-            </p>
-          </td>
-          <th className="inspections-table__header-cell">RESPONSABLE</th>
-          <td className="inspections-table__cell">SST</td>
-          <th className="inspections-table__header-cell">FRECUENCIA</th>
-          <td className="inspections-table__cell">Semestral</td>
+          <td className="inspections-table__cell inspections-summary-table__indicator-name">Eficacia</td>
+          <td className="inspections-table__cell">(Condiciones cerradas / Condiciones reportadas) × 100</td>
+          <td className="inspections-table__cell inspections-table__cell--center">SST</td>
+          <td className="inspections-table__cell inspections-table__cell--center">100% condiciones cerradas</td>
+          <td className="inspections-table__cell inspections-table__cell--center">Semestral</td>
         </tr>
         <tr>
-          <th className="inspections-table__header-cell">META</th>
-          <td className="inspections-table__cell" colSpan={2}>
-            100% actividades
-          </td>
-          <th className="inspections-table__header-cell" colSpan={2}>
-            META (Eficacia)
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell" colSpan={2}>
+            ALCANCE
           </th>
-          <td className="inspections-table__cell" colSpan={2}>
-            100% condiciones cerradas
-          </td>
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell" colSpan={2}>
+            RECURSOS NECESARIOS
+          </th>
+          <th className="inspections-table__header-cell inspections-summary-table__header-cell" colSpan={2}>
+            DOCUMENTOS DE REFERENCIA
+          </th>
         </tr>
         <tr>
-          <th className="inspections-table__header-cell">ALCANCE</th>
-          <td className="inspections-table__cell" colSpan={5}>
-            Aplica para todas las áreas.
+          <td className="inspections-table__cell" colSpan={2}>Aplica para todas las áreas.</td>
+          <td className="inspections-table__cell inspections-table__cell--center" colSpan={2}>
+            Económicos, técnicos, humanos e infraestructura.
           </td>
+          <td className="inspections-table__cell inspections-table__cell--center" colSpan={2}>Legislación aplicable</td>
         </tr>
       </tbody>
     </table>
