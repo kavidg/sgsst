@@ -280,6 +280,36 @@ a { color: inherit; }
   overflow-x: auto;
 }
 
+.inspections-summary-table {
+  border: 1px solid #1e293b;
+}
+
+.inspections-summary-table .inspections-table__cell,
+.inspections-summary-table .inspections-table__header-cell {
+  border-color: #1e293b;
+  padding: .55rem .75rem;
+  font-size: .92rem;
+}
+
+.inspections-summary-table__header-cell {
+  background: #9fb8de;
+  text-transform: uppercase;
+  letter-spacing: .01em;
+  text-align: center;
+  font-size: .78rem;
+}
+
+.inspections-summary-table__objective {
+  background: #f8fafc;
+  text-align: center;
+}
+
+.inspections-summary-table__indicator-name {
+  font-weight: 700;
+  background: #e2e8f0;
+  text-align: center;
+}
+
 .inspections-table__header-cell,
 .inspections-table__cell,
 .inspections-table__stage-cell {
