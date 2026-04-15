@@ -5,8 +5,6 @@ type ScheduleItem = {
   actividad: string;
   responsable: string;
   cronograma: Record<string, '' | '0' | '1'>;
-  fecha: string;
-  estado: boolean;
 };
 
 const scheduleHeaders = [
@@ -33,128 +31,96 @@ const initialSchedule: ScheduleItem[] = [
     actividad: 'Establecer objetivos y metas',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Planear',
     actividad: 'Establecer indicadores de gestión',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Planear',
     actividad: 'Establecer los mecanismos para controlar el riesgo',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'Inspecciones locativas',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'Inspecciones de extintores',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'Inspeccion gerencial',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'inspeccion a productos quimicos',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'Inspeccion a extintores',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'Inspección a vehiculos',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'Inspección a herramientas',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'Inspección botiquin',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'Inspeccion de EPPS s',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Hacer',
     actividad: 'capacitar al personar en alistamiento e inspeccion de vehiculos.',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Verificar',
     actividad: 'Seguimiento a Indicadores',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Verificar',
     actividad: 'Seguimiento a las acciones tomadas frente a los hallazgos',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
   {
     etapa: 'Actuar',
     actividad: 'Implementación de acciones correctivas y preventivas / correctivos',
     responsable: '',
     cronograma: emptyScheduleValues(),
-    fecha: '',
-    estado: false,
   },
 ];
 
@@ -255,12 +221,6 @@ export function InspectionsHeader() {
           <th className="inspections-table__header-cell inspections-table__header-cell--center" colSpan={12}>
             SEMESTRE II
           </th>
-          <th className="inspections-table__header-cell inspections-table__header-cell--center" rowSpan={3}>
-            Fecha
-          </th>
-          <th className="inspections-table__header-cell inspections-table__header-cell--center" rowSpan={3}>
-            Estado
-          </th>
         </tr>
         <tr>
           {scheduleHeaders.map((item) => (
@@ -315,22 +275,6 @@ export function InspectionsHeader() {
                   </td>
                 ))
               )}
-              <td className="inspections-table__cell">
-                <input
-                  type="date"
-                  value={row.fecha}
-                  onChange={(event) => handleFieldChange(index, 'fecha', event.target.value)}
-                  className="inspections-table__input"
-                />
-              </td>
-              <td className="inspections-table__cell inspections-table__cell--center">
-                <input
-                  type="checkbox"
-                  checked={row.estado}
-                  onChange={(event) => handleFieldChange(index, 'estado', event.target.checked)}
-                  className="inspections-table__checkbox"
-                />
-              </td>
             </tr>
           );
         })}
