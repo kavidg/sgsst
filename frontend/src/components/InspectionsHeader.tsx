@@ -148,6 +148,14 @@ const initialSchedule: ScheduleItem[] = [
     fecha: '',
     estado: false,
   },
+  {
+    etapa: 'Actuar',
+    actividad: 'Implementación de acciones correctivas y preventivas / correctivos',
+    responsable: '',
+    cronograma: emptyScheduleValues(),
+    fecha: '',
+    estado: false,
+  },
 ];
 
 function InspectionsHeaderTable() {
