@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 
+const PHVA_STAGES = ['Planear', 'Hacer', 'Verificar', 'Actuar'] as const;
+type PHVAStage = (typeof PHVA_STAGES)[number];
+
 type ScheduleItem = {
-  etapa: string;
+  etapa: PHVAStage;
   actividad: string;
   responsable: string;
   cronograma: Record<string, '' | '0' | '1'>;
@@ -25,104 +28,7 @@ const scheduleHeaders = [
 const emptyScheduleValues = (): ScheduleItem['cronograma'] =>
   Object.fromEntries(scheduleHeaders.flatMap((item) => item.claves.map((clave) => [clave, '']))) as ScheduleItem['cronograma'];
 
-const initialSchedule: ScheduleItem[] = [
-  {
-    etapa: 'Planear',
-    actividad: 'Establecer objetivos y metas',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Planear',
-    actividad: 'Establecer indicadores de gestión',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Planear',
-    actividad: 'Establecer los mecanismos para controlar el riesgo',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'Inspecciones locativas',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'Inspecciones de extintores',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'Inspeccion gerencial',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'inspeccion a productos quimicos',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'Inspeccion a extintores',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'Inspección a vehiculos',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'Inspección a herramientas',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'Inspección botiquin',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'Inspeccion de EPPS s',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Hacer',
-    actividad: 'capacitar al personar en alistamiento e inspeccion de vehiculos.',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Verificar',
-    actividad: 'Seguimiento a Indicadores',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Verificar',
-    actividad: 'Seguimiento a las acciones tomadas frente a los hallazgos',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-  {
-    etapa: 'Actuar',
-    actividad: 'Implementación de acciones correctivas y preventivas / correctivos',
-    responsable: '',
-    cronograma: emptyScheduleValues(),
-  },
-];
+const initialSchedule: ScheduleItem[] = [];
 
 function InspectionsHeaderTable() {
   return (
@@ -179,6 +85,8 @@ function InspectionsHeaderTable() {
 
 export function InspectionsHeader() {
   const [schedule, setSchedule] = useState<ScheduleItem[]>(initialSchedule);
+  const [selectedStage, setSelectedStage] = useState<PHVAStage>('Planear');
+  const [activityDescription, setActivityDescription] = useState('');
 
   const etapaCounts = useMemo(() => {
     return schedule.reduce<Record<string, number>>((acc, item) => {
@@ -199,6 +107,30 @@ export function InspectionsHeader() {
         rowIndex === index ? { ...item, cronograma: { ...item.cronograma, [key]: value } } : item
       )
     );
+  };
+
+  const addRowToStage = () => {
+    const trimmedDescription = activityDescription.trim();
+    if (!trimmedDescription) return;
+
+    const newRow: ScheduleItem = {
+      etapa: selectedStage,
+      actividad: trimmedDescription,
+      responsable: '',
+      cronograma: emptyScheduleValues(),
+    };
+
+    setSchedule((prev) => {
+      const insertAfterIndex = [...prev].reverse().findIndex((item) => item.etapa === selectedStage);
+
+      if (insertAfterIndex === -1) {
+        return [...prev, newRow];
+      }
+
+      const insertIndex = prev.length - insertAfterIndex;
+      return [...prev.slice(0, insertIndex), newRow, ...prev.slice(insertIndex)];
+    });
+    setActivityDescription('');
   };
 
   const InspectionsSchedule = () => (
@@ -240,7 +172,13 @@ export function InspectionsHeader() {
         </tr>
         </thead>
         <tbody>
-        {schedule.map((row, index) => {
+        {schedule.length === 0 ? (
+          <tr>
+            <td className="inspections-table__cell inspections-table__cell--center" colSpan={27}>
+              No hay actividades registradas. Agrega una fila para comenzar tu cronograma.
+            </td>
+          </tr>
+        ) : schedule.map((row, index) => {
           const showEtapa = index === 0 || schedule[index - 1].etapa !== row.etapa;
 
           return (
@@ -286,6 +224,33 @@ export function InspectionsHeader() {
   return (
     <section className="inspections-section">
       <InspectionsHeaderTable />
+      <div className="inspections-table-wrapper">
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <select
+            value={selectedStage}
+            onChange={(event) => setSelectedStage(event.target.value as PHVAStage)}
+            className="inspections-table__input"
+            aria-label="Seleccionar etapa"
+          >
+            {PHVA_STAGES.map((stage) => (
+              <option key={stage} value={stage}>
+                {stage}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={activityDescription}
+            onChange={(event) => setActivityDescription(event.target.value)}
+            className="inspections-table__input"
+            placeholder="Descripción de la actividad"
+            aria-label="Descripción de actividad"
+          />
+          <button type="button" onClick={addRowToStage} className="inspections-section__save-button">
+            Agregar fila
+          </button>
+        </div>
+      </div>
       <InspectionsSchedule />
       <button
         type="button"
