@@ -7,7 +7,7 @@ type ScheduleItem = {
   etapa: PHVAStage;
   actividad: string;
   responsable: string;
-  cronograma: Record<string, '' | '0' | '1'>;
+  cronograma: Record<string, '' | 'x' | 'check'>;
 };
 
 const scheduleHeaders = [
@@ -100,7 +100,7 @@ export function InspectionsHeader() {
   };
 
   const handleScheduleValueChange = (index: number, key: keyof ScheduleItem['cronograma'], value: string) => {
-    if (value !== '' && value !== '0' && value !== '1') return;
+    if (value !== '' && value !== 'x' && value !== 'check') return;
 
     setSchedule((prev) =>
       prev.map((item, rowIndex) =>
@@ -201,15 +201,22 @@ export function InspectionsHeader() {
               {scheduleHeaders.flatMap((item) =>
                 item.claves.map((key) => (
                   <td key={`${row.etapa}-${row.actividad}-${key}`} className="inspections-table__cell inspections-table__cell--center">
-                    <input
-                      type="text"
+                    <select
                       value={row.cronograma[key]}
                       onChange={(event) => handleScheduleValueChange(index, key, event.target.value)}
-                      className="inspections-table__binary-input"
-                      maxLength={1}
-                      inputMode="numeric"
-                      pattern="[01]"
-                    />
+                      className={`inspections-table__binary-select ${
+                        row.cronograma[key] === 'check'
+                          ? 'inspections-table__binary-select--check'
+                          : row.cronograma[key] === 'x'
+                            ? 'inspections-table__binary-select--x'
+                            : ''
+                      }`}
+                      aria-label={`Seleccionar estado ${key} para ${row.actividad}`}
+                    >
+                      <option value="">—</option>
+                      <option value="x">X</option>
+                      <option value="check">✓</option>
+                    </select>
                   </td>
                 ))
               )}
