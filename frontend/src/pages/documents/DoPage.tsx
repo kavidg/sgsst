@@ -213,7 +213,7 @@ const gestionAmenazas: EvaluationEntry[] = [
   },
 ];
 
-function EvaluationSection({ title, items, children, sectionId }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string }) {
+function EvaluationSection({ title, items, children, sectionId, readOnly = false }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
   useEffect(() => {
@@ -229,6 +229,7 @@ function EvaluationSection({ title, items, children, sectionId }: { title: strin
               {...item}
               status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
               hasError={missingCodes.has(item.code)}
+              readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
             />
             {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
@@ -240,7 +241,7 @@ function EvaluationSection({ title, items, children, sectionId }: { title: strin
   );
 }
 
-export function DoPage() {
+export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
   const { totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
@@ -250,24 +251,25 @@ export function DoPage() {
         total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
       />
+      {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
       <Card title="II. Hacer (60%)">
         <p className="muted">Gestión de la Salud (20%)</p>
       </Card>
 
-      <EvaluationSection title="Condiciones de salud en el trabajo (9%)" items={condicionesSalud} sectionId="do-condiciones-salud" />
-      <EvaluationSection title="Registro e investigación (5%)" items={registroInvestigacion} sectionId="do-registro-investigacion" />
-      <EvaluationSection title="Vigilancia de la salud (6%)" items={vigilanciaSalud} sectionId="do-vigilancia-salud" />
+      <EvaluationSection title="Condiciones de salud en el trabajo (9%)" items={condicionesSalud} sectionId="do-condiciones-salud" readOnly={readOnly} />
+      <EvaluationSection title="Registro e investigación (5%)" items={registroInvestigacion} sectionId="do-registro-investigacion" readOnly={readOnly} />
+      <EvaluationSection title="Vigilancia de la salud (6%)" items={vigilanciaSalud} sectionId="do-vigilancia-salud" readOnly={readOnly} />
 
       <Card title="Gestión de Peligros y Riesgos (30%)">
         <p className="muted">Control de peligros y riesgos prioritarios</p>
       </Card>
-      <EvaluationSection title="Identificación de peligros (15%)" items={identificacionPeligros} sectionId="do-identificacion-peligros" />
-      <EvaluationSection title="Medidas de prevención y control (15%)" items={medidasControl} sectionId="do-medidas-control" />
+      <EvaluationSection title="Identificación de peligros (15%)" items={identificacionPeligros} sectionId="do-identificacion-peligros" readOnly={readOnly} />
+      <EvaluationSection title="Medidas de prevención y control (15%)" items={medidasControl} sectionId="do-medidas-control" readOnly={readOnly} />
 
       <Card title="Gestión de Amenazas (10%)">
         <p className="muted">Prevención, preparación y respuesta ante emergencias</p>
       </Card>
-      <EvaluationSection title="Plan de Prevención, Preparación y Respuesta ante Emergencias (10%)" items={gestionAmenazas} sectionId="do-gestion-amenazas">
+      <EvaluationSection title="Plan de Prevención, Preparación y Respuesta ante Emergencias (10%)" items={gestionAmenazas} sectionId="do-gestion-amenazas" readOnly={readOnly}>
         <div className="plan-next-action plan-next-action--between">
           <Button type="button" className="plan-next-action__button" variant="secondary" onClick={() => navigate('/documents/plan')}>
             ← Regresar (Planear)

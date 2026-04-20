@@ -53,7 +53,7 @@ const verificacionItems: EvaluationEntry[] = [
   },
 ];
 
-export function CheckPage() {
+export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
@@ -70,6 +70,7 @@ export function CheckPage() {
         total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
       />
+      {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
       <Card title="Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)" className={sectionErrors.has('check-verificacion') ? 'card--error' : ''}>
         <p className="muted">Gestión y resultados del SG-SST (5%)</p>
         <div className="evaluation-list" style={{ marginTop: '1rem' }}>
@@ -79,6 +80,7 @@ export function CheckPage() {
                 {...item}
                 status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
                 hasError={missingCodes.has(item.code)}
+                readOnly={readOnly}
                 onStatusChange={(code, status) => setAnswerStatus(code, status)}
               />
               {index < verificacionItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}

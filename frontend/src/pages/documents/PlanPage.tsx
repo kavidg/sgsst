@@ -221,7 +221,7 @@ type EvaluationEntry = {
   criteria: string;
 };
 
-function EvaluationSection({ title, items, sectionId }: { title: string; items: EvaluationEntry[]; sectionId: string }) {
+function EvaluationSection({ title, items, sectionId, readOnly = false }: { title: string; items: EvaluationEntry[]; sectionId: string; readOnly?: boolean }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
   useEffect(() => {
@@ -237,6 +237,7 @@ function EvaluationSection({ title, items, sectionId }: { title: string; items: 
               {...item}
               status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
               hasError={missingCodes.has(item.code)}
+              readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
             />
             {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
@@ -247,7 +248,7 @@ function EvaluationSection({ title, items, sectionId }: { title: string; items: 
   );
 }
 
-export function PlanPage() {
+export function PlanPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
@@ -264,8 +265,9 @@ export function PlanPage() {
         total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
       />
-      <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} sectionId="plan-capacitacion" />
-      <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} sectionId="plan-recursos" />
+      {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
+      <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} sectionId="plan-capacitacion" readOnly={readOnly} />
+      <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} sectionId="plan-recursos" readOnly={readOnly} />
       <Card title="Gestión Integral del SG-SST (15%)" className={sectionErrors.has('plan-gestion-integral') ? 'card--error' : ''}>
         <div className="evaluation-list">
           {integralManagementItems.map((item, index) => (
@@ -274,6 +276,7 @@ export function PlanPage() {
                 {...item}
                 status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
                 hasError={missingCodes.has(item.code)}
+                readOnly={readOnly}
                 onStatusChange={(code, status) => setAnswerStatus(code, status)}
               />
               {index < integralManagementItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}
