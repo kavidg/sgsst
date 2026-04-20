@@ -72,8 +72,7 @@ export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
             </NavLink>
           ))}
 
-          {role === 'manager' ? null : (
-            <div className="documents-menu-group">
+          <div className="documents-menu-group">
               <button
                 type="button"
                 onClick={() => setOpenDocuments((open) => !open)}
@@ -97,7 +96,6 @@ export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
                 ))}
               </div>
             </div>
-          )}
         </nav>
       </aside>
     </>

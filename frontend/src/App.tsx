@@ -487,10 +487,10 @@ function App() {
   const renderDocumentsRoutePage = (page: ReactNode) => (
     <>
       {renderSharedHeader()}
-      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
         <DocumentsEvaluationProvider>{page}</DocumentsEvaluationProvider>
       ) : (
-        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
       )}
     </>
   );
@@ -612,11 +612,11 @@ function App() {
         <Route path="/employees" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEmployeesRoutePage()} />
         <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEvaluationsRoutePage()} />
         <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderRisksRoutePage()} />
-        <Route path="/documents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <Navigate to="/documents/plan" replace />} />
-        <Route path="/documents/plan" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<PlanPage />)} />
-        <Route path="/documents/do" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<DoPage />)} />
-        <Route path="/documents/check" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<CheckPage />)} />
-        <Route path="/documents/act" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderDocumentsRoutePage(<ActPage />)} />
+        <Route path="/documents" element={<Navigate to="/documents/plan" replace />} />
+        <Route path="/documents/plan" element={renderDocumentsRoutePage(<PlanPage readOnly={profile?.role === 'manager'} />)} />
+        <Route path="/documents/do" element={renderDocumentsRoutePage(<DoPage readOnly={profile?.role === 'manager'} />)} />
+        <Route path="/documents/check" element={renderDocumentsRoutePage(<CheckPage readOnly={profile?.role === 'manager'} />)} />
+        <Route path="/documents/act" element={renderDocumentsRoutePage(<ActPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderIncidentsRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
         <Route path="/inspections" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderInspectionsRoutePage()} />

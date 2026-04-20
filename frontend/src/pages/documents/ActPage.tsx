@@ -53,7 +53,7 @@ const actuarItems: EvaluationEntry[] = [
   },
 ];
 
-export function ActPage() {
+export function ActPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, validateAll, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
@@ -65,6 +65,10 @@ export function ActPage() {
   }, [registerSection]);
 
   const handleFinish = () => {
+    if (readOnly) {
+      return;
+    }
+
     const validationResult = validateAll();
 
     if (!validationResult.isValid) {
@@ -81,6 +85,7 @@ export function ActPage() {
         total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
       />
+      {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
       <Card title="Mejoramiento (10%)" className={sectionErrors.has('act-mejoramiento') ? 'card--error' : ''}>
         <div className="evaluation-list">
           {actuarItems.map((item, index) => (
@@ -89,6 +94,7 @@ export function ActPage() {
                 {...item}
                 status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
                 hasError={missingCodes.has(item.code)}
+                readOnly={readOnly}
                 onStatusChange={(code, status) => setAnswerStatus(code, status)}
               />
               {index < actuarItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}
@@ -100,7 +106,7 @@ export function ActPage() {
           <Button type="button" className="plan-next-action__button" variant="secondary" onClick={() => navigate('/documents/check')}>
             ← Regresar (Verificar)
           </Button>
-          <Button type="button" className="plan-next-action__button" onClick={handleFinish}>
+          <Button type="button" className="plan-next-action__button" onClick={handleFinish} disabled={readOnly}>
             Finalizar
           </Button>
         </div>

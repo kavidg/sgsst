@@ -6,6 +6,7 @@ import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
 
 type EvaluationItemProps = {
+  readOnly?: boolean;
   code: string;
   title: string;
   weight: number;
@@ -43,6 +44,7 @@ export function EvaluationItem({
   status: controlledStatus,
   onStatusChange,
   hasError = false,
+  readOnly = false,
 }: EvaluationItemProps) {
   const fileInputId = useId();
   const [status, setStatus] = useState<ComplianceOption>(controlledStatus ?? '');
@@ -70,6 +72,7 @@ export function EvaluationItem({
   };
 
   const currentStatus = controlledStatus ?? status;
+  const isDocumentPending = !currentStatus;
 
   const handleStatusChange = (nextStatus: ComplianceOption) => {
     if (controlledStatus === undefined) {
@@ -117,7 +120,11 @@ export function EvaluationItem({
       <div className="grid grid-2">
         <label className="field">
           <span className="label">Resultado de evaluación</span>
-          <Select value={currentStatus} onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}>
+          <Select
+            value={currentStatus}
+            disabled={readOnly}
+            onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}
+          >
             <option value="" disabled>
               Selecciona una opción
             </option>
@@ -143,17 +150,20 @@ export function EvaluationItem({
               id={fileInputId}
               type="file"
               className="upload-zone__input"
+              disabled={readOnly}
               onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
             />
             <span className="upload-zone__title">Arrastra y suelta un archivo</span>
-            <span className="muted">o haz clic para seleccionarlo</span>
+            <span className="muted">{readOnly ? 'Solo visualización para manager' : 'o haz clic para seleccionarlo'}</span>
             {selectedFile ? <span className="upload-zone__file">Archivo: {selectedFile.name}</span> : null}
           </label>
         </div>
       </div>
 
+      {isDocumentPending ? <p className="muted" style={{ marginTop: '.5rem' }}>Documento pendiente por cargar/evaluar.</p> : null}
+
       <div className="actions" style={{ justifyContent: 'flex-end' }}>
-        <Button type="button" disabled={!currentStatus} onClick={() => setIsModalOpen(true)}>
+        <Button type="button" disabled={!currentStatus || readOnly} onClick={() => setIsModalOpen(true)}>
           Ingresar plan de mejoramiento
         </Button>
       </div>
@@ -166,6 +176,7 @@ export function EvaluationItem({
               value={plan.activity}
               onChange={(event) => setPlan((current) => ({ ...current, activity: event.target.value }))}
               placeholder="Describe la actividad"
+              disabled={readOnly}
             />
           </label>
           <label className="field">
@@ -174,6 +185,7 @@ export function EvaluationItem({
               value={plan.responsible}
               onChange={(event) => setPlan((current) => ({ ...current, responsible: event.target.value }))}
               placeholder="Nombre del responsable"
+              disabled={readOnly}
             />
           </label>
           <div className="grid grid-2">
@@ -182,6 +194,7 @@ export function EvaluationItem({
               <Input
                 type="date"
                 value={plan.startDate}
+                disabled={readOnly}
                 onChange={(event) => setPlan((current) => ({ ...current, startDate: event.target.value }))}
               />
             </label>
@@ -190,6 +203,7 @@ export function EvaluationItem({
               <Input
                 type="date"
                 value={plan.endDate}
+                disabled={readOnly}
                 onChange={(event) => setPlan((current) => ({ ...current, endDate: event.target.value }))}
               />
             </label>
@@ -201,13 +215,14 @@ export function EvaluationItem({
               value={plan.notes}
               onChange={(event) => setPlan((current) => ({ ...current, notes: event.target.value }))}
               placeholder="Notas adicionales"
+              disabled={readOnly}
             />
           </label>
           <div className="actions" style={{ justifyContent: 'flex-end' }}>
             <Button type="button" variant="secondary" onClick={closeModal}>
               Cancelar
             </Button>
-            <Button type="button" onClick={savePlan}>
+            <Button type="button" onClick={savePlan} disabled={readOnly}>
               Guardar
             </Button>
           </div>
