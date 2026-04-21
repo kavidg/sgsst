@@ -8,6 +8,7 @@ import {
   fetchInspectionActivities,
   fetchInspectionScheduleByCompany,
 } from '../api';
+import { useCompanyContext } from '../context/CompanyContext';
 import { KpiCard } from '../components/KpiCard';
 import {
   Bar,
@@ -25,7 +26,6 @@ import {
 
 type DashboardPageProps = {
   token: string;
-  companyId: string;
 };
 
 type PhaseKey = 'PLANEAR' | 'HACER' | 'VERIFICAR' | 'ACTUAR';
@@ -59,7 +59,8 @@ function getPhaseByCode(code?: string): PhaseKey | null {
   return null;
 }
 
-export function DashboardPage({ token, companyId }: DashboardPageProps) {
+export function DashboardPage({ token }: DashboardPageProps) {
+  const { companyId } = useCompanyContext();
   const [evaluations, setEvaluations] = useState<DashboardEvaluationModel[]>([]);
   const [absenteeism, setAbsenteeism] = useState<AbsenteeismModel[]>([]);
   const [inspections, setInspections] = useState<InspectionActivityModel[]>([]);

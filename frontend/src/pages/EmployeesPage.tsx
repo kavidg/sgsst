@@ -15,6 +15,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
+import { useCompanyContext } from '../context/CompanyContext';
 
 interface EmployeesPageProps {
   token: string;
@@ -47,6 +48,7 @@ const emptyEmployee: EmployeeFormState = {
 const BULK_ALLOWED_STATUS = new Set(['Activo', 'No activo']);
 
 export function EmployeesPage({ token }: EmployeesPageProps) {
+  const { companyId } = useCompanyContext();
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -75,7 +77,7 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
 
   useEffect(() => {
     void loadEmployees();
-  }, [token]);
+  }, [companyId, token]);
 
   const resetForm = () => {
     setForm(emptyEmployee);

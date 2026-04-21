@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Table } from '../components/ui/Table';
+import { useCompanyContext } from '../context/CompanyContext';
 
 interface RisksPageProps {
   token: string;
@@ -30,6 +31,7 @@ const emptyRisk: RiskFormState = {
 };
 
 export function RisksPage({ token }: RisksPageProps) {
+  const { companyId } = useCompanyContext();
   const [risks, setRisks] = useState<RiskModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,7 +56,7 @@ export function RisksPage({ token }: RisksPageProps) {
 
   useEffect(() => {
     void loadRisks();
-  }, [token]);
+  }, [companyId, token]);
 
   const resetForm = () => {
     setForm(emptyRisk);

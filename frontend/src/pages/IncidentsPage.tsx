@@ -15,6 +15,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
+import { useCompanyContext } from '../context/CompanyContext';
 
 interface IncidentsPageProps {
   token: string;
@@ -32,6 +33,7 @@ const emptyIncident: IncidentFormState = {
 };
 
 export function IncidentsPage({ token }: IncidentsPageProps) {
+  const { companyId } = useCompanyContext();
   const [incidents, setIncidents] = useState<IncidentModel[]>([]);
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,7 +71,7 @@ export function IncidentsPage({ token }: IncidentsPageProps) {
 
   useEffect(() => {
     void loadData();
-  }, [token]);
+  }, [companyId, token]);
 
   const resetForm = () => {
     setForm({
