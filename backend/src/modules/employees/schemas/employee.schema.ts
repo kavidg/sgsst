@@ -28,4 +28,4 @@ export class Employee {
 }
 
 export const EmployeeSchema = SchemaFactory.createForClass(Employee);
-EmployeeSchema.index({ companyId: 1, document: 1 });
+EmployeeSchema.index({ companyId: 1, document: 1 }, { unique: true });
