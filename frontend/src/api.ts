@@ -110,6 +110,36 @@ export interface IncidentModel {
   status: string;
 }
 
+export type AbsenteeismType = 'ENFERMEDAD' | 'ACCIDENTE' | 'PERMISO';
+
+export interface AbsenteeismModel {
+  _id: string;
+  companyId: string;
+  userId: string;
+  tipo: AbsenteeismType;
+  fechaInicio: string;
+  fechaFin: string;
+  dias: number;
+  descripcion?: string;
+  soporte?: string;
+}
+
+export interface AbsenteeismStats {
+  totalDiasPerdidos: number;
+  totalCasos: number;
+  promedioDias: number;
+}
+
+export interface CreateAbsenteeismPayload {
+  companyId: string;
+  userId: string;
+  tipo: AbsenteeismType;
+  fechaInicio: string;
+  fechaFin: string;
+  descripcion?: string;
+  soporte?: string;
+}
+
 export interface CreateIncidentPayload {
   employeeId: string;
   type: string;
@@ -439,6 +469,22 @@ export function updateIncident(token: string, id: string, payload: UpdateInciden
 
 export function deleteIncident(token: string, id: string) {
   return apiFetch<void>(`/incidents/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchAbsenteeismByCompany(token: string, companyId: string) {
+  return apiFetch<AbsenteeismModel[]>(`/absenteeism/company/${companyId}`, token, { method: 'GET' });
+}
+
+export function fetchAbsenteeismStatsByCompany(token: string, companyId: string) {
+  return apiFetch<AbsenteeismStats>(`/absenteeism/stats/company/${companyId}`, token, { method: 'GET' });
+}
+
+export function createAbsenteeism(token: string, payload: CreateAbsenteeismPayload) {
+  return apiFetch<AbsenteeismModel>('/absenteeism', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function deleteAbsenteeism(token: string, id: string) {
+  return apiFetch<void>(`/absenteeism/${id}`, token, { method: 'DELETE' });
 }
 
 
