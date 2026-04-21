@@ -272,17 +272,14 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
 
       <Card title="Carga masiva de empleados">
         <div className="actions">
-          <Button type="button" onClick={() => fileInputRef.current?.click()}>
-            Cargue masivo
-          </Button>
           <Button type="button" variant="secondary" onClick={downloadTemplate}>
             Descargar plantilla Excel
           </Button>
           <Button type="button" onClick={handleBulkUpload} disabled={bulkLoading || !bulkPreview.length}>
-            {bulkLoading ? 'Cargando...' : 'Enviar válidos'}
+            {bulkLoading ? 'Cargando...' : 'Enviar cargue'}
           </Button>
         </div>
-        <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleBulkFile} className="hidden" />
+        <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleBulkFile} className="" />
 
         {bulkPreview.length ? (
           <Table>
