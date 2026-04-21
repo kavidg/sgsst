@@ -18,6 +18,7 @@ import { RolesGuard } from '../questions/roles.guard';
 import { UsersService } from '../users/users.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { BulkCreateEmployeesDto } from './dto/bulk-create-employees.dto';
 import { EmployeesService } from './employees.service';
 
 @Controller('employees')
@@ -33,6 +34,13 @@ export class EmployeesController {
   async create(@Req() request: RequestWithUser, @Body() createEmployeeDto: CreateEmployeeDto) {
     const companyId = await this.resolveCompanyId(request);
     return this.employeesService.create(companyId, createEmployeeDto);
+  }
+
+  @Post('bulk')
+  @Roles('owner', 'admin')
+  async bulkCreate(@Req() request: RequestWithUser, @Body() bulkCreateEmployeesDto: BulkCreateEmployeesDto) {
+    const companyId = await this.resolveCompanyId(request);
+    return this.employeesService.bulkCreate(companyId, bulkCreateEmployeesDto.employees);
   }
 
   @Get()

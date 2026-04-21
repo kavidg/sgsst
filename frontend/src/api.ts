@@ -242,13 +242,24 @@ export interface EmployeeModel {
   companyId: string;
 }
 
-interface CreateEmployeePayload {
+export interface CreateEmployeePayload {
   name: string;
   document: string;
   position: string;
   area: string;
   contractType: string;
   status: string;
+}
+
+
+
+export interface BulkEmployeesResponse {
+  inserted: number;
+  failed: number;
+  errors: Array<{
+    row: number;
+    message: string;
+  }>;
 }
 
 interface UpdateEmployeePayload {
@@ -445,6 +456,14 @@ export function createEmployee(token: string, payload: CreateEmployeePayload) {
 
 export function updateEmployee(token: string, id: string, payload: UpdateEmployeePayload) {
   return apiFetch<EmployeeModel>(`/employees/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+
+export function bulkCreateEmployees(token: string, payload: { employees: CreateEmployeePayload[] }) {
+  return apiFetch<BulkEmployeesResponse>('/employees/bulk', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export function deleteEmployee(token: string, id: string) {
