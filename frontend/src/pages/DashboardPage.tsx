@@ -1,5 +1,27 @@
-import { useEffect, useState } from 'react';
-import { DashboardEvaluationModel, fetchDashboardEvaluations } from '../api';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AbsenteeismModel,
+  DashboardEvaluationModel,
+  InspectionActivityModel,
+  fetchAbsenteeismByCompany,
+  fetchDashboardEvaluations,
+  fetchInspectionActivities,
+  fetchInspectionScheduleByCompany,
+} from '../api';
+import { KpiCard } from '../components/KpiCard';
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 type DashboardPageProps = {
   token: string;
@@ -7,8 +29,6 @@ type DashboardPageProps = {
 };
 
 type PhaseKey = 'PLANEAR' | 'HACER' | 'VERIFICAR' | 'ACTUAR';
-
-type ComplianceScore = 'good' | 'medium' | 'bad';
 
 const PHASE_LABELS: Record<PhaseKey, string> = {
   PLANEAR: 'Planear',
@@ -18,6 +38,8 @@ const PHASE_LABELS: Record<PhaseKey, string> = {
 };
 
 const PHASE_ORDER: PhaseKey[] = ['PLANEAR', 'HACER', 'VERIFICAR', 'ACTUAR'];
+const PHASE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+const MONTH_FORMATTER = new Intl.DateTimeFormat('es-CO', { month: 'short', year: '2-digit' });
 
 function getWeight(item: DashboardEvaluationModel) {
   return typeof item.weight === 'number' && Number.isFinite(item.weight) && item.weight > 0 ? item.weight : 1;
@@ -37,38 +59,10 @@ function getPhaseByCode(code?: string): PhaseKey | null {
   return null;
 }
 
-function getComplianceScore(percentage: number): ComplianceScore {
-  if (percentage > 85) return 'good';
-  if (percentage > 60) return 'medium';
-  return 'bad';
-}
-
-function getScoreStyles(score: ComplianceScore) {
-  if (score === 'good') {
-    return {
-      textClass: 'dashboard-saas__text--good',
-      fillClass: 'dashboard-saas__bar-fill--good',
-      toneClass: 'dashboard-saas__card--good',
-    };
-  }
-
-  if (score === 'medium') {
-    return {
-      textClass: 'dashboard-saas__text--medium',
-      fillClass: 'dashboard-saas__bar-fill--medium',
-      toneClass: 'dashboard-saas__card--medium',
-    };
-  }
-
-  return {
-    textClass: 'dashboard-saas__text--bad',
-    fillClass: 'dashboard-saas__bar-fill--bad',
-    toneClass: 'dashboard-saas__card--bad',
-  };
-}
-
 export function DashboardPage({ token, companyId }: DashboardPageProps) {
   const [evaluations, setEvaluations] = useState<DashboardEvaluationModel[]>([]);
+  const [absenteeism, setAbsenteeism] = useState<AbsenteeismModel[]>([]);
+  const [inspections, setInspections] = useState<InspectionActivityModel[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -78,9 +72,15 @@ export function DashboardPage({ token, companyId }: DashboardPageProps) {
     }
 
     setLoading(true);
-    fetchDashboardEvaluations(token, companyId)
-      .then((data) => {
-        setEvaluations(data);
+    Promise.all([
+      fetchDashboardEvaluations(token, companyId),
+      fetchAbsenteeismByCompany(token, companyId),
+      fetchInspectionScheduleByCompany(token, companyId).catch(() => fetchInspectionActivities(token)),
+    ])
+      .then(([evaluationData, absenteeismData, inspectionData]) => {
+        setEvaluations(evaluationData);
+        setAbsenteeism(absenteeismData);
+        setInspections(inspectionData);
         setError('');
       })
       .catch((requestError) => {
@@ -92,107 +92,149 @@ export function DashboardPage({ token, companyId }: DashboardPageProps) {
       });
   }, [token, companyId]);
 
-  const globalTotal = evaluations.reduce((sum, item) => sum + getWeight(item), 0);
-  const globalComplies = evaluations.reduce((sum, item) => (item.status === 'CUMPLE' ? sum + getWeight(item) : sum), 0);
-  const globalCompliance = globalTotal > 0 ? (globalComplies / globalTotal) * 100 : 0;
-  const globalComplianceRounded = Number(globalCompliance.toFixed(1));
-  const globalComplianceScore = getComplianceScore(globalComplianceRounded);
-  const globalScoreStyles = getScoreStyles(globalComplianceScore);
+  const metrics = useMemo(() => {
+    const totalWeight = evaluations.reduce((sum, item) => sum + getWeight(item), 0);
+    const complyWeight = evaluations.reduce((sum, item) => (item.status === 'CUMPLE' ? sum + getWeight(item) : sum), 0);
+    const sgsstCompliance = totalWeight > 0 ? (complyWeight / totalWeight) * 100 : 0;
+    const totalAbsenteeismDays = absenteeism.reduce((sum, item) => sum + (item.dias || 0), 0);
 
-  const phaseCompliance = PHASE_ORDER.map((phase) => {
-    const phaseItems = evaluations.filter((item) => getPhaseByCode(item.code) === phase);
-    const total = phaseItems.reduce((sum, item) => sum + getWeight(item), 0);
-    const complies = phaseItems.reduce((sum, item) => (item.status === 'CUMPLE' ? sum + getWeight(item) : sum), 0);
-    const percentage = total > 0 ? Number(((complies / total) * 100).toFixed(1)) : 0;
+    const executedInspections = inspections.filter((item) =>
+      ['ejecutada', 'completada', 'finalizada', 'closed'].includes(item.status.toLowerCase())
+    ).length;
+    const pendingInspections = inspections.length - executedInspections;
+    const inspectionsExecutionRate = inspections.length > 0 ? (executedInspections / inspections.length) * 100 : 0;
+
+    const noCumpleItems = evaluations.filter((item) => item.status === 'NO_CUMPLE');
+    const highAbsenteeism = absenteeism.filter((item) => item.dias > 10);
+    const overduePendingActivities = inspections.filter((item) => {
+      const isExecuted = ['ejecutada', 'completada', 'finalizada', 'closed'].includes(item.status.toLowerCase());
+      return !isExecuted && new Date(item.plannedDate).getTime() < Date.now();
+    });
 
     return {
-      phase,
-      label: PHASE_LABELS[phase],
-      percentage,
-      score: getComplianceScore(percentage),
+      sgsstCompliance: Number(sgsstCompliance.toFixed(1)),
+      totalAbsenteeismDays,
+      inspectionsExecutionRate: Number(inspectionsExecutionRate.toFixed(1)),
+      executedInspections,
+      pendingInspections,
+      noCumpleItems,
+      highAbsenteeism,
+      overduePendingActivities,
+      activeAlerts: highAbsenteeism.length + overduePendingActivities.length + noCumpleItems.length,
     };
-  });
+  }, [absenteeism, evaluations, inspections]);
 
-  const noCumpleItems = evaluations.filter((item) => item.status === 'NO_CUMPLE');
-  const pendingPlans = noCumpleItems.filter((item) => !item.improvementPlan?.activity?.trim()).length;
-  const topIssues = noCumpleItems.slice(0, 5);
+  const absenteeismByMonth = useMemo(() => {
+    const monthAccumulator = absenteeism.reduce<Record<string, number>>((acc, item) => {
+      const monthKey = item.fechaInicio?.slice(0, 7);
+      if (!monthKey) return acc;
+      acc[monthKey] = (acc[monthKey] ?? 0) + (item.dias || 0);
+      return acc;
+    }, {});
+
+    return Object.entries(monthAccumulator)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, days]) => ({
+        month,
+        label: MONTH_FORMATTER.format(new Date(`${month}-01T00:00:00`)),
+        days,
+      }));
+  }, [absenteeism]);
+
+  const phaseCompliance = useMemo(
+    () =>
+      PHASE_ORDER.map((phase) => {
+        const phaseItems = evaluations.filter((item) => getPhaseByCode(item.code) === phase);
+        const total = phaseItems.reduce((sum, item) => sum + getWeight(item), 0);
+        const complies = phaseItems.reduce((sum, item) => (item.status === 'CUMPLE' ? sum + getWeight(item) : sum), 0);
+        const percentage = total > 0 ? Number(((complies / total) * 100).toFixed(1)) : 0;
+        return { phase, name: PHASE_LABELS[phase], value: percentage };
+      }),
+    [evaluations]
+  );
 
   return (
-    <section className="dashboard-saas">
-      <div className="dashboard-saas__header">
-        <h2 className="dashboard-saas__title">Dashboard Ejecutivo</h2>
-        <p className="dashboard-saas__subtitle">Cumplimiento SG-SST e indicadores críticos por fase PHVA.</p>
+    <section className="grid dashboard">
+      <div>
+        <h2 style={{ marginBottom: '.3rem' }}>Dashboard Gerencial SST</h2>
+        <p className="muted">Indicadores de ausentismo, inspecciones y cumplimiento PHVA.</p>
       </div>
 
       {loading ? <p className="muted">Cargando evaluaciones...</p> : null}
       {error ? <p className="error">{error}</p> : null}
 
-      <div className="dashboard-saas__grid">
-        <article className="dashboard-saas__card dashboard-saas__card--summary">
-          <p className="dashboard-saas__label">Cumplimiento SG-SST</p>
-          <p className={`dashboard-saas__summary-value ${globalScoreStyles.textClass}`}>{globalComplianceRounded}%</p>
-          <div className="dashboard-saas__bar-track" aria-label="Cumplimiento global">
-            <div
-              className={`dashboard-saas__bar-fill ${globalScoreStyles.fillClass}`}
-              style={{ width: `${Math.min(globalComplianceRounded, 100)}%` }}
-            />
+      <div className="kpi-grid">
+        <KpiCard title="% Cumplimiento SG-SST" value={`${metrics.sgsstCompliance}%`} />
+        <KpiCard title="Total días ausentismo" value={metrics.totalAbsenteeismDays} />
+        <KpiCard title="% ejecución inspecciones" value={`${metrics.inspectionsExecutionRate}%`} />
+        <KpiCard title="Alertas activas" value={metrics.activeAlerts} />
+      </div>
+
+      <div className="grid grid-3">
+        <article className="card" style={{ minHeight: 300 }}>
+          <h3 className="card-title">Días perdidos por mes</h3>
+          <div style={{ width: '100%', height: 240 }}>
+            <ResponsiveContainer>
+              <LineChart data={absenteeismByMonth}>
+                <XAxis dataKey="label" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="days" stroke="#2563eb" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </article>
 
-        <article className="dashboard-saas__card dashboard-saas__card--alerts">
-          <h3 className="dashboard-saas__card-title">Alertas</h3>
-          <div className="dashboard-saas__alerts-grid">
-            <div className="dashboard-saas__alert-item dashboard-saas__card--bad">
-              <p className="dashboard-saas__metric-label">NO CUMPLE</p>
-              <p className="dashboard-saas__metric-value">{noCumpleItems.length}</p>
-            </div>
-            <div className="dashboard-saas__alert-item dashboard-saas__card--medium">
-              <p className="dashboard-saas__metric-label">Planes pendientes</p>
-              <p className="dashboard-saas__metric-value">{pendingPlans}</p>
-            </div>
+        <article className="card" style={{ minHeight: 300 }}>
+          <h3 className="card-title">Cumplimiento PHVA</h3>
+          <div style={{ width: '100%', height: 240 }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={phaseCompliance} dataKey="value" nameKey="name" outerRadius={85}>
+                  {phaseCompliance.map((entry, index) => (
+                    <Cell key={entry.phase} fill={PHASE_COLORS[index % PHASE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </article>
 
-        <article className="dashboard-saas__card dashboard-saas__card--phases">
-          <h3 className="dashboard-saas__card-title">Avance por fase PHVA</h3>
-          <div className="dashboard-saas__phases-grid">
-            {phaseCompliance.map((phase) => {
-              const phaseScore = getScoreStyles(phase.score);
-
-              return (
-                <div key={phase.phase} className={`dashboard-saas__phase-card ${phaseScore.toneClass}`}>
-                  <div className="dashboard-saas__phase-header">
-                    <p className="dashboard-saas__phase-title">{phase.label}</p>
-                    <p className={`dashboard-saas__phase-value ${phaseScore.textClass}`}>{phase.percentage}%</p>
-                  </div>
-                  <div className="dashboard-saas__bar-track dashboard-saas__bar-track--small" aria-label={`Cumplimiento ${phase.label}`}>
-                    <div
-                      className={`dashboard-saas__bar-fill ${phaseScore.fillClass}`}
-                      style={{ width: `${Math.min(phase.percentage, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+        <article className="card" style={{ minHeight: 300 }}>
+          <h3 className="card-title">Inspecciones ejecutadas vs pendientes</h3>
+          <div style={{ width: '100%', height: 240 }}>
+            <ResponsiveContainer>
+              <BarChart
+                data={[
+                  { name: 'Ejecutadas', total: metrics.executedInspections },
+                  { name: 'Pendientes', total: metrics.pendingInspections },
+                ]}
+              >
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="total" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-        </article>
-
-        <article className="dashboard-saas__card dashboard-saas__card--issues">
-          <h3 className="dashboard-saas__card-title">Top 5 hallazgos NO_CUMPLE</h3>
-          {topIssues.length > 0 ? (
-            <ul className="dashboard-saas__issues-list">
-              {topIssues.map((item) => (
-                <li key={item._id} className="dashboard-saas__issue-item">
-                  <strong>{item.code?.trim() || 'Sin código'}</strong>
-                  <span className="muted">{item.improvementPlan?.activity?.trim() || 'Sin plan de mejoramiento definido'}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted">No hay ítems en estado NO_CUMPLE.</p>
-          )}
         </article>
       </div>
+
+      <article className="card">
+        <h3 className="card-title">Alertas activas</h3>
+        <div className="grid grid-3">
+          <div>
+            <p><strong>Ausencias &gt; 10 días:</strong> {metrics.highAbsenteeism.length}</p>
+          </div>
+          <div>
+            <p><strong>Actividades sin ejecutar:</strong> {metrics.overduePendingActivities.length}</p>
+          </div>
+          <div>
+            <p><strong>Ítems SG-SST en "No cumple":</strong> {metrics.noCumpleItems.length}</p>
+          </div>
+        </div>
+      </article>
     </section>
   );
 }
