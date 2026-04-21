@@ -4,7 +4,6 @@ import {
   CompanyModel,
   MyCompanyModel,
   UserModel,
-  clearActiveCompanyId,
   createAdmin,
   createCompany,
   createUser,
@@ -16,13 +15,10 @@ import {
   fetchMembers,
   fetchMyCompanies,
   fetchUserByFirebaseUid,
-  getActiveCompanyId,
-  setActiveCompanyId,
   updateAdmin,
   updateCompany,
   updateMember,
 } from './api';
-import { CompanySelector } from './CompanySelector';
 import { Layout } from './components/Layout';
 import { Button } from './components/ui/Button';
 import { Card } from './components/ui/Card';
@@ -42,6 +38,7 @@ import { DoPage } from './pages/documents/DoPage';
 import { CheckPage } from './pages/documents/CheckPage';
 import { ActPage } from './pages/documents/ActPage';
 import { DocumentsEvaluationProvider } from './pages/documents/evaluationState';
+import { useCompanyContext } from './context/CompanyContext';
 
 type CompaniesPageProps = {
   companies: CompanyModel[];
@@ -110,6 +107,7 @@ function CompaniesPage({
 
 function App() {
   type CreatableRole = 'admin' | 'member' | 'manager';
+  const { companyId: activeCompanyId, setCompanyId } = useCompanyContext();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -123,8 +121,6 @@ function App() {
   const [members, setMembers] = useState<UserModel[]>([]);
   const [companies, setCompanies] = useState<CompanyModel[]>([]);
   const [myCompanies, setMyCompanies] = useState<MyCompanyModel[]>([]);
-  const [activeCompanyId, setActiveCompanyIdState] = useState('');
-
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminCompanyId, setNewAdminCompanyId] = useState('');
@@ -138,29 +134,25 @@ function App() {
   const [newCompanyStandardsType, setNewCompanyStandardsType] = useState('');
 
   const handleSelectCompany = async (companyId: string) => {
-    setActiveCompanyId(companyId);
-    setActiveCompanyIdState(companyId);
+    setCompanyId(companyId);
     if (idToken) {
       await refreshOwnerData(idToken, companyId);
     }
   };
 
   const hydrateActiveCompany = (availableCompanies: MyCompanyModel[]): string => {
-    const stored = getActiveCompanyId();
+    const stored = activeCompanyId;
 
     if (stored && availableCompanies.some((company) => company.id === stored)) {
-      setActiveCompanyIdState(stored);
       return stored;
     }
 
     if (availableCompanies.length === 1) {
-      setActiveCompanyId(availableCompanies[0].id);
-      setActiveCompanyIdState(availableCompanies[0].id);
+      setCompanyId(availableCompanies[0].id);
       return availableCompanies[0].id;
     }
 
-    setActiveCompanyIdState('');
-    clearActiveCompanyId();
+    setCompanyId('');
     return '';
   };
 
@@ -277,7 +269,7 @@ function App() {
 
   const handleLogout = async () => {
     await signOut();
-    clearActiveCompanyId();
+    setCompanyId('');
     setCurrentUser(null);
     setIdToken('');
     setProfile(null);
@@ -287,7 +279,6 @@ function App() {
     setMembers([]);
     setCompanies([]);
     setMyCompanies([]);
-    setActiveCompanyIdState('');
   };
 
   useEffect(() => {
@@ -303,7 +294,7 @@ function App() {
         }
       })
       .catch(() => undefined);
-  }, [idToken]);
+  }, [activeCompanyId, idToken]);
 
   const handleCreateAdmin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -376,10 +367,8 @@ function App() {
     <Card className="grid" style={{ marginBottom: '1rem' }}>
       <p>Sesión iniciada con UID: <strong>{currentUser?.uid}</strong></p>
       <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p>
-      <CompanySelector companies={myCompanies} activeCompanyId={activeCompanyId} onSelectCompany={handleSelectCompany} />
       <div className="actions" style={{ marginTop: '.75rem' }}>
         <Button type="button" variant="secondary" onClick={() => refreshOwnerData()} disabled={loading}>Recargar</Button>
-        <Button type="button" variant="danger" onClick={handleLogout}>Cerrar sesión</Button>
       </div>
       {!activeCompanyId ? <p className="muted">Selecciona una empresa para continuar</p> : null}
       {error ? <pre className="error">{error}</pre> : null}
@@ -389,7 +378,7 @@ function App() {
   const renderManagerDashboardRoutePage = () => (
     <>
       {renderSharedHeader()}
-      {activeCompanyId ? <DashboardPage token={idToken} companyId={activeCompanyId} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
+      {activeCompanyId ? <DashboardPage token={idToken} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
     </>
   );
 
@@ -478,7 +467,7 @@ function App() {
     <>
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-        <EvaluationsPage token={idToken} companyId={activeCompanyId || profile?.companyId || ''} />
+        <EvaluationsPage token={idToken} />
       ) : (
         <p>Este módulo está disponible para owner o admin con empresa activa.</p>
       )}
@@ -522,7 +511,7 @@ function App() {
     <>
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-        <AbsenteeismPage token={idToken} companyId={activeCompanyId} />
+        <AbsenteeismPage token={idToken} />
       ) : (
         <p>Este módulo está disponible para owner o admin con empresa activa.</p>
       )}
@@ -567,7 +556,19 @@ function App() {
 
   return (
     <Routes>
-      <Route element={<Layout role={profile?.role} />}>
+      <Route
+        element={
+          <Layout
+            role={profile?.role}
+            companies={myCompanies}
+            activeCompanyId={activeCompanyId}
+            onSelectCompany={handleSelectCompany}
+            onRefresh={() => void refreshOwnerData()}
+            onLogout={() => void handleLogout()}
+            loading={loading}
+          />
+        }
+      >
         <Route path="/dashboard" element={renderManagerDashboardRoutePage()} />
         <Route
           path="/companies"

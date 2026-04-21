@@ -10,6 +10,7 @@ import {
 import { Card } from '../../components/ui/Card';
 import { EvaluationForm } from './EvaluationForm';
 import { EvaluationTable } from './EvaluationTable';
+import { useCompanyContext } from '../../context/CompanyContext';
 
 const baseStandards = [
   { standard: '1.1.1', description: 'Política SST' },
@@ -21,10 +22,10 @@ const baseStandards = [
 
 interface EvaluationsPageProps {
   token: string;
-  companyId: string;
 }
 
-export function EvaluationsPage({ token, companyId }: EvaluationsPageProps) {
+export function EvaluationsPage({ token }: EvaluationsPageProps) {
+  const { companyId } = useCompanyContext();
   const [evaluations, setEvaluations] = useState<EvaluationModel[]>([]);
   const [compliance, setCompliance] = useState<ComplianceResponse>({ total: 0, complies: 0, percentage: 0 });
   const [loading, setLoading] = useState(false);
