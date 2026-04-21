@@ -9,6 +9,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
 
 interface EmployeesPageProps {
@@ -121,7 +122,13 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
             <label className="field"><span className="label">Cargo</span><Input value={form.position} onChange={(event) => setForm((prev) => ({ ...prev, position: event.target.value }))} required /></label>
             <label className="field"><span className="label">Área</span><Input value={form.area} onChange={(event) => setForm((prev) => ({ ...prev, area: event.target.value }))} required /></label>
             <label className="field"><span className="label">Tipo de contrato</span><Input value={form.contractType} onChange={(event) => setForm((prev) => ({ ...prev, contractType: event.target.value }))} required /></label>
-            <label className="field"><span className="label">Estado</span><Input value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} required /></label>
+            <label className="field">
+              <span className="label">Estado</span>
+              <Select value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))} required>
+                <option value="Activo">Activo</option>
+                <option value="No activo">No activo</option>
+              </Select>
+            </label>
           </div>
           <div className="actions">
             <Button type="submit" disabled={loading}>{editingEmployeeId ? 'Editar empleado' : 'Crear empleado'}</Button>
