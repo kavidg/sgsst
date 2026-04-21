@@ -65,6 +65,19 @@ export interface DashboardEvaluationModel {
   weight?: number;
 }
 
+export interface InspectionActivityModel {
+  _id: string;
+  companyId: string;
+  title: string;
+  description: string;
+  plannedDate: string;
+  status: string;
+  responsible?: string;
+  frequency?: string;
+  notes?: string;
+  completedDate?: string;
+}
+
 
 export interface RiskModel {
   _id: string;
@@ -553,4 +566,12 @@ export function fetchDashboard(token: string) {
 export function fetchDashboardEvaluations(token: string, companyId: string) {
   const query = new URLSearchParams({ companyId });
   return apiFetch<DashboardEvaluationModel[]>(`/evaluations?${query.toString()}`, token, { method: 'GET' });
+}
+
+export function fetchInspectionScheduleByCompany(token: string, companyId: string) {
+  return apiFetch<InspectionActivityModel[]>(`/inspection-schedule/company/${companyId}`, token, { method: 'GET' });
+}
+
+export function fetchInspectionActivities(token: string) {
+  return apiFetch<InspectionActivityModel[]>('/inspections/activities', token, { method: 'GET' });
 }
