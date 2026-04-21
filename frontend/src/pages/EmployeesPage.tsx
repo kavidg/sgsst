@@ -1,5 +1,9 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
+  bulkCreateEmployees,
+  BulkEmployeesResponse,
+  CreateEmployeePayload,
   EmployeeModel,
   createEmployee,
   deleteEmployee,
@@ -25,6 +29,12 @@ interface EmployeeFormState {
   status: string;
 }
 
+interface BulkPreviewItem {
+  row: number;
+  data: CreateEmployeePayload;
+  error?: string;
+}
+
 const emptyEmployee: EmployeeFormState = {
   name: '',
   document: '',
@@ -34,12 +44,20 @@ const emptyEmployee: EmployeeFormState = {
   status: 'Activo',
 };
 
+const BULK_ALLOWED_STATUS = new Set(['Activo', 'No activo']);
+
 export function EmployeesPage({ token }: EmployeesPageProps) {
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [form, setForm] = useState<EmployeeFormState>(emptyEmployee);
+
+  const [bulkPreview, setBulkPreview] = useState<BulkPreviewItem[]>([]);
+  const [bulkResult, setBulkResult] = useState<BulkEmployeesResponse | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadEmployees = async () => {
     setLoading(true);
@@ -112,6 +130,121 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
     }
   };
 
+  const parseBulkEmployee = (value: unknown): string => {
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (typeof value === 'number') {
+      return String(value).trim();
+    }
+
+    return '';
+  };
+
+  const handleBulkFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    setBulkResult(null);
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const fileBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(fileBuffer, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+
+      if (!worksheet) {
+        setError('El archivo no contiene una hoja válida.');
+        setBulkPreview([]);
+        return;
+      }
+
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+
+      const preview = rows.map((row: Record<string, unknown>, index: number) => {
+        const data: CreateEmployeePayload = {
+          name: parseBulkEmployee(row['nombre']),
+          document: parseBulkEmployee(row['documento']),
+          position: parseBulkEmployee(row['cargo']),
+          area: parseBulkEmployee(row['area']),
+          contractType: parseBulkEmployee(row['tipo de contrato']),
+          status: parseBulkEmployee(row['estado']),
+        };
+
+        const missingRequired = Object.values(data).some((field) => !field);
+
+        if (missingRequired) {
+          return {
+            row: index + 2,
+            data,
+            error: 'Todos los campos son obligatorios.',
+          };
+        }
+
+        if (!BULK_ALLOWED_STATUS.has(data.status)) {
+          return {
+            row: index + 2,
+            data,
+            error: 'El estado debe ser "Activo" o "No activo".',
+          };
+        }
+
+        return {
+          row: index + 2,
+          data,
+        };
+      });
+
+      setBulkPreview(preview);
+    } catch {
+      setError('No fue posible leer el archivo Excel. Verifica el formato.');
+      setBulkPreview([]);
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    const validEmployees = bulkPreview.filter((item) => !item.error).map((item) => item.data);
+
+    if (!validEmployees.length) {
+      setError('No hay registros válidos para cargar.');
+      return;
+    }
+
+    setBulkLoading(true);
+    setError('');
+
+    try {
+      const response = await bulkCreateEmployees(token, { employees: validEmployees });
+      setBulkResult(response);
+      await loadEmployees();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No fue posible realizar la carga masiva.');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const worksheet = XLSX.utils.json_to_sheet([
+      {
+        nombre: 'Juan Pérez',
+        documento: '123456789',
+        cargo: 'Analista SST',
+        area: 'Talento humano',
+        'tipo de contrato': 'Indefinido',
+        estado: 'Activo',
+      },
+    ]);
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Empleados');
+    XLSX.writeFile(workbook, 'plantilla-empleados.xlsx');
+  };
+
   return (
     <section className="grid">
       <Card title="Módulo de empleados">
@@ -136,6 +269,68 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
           </div>
         </form>
       </Card>
+
+      <Card title="Carga masiva de empleados">
+        <div className="actions">
+          <Button type="button" onClick={() => fileInputRef.current?.click()}>
+            Cargue masivo
+          </Button>
+          <Button type="button" variant="secondary" onClick={downloadTemplate}>
+            Descargar plantilla Excel
+          </Button>
+          <Button type="button" onClick={handleBulkUpload} disabled={bulkLoading || !bulkPreview.length}>
+            {bulkLoading ? 'Cargando...' : 'Enviar válidos'}
+          </Button>
+        </div>
+        <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleBulkFile} className="hidden" />
+
+        {bulkPreview.length ? (
+          <Table>
+            <thead>
+              <tr>
+                <th className="border border-black p-3">Fila</th>
+                <th className="border border-black p-3">Nombre</th>
+                <th className="border border-black p-3">Documento</th>
+                <th className="border border-black p-3">Cargo</th>
+                <th className="border border-black p-3">Área</th>
+                <th className="border border-black p-3">Tipo de contrato</th>
+                <th className="border border-black p-3">Estado</th>
+                <th className="border border-black p-3">Validación</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bulkPreview.map((item) => (
+                <tr key={`${item.row}-${item.data.document}`}>
+                  <td className="border border-black p-3">{item.row}</td>
+                  <td className="border border-black p-3">{item.data.name}</td>
+                  <td className="border border-black p-3">{item.data.document}</td>
+                  <td className="border border-black p-3">{item.data.position}</td>
+                  <td className="border border-black p-3">{item.data.area}</td>
+                  <td className="border border-black p-3">{item.data.contractType}</td>
+                  <td className="border border-black p-3">{item.data.status}</td>
+                  <td className="border border-black p-3">{item.error ?? 'Válido'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        ) : null}
+      </Card>
+
+      {bulkResult ? (
+        <Card title="Resultado de carga masiva">
+          <p>Insertados: {bulkResult.inserted}</p>
+          <p>Fallidos: {bulkResult.failed}</p>
+          {bulkResult.errors.length ? (
+            <ul>
+              {bulkResult.errors.map((bulkError) => (
+                <li key={`${bulkError.row}-${bulkError.message}`}>
+                  Fila {bulkError.row}: {bulkError.message}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Card>
+      ) : null}
 
       <Table>
         <thead>
