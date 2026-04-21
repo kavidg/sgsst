@@ -18,6 +18,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
+import { useCompanyContext } from '../context/CompanyContext';
 
 interface TrainingsPageProps {
   token: string;
@@ -33,6 +34,7 @@ const emptyTraining: TrainingFormState = {
 };
 
 export function TrainingsPage({ token }: TrainingsPageProps) {
+  const { companyId } = useCompanyContext();
   const [trainings, setTrainings] = useState<TrainingModel[]>([]);
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [attendanceByTraining, setAttendanceByTraining] = useState<Record<string, TrainingAttendanceModel[]>>({});
@@ -72,7 +74,7 @@ export function TrainingsPage({ token }: TrainingsPageProps) {
 
   useEffect(() => {
     void loadData();
-  }, [token]);
+  }, [companyId, token]);
 
   const resetTrainingForm = () => {
     setForm(emptyTraining);
