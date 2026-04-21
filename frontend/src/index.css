@@ -653,3 +653,19 @@ a { color: inherit; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.absenteeism-chart {
+  width: 100%;
+  height: 320px;
+}
+
+.absenteeism-chart--tall {
+  height: 360px;
+}
+
+@media (max-width: 768px) {
+  .absenteeism-chart,
+  .absenteeism-chart--tall {
+    height: 280px;
+  }
+}
