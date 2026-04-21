@@ -21,6 +21,7 @@ const links: SidebarLink[] = [
   { to: '/employees', label: 'Empleados', icon: Icons.users },
   { to: '/evaluations', label: 'Evaluaciones', icon: Icons.chart },
   { to: '/incidents', label: 'Incidentes', icon: Icons.alert },
+  { to: '/absenteeism', label: 'Ausentismos', icon: Icons.chart },
   { to: '/risks', label: 'Riesgos', icon: Icons.shield },
   { to: '/trainings', label: 'Capacitaciones', icon: Icons.chart },
   { to: '/inspections', label: 'Inspecciones', icon: Icons.shield },
