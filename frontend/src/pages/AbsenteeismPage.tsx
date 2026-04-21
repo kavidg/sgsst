@@ -15,6 +15,7 @@ import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
+import { useCompanyContext } from '../context/CompanyContext';
 import {
   Bar,
   BarChart,
@@ -33,7 +34,6 @@ import {
 
 interface AbsenteeismPageProps {
   token: string;
-  companyId: string;
 }
 
 interface AbsenteeismFormState {
@@ -84,7 +84,8 @@ const defaultFilters: FilterState = {
   tipo: '',
 };
 
-export function AbsenteeismPage({ token, companyId }: AbsenteeismPageProps) {
+export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
+  const { companyId } = useCompanyContext();
   const [records, setRecords] = useState<AbsenteeismModel[]>([]);
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [loading, setLoading] = useState(false);
