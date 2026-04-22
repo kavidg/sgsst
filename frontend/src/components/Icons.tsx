@@ -20,4 +20,5 @@ export const Icons = {
   chart: () => <IconBase><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></IconBase>,
   menu: () => <IconBase><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></IconBase>,
   chevronDown: () => <IconBase><polyline points="6 9 12 15 18 9"/></IconBase>,
+  bell: () => <IconBase><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></IconBase>,
 };
