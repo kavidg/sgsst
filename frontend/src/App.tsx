@@ -32,6 +32,7 @@ import { RisksPage } from './pages/RisksPage';
 import { TrainingsPage } from './pages/TrainingsPage';
 import { InspectionsPage } from './pages/InspectionsPage';
 import { AbsenteeismPage } from './pages/AbsenteeismPage';
+import { AlertsPage } from './pages/AlertsPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
 import { PlanPage } from './pages/documents/PlanPage';
 import { DoPage } from './pages/documents/DoPage';
@@ -525,6 +526,17 @@ function App() {
     </>
   );
 
+  const renderAlertsRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
+        <AlertsPage token={idToken} />
+      ) : (
+        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+      )}
+    </>
+  );
+
 
   const renderInspectionsRoutePage = () => (
     <>
@@ -566,6 +578,7 @@ function App() {
       <Route
         element={
           <Layout
+            token={idToken}
             role={profile?.role}
             companies={companySelectorOptions}
             activeCompanyId={activeCompanyId}
@@ -638,6 +651,7 @@ function App() {
         <Route path="/documents/check" element={renderDocumentsRoutePage(<CheckPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/documents/act" element={renderDocumentsRoutePage(<ActPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderIncidentsRoutePage()} />
+        <Route path="/alerts" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderAlertsRoutePage()} />
         <Route path="/absenteeism" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderAbsenteeismRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
         <Route path="/inspections" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderInspectionsRoutePage()} />
