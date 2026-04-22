@@ -2,19 +2,22 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
-import { Evaluation, EvaluationDocument } from './schemas/evaluation.schema';
+import { Evaluation, EvaluationDocument, EvaluationStatus } from './schemas/evaluation.schema';
+import { AlertsService } from '../modules/alerts/alerts.service';
+import { AlertSeverity } from '../modules/alerts/schemas/alert.schema';
 
 @Injectable()
 export class EvaluationsService {
   constructor(
     @InjectModel(Evaluation.name)
     private readonly evaluationModel: Model<EvaluationDocument>,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async saveAnswer(createEvaluationDto: CreateEvaluationDto): Promise<Evaluation> {
     const { companyId, code, ...rest } = createEvaluationDto;
 
-    return this.evaluationModel
+    const saved = await this.evaluationModel
       .findOneAndUpdate(
         { companyId, code },
         {
@@ -30,6 +33,23 @@ export class EvaluationsService {
         },
       )
       .exec();
+
+    await this.ensureSgsstAlert(saved);
+    return saved;
+  }
+
+
+  private async ensureSgsstAlert(evaluation: Evaluation): Promise<void> {
+    if (evaluation.status !== EvaluationStatus.NO_CUMPLE) {
+      return;
+    }
+
+    await this.alertsService.createUnique({
+      companyId: evaluation.companyId,
+      type: 'SG_SST',
+      message: `SG-SST item ${evaluation.code} is marked as NO_CUMPLE.`,
+      severity: AlertSeverity.HIGH,
+    });
   }
 
   async findAllByCompany(companyId: string): Promise<Evaluation[]> {
