@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { AlertsModule } from '../alerts/alerts.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { UsersModule } from '../users/users.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -11,6 +12,7 @@ import { InspectionActivity, InspectionActivitySchema } from './schemas/inspecti
 @Module({
   imports: [
     AuthModule,
+    AlertsModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: InspectionActivity.name, schema: InspectionActivitySchema },

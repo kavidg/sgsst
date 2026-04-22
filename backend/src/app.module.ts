@@ -15,6 +15,7 @@ import { EvaluationAnswersModule } from './modules/evaluation-answers/evaluation
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { InspectionsModule } from './modules/inspections/inspections.module';
 import { AbsenteeismModule } from './modules/absenteeism/absenteeism.module';
+import { AlertsModule } from './modules/alerts/alerts.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AbsenteeismModule } from './modules/absenteeism/absenteeism.module';
     DashboardModule,
     InspectionsModule,
     AbsenteeismModule,
+    AlertsModule,
   ],
 })
 export class AppModule {}
