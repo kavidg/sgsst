@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { AlertsService } from '../alerts/alerts.service';
+import { AlertSeverity } from '../alerts/schemas/alert.schema';
 import { CreateAbsenteeismDto } from './dto/create-absenteeism.dto';
 import { UpdateAbsenteeismDto } from './dto/update-absenteeism.dto';
 import { Absenteeism, AbsenteeismDocument } from './schemas/absenteeism.schema';
@@ -10,6 +12,7 @@ export class AbsenteeismService {
   constructor(
     @InjectModel(Absenteeism.name)
     private readonly absenteeismModel: Model<AbsenteeismDocument>,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async create(dto: CreateAbsenteeismDto): Promise<Absenteeism> {
@@ -20,7 +23,9 @@ export class AbsenteeismService {
       dias: this.calculateDias(dto.fechaInicio, dto.fechaFin),
     });
 
-    return created.save();
+    const saved = await created.save();
+    await this.ensureAbsenteeismAlert(saved);
+    return saved;
   }
 
   async findAllByCompany(companyId: string): Promise<Absenteeism[]> {
@@ -62,6 +67,7 @@ export class AbsenteeismService {
       throw new NotFoundException(`Absenteeism with id ${id} not found`);
     }
 
+    await this.ensureAbsenteeismAlert(updated);
     return updated;
   }
 
@@ -103,6 +109,20 @@ export class AbsenteeismService {
         promedioDias: 0,
       }
     );
+  }
+
+
+  private async ensureAbsenteeismAlert(record: Absenteeism): Promise<void> {
+    if (record.dias <= 10) {
+      return;
+    }
+
+    await this.alertsService.createUnique({
+      companyId: record.companyId,
+      type: 'ABSENTEEISM',
+      message: `Absenteeism case exceeds 10 days (${record.dias} days).`,
+      severity: AlertSeverity.HIGH,
+    });
   }
 
   private calculateDias(fechaInicio: Date, fechaFin: Date): number {

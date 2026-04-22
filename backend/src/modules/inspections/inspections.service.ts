@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { AlertsService } from '../alerts/alerts.service';
+import { AlertSeverity } from '../alerts/schemas/alert.schema';
 import { CreateInspectionActivityDto } from './dto/create-inspection-activity.dto';
 import { UpdateInspectionActivityDto } from './dto/update-inspection-activity.dto';
 import { InspectionActivity, InspectionActivityDocument } from './schemas/inspection-activity.schema';
@@ -10,11 +12,14 @@ export class InspectionsService {
   constructor(
     @InjectModel(InspectionActivity.name)
     private readonly inspectionActivityModel: Model<InspectionActivityDocument>,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async create(companyId: Types.ObjectId, dto: CreateInspectionActivityDto): Promise<InspectionActivity> {
     const created = new this.inspectionActivityModel({ ...dto, companyId });
-    return created.save();
+    const saved = await created.save();
+    await this.ensureInspectionAlert(saved);
+    return saved;
   }
 
   async findAll(companyId: Types.ObjectId): Promise<InspectionActivity[]> {
@@ -44,7 +49,29 @@ export class InspectionsService {
       throw new NotFoundException(`Inspection activity with id ${id} not found`);
     }
 
+    await this.ensureInspectionAlert(activity);
     return activity;
+  }
+
+
+  private async ensureInspectionAlert(activity: InspectionActivity): Promise<void> {
+    const rawStatus = activity.status as unknown;
+    const isPending =
+      rawStatus === false ||
+      rawStatus === 'false' ||
+      String(rawStatus ?? '').toLowerCase() === 'pendiente';
+    const isOverdue = isPending && new Date(activity.plannedDate) < new Date();
+
+    if (!isOverdue) {
+      return;
+    }
+
+    await this.alertsService.createUnique({
+      companyId: activity.companyId,
+      type: 'INSPECTION',
+      message: `Inspection activity "${activity.title}" is overdue and still pending.`,
+      severity: AlertSeverity.MEDIUM,
+    });
   }
 
   async remove(id: string, companyId: Types.ObjectId): Promise<void> {
