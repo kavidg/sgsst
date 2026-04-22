@@ -132,6 +132,13 @@ function App() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
   const [newCompanyStandardsType, setNewCompanyStandardsType] = useState('');
+  const companySelectorOptions: MyCompanyModel[] = profile?.role === 'owner'
+    ? companies.map((company) => ({
+      id: company._id,
+      name: company.name,
+      nit: company.nit,
+    }))
+    : myCompanies;
 
   const handleSelectCompany = async (companyId: string) => {
     setCompanyId(companyId);
@@ -560,7 +567,7 @@ function App() {
         element={
           <Layout
             role={profile?.role}
-            companies={myCompanies}
+            companies={companySelectorOptions}
             activeCompanyId={activeCompanyId}
             onSelectCompany={handleSelectCompany}
             onRefresh={() => void refreshOwnerData()}
