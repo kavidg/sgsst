@@ -78,6 +78,18 @@ export interface InspectionActivityModel {
   completedDate?: string;
 }
 
+export type AlertSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface AlertModel {
+  _id: string;
+  companyId: string;
+  type: string;
+  message: string;
+  severity: AlertSeverity;
+  isRead: boolean;
+  createdAt: string;
+}
+
 
 export interface RiskModel {
   _id: string;
@@ -593,4 +605,16 @@ export function fetchInspectionScheduleByCompany(token: string, companyId: strin
 
 export function fetchInspectionActivities(token: string) {
   return apiFetch<InspectionActivityModel[]>('/inspections/activities', token, { method: 'GET' });
+}
+
+export function fetchAlertsByCompany(token: string, companyId: string) {
+  return apiFetch<AlertModel[]>(`/alerts/company/${companyId}`, token, { method: 'GET' });
+}
+
+export function markAlertAsRead(token: string, id: string) {
+  return apiFetch<AlertModel>(`/alerts/${id}/read`, token, { method: 'PATCH' });
+}
+
+export function deleteAlert(token: string, id: string) {
+  return apiFetch<void>(`/alerts/${id}`, token, { method: 'DELETE' });
 }
