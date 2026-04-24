@@ -44,7 +44,9 @@ type SidebarProps = {
 };
 
 export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
-  const visibleLinks = role === 'manager' ? managerLinks : links;
+  const visibleLinks = role === 'manager'
+    ? managerLinks
+    : links.filter((link) => (link.to === '/companies' ? role === 'owner' : true));
   const location = useLocation();
   const [openDocuments, setOpenDocuments] = useState(false);
 
