@@ -797,3 +797,31 @@ a { color: inherit; }
     height: 280px;
   }
 }
+
+.toast-stack {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  gap: .6rem;
+  z-index: 80;
+}
+
+.toast-alert {
+  width: min(340px, calc(100vw - 2rem));
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+  border-radius: .75rem;
+  padding: .65rem .75rem;
+  box-shadow: 0 10px 20px rgba(30, 58, 138, .16);
+}
+
+.toast-alert strong {
+  display: block;
+  margin-bottom: .2rem;
+}
+
+.toast-alert p {
+  margin: 0;
+}
