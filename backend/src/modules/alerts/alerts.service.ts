@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateAlertDto } from './dto/create-alert.dto';
+import { AlertsGateway } from './alerts.gateway';
 import { Alert, AlertDocument, AlertSeverity } from './schemas/alert.schema';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class AlertsService {
   constructor(
     @InjectModel(Alert.name)
     private readonly alertModel: Model<AlertDocument>,
+    private readonly alertsGateway: AlertsGateway,
   ) {}
 
   async create(dto: CreateAlertDto): Promise<Alert> {
@@ -26,30 +28,44 @@ export class AlertsService {
     message: string;
     severity: AlertSeverity;
   }): Promise<Alert> {
-    return this.alertModel
-      .findOneAndUpdate(
-        {
+    const existingAlert = await this.alertModel
+      .findOne({
+        companyId: params.companyId,
+        type: params.type,
+        message: params.message,
+      })
+      .exec();
+
+    if (existingAlert) {
+      return existingAlert;
+    }
+
+    try {
+      const createdAlert = await this.alertModel.create({
+        companyId: params.companyId,
+        type: params.type,
+        message: params.message,
+        severity: params.severity,
+        isRead: false,
+      });
+
+      this.alertsGateway.emitNewAlert({
+        companyId: createdAlert.companyId.toString(),
+        message: createdAlert.message,
+        severity: createdAlert.severity,
+      });
+
+      return createdAlert;
+    } catch {
+      return this.alertModel
+        .findOne({
           companyId: params.companyId,
           type: params.type,
           message: params.message,
-        },
-        {
-          $setOnInsert: {
-            companyId: params.companyId,
-            type: params.type,
-            message: params.message,
-            severity: params.severity,
-            isRead: false,
-          },
-        },
-        {
-          new: true,
-          upsert: true,
-          runValidators: true,
-          setDefaultsOnInsert: true,
-        },
-      )
-      .exec();
+        })
+        .orFail()
+        .exec();
+    }
   }
 
   async findByCompany(companyId: string): Promise<Alert[]> {
