@@ -371,17 +371,17 @@ function App() {
     }
   };
 
-  const renderSharedHeader = () => (
+  const renderSharedHeader = (showDetectedRole = false) => (
     <Card className="grid" style={{ marginBottom: '1rem' }}>
-      <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p>
+      {showDetectedRole ? <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p> : null}
       {!activeCompanyId ? <p className="muted">Selecciona una empresa para continuar</p> : null}
       {error ? <pre className="error">{error}</pre> : null}
     </Card>
   );
 
   const renderManagerDashboardRoutePage = () => (
-    <>
-      {renderSharedHeader()}
+      <>
+      {renderSharedHeader(true)}
       {activeCompanyId ? <DashboardPage token={idToken} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
     </>
   );
