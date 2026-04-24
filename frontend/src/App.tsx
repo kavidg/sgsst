@@ -558,7 +558,7 @@ function App() {
   if (!currentUser) {
     return (
       <main className="auth-wrap"><div className="card">
-        <h1 style={{ marginTop: 0 }}>SG-SST Frontend Auth</h1>
+        <h1 style={{ marginTop: 0 }}>Sistema SG-SST</h1>
         <form onSubmit={handleLogin} className="form-grid">
           <Input type="email" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           <Input type="password" placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)} required />
