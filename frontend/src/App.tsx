@@ -373,11 +373,7 @@ function App() {
 
   const renderSharedHeader = () => (
     <Card className="grid" style={{ marginBottom: '1rem' }}>
-      <p>Sesión iniciada con UID: <strong>{currentUser?.uid}</strong></p>
       <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p>
-      <div className="actions" style={{ marginTop: '.75rem' }}>
-        <Button type="button" variant="secondary" onClick={() => refreshOwnerData()} disabled={loading}>Recargar</Button>
-      </div>
       {!activeCompanyId ? <p className="muted">Selecciona una empresa para continuar</p> : null}
       {error ? <pre className="error">{error}</pre> : null}
     </Card>
