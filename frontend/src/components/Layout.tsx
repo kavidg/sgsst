@@ -1,5 +1,6 @@
 import { Link, Outlet } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
+import { io } from 'socket.io-client';
 import { AlertModel, MyCompanyModel, UserRole, fetchAlertsByCompany, markAlertAsRead } from '../api';
 import { CompanySelector } from '../CompanySelector';
 import { Sidebar } from './Sidebar';
@@ -17,13 +18,27 @@ type LayoutProps = {
   loading: boolean;
 };
 
+type RealtimeAlertEvent = {
+  companyId: string;
+  message: string;
+  severity: AlertModel['severity'];
+};
+
+type ToastNotification = {
+  id: string;
+  message: string;
+};
+
 const MAX_DROPDOWN_ALERTS = 6;
+const TOAST_DURATION_MS = 5000;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
 
 export function Layout({ token, role, companies, activeCompanyId, onSelectCompany, onRefresh, onLogout, loading }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [alerts, setAlerts] = useState<AlertModel[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
+  const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const showCompanySelector = role === 'owner';
   const unreadAlertsCount = useMemo(() => alerts.filter((alert) => !alert.isRead).length, [alerts]);
 
@@ -46,7 +61,56 @@ export function Layout({ token, role, companies, activeCompanyId, onSelectCompan
     void loadAlerts();
   }, [activeCompanyId, token]);
 
+  useEffect(() => {
+    if (!activeCompanyId) {
+      return;
+    }
+
+    const socket = io(BACKEND_URL, {
+      query: {
+        companyId: activeCompanyId,
+      },
+    });
+
+    const handleRealtimeAlert = (alert: RealtimeAlertEvent) => {
+      if (alert.companyId !== activeCompanyId) {
+        return;
+      }
+
+      const realtimeAlert: AlertModel = {
+        _id: `realtime-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        companyId: alert.companyId,
+        type: 'REALTIME',
+        message: alert.message,
+        severity: alert.severity,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      setAlerts((prev) => [realtimeAlert, ...prev]);
+
+      const toastId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      setToasts((prev) => [...prev, { id: toastId, message: alert.message }]);
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((toast) => toast.id !== toastId));
+      }, TOAST_DURATION_MS);
+    };
+
+    socket.on('new-alert', handleRealtimeAlert);
+    socket.emit('join-company', activeCompanyId);
+
+    return () => {
+      socket.off('new-alert', handleRealtimeAlert);
+      socket.disconnect();
+    };
+  }, [activeCompanyId]);
+
   const handleMarkAsRead = async (alertId: string) => {
+    if (alertId.startsWith('realtime-')) {
+      setAlerts((prev) => prev.map((alert) => (alert._id === alertId ? { ...alert, isRead: true } : alert)));
+      return;
+    }
+
     await markAlertAsRead(token, alertId);
     setAlerts((prev) => prev.map((alert) => (alert._id === alertId ? { ...alert, isRead: true } : alert)));
   };
@@ -110,6 +174,14 @@ export function Layout({ token, role, companies, activeCompanyId, onSelectCompan
           </header>
           <Outlet />
         </main>
+      </div>
+      <div className="toast-stack" role="status" aria-live="polite">
+        {toasts.map((toast) => (
+          <div key={toast.id} className="toast-alert">
+            <strong>Nueva alerta</strong>
+            <p>{toast.message}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
