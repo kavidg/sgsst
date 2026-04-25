@@ -80,7 +80,8 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
               to={link.to}
               onClick={onCloseMobile}
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`.trim()}
-              title={collapsed ? link.label : undefined}
+              data-tooltip={collapsed ? link.label : undefined}
+              aria-label={collapsed ? link.label : undefined}
             >
               <link.icon />
               {!collapsed ? <span>{link.label}</span> : null}
@@ -92,7 +93,8 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
                 type="button"
                 onClick={() => setOpenDocuments((open) => !open)}
                 className={`nav-link documents-parent ${location.pathname.startsWith('/documents') ? 'active' : ''}`.trim()}
-                title={collapsed ? 'Documentos - Autoevaluación' : undefined}
+                data-tooltip={collapsed ? 'Documentos - Autoevaluación' : undefined}
+                aria-label={collapsed ? 'Documentos - Autoevaluación' : undefined}
               >
                 <Icons.file />
                 {!collapsed ? <span>Documentos - Autoevaluación</span> : null}
