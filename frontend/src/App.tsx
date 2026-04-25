@@ -124,10 +124,12 @@ function App() {
   const [myCompanies, setMyCompanies] = useState<MyCompanyModel[]>([]);
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminConfirmPassword, setNewAdminConfirmPassword] = useState('');
   const [newAdminCompanyId, setNewAdminCompanyId] = useState('');
 
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
+  const [newMemberConfirmPassword, setNewMemberConfirmPassword] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<CreatableRole | ''>('');
 
   const [newCompanyName, setNewCompanyName] = useState('');
@@ -310,6 +312,16 @@ function App() {
     setError('');
 
     try {
+      if (newAdminPassword.length < 6) {
+        setError('La contraseña del admin debe tener al menos 6 caracteres.');
+        return;
+      }
+
+      if (newAdminPassword !== newAdminConfirmPassword) {
+        setError('La confirmación de contraseña del admin no coincide.');
+        return;
+      }
+
       await createAdmin(idToken, {
         email: newAdminEmail,
         password: newAdminPassword,
@@ -318,6 +330,7 @@ function App() {
       });
       setNewAdminEmail('');
       setNewAdminPassword('');
+      setNewAdminConfirmPassword('');
       await refreshOwnerData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible crear el admin.');
@@ -337,6 +350,16 @@ function App() {
         return;
       }
 
+      if (newMemberPassword.length < 6) {
+        setError('La contraseña del usuario debe tener al menos 6 caracteres.');
+        return;
+      }
+
+      if (newMemberPassword !== newMemberConfirmPassword) {
+        setError('La confirmación de contraseña del usuario no coincide.');
+        return;
+      }
+
       await createUser(idToken, {
         email: newMemberEmail,
         password: newMemberPassword,
@@ -344,6 +367,7 @@ function App() {
       });
       setNewMemberEmail('');
       setNewMemberPassword('');
+      setNewMemberConfirmPassword('');
       setNewMemberRole('');
       await refreshOwnerData();
     } catch (requestError) {
@@ -401,10 +425,11 @@ function App() {
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <Card>
-          <h2>CRUD Usuarios</h2>
+          <h2>Creación de usuarios</h2>
           <form onSubmit={handleCreateMember} className="form-grid">
-            <Input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Email usuario" required />
-            <Input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Password usuario" required />
+            <Input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Digita el correo electrónico del usuario (ej: usuario@empresa.com)" required />
+            <Input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Digita la contraseña del usuario (mínimo 6 caracteres)" minLength={6} required />
+            <Input type="password" value={newMemberConfirmPassword} onChange={(event) => setNewMemberConfirmPassword(event.target.value)} placeholder="Confirma la contraseña del usuario" minLength={6} required />
             <label htmlFor="member-role">Rol del usuario</label>
             <Select
               id="member-role"
@@ -440,8 +465,9 @@ function App() {
             <>
               <h3>CRUD Admins</h3>
               <form onSubmit={handleCreateAdmin} className="form-grid">
-                <Input value={newAdminEmail} onChange={(event) => setNewAdminEmail(event.target.value)} placeholder="Email admin" required />
-                <Input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Password admin" required />
+                <Input value={newAdminEmail} onChange={(event) => setNewAdminEmail(event.target.value)} placeholder="Digita el correo electrónico del admin (ej: admin@empresa.com)" required />
+                <Input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Digita la contraseña del admin (mínimo 6 caracteres)" minLength={6} required />
+                <Input type="password" value={newAdminConfirmPassword} onChange={(event) => setNewAdminConfirmPassword(event.target.value)} placeholder="Confirma la contraseña del admin" minLength={6} required />
                 <Select value={newAdminCompanyId} onChange={(event) => setNewAdminCompanyId(event.target.value)} required>
                   <option value="">Selecciona empresa</option>
                   {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
