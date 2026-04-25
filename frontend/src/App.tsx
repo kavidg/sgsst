@@ -371,13 +371,23 @@ function App() {
     }
   };
 
-  const renderSharedHeader = (showDetectedRole = false) => (
-    <Card className="grid" style={{ marginBottom: '1rem' }}>
-      {showDetectedRole ? <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p> : null}
-      {!activeCompanyId ? <p className="muted">Selecciona una empresa para continuar</p> : null}
-      {error ? <pre className="error">{error}</pre> : null}
-    </Card>
-  );
+  const renderSharedHeader = (showDetectedRole = false) => {
+    const showRole = showDetectedRole;
+    const showCompanyWarning = !activeCompanyId;
+    const showError = Boolean(error);
+
+    if (!showRole && !showCompanyWarning && !showError) {
+      return null;
+    }
+
+    return (
+      <Card className="grid" style={{ marginBottom: '1rem' }}>
+        {showRole ? <p style={{ margin: 0 }}>Rol detectado: <strong>{profile?.role ?? 'sin rol'}</strong></p> : null}
+        {showCompanyWarning ? <p className="muted">Selecciona una empresa para continuar</p> : null}
+        {showError ? <pre className="error">{error}</pre> : null}
+      </Card>
+    );
+  };
 
   const renderManagerDashboardRoutePage = () => (
       <>
