@@ -41,9 +41,11 @@ type SidebarProps = {
   role?: UserRole;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 };
 
-export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
+export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCollapsed }: SidebarProps) {
   const visibleLinks = role === 'manager'
     ? managerLinks
     : links.filter((link) => (link.to === '/companies' ? role === 'owner' : true));
@@ -59,9 +61,17 @@ export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
   return (
     <>
       {mobileOpen ? <button className="sidebar-backdrop" onClick={onCloseMobile} aria-label="Close menu" /> : null}
-      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`.trim()}>
+      <aside className={`sidebar ${mobileOpen ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`.trim()}>
         <div className="sidebar-header">
-          <h2 style={{ margin: 0, fontSize: '1rem' }}>SG-SST</h2>
+          {!collapsed ? <h2 style={{ margin: 0, fontSize: '1rem' }}>SG-SST</h2> : <span aria-hidden />}
+          <button
+            type="button"
+            className="sidebar-collapse-toggle"
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <span className={`sidebar-collapse-icon ${collapsed ? 'collapsed' : ''}`.trim()}><Icons.chevronDown /></span>
+          </button>
         </div>
         <nav>
           {visibleLinks.map((link) => (
@@ -70,9 +80,10 @@ export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
               to={link.to}
               onClick={onCloseMobile}
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`.trim()}
+              title={collapsed ? link.label : undefined}
             >
               <link.icon />
-              <span>{link.label}</span>
+              {!collapsed ? <span>{link.label}</span> : null}
             </NavLink>
           ))}
 
@@ -81,13 +92,14 @@ export function Sidebar({ role, mobileOpen, onCloseMobile }: SidebarProps) {
                 type="button"
                 onClick={() => setOpenDocuments((open) => !open)}
                 className={`nav-link documents-parent ${location.pathname.startsWith('/documents') ? 'active' : ''}`.trim()}
+                title={collapsed ? 'Documentos - Autoevaluación' : undefined}
               >
                 <Icons.file />
-                <span>Documentos - Autoevaluación</span>
-                <span className={`documents-chevron ${openDocuments ? 'open' : ''}`.trim()}><Icons.chevronDown /></span>
+                {!collapsed ? <span>Documentos - Autoevaluación</span> : null}
+                {!collapsed ? <span className={`documents-chevron ${openDocuments ? 'open' : ''}`.trim()}><Icons.chevronDown /></span> : null}
               </button>
 
-              <div className={`documents-submenu ${openDocuments ? 'open' : ''}`.trim()}>
+              <div className={`documents-submenu ${openDocuments ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`.trim()}>
                 {documentsSubmenu.map((submenuLink) => (
                   <NavLink
                     key={submenuLink.to}

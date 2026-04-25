@@ -35,6 +35,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
 
 export function Layout({ token, role, companies, activeCompanyId, onSelectCompany, onRefresh, onLogout, loading }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [alerts, setAlerts] = useState<AlertModel[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
@@ -118,8 +119,14 @@ export function Layout({ token, role, companies, activeCompanyId, onSelectCompan
   return (
     <div className="app-shell">
       <div className="layout">
-        <Sidebar role={role} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
-        <main className="content">
+        <Sidebar
+          role={role}
+          mobileOpen={mobileOpen}
+          onCloseMobile={() => setMobileOpen(false)}
+          collapsed={collapsed}
+          onToggleCollapsed={() => setCollapsed((prev) => !prev)}
+        />
+        <main className={`content ${collapsed ? 'content-collapsed' : ''}`.trim()}>
           <header className="topbar">
             <div className="actions" style={{ alignItems: 'center' }}>
               <Button type="button" variant="ghost" className="mobile-toggle" onClick={() => setMobileOpen(true)}>
