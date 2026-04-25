@@ -91,7 +91,14 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
           <div className="documents-menu-group">
               <button
                 type="button"
-                onClick={() => setOpenDocuments((open) => !open)}
+                onClick={() => {
+                  if (collapsed) {
+                    onToggleCollapsed();
+                    setOpenDocuments(true);
+                    return;
+                  }
+                  setOpenDocuments((open) => !open);
+                }}
                 className={`nav-link documents-parent ${location.pathname.startsWith('/documents') ? 'active' : ''}`.trim()}
                 data-tooltip={collapsed ? 'Documentos - Autoevaluación' : undefined}
                 aria-label={collapsed ? 'Documentos - Autoevaluación' : undefined}
