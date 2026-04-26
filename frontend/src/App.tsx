@@ -426,10 +426,10 @@ function App() {
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
         <Card>
           <h2>Creación de usuarios</h2>
-          <form onSubmit={handleCreateMember} className="form-grid">
-            <Input value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Digita el correo electrónico del usuario (ej: usuario@empresa.com)" required />
-            <Input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Digita la contraseña del usuario (mínimo 6 caracteres)" minLength={6} required />
-            <Input type="password" value={newMemberConfirmPassword} onChange={(event) => setNewMemberConfirmPassword(event.target.value)} placeholder="Confirma la contraseña del usuario" minLength={6} required />
+          <form onSubmit={handleCreateMember} className="form-grid" autoComplete="off">
+            <Input type="email" value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Digita el correo electrónico del usuario (ej: usuario@empresa.com)" autoComplete="off" required />
+            <Input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Digita la contraseña del usuario (mínimo 6 caracteres)" autoComplete="new-password" minLength={6} required />
+            <Input type="password" value={newMemberConfirmPassword} onChange={(event) => setNewMemberConfirmPassword(event.target.value)} placeholder="Confirma la contraseña del usuario" autoComplete="new-password" minLength={6} required />
             <label htmlFor="member-role">Rol del usuario</label>
             <Select
               id="member-role"
@@ -449,6 +449,7 @@ function App() {
             ) : null}
             <Button type="submit" disabled={loading}>Guardar Usuario</Button>
           </form>
+          <h3>Listado usuarios</h3>
           {members.map((member) => (
             <div key={member._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
               <p>{member.email}</p>
@@ -464,10 +465,10 @@ function App() {
           {profile?.role === 'owner' ? (
             <>
               <h3>CRUD Admins</h3>
-              <form onSubmit={handleCreateAdmin} className="form-grid">
-                <Input value={newAdminEmail} onChange={(event) => setNewAdminEmail(event.target.value)} placeholder="Digita el correo electrónico del admin (ej: admin@empresa.com)" required />
-                <Input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Digita la contraseña del admin (mínimo 6 caracteres)" minLength={6} required />
-                <Input type="password" value={newAdminConfirmPassword} onChange={(event) => setNewAdminConfirmPassword(event.target.value)} placeholder="Confirma la contraseña del admin" minLength={6} required />
+              <form onSubmit={handleCreateAdmin} className="form-grid" autoComplete="off">
+                <Input type="email" value={newAdminEmail} onChange={(event) => setNewAdminEmail(event.target.value)} placeholder="Digita el correo electrónico del admin (ej: admin@empresa.com)" autoComplete="off" required />
+                <Input type="password" value={newAdminPassword} onChange={(event) => setNewAdminPassword(event.target.value)} placeholder="Digita la contraseña del admin (mínimo 6 caracteres)" autoComplete="new-password" minLength={6} required />
+                <Input type="password" value={newAdminConfirmPassword} onChange={(event) => setNewAdminConfirmPassword(event.target.value)} placeholder="Confirma la contraseña del admin" autoComplete="new-password" minLength={6} required />
                 <Select value={newAdminCompanyId} onChange={(event) => setNewAdminCompanyId(event.target.value)} required>
                   <option value="">Selecciona empresa</option>
                   {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
