@@ -120,7 +120,7 @@ export class AbsenteeismService {
     await this.alertsService.createUnique({
       companyId: record.companyId,
       type: 'ABSENTEEISM',
-      message: `Absenteeism case exceeds 10 days (${record.dias} days).`,
+      message: `El caso de ausentismo supera los 10 días (${record.dias} días).`,
       severity: AlertSeverity.HIGH,
     });
   }

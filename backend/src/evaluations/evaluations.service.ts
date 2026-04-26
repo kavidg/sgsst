@@ -47,7 +47,7 @@ export class EvaluationsService {
     await this.alertsService.createUnique({
       companyId: evaluation.companyId,
       type: 'SG_SST',
-      message: `SG-SST item ${evaluation.code} is marked as NO_CUMPLE.`,
+      message: `El ítem SG-SST ${evaluation.code} está marcado como NO_CUMPLE.`,
       severity: AlertSeverity.HIGH,
     });
   }
