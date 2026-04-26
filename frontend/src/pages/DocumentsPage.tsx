@@ -1,26 +1,61 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import {
+  DashboardEvaluationModel,
   DocumentModel,
+  AbsenteeismModel,
+  AbsenteeismStats,
   createDocument,
   deleteDocument,
+  fetchAbsenteeismByCompany,
+  fetchAbsenteeismStatsByCompany,
+  fetchDashboardEvaluations,
   fetchDocuments,
+  fetchInspectionScheduleByCompany,
+  fetchMyCompanies,
+  InspectionActivityModel,
 } from '../api';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Table } from '../components/ui/Table';
+import { useCompanyContext } from '../context/CompanyContext';
+import { buildPdfPayload, PDF_DOCUMENT_OPTIONS } from '../pdf/config';
+import { createPdfTemplate } from '../pdf/templates';
+import { PdfDocumentType } from '../pdf/types';
 
 interface DocumentsPageProps {
   token: string;
 }
 
 export function DocumentsPage({ token }: DocumentsPageProps) {
+  const { companyId } = useCompanyContext();
   const [documents, setDocuments] = useState<DocumentModel[]>([]);
   const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const [documentType, setDocumentType] = useState<PdfDocumentType>('POLITICA_SST');
+  const [title, setTitle] = useState(PDF_DOCUMENT_OPTIONS[0].defaultTitle);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [objective, setObjective] = useState('');
+  const [scope, setScope] = useState('');
+  const [commitments, setCommitments] = useState('');
+  const [period, setPeriod] = useState(new Date().getFullYear().toString());
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  const [companyName, setCompanyName] = useState('Empresa no definida');
+  const [companyNit, setCompanyNit] = useState('N/A');
+  const [evaluations, setEvaluations] = useState<DashboardEvaluationModel[]>([]);
+  const [inspections, setInspections] = useState<InspectionActivityModel[]>([]);
+  const [absenteeismRecords, setAbsenteeismRecords] = useState<AbsenteeismModel[]>([]);
+  const [absenteeismStats, setAbsenteeismStats] = useState<AbsenteeismStats>({
+    totalCasos: 0,
+    totalDiasPerdidos: 0,
+    promedioDias: 0,
+  });
 
   const loadDocuments = async () => {
     setLoading(true);
@@ -39,6 +74,46 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
   useEffect(() => {
     void loadDocuments();
   }, [token]);
+
+  useEffect(() => {
+    const option = PDF_DOCUMENT_OPTIONS.find((item) => item.value === documentType);
+    if (option) {
+      setTitle(option.defaultTitle);
+    }
+  }, [documentType]);
+
+  useEffect(() => {
+    const loadPdfData = async () => {
+      if (!companyId) {
+        return;
+      }
+
+      try {
+        const [companies, evaluationData, inspectionData, absenteeismData, absenteeismStatsData] = await Promise.all([
+          fetchMyCompanies(token),
+          fetchDashboardEvaluations(token, companyId),
+          fetchInspectionScheduleByCompany(token, companyId),
+          fetchAbsenteeismByCompany(token, companyId),
+          fetchAbsenteeismStatsByCompany(token, companyId),
+        ]);
+
+        const currentCompany = companies.find((company) => company.id === companyId);
+        if (currentCompany) {
+          setCompanyName(currentCompany.name);
+          setCompanyNit(currentCompany.nit);
+        }
+
+        setEvaluations(evaluationData);
+        setInspections(inspectionData);
+        setAbsenteeismRecords(absenteeismData);
+        setAbsenteeismStats(absenteeismStatsData);
+      } catch (requestError) {
+        setError(requestError instanceof Error ? requestError.message : 'No fue posible cargar datos para los PDF.');
+      }
+    };
+
+    void loadPdfData();
+  }, [companyId, token]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -76,6 +151,43 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
     }
   };
 
+  const payload = useMemo(
+    () =>
+      buildPdfPayload({
+        type: documentType,
+        title,
+        date: new Date().toLocaleDateString('es-CO'),
+        companyName,
+        nit: companyNit,
+        logoUrl,
+        objective,
+        scope,
+        commitments: commitments.split('\n').map((item) => item.trim()),
+        period,
+        evaluations,
+        inspections,
+        absenteeismRecords,
+        absenteeismStats,
+      }),
+    [
+      absenteeismRecords,
+      absenteeismStats,
+      commitments,
+      companyName,
+      companyNit,
+      documentType,
+      evaluations,
+      inspections,
+      logoUrl,
+      objective,
+      period,
+      scope,
+      title,
+    ],
+  );
+
+  const pdfDocument = useMemo(() => createPdfTemplate(documentType, payload), [documentType, payload]);
+
   return (
     <section className="grid">
       <Card title="Gestión documental">
@@ -88,6 +200,60 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
           <div className="actions"><Button type="submit" disabled={loading}>Subir documento</Button></div>
         </form>
       </Card>
+
+      <Card title="Generador PDF SG-SST">
+        <div className="form-grid">
+          <div className="grid grid-2">
+            <label className="field">
+              <span className="label">Documento</span>
+              <select className="input" value={documentType} onChange={(event) => setDocumentType(event.target.value as PdfDocumentType)}>
+                {PDF_DOCUMENT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field"><span className="label">Título</span><Input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          </div>
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Nombre empresa</span><Input value={companyName} onChange={(event) => setCompanyName(event.target.value)} /></label>
+            <label className="field"><span className="label">NIT</span><Input value={companyNit} onChange={(event) => setCompanyNit(event.target.value)} /></label>
+          </div>
+          <label className="field"><span className="label">URL logo</span><Input value={logoUrl} onChange={(event) => setLogoUrl(event.target.value)} placeholder="https://..." /></label>
+
+          {documentType === 'POLITICA_SST' ? (
+            <>
+              <label className="field"><span className="label">Objetivo</span><textarea className="input" rows={3} value={objective} onChange={(event) => setObjective(event.target.value)} /></label>
+              <label className="field"><span className="label">Alcance</span><textarea className="input" rows={3} value={scope} onChange={(event) => setScope(event.target.value)} /></label>
+              <label className="field"><span className="label">Compromisos (uno por línea)</span><textarea className="input" rows={4} value={commitments} onChange={(event) => setCommitments(event.target.value)} /></label>
+            </>
+          ) : null}
+
+          {documentType === 'PLAN_ANUAL_TRABAJO' ? (
+            <label className="field"><span className="label">Periodo</span><Input value={period} onChange={(event) => setPeriod(event.target.value)} /></label>
+          ) : null}
+
+          <div className="actions">
+            <Button type="button" variant="secondary" onClick={() => setIsPreviewOpen(true)}>Previsualizar PDF</Button>
+            {pdfDocument ? (
+              <PDFDownloadLink document={pdfDocument} fileName={`${documentType.toLowerCase()}.pdf`} className="btn">
+                {({ loading: pdfLoading }) => (pdfLoading ? 'Generando...' : 'Descargar PDF')}
+              </PDFDownloadLink>
+            ) : null}
+          </div>
+        </div>
+      </Card>
+
+      {isPreviewOpen && pdfDocument ? (
+        <div className="sidebar-backdrop" style={{ display: 'block', zIndex: 80 }} onClick={() => setIsPreviewOpen(false)}>
+          <div className="card" style={{ width: '90vw', maxWidth: '1100px', height: '85vh', margin: '5vh auto' }} onClick={(event) => event.stopPropagation()}>
+            <div className="actions" style={{ justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0 }}>Vista previa</h3>
+              <Button type="button" variant="ghost" onClick={() => setIsPreviewOpen(false)}>Cerrar</Button>
+            </div>
+            <PDFViewer style={{ width: '100%', height: 'calc(100% - 40px)' }}>{pdfDocument}</PDFViewer>
+          </div>
+        </div>
+      ) : null}
 
       <Table>
         <thead><tr><th className="border border-black p-3">Nombre</th><th className="border border-black p-3">Tipo</th><th className="border border-black p-3">Subido por</th><th className="border border-black p-3">Fecha</th><th className="border border-black p-3">Acciones</th></tr></thead>
