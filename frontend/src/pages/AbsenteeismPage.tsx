@@ -225,6 +225,16 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
     setIsModalOpen(false);
   };
 
+  useEffect(() => {
+    if (!isModalOpen) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    });
+  }, [isModalOpen]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
