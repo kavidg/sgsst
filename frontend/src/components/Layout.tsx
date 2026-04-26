@@ -33,6 +33,13 @@ const MAX_DROPDOWN_ALERTS = 6;
 const TOAST_DURATION_MS = 5000;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
 
+
+const severityLabels: Record<AlertModel['severity'], string> = {
+  HIGH: 'Alta',
+  MEDIUM: 'Media',
+  LOW: 'Baja',
+};
+
 export function Layout({ token, role, companies, activeCompanyId, onSelectCompany, onRefresh, onLogout, loading }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -155,7 +162,7 @@ export function Layout({ token, role, companies, activeCompanyId, onSelectCompan
                       {alerts.slice(0, MAX_DROPDOWN_ALERTS).map((alert) => (
                         <article key={alert._id} className={`alerts-item ${alert.isRead ? 'alerts-item--read' : ''}`.trim()}>
                           <div className="alerts-item__header">
-                            <span className={`alerts-severity alerts-severity--${alert.severity.toLowerCase()}`.trim()}>{alert.severity}</span>
+                            <span className={`alerts-severity alerts-severity--${alert.severity.toLowerCase()}`.trim()}>{severityLabels[alert.severity]}</span>
                             {!alert.isRead ? <span className="alerts-item__new">Nueva</span> : null}
                           </div>
                           <p className="alerts-item__message">{alert.message}</p>
