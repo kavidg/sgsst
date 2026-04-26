@@ -69,7 +69,7 @@ export class InspectionsService {
     await this.alertsService.createUnique({
       companyId: activity.companyId,
       type: 'INSPECTION',
-      message: `Inspection activity "${activity.title}" is overdue and still pending.`,
+      message: `La actividad de inspección "${activity.title}" está vencida y sigue pendiente.`,
       severity: AlertSeverity.MEDIUM,
     });
   }
