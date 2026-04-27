@@ -3,6 +3,8 @@
     "@nestjs/platform-socket.io": "^11.1.19",
     "@nestjs/websockets": "^11.1.19",
     "@react-pdf/renderer": "^4.5.1",
+    "docxtemplater": "^3.68.6",
+    "pizzip": "^3.2.0",
     "recharts": "^3.8.1",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
