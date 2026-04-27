@@ -243,6 +243,34 @@ export interface CreateDocumentPayload {
   file: File;
 }
 
+export interface TemplateUploadedByModel {
+  _id: string;
+  email: string;
+}
+
+export interface TemplateModel {
+  _id: string;
+  companyId: string;
+  uploadedBy: TemplateUploadedByModel;
+  name: string;
+  originalFileName: string;
+  fileUrl: string;
+  storagePath: string;
+  variables: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UploadTemplatePayload {
+  name: string;
+  variables?: string[];
+  file: File;
+}
+
+export interface GenerateTemplatePayload {
+  data: Record<string, string | number | boolean | null>;
+}
+
 export interface EmployeeModel {
   _id: string;
   name: string;
@@ -557,6 +585,43 @@ export function deleteDocument(token: string, id: string) {
   return apiFetch<void>(`/documents/${id}`, token, { method: 'DELETE' });
 }
 
+
+
+export function uploadTemplate(token: string, payload: UploadTemplatePayload) {
+  const formData = new FormData();
+  formData.append('name', payload.name);
+
+  if (payload.variables) {
+    payload.variables.forEach((variable) => formData.append('variables', variable));
+  }
+
+  formData.append('file', payload.file);
+
+  return apiFetchFormData<TemplateModel>('/templates/upload', token, formData, { method: 'POST' });
+}
+
+export function fetchTemplatesByCompany(token: string, companyId: string) {
+  return apiFetch<TemplateModel[]>(`/templates/company/${companyId}`, token, { method: 'GET' });
+}
+
+export async function generateTemplate(token: string, templateId: string, payload: GenerateTemplatePayload) {
+  const response = await fetch(`${BACKEND_URL}/templates/generate/${templateId}`, {
+    method: 'POST',
+    headers: withCompanyHeader({
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }),
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    const message = data?.message ?? 'Error generating template document';
+    throw new Error(Array.isArray(message) ? message.join(', ') : message);
+  }
+
+  return response.blob();
+}
 
 export function fetchTrainings(token: string) {
   return apiFetch<TrainingModel[]>('/trainings', token, { method: 'GET' });
