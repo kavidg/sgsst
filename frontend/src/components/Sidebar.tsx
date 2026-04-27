@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { UserRole } from '../api';
 import { Icons } from './Icons';
 
@@ -50,6 +50,7 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
     ? managerLinks
     : links.filter((link) => (link.to === '/companies' ? role === 'owner' : true));
   const location = useLocation();
+  const navigate = useNavigate();
   const [openDocuments, setOpenDocuments] = useState(false);
 
   useEffect(() => {
@@ -89,24 +90,35 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
           ))}
 
           <div className="documents-menu-group">
-              <button
-                type="button"
-                onClick={() => {
-                  if (collapsed) {
-                    onToggleCollapsed();
+              <div className={`documents-parent-row ${location.pathname.startsWith('/documents') ? 'active' : ''}`.trim()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (collapsed) {
+                      onToggleCollapsed();
+                    }
                     setOpenDocuments(true);
-                    return;
-                  }
-                  setOpenDocuments((open) => !open);
-                }}
-                className={`nav-link documents-parent ${location.pathname.startsWith('/documents') ? 'active' : ''}`.trim()}
-                data-tooltip={collapsed ? 'Documentos - Autoevaluación' : undefined}
-                aria-label={collapsed ? 'Documentos - Autoevaluación' : undefined}
-              >
-                <Icons.file />
-                {!collapsed ? <span>Documentos - Autoevaluación</span> : null}
-                {!collapsed ? <span className={`documents-chevron ${openDocuments ? 'open' : ''}`.trim()}><Icons.chevronDown /></span> : null}
-              </button>
+                    onCloseMobile();
+                    navigate('/documents');
+                  }}
+                  className="nav-link documents-parent"
+                  data-tooltip={collapsed ? 'Documentos - Autoevaluación' : undefined}
+                  aria-label={collapsed ? 'Documentos - Autoevaluación' : undefined}
+                >
+                  <Icons.file />
+                  {!collapsed ? <span>Documentos - Autoevaluación</span> : null}
+                </button>
+                {!collapsed ? (
+                  <button
+                    type="button"
+                    className="documents-toggle"
+                    aria-label={openDocuments ? 'Ocultar PHVA' : 'Mostrar PHVA'}
+                    onClick={() => setOpenDocuments((open) => !open)}
+                  >
+                    <span className={`documents-chevron ${openDocuments ? 'open' : ''}`.trim()}><Icons.chevronDown /></span>
+                  </button>
+                ) : null}
+              </div>
 
               <div className={`documents-submenu ${openDocuments ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`.trim()}>
                 {documentsSubmenu.map((submenuLink) => (
