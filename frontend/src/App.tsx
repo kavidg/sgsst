@@ -40,6 +40,7 @@ import { CheckPage } from './pages/documents/CheckPage';
 import { ActPage } from './pages/documents/ActPage';
 import { DocumentsEvaluationProvider } from './pages/documents/evaluationState';
 import { useCompanyContext } from './context/CompanyContext';
+import { DocumentsPage } from './pages/DocumentsPage';
 
 type CompaniesPageProps = {
   companies: CompanyModel[];
@@ -678,7 +679,7 @@ function App() {
         <Route path="/employees" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEmployeesRoutePage()} />
         <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEvaluationsRoutePage()} />
         <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderRisksRoutePage()} />
-        <Route path="/documents" element={<Navigate to="/documents/plan" replace />} />
+        <Route path="/documents" element={renderDocumentsRoutePage(<DocumentsPage token={idToken} />)} />
         <Route path="/documents/plan" element={renderDocumentsRoutePage(<PlanPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/documents/do" element={renderDocumentsRoutePage(<DoPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/documents/check" element={renderDocumentsRoutePage(<CheckPage readOnly={profile?.role === 'manager'} />)} />
