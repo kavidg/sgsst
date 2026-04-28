@@ -19,6 +19,6 @@ import { CompanyAccessGuard } from '../auth/company-access.guard';
   ],
   controllers: [UsersController],
   providers: [UsersService, CompanyAccessGuard],
-  exports: [UsersService],
+  exports: [UsersService, MongooseModule],
 })
 export class UsersModule {}
