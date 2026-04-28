@@ -271,6 +271,11 @@ export interface GenerateTemplatePayload {
   data: Record<string, string | number | boolean | null>;
 }
 
+export interface TemplateVariableModel {
+  name: string;
+  label: string;
+}
+
 export interface EmployeeModel {
   _id: string;
   name: string;
@@ -604,6 +609,10 @@ export function fetchTemplatesByCompany(token: string, companyId: string) {
   return apiFetch<TemplateModel[]>(`/templates/company/${companyId}`, token, { method: 'GET' });
 }
 
+export function fetchTemplateVariables(token: string, templateId: string) {
+  return apiFetch<TemplateVariableModel[]>(`/templates/${templateId}/variables`, token, { method: 'GET' });
+}
+
 export async function generateTemplate(token: string, templateId: string, payload: GenerateTemplatePayload) {
   const response = await fetch(`${BACKEND_URL}/templates/generate/${templateId}`, {
     method: 'POST',
@@ -620,7 +629,14 @@ export async function generateTemplate(token: string, templateId: string, payloa
     throw new Error(Array.isArray(message) ? message.join(', ') : message);
   }
 
-  return response.blob();
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get('content-disposition');
+  const matchedName = contentDisposition?.match(/filename="(.+)"/i)?.[1];
+
+  return {
+    blob,
+    fileName: matchedName ?? `template-${templateId}.docx`,
+  };
 }
 
 export function fetchTrainings(token: string) {

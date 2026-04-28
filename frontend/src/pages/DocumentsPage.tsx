@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { PDFDownloadLink, PDFViewer } from '@react-pdf/renderer';
 import {
+  fetchTemplateVariables,
+  fetchTemplatesByCompany,
   DashboardEvaluationModel,
   DocumentModel,
   AbsenteeismModel,
@@ -13,7 +15,10 @@ import {
   fetchDocuments,
   fetchInspectionScheduleByCompany,
   fetchMyCompanies,
+  generateTemplate,
   InspectionActivityModel,
+  TemplateModel,
+  TemplateVariableModel,
 } from '../api';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -45,6 +50,11 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
   const [commitments, setCommitments] = useState('');
   const [period, setPeriod] = useState(new Date().getFullYear().toString());
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [templates, setTemplates] = useState<TemplateModel[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [templateVariables, setTemplateVariables] = useState<TemplateVariableModel[]>([]);
+  const [templateFormData, setTemplateFormData] = useState<Record<string, string>>({});
+  const [isGeneratingTemplate, setIsGeneratingTemplate] = useState(false);
 
   const [companyName, setCompanyName] = useState('Empresa no definida');
   const [companyNit, setCompanyNit] = useState('N/A');
@@ -115,6 +125,64 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
     void loadPdfData();
   }, [companyId, token]);
 
+  useEffect(() => {
+    const loadTemplates = async () => {
+      if (!companyId) {
+        setTemplates([]);
+        setSelectedTemplateId('');
+        setTemplateVariables([]);
+        setTemplateFormData({});
+        return;
+      }
+
+      try {
+        const data = await fetchTemplatesByCompany(token, companyId);
+        setTemplates(data);
+      } catch (requestError) {
+        setError(requestError instanceof Error ? requestError.message : 'No fue posible cargar plantillas.');
+      }
+    };
+
+    void loadTemplates();
+  }, [companyId, token]);
+
+  useEffect(() => {
+    const loadTemplateVariables = async () => {
+      if (!selectedTemplateId) {
+        setTemplateVariables([]);
+        setTemplateFormData({});
+        return;
+      }
+
+      try {
+        const variables = await fetchTemplateVariables(token, selectedTemplateId);
+        setTemplateVariables(variables);
+        setTemplateFormData(
+          variables.reduce<Record<string, string>>((accumulator, variable) => {
+            accumulator[variable.name] = '';
+            return accumulator;
+          }, {}),
+        );
+      } catch {
+        const selectedTemplate = templates.find((template) => template._id === selectedTemplateId);
+        const fallbackVariables = (selectedTemplate?.variables ?? []).map((variableName) => ({
+          name: variableName,
+          label: variableName,
+        }));
+
+        setTemplateVariables(fallbackVariables);
+        setTemplateFormData(
+          fallbackVariables.reduce<Record<string, string>>((accumulator, variable) => {
+            accumulator[variable.name] = '';
+            return accumulator;
+          }, {}),
+        );
+      }
+    };
+
+    void loadTemplateVariables();
+  }, [selectedTemplateId, templates, token]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -148,6 +216,38 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible eliminar el documento.');
       setLoading(false);
+    }
+  };
+
+  const handleTemplateFieldChange = (name: string, value: string) => {
+    setTemplateFormData((previous) => ({ ...previous, [name]: value }));
+  };
+
+  const handleGenerateTemplate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!selectedTemplateId) {
+      setError('Debes seleccionar una plantilla.');
+      return;
+    }
+
+    setIsGeneratingTemplate(true);
+    setError('');
+
+    try {
+      const { blob, fileName } = await generateTemplate(token, selectedTemplateId, { data: templateFormData });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No fue posible generar el documento.');
+    } finally {
+      setIsGeneratingTemplate(false);
     }
   };
 
@@ -241,6 +341,49 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
             ) : null}
           </div>
         </div>
+      </Card>
+
+      <Card title="Generador dinámico de documentos">
+        <form className="form-grid" onSubmit={handleGenerateTemplate}>
+          <label className="field">
+            <span className="label">Plantilla</span>
+            <select
+              className="input"
+              value={selectedTemplateId}
+              onChange={(event) => setSelectedTemplateId(event.target.value)}
+              required
+            >
+              <option value="">Selecciona una plantilla</option>
+              {templates.map((template) => (
+                <option key={template._id} value={template._id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {templateVariables.map((variable) => (
+            <label className="field" key={variable.name}>
+              <span className="label">{variable.label}</span>
+              <Input
+                value={templateFormData[variable.name] ?? ''}
+                onChange={(event) => handleTemplateFieldChange(variable.name, event.target.value)}
+                placeholder={`Ingresa ${variable.label.toLowerCase()}`}
+                required
+              />
+            </label>
+          ))}
+
+          {selectedTemplateId && !templateVariables.length ? (
+            <p className="text-sm text-gray-600">Esta plantilla no tiene variables configuradas.</p>
+          ) : null}
+
+          <div className="actions">
+            <Button type="submit" disabled={isGeneratingTemplate || !selectedTemplateId}>
+              {isGeneratingTemplate ? 'Generando...' : 'Generar documento'}
+            </Button>
+          </div>
+        </form>
       </Card>
 
       {isPreviewOpen && pdfDocument ? (
