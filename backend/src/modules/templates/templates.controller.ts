@@ -14,7 +14,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
 import { getStorage } from 'firebase-admin/storage';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
@@ -85,7 +84,7 @@ export class TemplatesController {
     @Req() request: RequestWithUser,
     @Param('templateId') templateId: string,
     @Body() generateTemplateDto: GenerateTemplateDto,
-    @Res() response: Response,
+    @Res() response: HttpResponse,
   ) {
     const user = await this.resolveUserFromRequest(request);
     const template = await this.templatesService.findByIdForCompany(templateId, user.companyId);
@@ -192,4 +191,9 @@ type UploadedBinaryFile = {
   originalname: string;
   mimetype: string;
   buffer: Buffer;
+};
+
+type HttpResponse = {
+  setHeader(name: string, value: string): void;
+  send(body: Buffer): void;
 };
