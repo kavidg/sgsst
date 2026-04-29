@@ -40,4 +40,20 @@ export class TemplatesService {
 
     return template;
   }
+
+  async updateVariables(templateId: string, companyId: Types.ObjectId, variables: string[]) {
+    const template = await this.templateModel
+      .findOneAndUpdate(
+        { _id: templateId, companyId },
+        { variables },
+        { new: true },
+      )
+      .exec();
+
+    if (!template) {
+      throw new NotFoundException(`Template with id ${templateId} not found`);
+    }
+
+    return template;
+  }
 }

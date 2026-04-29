@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   InternalServerErrorException,
+  Patch,
   Param,
   Post,
   Req,
@@ -117,6 +118,18 @@ export class TemplatesController {
     response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     response.send(generatedBuffer);
+  }
+
+  @Patch(':templateId/variables')
+  @Roles('owner', 'admin')
+  async updateVariables(
+    @Req() request: RequestWithUser,
+    @Param('templateId') templateId: string,
+    @Body() body: { variables?: string[] },
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    const variables = this.normalizeVariables(body.variables);
+    return this.templatesService.updateVariables(templateId, user.companyId, variables);
   }
 
   private normalizeVariables(rawVariables?: string | string[]) {
