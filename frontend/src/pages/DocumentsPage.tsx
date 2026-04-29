@@ -19,6 +19,7 @@ import {
   InspectionActivityModel,
   TemplateModel,
   TemplateVariableModel,
+  updateTemplateVariables,
 } from '../api';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -55,6 +56,8 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
   const [templateVariables, setTemplateVariables] = useState<TemplateVariableModel[]>([]);
   const [templateFormData, setTemplateFormData] = useState<Record<string, string>>({});
   const [isGeneratingTemplate, setIsGeneratingTemplate] = useState(false);
+  const [isConfiguringVariables, setIsConfiguringVariables] = useState(false);
+  const [manualVariableName, setManualVariableName] = useState('');
 
   const [companyName, setCompanyName] = useState('Empresa no definida');
   const [companyNit, setCompanyNit] = useState('N/A');
@@ -251,6 +254,43 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
     }
   };
 
+  const handleAddManualVariable = () => {
+    const variableName = manualVariableName.trim();
+    if (!variableName) {
+      return;
+    }
+
+    if (templateVariables.some((item) => item.name === variableName)) {
+      setManualVariableName('');
+      return;
+    }
+
+    setTemplateVariables((previous) => [...previous, { name: variableName, label: variableName }]);
+    setTemplateFormData((previous) => ({ ...previous, [variableName]: '' }));
+    setManualVariableName('');
+  };
+
+  const handleSaveManualVariables = async () => {
+    if (!selectedTemplateId) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const variables = templateVariables.map((variable) => variable.name);
+      const updatedTemplate = await updateTemplateVariables(token, selectedTemplateId, { variables });
+      setTemplates((previous) =>
+        previous.map((template) => (template._id === updatedTemplate._id ? updatedTemplate : template)),
+      );
+      setIsConfiguringVariables(false);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No fue posible guardar variables.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const payload = useMemo(
     () =>
       buildPdfPayload({
@@ -375,7 +415,37 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
           ))}
 
           {selectedTemplateId && !templateVariables.length ? (
-            <p className="text-sm text-gray-600">Esta plantilla no tiene variables configuradas.</p>
+            <div className="form-grid">
+              <p className="text-sm text-gray-600">No variables detected in document</p>
+              <div className="actions">
+                <Button type="button" variant="secondary" onClick={() => setIsConfiguringVariables((previous) => !previous)}>
+                  Configure variables
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {selectedTemplateId && isConfiguringVariables ? (
+            <div className="form-grid">
+              <label className="field">
+                <span className="label">Agregar variable manual</span>
+                <div className="actions">
+                  <Input
+                    value={manualVariableName}
+                    onChange={(event) => setManualVariableName(event.target.value)}
+                    placeholder="Ej: nombre_empleado"
+                  />
+                  <Button type="button" variant="secondary" onClick={handleAddManualVariable}>
+                    Añadir
+                  </Button>
+                </div>
+              </label>
+              <div className="actions">
+                <Button type="button" onClick={handleSaveManualVariables} disabled={loading || !templateVariables.length}>
+                  Guardar variables
+                </Button>
+              </div>
+            </div>
           ) : null}
 
           <div className="actions">
