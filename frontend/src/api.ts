@@ -271,6 +271,10 @@ export interface GenerateTemplatePayload {
   data: Record<string, string | number | boolean | null>;
 }
 
+export interface UpdateTemplateVariablesPayload {
+  variables: string[];
+}
+
 export interface TemplateVariableModel {
   name: string;
   label: string;
@@ -611,6 +615,13 @@ export function fetchTemplatesByCompany(token: string, companyId: string) {
 
 export function fetchTemplateVariables(token: string, templateId: string) {
   return apiFetch<TemplateVariableModel[]>(`/templates/${templateId}/variables`, token, { method: 'GET' });
+}
+
+export function updateTemplateVariables(token: string, templateId: string, payload: UpdateTemplateVariablesPayload) {
+  return apiFetch<TemplateModel>(`/templates/${templateId}/variables`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function generateTemplate(token: string, templateId: string, payload: GenerateTemplatePayload) {
