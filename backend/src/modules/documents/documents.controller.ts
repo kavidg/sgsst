@@ -46,10 +46,19 @@ export class DocumentsController {
       throw new BadRequestException('File is required');
     }
 
-    const user = await this.resolveUserFromRequest(request);
-    const fileUrl = await this.uploadToFirebaseStorage(user.companyId, file);
+    try {
+      const user = await this.resolveUserFromRequest(request);
+      const fileUrl = await this.uploadToFirebaseStorage(user.companyId, file);
 
-    return this.documentsService.create(user.companyId, (user as unknown as { _id: Types.ObjectId })._id, createDocumentDto, fileUrl);
+      return this.documentsService.create(user.companyId, (user as unknown as { _id: Types.ObjectId })._id, createDocumentDto, fileUrl);
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof ForbiddenException || error instanceof InternalServerErrorException) {
+        throw error;
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(`Failed to create document: ${errorMessage}`);
+    }
   }
 
   @Get()
@@ -102,16 +111,21 @@ export class DocumentsController {
     const filePath = `documents/${companyId.toString()}/${Date.now()}-${sanitizedName}`;
     const bucketFile = bucket.file(filePath);
 
-    await bucketFile.save(file.buffer, {
-      metadata: {
-        contentType: file.mimetype,
-      },
-      resumable: false,
-    });
+    try {
+      await bucketFile.save(file.buffer, {
+        metadata: {
+          contentType: file.mimetype,
+        },
+        resumable: false,
+      });
 
-    await bucketFile.makePublic();
+      await bucketFile.makePublic();
 
-    return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+      return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown upload error';
+      throw new InternalServerErrorException(`Failed to upload document to storage: ${errorMessage}`);
+    }
   }
 }
 
