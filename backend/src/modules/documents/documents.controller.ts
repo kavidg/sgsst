@@ -100,10 +100,10 @@ export class DocumentsController {
 
   private async uploadToFirebaseStorage(companyId: Types.ObjectId, file: UploadedBinaryFile): Promise<string> {
     const app = this.firebaseAdminService.getApp();
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET ?? this.resolveStorageBucketName(app);
 
     if (!bucketName) {
-      throw new InternalServerErrorException('Missing FIREBASE_STORAGE_BUCKET configuration');
+      throw new InternalServerErrorException('Missing Firebase Storage bucket configuration');
     }
 
     const bucket = getStorage(app).bucket(bucketName);
@@ -126,6 +126,11 @@ export class DocumentsController {
       const errorMessage = error instanceof Error ? error.message : 'Unknown upload error';
       throw new InternalServerErrorException(`Failed to upload document to storage: ${errorMessage}`);
     }
+  }
+
+  private resolveStorageBucketName(app: ReturnType<FirebaseAdminService['getApp']>): string | undefined {
+    const options = app.options as { storageBucket?: string };
+    return options.storageBucket;
   }
 }
 
