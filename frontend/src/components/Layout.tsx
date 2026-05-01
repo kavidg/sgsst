@@ -9,6 +9,7 @@ import { Icons } from './Icons';
 
 type LayoutProps = {
   token: string;
+  userName: string;
   role?: UserRole;
   companies: MyCompanyModel[];
   activeCompanyId: string;
@@ -40,7 +41,7 @@ const severityLabels: Record<AlertModel['severity'], string> = {
   LOW: 'Baja',
 };
 
-export function Layout({ token, role, companies, activeCompanyId, onSelectCompany, onRefresh, onLogout, loading }: LayoutProps) {
+export function Layout({ token, role, companies, activeCompanyId, onSelectCompany, onRefresh, onLogout, loading, userName }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
@@ -145,6 +146,10 @@ export function Layout({ token, role, companies, activeCompanyId, onSelectCompan
               {showCompanySelector ? (
                 <CompanySelector companies={companies} activeCompanyId={activeCompanyId} onSelectCompany={onSelectCompany} />
               ) : null}
+              <Link to="/profile" className="profile-link" title="Perfil de usuario">
+                <Icons.user />
+                <span>{userName || 'User'}</span>
+              </Link>
               <div className="alerts-dropdown">
                 <Button type="button" variant="ghost" className="alerts-bell-button" onClick={() => setAlertsOpen((open) => !open)}>
                   <Icons.bell />

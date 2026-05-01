@@ -21,4 +21,5 @@ export const Icons = {
   menu: () => <IconBase><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></IconBase>,
   chevronDown: () => <IconBase><polyline points="6 9 12 15 18 9"/></IconBase>,
   bell: () => <IconBase><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></IconBase>,
+  user: () => <IconBase><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></IconBase>,
 };
