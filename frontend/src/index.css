@@ -887,3 +887,19 @@ a { color: inherit; }
 .toast-alert p {
   margin: 0;
 }
+
+.profile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  text-decoration: none;
+  color: #334155;
+  padding: .45rem .65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .8rem;
+  background: #fff;
+}
+
+.profile-link:hover {
+  background: #f8fafc;
+}
