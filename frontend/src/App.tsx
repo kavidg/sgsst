@@ -41,6 +41,7 @@ import { ActPage } from './pages/documents/ActPage';
 import { DocumentsEvaluationProvider } from './pages/documents/evaluationState';
 import { useCompanyContext } from './context/CompanyContext';
 import { DocumentsPage } from './pages/DocumentsPage';
+import { ProfilePage } from './pages/ProfilePage';
 
 type CompaniesPageProps = {
   companies: CompanyModel[];
@@ -136,6 +137,7 @@ function App() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
   const [newCompanyStandardsType, setNewCompanyStandardsType] = useState('');
+  const [userFirstName, setUserFirstName] = useState('User');
   const companySelectorOptions: MyCompanyModel[] = profile?.role === 'owner'
     ? companies.map((company) => ({
       id: company._id,
@@ -620,6 +622,7 @@ function App() {
             onRefresh={() => void refreshOwnerData()}
             onLogout={() => void handleLogout()}
             loading={loading}
+            userName={userFirstName}
           />
         }
       >
@@ -689,6 +692,15 @@ function App() {
         <Route path="/absenteeism" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderAbsenteeismRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
         <Route path="/inspections" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderInspectionsRoutePage()} />
+        <Route
+          path="/profile"
+          element={
+            <ProfilePage
+              firstName={userFirstName}
+              onSave={(firstName) => setUserFirstName(firstName)}
+            />
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
