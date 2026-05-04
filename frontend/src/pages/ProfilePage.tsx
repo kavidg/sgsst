@@ -5,24 +5,34 @@ import { Input } from '../components/ui/Input';
 
 type ProfilePageProps = {
   firstName: string;
-  onSave: (firstName: string, lastName: string) => void;
+  lastName: string;
+  profileImage: string;
+  onSave: (firstName: string, lastName: string, profileImage: string) => Promise<void> | void;
 };
 
-export function ProfilePage({ firstName, onSave }: ProfilePageProps) {
+export function ProfilePage({ firstName, lastName, profileImage, onSave }: ProfilePageProps) {
   const defaultAvatar = `data:image/svg+xml;utf8,${encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#eef2ff"/><circle cx="60" cy="46" r="22" fill="#9ca3af"/><path d="M22 100c8-18 24-28 38-28s30 10 38 28" fill="#9ca3af"/></svg>',
   )}`;
   const [name, setName] = useState(firstName || 'User');
-  const [lastName, setLastName] = useState('');
-  const [profileImage, setProfileImage] = useState<string>(defaultAvatar);
+  const [surname, setSurname] = useState(lastName || '');
+  const [image, setImage] = useState<string>(profileImage || defaultAvatar);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     setName(firstName || 'User');
-  }, [firstName]);
+    setSurname(lastName || '');
+    setImage(profileImage || defaultAvatar);
+  }, [firstName, lastName, profileImage, defaultAvatar]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSave(name.trim() || 'User', lastName.trim());
+    setIsSaving(true);
+    setSaveMessage('');
+    await onSave(name.trim() || 'User', surname.trim(), image);
+    setSaveMessage('✅ Perfil guardado correctamente');
+    setIsSaving(false);
   };
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -31,8 +41,13 @@ export function ProfilePage({ firstName, onSave }: ProfilePageProps) {
       return;
     }
 
-    const imagePreview = URL.createObjectURL(file);
-    setProfileImage(imagePreview);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -50,7 +65,7 @@ export function ProfilePage({ firstName, onSave }: ProfilePageProps) {
           }}
         >
           <img
-            src={profileImage}
+            src={image}
             alt="Foto de perfil"
             style={{
               width: '72px',
@@ -82,8 +97,9 @@ export function ProfilePage({ firstName, onSave }: ProfilePageProps) {
           </div>
         </div>
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nombre" required />
-        <Input value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Apellido" />
-        <Button type="submit">Guardar</Button>
+        <Input value={surname} onChange={(event) => setSurname(event.target.value)} placeholder="Apellido" />
+        <Button type="submit" disabled={isSaving}>{isSaving ? 'Guardando...' : 'Guardar'}</Button>
+        {saveMessage ? <p style={{ margin: 0, color: '#166534', fontWeight: 600 }}>{saveMessage}</p> : null}
       </form>
     </Card>
   );

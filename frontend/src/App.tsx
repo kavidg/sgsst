@@ -138,6 +138,8 @@ function App() {
   const [newCompanyNit, setNewCompanyNit] = useState('');
   const [newCompanyStandardsType, setNewCompanyStandardsType] = useState('');
   const [userFirstName, setUserFirstName] = useState('User');
+  const [userLastName, setUserLastName] = useState('');
+  const [userProfileImage, setUserProfileImage] = useState('');
   const companySelectorOptions: MyCompanyModel[] = profile?.role === 'owner'
     ? companies.map((company) => ({
       id: company._id,
@@ -145,6 +147,16 @@ function App() {
       nit: company.nit,
     }))
     : myCompanies;
+
+  useEffect(() => {
+    const savedFirstName = localStorage.getItem('profile:firstName');
+    const savedLastName = localStorage.getItem('profile:lastName');
+    const savedProfileImage = localStorage.getItem('profile:image');
+
+    if (savedFirstName) setUserFirstName(savedFirstName);
+    if (savedLastName) setUserLastName(savedLastName);
+    if (savedProfileImage) setUserProfileImage(savedProfileImage);
+  }, []);
 
   const handleSelectCompany = async (companyId: string) => {
     setCompanyId(companyId);
@@ -697,7 +709,16 @@ function App() {
           element={
             <ProfilePage
               firstName={userFirstName}
-              onSave={(firstName) => setUserFirstName(firstName)}
+              lastName={userLastName}
+              profileImage={userProfileImage}
+              onSave={(firstName, lastName, profileImage) => {
+                setUserFirstName(firstName);
+                setUserLastName(lastName);
+                setUserProfileImage(profileImage);
+                localStorage.setItem('profile:firstName', firstName);
+                localStorage.setItem('profile:lastName', lastName);
+                localStorage.setItem('profile:image', profileImage);
+              }}
             />
           }
         />
