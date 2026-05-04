@@ -635,6 +635,7 @@ function App() {
             onLogout={() => void handleLogout()}
             loading={loading}
             userName={userFirstName}
+            userProfileImage={userProfileImage}
           />
         }
       >
