@@ -903,3 +903,11 @@ a { color: inherit; }
 .profile-link:hover {
   background: #f8fafc;
 }
+
+.profile-link__avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+}
