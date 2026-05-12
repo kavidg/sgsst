@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
@@ -221,7 +222,7 @@ type EvaluationEntry = {
   criteria: string;
 };
 
-function EvaluationSection({ title, items, sectionId, readOnly = false }: { title: string; items: EvaluationEntry[]; sectionId: string; readOnly?: boolean }) {
+function EvaluationSection({ title, items, children, sectionId, readOnly = false }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
   useEffect(() => {
@@ -244,20 +245,14 @@ function EvaluationSection({ title, items, sectionId, readOnly = false }: { titl
           </div>
         ))}
       </div>
+      {children}
     </Card>
   );
 }
 
 export function PlanPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
-  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
-
-  useEffect(() => {
-    registerSection('plan-gestion-integral', {
-      title: 'Gestión Integral del SG-SST (15%)',
-      items: integralManagementItems.map((item) => ({ code: item.code, weight: item.weight })),
-    });
-  }, [registerSection]);
+  const { totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
   return (
     <div className="grid">
@@ -266,29 +261,15 @@ export function PlanPage({ readOnly = false }: { readOnly?: boolean }) {
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
       />
       {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
-      <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} sectionId="plan-capacitacion" readOnly={readOnly} />
       <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} sectionId="plan-recursos" readOnly={readOnly} />
-      <Card title="Gestión Integral del SG-SST (15%)" className={sectionErrors.has('plan-gestion-integral') ? 'card--error' : ''}>
-        <div className="evaluation-list">
-          {integralManagementItems.map((item, index) => (
-            <div key={item.code} className="evaluation-list__row">
-              <EvaluationItem
-                {...item}
-                status={(answers[item.code]?.status ?? '') as '' | 'Cumple totalmente' | 'No cumple' | 'No aplica'}
-                hasError={missingCodes.has(item.code)}
-                readOnly={readOnly}
-                onStatusChange={(code, status) => setAnswerStatus(code, status)}
-              />
-              {index < integralManagementItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}
-            </div>
-          ))}
-        </div>
+      <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} sectionId="plan-capacitacion" readOnly={readOnly} />
+      <EvaluationSection title="Gestión Integral del SG-SST (15%)" items={integralManagementItems} sectionId="plan-gestion-integral" readOnly={readOnly}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/do')}>
             Siguiente → Hacer
           </Button>
         </div>
-      </Card>
+      </EvaluationSection>
     </div>
   );
 }
