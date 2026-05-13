@@ -1,4 +1,5 @@
-import { DragEvent, useId, useState } from 'react';
+import type { DragEvent, ReactNode } from 'react';
+import { useId, useState } from 'react';
 import { Icons } from './Icons';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -15,6 +16,7 @@ type EvaluationItemProps = {
   status?: ComplianceOption;
   onStatusChange?: (code: string, status: ComplianceOption) => void;
   hasError?: boolean;
+  headerAction?: ReactNode;
 };
 
 type ComplianceOption = '' | 'Cumple totalmente' | 'No cumple' | 'No aplica';
@@ -45,6 +47,7 @@ export function EvaluationItem({
   onStatusChange,
   hasError = false,
   readOnly = false,
+  headerAction,
 }: EvaluationItemProps) {
   const fileInputId = useId();
   const [status, setStatus] = useState<ComplianceOption>(controlledStatus ?? '');
@@ -84,9 +87,12 @@ export function EvaluationItem({
   return (
     <article className={`evaluation-item ${hasError ? 'evaluation-item--error' : ''}`.trim()}>
       <div className="evaluation-item__header">
-        <h3 className="evaluation-item__title">
-          {code} · {title}
-        </h3>
+        <div className="evaluation-item__heading">
+          <h3 className="evaluation-item__title">
+            {code} · {title}
+          </h3>
+          {headerAction}
+        </div>
         <span className="evaluation-item__weight">Peso: {weight}%</span>
       </div>
 
