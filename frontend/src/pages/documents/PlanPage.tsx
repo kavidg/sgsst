@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { Sheet } from '../../components/ui/Sheet';
 import { useDocumentsEvaluation } from './evaluationState';
 
 const financialResourcesItems = [
@@ -222,7 +223,155 @@ type EvaluationEntry = {
   criteria: string;
 };
 
-function EvaluationSection({ title, items, children, sectionId, readOnly = false }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean }) {
+type AdvancedManagementForm = {
+  responsibleName: string;
+  licenseNumber: string;
+  assignmentDate: string;
+  courseExpiresAt: string;
+  evidenceFileName: string;
+  appointmentDocument: boolean;
+  resumeSupports: boolean;
+  validLicense: boolean;
+  fiftyHourCourse: boolean;
+};
+
+const initialAdvancedManagementForm: AdvancedManagementForm = {
+  responsibleName: '',
+  licenseNumber: '',
+  assignmentDate: '',
+  courseExpiresAt: '',
+  evidenceFileName: '',
+  appointmentDocument: false,
+  resumeSupports: false,
+  validLicense: false,
+  fiftyHourCourse: false,
+};
+
+
+function AdvancedManagementPanel({ item }: { item: EvaluationEntry }) {
+  const [form, setForm] = useState<AdvancedManagementForm>(initialAdvancedManagementForm);
+
+  const validationMessages = useMemo(() => {
+    const messages: string[] = [];
+
+    if (!form.responsibleName.trim()) messages.push('Registra el nombre del responsable asignado.');
+    if (!form.licenseNumber.trim()) messages.push('La licencia SST vigente es obligatoria.');
+    if (!form.appointmentDocument) messages.push('Adjunta o confirma el acto de designación con responsabilidades.');
+    if (!form.validLicense || !form.fiftyHourCourse) messages.push('Valida licencia vigente y curso virtual de 50 horas.');
+
+    return messages;
+  }, [form]);
+
+  const checklist = [
+    { key: 'appointmentDocument', label: 'Acto de designación firmado y con responsabilidades definidas' },
+    { key: 'resumeSupports', label: 'Hoja de vida con soportes académicos y experiencia en SST' },
+    { key: 'validLicense', label: 'Licencia de Seguridad y Salud en el Trabajo vigente' },
+    { key: 'fiftyHourCourse', label: 'Certificado del curso virtual de 50 horas del SG-SST' },
+  ] as const;
+
+  return (
+    <div className="advanced-management">
+      <section className="advanced-management__alert" role="alert">
+        <strong>Alerta de control documental:</strong> la asignación del responsable del SG-SST solo debe marcarse como lista cuando exista trazabilidad del nombramiento, perfil y soportes vigentes.
+      </section>
+
+      <section className="advanced-management__section">
+        <h3>Formulario detallado</h3>
+        <div className="form-grid">
+          <label className="field">
+            <span className="label">Responsable asignado</span>
+            <input
+              className="input"
+              value={form.responsibleName}
+              onChange={(event) => setForm((current) => ({ ...current, responsibleName: event.target.value }))}
+              placeholder="Nombre completo"
+            />
+          </label>
+          <label className="field">
+            <span className="label">Número de licencia SST</span>
+            <input
+              className="input"
+              value={form.licenseNumber}
+              onChange={(event) => setForm((current) => ({ ...current, licenseNumber: event.target.value }))}
+              placeholder="Ej. Resolución / licencia"
+            />
+          </label>
+          <div className="grid grid-2">
+            <label className="field">
+              <span className="label">Fecha de asignación</span>
+              <input
+                type="date"
+                className="input"
+                value={form.assignmentDate}
+                onChange={(event) => setForm((current) => ({ ...current, assignmentDate: event.target.value }))}
+              />
+            </label>
+            <label className="field">
+              <span className="label">Vigencia del curso 50 horas</span>
+              <input
+                type="date"
+                className="input"
+                value={form.courseExpiresAt}
+                onChange={(event) => setForm((current) => ({ ...current, courseExpiresAt: event.target.value }))}
+              />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section className="advanced-management__section">
+        <h3>Carga de evidencias</h3>
+        <label className="upload-zone">
+          <input
+            type="file"
+            className="upload-zone__input"
+            onChange={(event) => setForm((current) => ({ ...current, evidenceFileName: event.target.files?.[0]?.name ?? '' }))}
+          />
+          <span className="upload-zone__title">Subir designación, hoja de vida, licencia o certificado</span>
+          <span className="muted">PDF, imagen o documento editable.</span>
+          {form.evidenceFileName ? <span className="upload-zone__file">Archivo: {form.evidenceFileName}</span> : null}
+        </label>
+      </section>
+
+      <section className="advanced-management__section">
+        <h3>Lista de verificación avanzada</h3>
+        <div className="advanced-management__checklist">
+          {checklist.map((check) => (
+            <label key={check.key} className="advanced-management__check">
+              <input
+                type="checkbox"
+                checked={form[check.key]}
+                onChange={(event) => setForm((current) => ({ ...current, [check.key]: event.target.checked }))}
+              />
+              <span>{check.label}</span>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="advanced-management__section">
+        <h3>Validaciones avanzadas</h3>
+        {validationMessages.length ? (
+          <ul className="advanced-management__validations">
+            {validationMessages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="advanced-management__success">Validaciones mínimas completas para revisión del punto {item.code}.</p>
+        )}
+      </section>
+
+      <section className="advanced-management__section advanced-management__related">
+        <h3>Información relacionada</h3>
+        <p className="muted whitespace-pre-line">{item.criteria}</p>
+        <p className="muted whitespace-pre-line">{item.modeReview}</p>
+      </section>
+    </div>
+  );
+}
+
+function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
   useEffect(() => {
@@ -240,6 +389,13 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               hasError={missingCodes.has(item.code)}
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
+              headerAction={
+                item.code === '1.1.1' ? (
+                  <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
+                    Entrar a Gestión avanzada
+                  </Button>
+                ) : null
+              }
             />
             {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
           </div>
@@ -253,6 +409,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
 export function PlanPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
   const { totalCompliance, sectionCompliance } = useDocumentsEvaluation();
+  const [advancedManagementItem, setAdvancedManagementItem] = useState<EvaluationEntry | null>(null);
 
   return (
     <div className="grid">
@@ -261,7 +418,13 @@ export function PlanPage({ readOnly = false }: { readOnly?: boolean }) {
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
       />
       {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
-      <EvaluationSection title="Recursos financieros, técnicos, humanos... (4%)" items={financialResourcesItems} sectionId="plan-recursos" readOnly={readOnly} />
+      <EvaluationSection
+        title="Recursos financieros, técnicos, humanos... (4%)"
+        items={financialResourcesItems}
+        sectionId="plan-recursos"
+        readOnly={readOnly}
+        onOpenAdvancedManagement={setAdvancedManagementItem}
+      />
       <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} sectionId="plan-capacitacion" readOnly={readOnly} />
       <EvaluationSection title="Gestión Integral del SG-SST (15%)" items={integralManagementItems} sectionId="plan-gestion-integral" readOnly={readOnly}>
         <div className="plan-next-action">
@@ -270,6 +433,16 @@ export function PlanPage({ readOnly = false }: { readOnly?: boolean }) {
           </Button>
         </div>
       </EvaluationSection>
+      <Sheet
+        open={Boolean(advancedManagementItem)}
+        title={advancedManagementItem ? `${advancedManagementItem.code} · ${advancedManagementItem.title}` : 'Gestión avanzada'}
+        description="Panel lateral de mejora sin reemplazar el flujo simple de PHVA."
+        onOpenChange={(open) => {
+          if (!open) setAdvancedManagementItem(null);
+        }}
+      >
+        {advancedManagementItem ? <AdvancedManagementPanel item={advancedManagementItem} /> : null}
+      </Sheet>
     </div>
   );
 }
