@@ -17,6 +17,7 @@ import { InspectionsModule } from './modules/inspections/inspections.module';
 import { AbsenteeismModule } from './modules/absenteeism/absenteeism.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { TemplatesModule } from './modules/templates/templates.module';
+import { PhvaAdvancedModule } from './modules/phva-advanced/phva-advanced.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { TemplatesModule } from './modules/templates/templates.module';
     AbsenteeismModule,
     AlertsModule,
     TemplatesModule,
+    PhvaAdvancedModule,
   ],
 })
 export class AppModule {}

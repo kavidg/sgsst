@@ -1,0 +1,280 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { AlertsService } from '../alerts/alerts.service';
+import { AlertSeverity } from '../alerts/schemas/alert.schema';
+import { UserDocument } from '../users/schemas/user.schema';
+import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
+import {
+  PhvaAdvancedResponsableSst,
+  PhvaAdvancedResponsableSstDocument,
+  ResponsableSstComplianceStatus,
+  ResponsableSstDocumentType,
+  ResponsableSstStoredDocument,
+} from './schemas/phva-advanced-responsable-sst.schema';
+
+const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
+  'fullName',
+  'documentNumber',
+  'position',
+  'profession',
+  'sstProfessionalType',
+  'sstLicenseNumber',
+  'licenseExpiresAt',
+  'course50HoursDate',
+];
+
+@Injectable()
+export class PhvaAdvancedService {
+  constructor(
+    @InjectModel(PhvaAdvancedResponsableSst.name)
+    private readonly responsableSstModel: Model<PhvaAdvancedResponsableSstDocument>,
+    private readonly alertsService: AlertsService,
+  ) {}
+
+  async findOrCreateResponsableSst(companyId: Types.ObjectId) {
+    const current = await this.responsableSstModel.findOne({ companyId, itemCode: '1.1.1' }).exec();
+    if (current) return current;
+
+    return this.responsableSstModel.create({ companyId, itemCode: '1.1.1' });
+  }
+
+  async updateResponsableSst(companyId: Types.ObjectId, user: UserDocument, dto: UpdateResponsableSstDto) {
+    const record = await this.findOrCreateResponsableSst(companyId);
+    const auditEntries = this.buildAuditEntries(record, dto, user);
+
+    for (const [key, value] of Object.entries(dto) as Array<[keyof UpdateResponsableSstDto, string | undefined]>) {
+      if (value === undefined) continue;
+      if (key.endsWith('Date') || key === 'licenseExpiresAt' || key === 'course50HoursDetectedDate') {
+        (record as unknown as Record<string, Date | undefined>)[key] = this.parseOptionalDate(value, key);
+      } else {
+        (record as unknown as Record<string, string>)[key] = value;
+      }
+    }
+
+    if (dto.course50HoursDetectedDate && dto.course50HoursDate && dto.course50HoursDetectedDate !== dto.course50HoursDate) {
+      auditEntries.push({
+        userId: this.resolveUserId(user),
+        userEmail: user.email,
+        changedAt: new Date(),
+        field: 'course50HoursDate',
+        oldValue: dto.course50HoursDetectedDate,
+        newValue: dto.course50HoursDate,
+        warning: 'El usuario cambió manualmente la fecha detectada del certificado de 50 horas.',
+      });
+    }
+
+    record.requires20HourUpdate = this.isCourseOlderThanThreeYears(record.course50HoursDate);
+    const compliance = this.calculateCompliance(record);
+    record.complianceStatus = compliance.status;
+    record.complianceReason = compliance.reason;
+    record.alerts = this.buildAlertSchedule(record);
+    record.auditHistory.push(...auditEntries);
+    record.updatedBy = this.resolveUserId(user);
+
+    await record.save();
+    await this.generateAlerts(record);
+    return record;
+  }
+
+  async attachDocument(params: {
+    companyId: Types.ObjectId;
+    user: UserDocument;
+    type: ResponsableSstDocumentType;
+    fileName: string;
+    fileUrl: string;
+    finalUserDate?: string;
+  }) {
+    const record = await this.findOrCreateResponsableSst(params.companyId);
+    const detectedDate = params.type === ResponsableSstDocumentType.FIFTY_HOUR_CERTIFICATE
+      ? this.detectDateFromFileName(params.fileName)
+      : undefined;
+    const finalDate = this.parseOptionalDate(params.finalUserDate, 'finalUserDate') ?? detectedDate;
+    const previousDocument = record.documents.find((document) => document.type === params.type);
+
+    const storedDocument: ResponsableSstStoredDocument = {
+      type: params.type,
+      fileName: params.fileName,
+      fileUrl: params.fileUrl,
+      detectedDate,
+      uploadedBy: this.resolveUserId(params.user),
+      uploadedAt: new Date(),
+    };
+
+    record.documents = [
+      ...record.documents.filter((document) => document.type !== params.type),
+      storedDocument,
+    ];
+
+    if (params.type === ResponsableSstDocumentType.FIFTY_HOUR_CERTIFICATE) {
+      record.course50HoursDetectedDate = detectedDate;
+      if (finalDate) record.course50HoursDate = finalDate;
+
+      if (detectedDate && finalDate && !this.isSameDay(detectedDate, finalDate)) {
+        record.auditHistory.push({
+          userId: this.resolveUserId(params.user),
+          userEmail: params.user.email,
+          changedAt: new Date(),
+          field: 'course50HoursDate',
+          oldValue: this.toDateOnly(detectedDate),
+          newValue: this.toDateOnly(finalDate),
+          warning: 'La fecha final registrada difiere de la fecha detectada automáticamente en el certificado de 50 horas.',
+        });
+      }
+    }
+
+    record.auditHistory.push({
+      userId: this.resolveUserId(params.user),
+      userEmail: params.user.email,
+      changedAt: new Date(),
+      field: `documents.${params.type}`,
+      oldValue: previousDocument?.fileName ?? '',
+      newValue: params.fileName,
+    });
+
+    record.requires20HourUpdate = this.isCourseOlderThanThreeYears(record.course50HoursDate);
+    const compliance = this.calculateCompliance(record);
+    record.complianceStatus = compliance.status;
+    record.complianceReason = compliance.reason;
+    record.alerts = this.buildAlertSchedule(record);
+    record.updatedBy = this.resolveUserId(params.user);
+
+    await record.save();
+    await this.generateAlerts(record);
+    return record;
+  }
+
+  async auditHistory(companyId: Types.ObjectId) {
+    const record = await this.responsableSstModel.findOne({ companyId, itemCode: '1.1.1' }).exec();
+    if (!record) throw new NotFoundException('Gestión avanzada no encontrada');
+    return record.auditHistory.sort((left, right) => right.changedAt.getTime() - left.changedAt.getTime());
+  }
+
+  private calculateCompliance(record: PhvaAdvancedResponsableSstDocument): { status: ResponsableSstComplianceStatus; reason: string } {
+    const missingFields = REQUIRED_TEXT_FIELDS.filter((field) => !String((record as unknown as Record<string, unknown>)[field] ?? '').trim());
+    const hasDiploma = record.documents.some((document) => document.type === ResponsableSstDocumentType.DIPLOMA);
+    const has50HourCertificate = record.documents.some((document) => document.type === ResponsableSstDocumentType.FIFTY_HOUR_CERTIFICATE);
+    const has20HourCertificate = record.documents.some((document) => document.type === ResponsableSstDocumentType.TWENTY_HOUR_UPDATE_CERTIFICATE);
+    const licenseValid = Boolean(record.licenseExpiresAt && record.licenseExpiresAt >= this.startOfToday());
+    const courseExpired = this.isCourseOlderThanThreeYears(record.course50HoursDate);
+
+    if (missingFields.length || !hasDiploma || !has50HourCertificate || (courseExpired && (!record.course20HoursDate || !has20HourCertificate)) || !licenseValid) {
+      const reasons = [
+        missingFields.length ? `Campos requeridos pendientes: ${missingFields.join(', ')}` : '',
+        !hasDiploma ? 'Diploma pendiente.' : '',
+        !has50HourCertificate ? 'Certificado de curso 50 horas pendiente.' : '',
+        courseExpired && !record.course20HoursDate ? 'Fecha curso 20 horas requerida.' : '',
+        courseExpired && !has20HourCertificate ? 'Certificado de actualización 20 horas requerido.' : '',
+        !licenseValid ? 'Licencia SST no vigente o sin fecha válida.' : '',
+      ].filter(Boolean);
+
+      return {
+        status: reasons.some((reason) => reason.includes('no vigente')) ? ResponsableSstComplianceStatus.NON_COMPLIANT : ResponsableSstComplianceStatus.PENDING,
+        reason: reasons.join(' '),
+      };
+    }
+
+    return { status: ResponsableSstComplianceStatus.COMPLIES, reason: 'Cumple validaciones avanzadas del responsable SG-SST.' };
+  }
+
+  private buildAlertSchedule(record: PhvaAdvancedResponsableSstDocument) {
+    const alerts: Array<{ type: string; message: string; severity: string; dueAt: Date; generated: boolean }> = [];
+    if (record.licenseExpiresAt) {
+      for (const days of [30, 15, 5, 1]) {
+        alerts.push({
+          type: `PHVA_RESPONSABLE_SST_LICENSE_${days}_DAYS`,
+          message: `La licencia SST vence en ${days} día(s).`,
+          severity: days <= 5 ? AlertSeverity.HIGH : AlertSeverity.MEDIUM,
+          dueAt: this.addDays(record.licenseExpiresAt, -days),
+          generated: false,
+        });
+      }
+      if (record.licenseExpiresAt < this.startOfToday()) {
+        alerts.push({ type: 'PHVA_RESPONSABLE_SST_LICENSE_EXPIRED', message: 'Licencia expirada.', severity: AlertSeverity.HIGH, dueAt: new Date(), generated: false });
+      }
+    }
+    if (this.isCourseOlderThanThreeYears(record.course50HoursDate)) {
+      alerts.push({ type: 'PHVA_RESPONSABLE_SST_COURSE_EXPIRED', message: 'Curso vencido: requiere actualización 20 horas.', severity: AlertSeverity.HIGH, dueAt: new Date(), generated: false });
+    }
+    return alerts;
+  }
+
+  private async generateAlerts(record: PhvaAdvancedResponsableSstDocument) {
+    const today = this.startOfToday();
+    await Promise.all(record.alerts
+      .filter((alert) => alert.dueAt <= today)
+      .map((alert) => this.alertsService.createUnique({
+        companyId: record.companyId,
+        type: alert.type,
+        message: `PHVA 1.1.1 · ${alert.message}`,
+        severity: alert.severity as AlertSeverity,
+      })));
+  }
+
+  private resolveUserId(user: UserDocument): Types.ObjectId {
+    return (user as unknown as { _id: Types.ObjectId })._id;
+  }
+
+  private buildAuditEntries(record: PhvaAdvancedResponsableSstDocument, dto: UpdateResponsableSstDto, user: UserDocument) {
+    const entries = [] as Array<{ userId?: Types.ObjectId; userEmail?: string; changedAt: Date; field: string; oldValue?: string; newValue?: string; warning?: string }>;
+    for (const [key, value] of Object.entries(dto)) {
+      const oldValue = this.normalizeValue((record as unknown as Record<string, unknown>)[key]);
+      const newValue = this.normalizeValue(value);
+      if (oldValue !== newValue) {
+        entries.push({ userId: this.resolveUserId(user), userEmail: user.email, changedAt: new Date(), field: key, oldValue, newValue });
+      }
+    }
+    return entries;
+  }
+
+  private detectDateFromFileName(fileName: string): Date | undefined {
+    const normalized = fileName.replace(/_/g, '-');
+    const iso = normalized.match(/(20\d{2}|19\d{2})[-./](0?[1-9]|1[0-2])[-./](0?[1-9]|[12]\d|3[01])/);
+    if (iso) return this.parseOptionalDate(`${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`, 'detectedDate');
+    const latam = normalized.match(/(0?[1-9]|[12]\d|3[01])[-./](0?[1-9]|1[0-2])[-./](20\d{2}|19\d{2})/);
+    if (latam) return this.parseOptionalDate(`${latam[3]}-${latam[2].padStart(2, '0')}-${latam[1].padStart(2, '0')}`, 'detectedDate');
+    return undefined;
+  }
+
+  private parseOptionalDate(value: string | undefined, fieldName: string): Date | undefined {
+    if (!value) return undefined;
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime())) throw new BadRequestException(`Fecha inválida para ${fieldName}`);
+    return parsed;
+  }
+
+  private isCourseOlderThanThreeYears(date?: Date) {
+    if (!date) return false;
+    return this.addYears(date, 3) < this.startOfToday();
+  }
+
+  private addYears(date: Date, years: number) {
+    const next = new Date(date);
+    next.setUTCFullYear(next.getUTCFullYear() + years);
+    return next;
+  }
+
+  private addDays(date: Date, days: number) {
+    const next = new Date(date);
+    next.setUTCDate(next.getUTCDate() + days);
+    return next;
+  }
+
+  private startOfToday() {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  }
+
+  private isSameDay(left: Date, right: Date) {
+    return this.toDateOnly(left) === this.toDateOnly(right);
+  }
+
+  private normalizeValue(value: unknown) {
+    if (value instanceof Date) return this.toDateOnly(value);
+    return String(value ?? '');
+  }
+
+  private toDateOnly(date?: Date) {
+    return date ? date.toISOString().slice(0, 10) : '';
+  }
+}
