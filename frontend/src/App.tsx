@@ -696,7 +696,7 @@ function App() {
         <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEvaluationsRoutePage()} />
         <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderRisksRoutePage()} />
         <Route path="/documents" element={renderDocumentsRoutePage(<DocumentsPage token={idToken} />)} />
-        <Route path="/documents/plan" element={renderDocumentsRoutePage(<PlanPage readOnly={profile?.role === 'manager'} />)} />
+        <Route path="/documents/plan" element={renderDocumentsRoutePage(<PlanPage readOnly={profile?.role === 'manager'} token={idToken} />)} />
         <Route path="/documents/do" element={renderDocumentsRoutePage(<DoPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/documents/check" element={renderDocumentsRoutePage(<CheckPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/documents/act" element={renderDocumentsRoutePage(<ActPage readOnly={profile?.role === 'manager'} />)} />
