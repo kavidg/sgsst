@@ -27,7 +27,7 @@ export class UsersService {
     private readonly firebaseAdminService: FirebaseAdminService,
   ) {}
 
-  async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
+  async findByFirebaseUid(firebaseUid: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ firebaseUid }).exec();
   }
 
