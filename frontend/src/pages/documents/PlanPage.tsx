@@ -13,6 +13,7 @@ import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { Modal } from '../../components/ui/Modal';
 import { Sheet } from '../../components/ui/Sheet';
 import { useDocumentsEvaluation } from './evaluationState';
 
