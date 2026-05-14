@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  ResponsableSstAdvancedModel,
+  ResponsableSstComplianceStatus,
+  ResponsableSstDocumentType,
+  fetchResponsableSstAdvanced,
+  updateResponsableSstAdvanced,
+  uploadResponsableSstDocument,
+} from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
@@ -224,149 +232,376 @@ type EvaluationEntry = {
 };
 
 type AdvancedManagementForm = {
-  responsibleName: string;
-  licenseNumber: string;
-  assignmentDate: string;
-  courseExpiresAt: string;
-  evidenceFileName: string;
-  appointmentDocument: boolean;
-  resumeSupports: boolean;
-  validLicense: boolean;
-  fiftyHourCourse: boolean;
+  fullName: string;
+  documentNumber: string;
+  position: string;
+  profession: string;
+  sstProfessionalType: string;
+  sstLicenseNumber: string;
+  licenseExpiresAt: string;
+  course50HoursDate: string;
+  course50HoursDetectedDate: string;
+  course20HoursDate: string;
 };
+
+type PendingDocuments = Partial<Record<ResponsableSstDocumentType, File>>;
 
 const initialAdvancedManagementForm: AdvancedManagementForm = {
-  responsibleName: '',
-  licenseNumber: '',
-  assignmentDate: '',
-  courseExpiresAt: '',
-  evidenceFileName: '',
-  appointmentDocument: false,
-  resumeSupports: false,
-  validLicense: false,
-  fiftyHourCourse: false,
+  fullName: '',
+  documentNumber: '',
+  position: '',
+  profession: '',
+  sstProfessionalType: '',
+  sstLicenseNumber: '',
+  licenseExpiresAt: '',
+  course50HoursDate: '',
+  course50HoursDetectedDate: '',
+  course20HoursDate: '',
 };
 
+const documentLabels: Record<ResponsableSstDocumentType, string> = {
+  DIPLOMA: 'Diploma',
+  FIFTY_HOUR_CERTIFICATE: 'Certificado curso 50 horas',
+  TWENTY_HOUR_UPDATE_CERTIFICATE: 'Certificado actualización 20 horas',
+};
 
-function AdvancedManagementPanel({ item }: { item: EvaluationEntry }) {
+function toDateInputValue(value?: string | Date) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function isOlderThanThreeYears(dateValue: string) {
+  if (!dateValue) return false;
+  const date = new Date(`${dateValue}T00:00:00.000Z`);
+  const expiration = new Date(date);
+  expiration.setUTCFullYear(expiration.getUTCFullYear() + 3);
+  return expiration < new Date(new Date().toISOString().slice(0, 10));
+}
+
+function detectDateFromFileName(fileName: string) {
+  const normalized = fileName.replace(/_/g, '-');
+  const iso = normalized.match(/(20\d{2}|19\d{2})[-./](0?[1-9]|1[0-2])[-./](0?[1-9]|[12]\d|3[01])/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+  const latam = normalized.match(/(0?[1-9]|[12]\d|3[01])[-./](0?[1-9]|1[0-2])[-./](20\d{2}|19\d{2})/);
+  if (latam) return `${latam[3]}-${latam[2].padStart(2, '0')}-${latam[1].padStart(2, '0')}`;
+  return '';
+}
+
+function complianceBadge(status?: ResponsableSstComplianceStatus) {
+  if (status === 'COMPLIES') return { label: '✅ Cumple', className: 'advanced-management__badge advanced-management__badge--success' };
+  if (status === 'NON_COMPLIANT') return { label: '❌ No cumple', className: 'advanced-management__badge advanced-management__badge--danger' };
+  return { label: '⚠ Pendiente', className: 'advanced-management__badge advanced-management__badge--warning' };
+}
+
+function AdvancedManagementPanel({
+  item,
+  token,
+  readOnly,
+  onComplianceChange,
+  onDirtyChange,
+  saveRequest,
+  discardRequest,
+  onSaved,
+}: {
+  item: EvaluationEntry;
+  token: string;
+  readOnly?: boolean;
+  onComplianceChange: (status: ResponsableSstComplianceStatus) => void;
+  onDirtyChange: (dirty: boolean) => void;
+  saveRequest: number;
+  discardRequest: number;
+  onSaved: () => void;
+}) {
   const [form, setForm] = useState<AdvancedManagementForm>(initialAdvancedManagementForm);
+  const [savedRecord, setSavedRecord] = useState<ResponsableSstAdvancedModel | null>(null);
+  const [pendingDocuments, setPendingDocuments] = useState<PendingDocuments>({});
+  const [dirty, setDirty] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const validationMessages = useMemo(() => {
+  const hasDocument = (type: ResponsableSstDocumentType) => Boolean(pendingDocuments[type] || savedRecord?.documents.some((document) => document.type === type));
+  const requires20HourUpdate = form.course50HoursDate ? isOlderThanThreeYears(form.course50HoursDate) : Boolean(savedRecord?.requires20HourUpdate);
+  const badge = complianceBadge(savedRecord?.complianceStatus);
+
+  const validations = useMemo(() => {
     const messages: string[] = [];
+    const requiredFields: Array<[keyof AdvancedManagementForm, string]> = [
+      ['fullName', 'Nombre completo'],
+      ['documentNumber', 'Documento'],
+      ['position', 'Cargo'],
+      ['profession', 'Profesión'],
+      ['sstProfessionalType', 'Tipo profesional SST'],
+      ['sstLicenseNumber', 'Número licencia SST'],
+      ['licenseExpiresAt', 'Fecha vencimiento licencia'],
+      ['course50HoursDate', 'Fecha curso 50 horas'],
+    ];
 
-    if (!form.responsibleName.trim()) messages.push('Registra el nombre del responsable asignado.');
-    if (!form.licenseNumber.trim()) messages.push('La licencia SST vigente es obligatoria.');
-    if (!form.appointmentDocument) messages.push('Adjunta o confirma el acto de designación con responsabilidades.');
-    if (!form.validLicense || !form.fiftyHourCourse) messages.push('Valida licencia vigente y curso virtual de 50 horas.');
+    requiredFields.forEach(([key, label]) => {
+      if (!form[key].trim()) messages.push(`${label} es obligatorio.`);
+    });
+
+    if (!hasDocument('DIPLOMA')) messages.push('Diploma cargado es obligatorio.');
+    if (!hasDocument('FIFTY_HOUR_CERTIFICATE')) messages.push('Certificado curso 50 horas cargado es obligatorio.');
+    if (requires20HourUpdate && !form.course20HoursDate.trim()) messages.push('Fecha curso 20 horas es obligatoria porque el curso 50 horas tiene más de 3 años.');
+    if (requires20HourUpdate && !hasDocument('TWENTY_HOUR_UPDATE_CERTIFICATE')) messages.push('Certificado actualización 20 horas es obligatorio porque el curso 50 horas tiene más de 3 años.');
+    if (form.licenseExpiresAt && new Date(`${form.licenseExpiresAt}T00:00:00.000Z`) < new Date(new Date().toISOString().slice(0, 10))) messages.push('La licencia SST está expirada.');
 
     return messages;
-  }, [form]);
+  }, [form, pendingDocuments, requires20HourUpdate, savedRecord]);
 
-  const checklist = [
-    { key: 'appointmentDocument', label: 'Acto de designación firmado y con responsabilidades definidas' },
-    { key: 'resumeSupports', label: 'Hoja de vida con soportes académicos y experiencia en SST' },
-    { key: 'validLicense', label: 'Licencia de Seguridad y Salud en el Trabajo vigente' },
-    { key: 'fiftyHourCourse', label: 'Certificado del curso virtual de 50 horas del SG-SST' },
-  ] as const;
+  const quickBadges = [
+    { label: 'Licencia vigente', ok: Boolean(form.licenseExpiresAt && new Date(`${form.licenseExpiresAt}T00:00:00.000Z`) >= new Date(new Date().toISOString().slice(0, 10))) },
+    { label: 'Curso vigente', ok: Boolean(form.course50HoursDate && !requires20HourUpdate) },
+    { label: 'Documentos completos', ok: hasDocument('DIPLOMA') && hasDocument('FIFTY_HOUR_CERTIFICATE') && (!requires20HourUpdate || hasDocument('TWENTY_HOUR_UPDATE_CERTIFICATE')) },
+  ];
+
+  useEffect(() => {
+    if (!token) return;
+    let ignore = false;
+
+    setLoading(true);
+    fetchResponsableSstAdvanced(token)
+      .then((record) => {
+        if (ignore) return;
+        setSavedRecord(record);
+        setForm({
+          fullName: record.fullName ?? '',
+          documentNumber: record.documentNumber ?? '',
+          position: record.position ?? '',
+          profession: record.profession ?? '',
+          sstProfessionalType: record.sstProfessionalType ?? '',
+          sstLicenseNumber: record.sstLicenseNumber ?? '',
+          licenseExpiresAt: toDateInputValue(record.licenseExpiresAt),
+          course50HoursDate: toDateInputValue(record.course50HoursDate),
+          course50HoursDetectedDate: toDateInputValue(record.course50HoursDetectedDate),
+          course20HoursDate: toDateInputValue(record.course20HoursDate),
+        });
+        onComplianceChange(record.complianceStatus);
+      })
+      .catch((fetchError: Error) => setError(fetchError.message))
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [onComplianceChange, token]);
+
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty]);
+
+  const updateField = (field: keyof AdvancedManagementForm, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setDirty(true);
+    setSuccess('');
+  };
+
+  const handleDocumentChange = (type: ResponsableSstDocumentType) => (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setPendingDocuments((current) => ({ ...current, [type]: file }));
+    setDirty(true);
+    setSuccess('');
+
+    if (type === 'FIFTY_HOUR_CERTIFICATE') {
+      const detectedDate = detectDateFromFileName(file.name);
+      if (detectedDate) {
+        setForm((current) => ({ ...current, course50HoursDetectedDate: detectedDate, course50HoursDate: current.course50HoursDate || detectedDate }));
+      }
+    }
+  };
+
+  const save = async () => {
+    setError('');
+    setSuccess('');
+
+    if (validations.length) {
+      setError(validations.join(' '));
+      return;
+    }
+
+    try {
+      setLoading(true);
+      let latestRecord = await updateResponsableSstAdvanced(token, {
+        ...form,
+        course20HoursDate: requires20HourUpdate ? form.course20HoursDate : '',
+      });
+
+      for (const [type, file] of Object.entries(pendingDocuments) as Array<[ResponsableSstDocumentType, File | undefined]>) {
+        if (!file) continue;
+        latestRecord = await uploadResponsableSstDocument(token, {
+          type,
+          file,
+          finalUserDate: type === 'FIFTY_HOUR_CERTIFICATE' ? form.course50HoursDate : undefined,
+        });
+      }
+
+      setSavedRecord(latestRecord);
+      onComplianceChange(latestRecord.complianceStatus);
+      setPendingDocuments({});
+      setDirty(false);
+      setShowCloseModal(false);
+      setSuccess('Gestión avanzada guardada y sincronizada con el estado PHVA.');
+      onSaved();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo guardar la gestión avanzada.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const discard = () => {
+    setPendingDocuments({});
+    setDirty(false);
+    setShowCloseModal(false);
+    if (savedRecord) {
+      setForm({
+        fullName: savedRecord.fullName ?? '',
+        documentNumber: savedRecord.documentNumber ?? '',
+        position: savedRecord.position ?? '',
+        profession: savedRecord.profession ?? '',
+        sstProfessionalType: savedRecord.sstProfessionalType ?? '',
+        sstLicenseNumber: savedRecord.sstLicenseNumber ?? '',
+        licenseExpiresAt: toDateInputValue(savedRecord.licenseExpiresAt),
+        course50HoursDate: toDateInputValue(savedRecord.course50HoursDate),
+        course50HoursDetectedDate: toDateInputValue(savedRecord.course50HoursDetectedDate),
+        course20HoursDate: toDateInputValue(savedRecord.course20HoursDate),
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (saveRequest > 0) void save();
+  }, [saveRequest]);
+
+  useEffect(() => {
+    if (discardRequest > 0) discard();
+  }, [discardRequest]);
 
   return (
     <div className="advanced-management">
-      <section className="advanced-management__alert" role="alert">
-        <strong>Alerta de control documental:</strong> la asignación del responsable del SG-SST solo debe marcarse como lista cuando exista trazabilidad del nombramiento, perfil y soportes vigentes.
+      <section className="advanced-management__hero">
+        <div>
+          <p className="muted">Gestión avanzada del ítem {item.code}</p>
+          <h3>Responsable SG-SST</h3>
+        </div>
+        <span className={badge.className}>{badge.label}</span>
       </section>
 
+      <div className="advanced-management__badges">
+        {quickBadges.map((quickBadge) => (
+          <span key={quickBadge.label} className={`advanced-management__badge ${quickBadge.ok ? 'advanced-management__badge--success' : 'advanced-management__badge--warning'}`.trim()}>
+            {quickBadge.ok ? '✅' : '⚠'} {quickBadge.label}
+          </span>
+        ))}
+      </div>
+
+      {error ? <p className="error">{error}</p> : null}
+      {success ? <p className="advanced-management__success">{success}</p> : null}
+      {loading ? <p className="muted">Cargando información avanzada...</p> : null}
+
       <section className="advanced-management__section">
-        <h3>Formulario detallado</h3>
+        <h3>Información general</h3>
         <div className="form-grid">
-          <label className="field">
-            <span className="label">Responsable asignado</span>
-            <input
-              className="input"
-              value={form.responsibleName}
-              onChange={(event) => setForm((current) => ({ ...current, responsibleName: event.target.value }))}
-              placeholder="Nombre completo"
-            />
-          </label>
-          <label className="field">
-            <span className="label">Número de licencia SST</span>
-            <input
-              className="input"
-              value={form.licenseNumber}
-              onChange={(event) => setForm((current) => ({ ...current, licenseNumber: event.target.value }))}
-              placeholder="Ej. Resolución / licencia"
-            />
-          </label>
           <div className="grid grid-2">
-            <label className="field">
-              <span className="label">Fecha de asignación</span>
-              <input
-                type="date"
-                className="input"
-                value={form.assignmentDate}
-                onChange={(event) => setForm((current) => ({ ...current, assignmentDate: event.target.value }))}
-              />
-            </label>
-            <label className="field">
-              <span className="label">Vigencia del curso 50 horas</span>
-              <input
-                type="date"
-                className="input"
-                value={form.courseExpiresAt}
-                onChange={(event) => setForm((current) => ({ ...current, courseExpiresAt: event.target.value }))}
-              />
-            </label>
+            <label className="field"><span className="label">Nombre completo</span><input className="input" value={form.fullName} disabled={readOnly} onChange={(event) => updateField('fullName', event.target.value)} /></label>
+            <label className="field"><span className="label">Documento</span><input className="input" value={form.documentNumber} disabled={readOnly} onChange={(event) => updateField('documentNumber', event.target.value)} /></label>
           </div>
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Cargo</span><input className="input" value={form.position} disabled={readOnly} onChange={(event) => updateField('position', event.target.value)} /></label>
+            <label className="field"><span className="label">Profesión</span><input className="input" value={form.profession} disabled={readOnly} onChange={(event) => updateField('profession', event.target.value)} /></label>
+          </div>
+          <label className="field"><span className="label">Tipo profesional SST</span><input className="input" value={form.sstProfessionalType} disabled={readOnly} placeholder="Profesional SST / Posgrado SST" onChange={(event) => updateField('sstProfessionalType', event.target.value)} /></label>
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Número licencia SST</span><input className="input" value={form.sstLicenseNumber} disabled={readOnly} onChange={(event) => updateField('sstLicenseNumber', event.target.value)} /></label>
+            <label className="field"><span className="label">Fecha vencimiento licencia</span><input type="date" className="input" value={form.licenseExpiresAt} disabled={readOnly} onChange={(event) => updateField('licenseExpiresAt', event.target.value)} /></label>
+          </div>
+          <div className="grid grid-2">
+            <label className="field"><span className="label">Fecha curso 50 horas</span><input type="date" className="input" value={form.course50HoursDate} disabled={readOnly} onChange={(event) => updateField('course50HoursDate', event.target.value)} /></label>
+            <label className="field"><span className="label">Fecha detectada automáticamente</span><input type="date" className="input" value={form.course50HoursDetectedDate} disabled readOnly /></label>
+          </div>
+          {requires20HourUpdate ? (
+            <label className="field"><span className="label">Fecha curso 20 horas</span><input type="date" className="input" value={form.course20HoursDate} disabled={readOnly} onChange={(event) => updateField('course20HoursDate', event.target.value)} /></label>
+          ) : null}
         </div>
       </section>
 
       <section className="advanced-management__section">
-        <h3>Carga de evidencias</h3>
-        <label className="upload-zone">
-          <input
-            type="file"
-            className="upload-zone__input"
-            onChange={(event) => setForm((current) => ({ ...current, evidenceFileName: event.target.files?.[0]?.name ?? '' }))}
-          />
-          <span className="upload-zone__title">Subir designación, hoja de vida, licencia o certificado</span>
-          <span className="muted">PDF, imagen o documento editable.</span>
-          {form.evidenceFileName ? <span className="upload-zone__file">Archivo: {form.evidenceFileName}</span> : null}
-        </label>
+        <h3>Documentos</h3>
+        <div className="advanced-management__documents">
+          {(['DIPLOMA', 'FIFTY_HOUR_CERTIFICATE'] as ResponsableSstDocumentType[]).concat(requires20HourUpdate ? ['TWENTY_HOUR_UPDATE_CERTIFICATE'] : []).map((type) => {
+            const existing = savedRecord?.documents.find((document) => document.type === type);
+            const pending = pendingDocuments[type];
+            return (
+              <label key={type} className="upload-zone">
+                <input type="file" className="upload-zone__input" disabled={readOnly} onChange={handleDocumentChange(type)} />
+                <span className="upload-zone__title">{documentLabels[type]}</span>
+                <span className="muted">{type === 'FIFTY_HOUR_CERTIFICATE' ? 'Intentaremos detectar la fecha desde el nombre del archivo.' : 'PDF, imagen o documento editable.'}</span>
+                {pending ? <span className="upload-zone__file">Pendiente: {pending.name}</span> : null}
+                {!pending && existing ? <span className="upload-zone__file">Cargado: {existing.fileName}</span> : null}
+              </label>
+            );
+          })}
+        </div>
       </section>
 
       <section className="advanced-management__section">
-        <h3>Lista de verificación avanzada</h3>
-        <div className="advanced-management__checklist">
-          {checklist.map((check) => (
-            <label key={check.key} className="advanced-management__check">
-              <input
-                type="checkbox"
-                checked={form[check.key]}
-                onChange={(event) => setForm((current) => ({ ...current, [check.key]: event.target.checked }))}
-              />
-              <span>{check.label}</span>
-            </label>
+        <h3>Validaciones requeridas</h3>
+        {validations.length ? (
+          <ul className="advanced-management__validations">{validations.map((message) => <li key={message}>{message}</li>)}</ul>
+        ) : (
+          <p className="advanced-management__success">Validaciones completas para guardar y sincronizar el punto {item.code}.</p>
+        )}
+        {savedRecord?.complianceReason ? <p className="muted">Resultado: {savedRecord.complianceReason}</p> : null}
+      </section>
+
+      <section className="advanced-management__section">
+        <h3>Alertas y auditoría</h3>
+        <div className="advanced-management__audit-list">
+          {(savedRecord?.alerts ?? []).slice(0, 5).map((alert) => <p key={`${alert.type}-${alert.dueAt}`} className="muted">{alert.message} · {toDateInputValue(alert.dueAt)}</p>)}
+          {(savedRecord?.auditHistory ?? []).slice(-5).reverse().map((entry) => (
+            <p key={`${entry.changedAt}-${entry.field}`} className={entry.warning ? 'advanced-management__audit-warning' : 'muted'}>
+              {entry.warning ? '⚠ ' : ''}{entry.field}: {entry.oldValue || '—'} → {entry.newValue || '—'} · {new Date(entry.changedAt).toLocaleString()}
+            </p>
           ))}
         </div>
       </section>
 
-      <section className="advanced-management__section">
-        <h3>Validaciones avanzadas</h3>
-        {validationMessages.length ? (
-          <ul className="advanced-management__validations">
-            {validationMessages.map((message) => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="advanced-management__success">Validaciones mínimas completas para revisión del punto {item.code}.</p>
-        )}
-      </section>
+      <div className="advanced-management__footer">
+        {dirty ? <span className="advanced-management__dirty">Cambios sin guardar</span> : <span className="muted">Sin cambios pendientes</span>}
+        <div className="actions">
+          <Button type="button" variant="secondary" disabled={!dirty} onClick={() => setShowCloseModal(true)}>Descartar cambios</Button>
+          <Button type="button" disabled={readOnly || loading} onClick={() => void save()}>Guardar</Button>
+        </div>
+      </div>
 
-      <section className="advanced-management__section advanced-management__related">
-        <h3>Información relacionada</h3>
-        <p className="muted whitespace-pre-line">{item.criteria}</p>
-        <p className="muted whitespace-pre-line">{item.modeReview}</p>
-      </section>
+      <Modal isOpen={showCloseModal} title="Tienes cambios sin guardar" onClose={() => setShowCloseModal(false)}>
+        <div className="form-grid">
+          <p className="muted">Puedes guardar tus cambios, descartarlos o cancelar para seguir editando.</p>
+          <div className="actions" style={{ justifyContent: 'flex-end' }}>
+            <Button type="button" onClick={() => void save()}>Guardar</Button>
+            <Button type="button" variant="danger" onClick={discard}>Descartar</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowCloseModal(false)}>Cancelar</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -392,7 +627,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               headerAction={
                 item.code === '1.1.1' ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
-                    Entrar a Gestión avanzada
+                    ⚡ Entrar a Gestión avanzada
                   </Button>
                 ) : null
               }
@@ -406,10 +641,22 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
   );
 }
 
-export function PlanPage({ readOnly = false }: { readOnly?: boolean }) {
+export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean; token?: string }) {
   const navigate = useNavigate();
-  const { totalCompliance, sectionCompliance } = useDocumentsEvaluation();
+  const { totalCompliance, sectionCompliance, setAnswerStatus } = useDocumentsEvaluation();
   const [advancedManagementItem, setAdvancedManagementItem] = useState<EvaluationEntry | null>(null);
+  const [advancedManagementDirty, setAdvancedManagementDirty] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [saveRequest, setSaveRequest] = useState(0);
+  const [discardRequest, setDiscardRequest] = useState(0);
+  const [closeAfterSave, setCloseAfterSave] = useState(false);
+
+  const closeAdvancedManagement = () => {
+    setAdvancedManagementItem(null);
+    setShowUnsavedModal(false);
+    setAdvancedManagementDirty(false);
+    setCloseAfterSave(false);
+  };
 
   return (
     <div className="grid">
@@ -438,11 +685,38 @@ export function PlanPage({ readOnly = false }: { readOnly?: boolean }) {
         title={advancedManagementItem ? `${advancedManagementItem.code} · ${advancedManagementItem.title}` : 'Gestión avanzada'}
         description="Panel lateral de mejora sin reemplazar el flujo simple de PHVA."
         onOpenChange={(open) => {
-          if (!open) setAdvancedManagementItem(null);
+          if (!open && advancedManagementDirty) {
+            setShowUnsavedModal(true);
+            return;
+          }
+          if (!open) closeAdvancedManagement();
         }}
       >
-        {advancedManagementItem ? <AdvancedManagementPanel item={advancedManagementItem} /> : null}
+        {advancedManagementItem ? (
+          <AdvancedManagementPanel
+            item={advancedManagementItem}
+            token={token}
+            readOnly={readOnly}
+            onComplianceChange={(status) => setAnswerStatus('1.1.1', status === 'COMPLIES' ? 'Cumple totalmente' : 'No cumple')}
+            onDirtyChange={setAdvancedManagementDirty}
+            saveRequest={saveRequest}
+            discardRequest={discardRequest}
+            onSaved={() => {
+              if (closeAfterSave) closeAdvancedManagement();
+            }}
+          />
+        ) : null}
       </Sheet>
+      <Modal isOpen={showUnsavedModal} title="Tienes cambios sin guardar" onClose={() => setShowUnsavedModal(false)}>
+        <div className="form-grid">
+          <p className="muted">Antes de cerrar la gestión avanzada, elige qué hacer con los cambios pendientes.</p>
+          <div className="actions" style={{ justifyContent: 'flex-end' }}>
+            <Button type="button" onClick={() => { setCloseAfterSave(true); setSaveRequest((current) => current + 1); }}>Guardar</Button>
+            <Button type="button" variant="danger" onClick={() => { setDiscardRequest((current) => current + 1); closeAdvancedManagement(); }}>Descartar</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowUnsavedModal(false)}>Cancelar</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

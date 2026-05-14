@@ -710,3 +710,98 @@ export function markAlertAsRead(token: string, id: string) {
 export function deleteAlert(token: string, id: string) {
   return apiFetch<void>(`/alerts/${id}`, token, { method: 'DELETE' });
 }
+
+export type ResponsableSstComplianceStatus = 'COMPLIES' | 'PENDING' | 'NON_COMPLIANT';
+export type ResponsableSstDocumentType = 'DIPLOMA' | 'FIFTY_HOUR_CERTIFICATE' | 'TWENTY_HOUR_UPDATE_CERTIFICATE';
+
+export interface ResponsableSstStoredDocumentModel {
+  type: ResponsableSstDocumentType;
+  fileName: string;
+  fileUrl: string;
+  detectedDate?: string;
+  uploadedAt?: string;
+}
+
+export interface ResponsableSstAuditEntryModel {
+  userId?: string;
+  userEmail?: string;
+  changedAt: string;
+  field: string;
+  oldValue?: string;
+  newValue?: string;
+  warning?: string;
+}
+
+export interface ResponsableSstAlertEntryModel {
+  type: string;
+  message: string;
+  severity: AlertSeverity;
+  dueAt: string;
+  generated: boolean;
+}
+
+export interface ResponsableSstAdvancedModel {
+  _id: string;
+  companyId: string;
+  itemCode: string;
+  fullName: string;
+  documentNumber: string;
+  position: string;
+  profession: string;
+  sstProfessionalType: string;
+  sstLicenseNumber: string;
+  licenseExpiresAt?: string;
+  course50HoursDate?: string;
+  course50HoursDetectedDate?: string;
+  course20HoursDate?: string;
+  requires20HourUpdate: boolean;
+  documents: ResponsableSstStoredDocumentModel[];
+  alerts: ResponsableSstAlertEntryModel[];
+  auditHistory: ResponsableSstAuditEntryModel[];
+  complianceStatus: ResponsableSstComplianceStatus;
+  complianceReason: string;
+  updatedAt: string;
+}
+
+export interface UpdateResponsableSstAdvancedPayload {
+  fullName: string;
+  documentNumber: string;
+  position: string;
+  profession: string;
+  sstProfessionalType: string;
+  sstLicenseNumber: string;
+  licenseExpiresAt: string;
+  course50HoursDate: string;
+  course50HoursDetectedDate?: string;
+  course20HoursDate?: string;
+}
+
+export interface UploadResponsableSstDocumentPayload {
+  type: ResponsableSstDocumentType;
+  file: File;
+  finalUserDate?: string;
+}
+
+export function fetchResponsableSstAdvanced(token: string) {
+  return apiFetch<ResponsableSstAdvancedModel>('/phva-advanced/responsable-sst', token, { method: 'GET' });
+}
+
+export function updateResponsableSstAdvanced(token: string, payload: UpdateResponsableSstAdvancedPayload) {
+  return apiFetch<ResponsableSstAdvancedModel>('/phva-advanced/responsable-sst', token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function uploadResponsableSstDocument(token: string, payload: UploadResponsableSstDocumentPayload) {
+  const formData = new FormData();
+  formData.append('type', payload.type);
+  if (payload.finalUserDate) formData.append('finalUserDate', payload.finalUserDate);
+  formData.append('file', payload.file);
+
+  return apiFetchFormData<ResponsableSstAdvancedModel>('/phva-advanced/responsable-sst/documents', token, formData, { method: 'POST' });
+}
+
+export function fetchResponsableSstAudit(token: string) {
+  return apiFetch<ResponsableSstAuditEntryModel[]>('/phva-advanced/responsable-sst/audit', token, { method: 'GET' });
+}
