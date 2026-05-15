@@ -530,7 +530,7 @@ function AdvancedManagementPanel({
         <div className="form-grid">
           <div className="grid grid-2">
             <label className="field"><span className="label">Nombre completo</span><input className="input" value={form.fullName} disabled={readOnly} onChange={(event) => updateField('fullName', event.target.value)} /></label>
-            <label className="field"><span className="label">Documento</span><input className="input" value={form.documentNumber} disabled={readOnly} onChange={(event) => updateField('documentNumber', event.target.value)} /></label>
+            <label className="field"><span className="label">Nº Documento</span><input className="input" value={form.documentNumber} disabled={readOnly} onChange={(event) => updateField('documentNumber', event.target.value)} /></label>
           </div>
           <div className="grid grid-2">
             <label className="field"><span className="label">Cargo</span><input className="input" value={form.position} disabled={readOnly} onChange={(event) => updateField('position', event.target.value)} /></label>
