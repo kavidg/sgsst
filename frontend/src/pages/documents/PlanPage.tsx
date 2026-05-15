@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ResponsableSstAdvancedModel,
@@ -323,6 +323,7 @@ function AdvancedManagementPanel({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const dirtyRef = useRef(dirty);
 
   const hasDocument = (type: ResponsableSstDocumentType) => Boolean(pendingDocuments[type] || savedRecord?.documents.some((document) => document.type === type));
   const requires20HourUpdate = form.course50HoursDate ? isOlderThanThreeYears(form.course50HoursDate) : Boolean(savedRecord?.requires20HourUpdate);
@@ -361,6 +362,10 @@ function AdvancedManagementPanel({
   ];
 
   useEffect(() => {
+    dirtyRef.current = dirty;
+  }, [dirty]);
+
+  useEffect(() => {
     if (!token) return;
     let ignore = false;
 
@@ -369,18 +374,20 @@ function AdvancedManagementPanel({
       .then((record) => {
         if (ignore) return;
         setSavedRecord(record);
-        setForm({
-          fullName: record.fullName ?? '',
-          documentNumber: record.documentNumber ?? '',
-          position: record.position ?? '',
-          profession: record.profession ?? '',
-          sstProfessionalType: record.sstProfessionalType ?? '',
-          sstLicenseNumber: record.sstLicenseNumber ?? '',
-          licenseExpiresAt: toDateInputValue(record.licenseExpiresAt),
-          course50HoursDate: toDateInputValue(record.course50HoursDate),
-          course50HoursDetectedDate: toDateInputValue(record.course50HoursDetectedDate),
-          course20HoursDate: toDateInputValue(record.course20HoursDate),
-        });
+        if (!dirtyRef.current) {
+          setForm({
+            fullName: record.fullName ?? '',
+            documentNumber: record.documentNumber ?? '',
+            position: record.position ?? '',
+            profession: record.profession ?? '',
+            sstProfessionalType: record.sstProfessionalType ?? '',
+            sstLicenseNumber: record.sstLicenseNumber ?? '',
+            licenseExpiresAt: toDateInputValue(record.licenseExpiresAt),
+            course50HoursDate: toDateInputValue(record.course50HoursDate),
+            course50HoursDetectedDate: toDateInputValue(record.course50HoursDetectedDate),
+            course20HoursDate: toDateInputValue(record.course20HoursDate),
+          });
+        }
         onComplianceChange(record.complianceStatus);
       })
       .catch((fetchError: Error) => setError(fetchError.message))
@@ -659,6 +666,10 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
     setCloseAfterSave(false);
   };
 
+  const handleAdvancedComplianceChange = useCallback((status: ResponsableSstComplianceStatus) => {
+    setAnswerStatus('1.1.1', status === 'COMPLIES' ? 'Cumple totalmente' : 'No cumple');
+  }, [setAnswerStatus]);
+
   return (
     <div className="grid">
       <ComplianceProgress
@@ -698,7 +709,7 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
             item={advancedManagementItem}
             token={token}
             readOnly={readOnly}
-            onComplianceChange={(status) => setAnswerStatus('1.1.1', status === 'COMPLIES' ? 'Cumple totalmente' : 'No cumple')}
+            onComplianceChange={handleAdvancedComplianceChange}
             onDirtyChange={setAdvancedManagementDirty}
             saveRequest={saveRequest}
             discardRequest={discardRequest}
