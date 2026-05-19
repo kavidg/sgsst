@@ -6,7 +6,9 @@ import {
   ResponsableSstComplianceStatus,
   ResponsableSstDocumentType,
   fetchResponsableSstAdvanced,
+  fetchResponsibilitiesAdvanced,
   updateResponsableSstAdvanced,
+  updateResponsibilitiesAdvanced,
   uploadResponsableSstDocument,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
@@ -315,6 +317,9 @@ function AdvancedManagementPanel({
   discardRequest: number;
   onSaved: () => void;
 }) {
+  if (item.code === '1.1.2') {
+    return <ResponsibilitiesAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+  }
   const [form, setForm] = useState<AdvancedManagementForm>(initialAdvancedManagementForm);
   const [savedRecord, setSavedRecord] = useState<ResponsableSstAdvancedModel | null>(null);
   const [pendingDocuments, setPendingDocuments] = useState<PendingDocuments>({});
@@ -614,6 +619,25 @@ function AdvancedManagementPanel({
   );
 }
 
+function ResponsibilitiesAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyChange, saveRequest, discardRequest, onSaved }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void; saveRequest: number; discardRequest: number; onSaved: () => void }) {
+  const defaults = useMemo(() => ([
+    { category: 'Gerencia', role: 'MANAGER', title: 'Aprobar recursos SG-SST', employeeId: '', requiresSignature: true, active: true, status: 'PENDIENTE', signature: {} },
+    { category: 'Gerencia', role: 'MANAGER', title: 'Revisar desempeño SST', employeeId: '', requiresSignature: true, active: true, status: 'PENDIENTE', signature: {} },
+    { category: 'Responsable SST', role: 'ADMIN', title: 'Implementar SG-SST', employeeId: '', requiresSignature: true, active: true, status: 'PENDIENTE', signature: {} },
+    { category: 'Trabajadores', role: 'MEMBER', title: 'Uso correcto EPP', employeeId: '', requiresSignature: true, active: true, status: 'PENDIENTE', signature: {} },
+  ]), []);
+  const [rows, setRows] = useState(defaults as any[]);
+  const [dirty, setDirty] = useState(false);
+  const [status, setStatus] = useState<ResponsableSstComplianceStatus>('PENDING');
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => { if (!token) return; fetchResponsibilitiesAdvanced(token).then((r) => { setRows(r.responsibilities.length ? r.responsibilities as any[] : defaults); setStatus(r.complianceStatus); onComplianceChange(r.complianceStatus); }); }, [token, defaults, onComplianceChange]);
+  const save = async () => { const saved = await updateResponsibilitiesAdvanced(token, rows as any); setStatus(saved.complianceStatus); onComplianceChange(saved.complianceStatus); setDirty(false); onSaved(); };
+  useEffect(() => { if (saveRequest > 0) void save(); }, [saveRequest]);
+  useEffect(() => { if (discardRequest > 0) { setRows(defaults); setDirty(false); } }, [discardRequest, defaults]);
+  const badge = complianceBadge(status);
+  return <div className="advanced-management"><section className="advanced-management__hero"><h3>Responsabilidades SG-SST</h3><span className={badge.className}>{badge.label}</span></section><p className="advanced-management__success">Tienes responsabilidades pendientes por firmar</p><table className="table"><thead><tr><th>Cargo / Rol</th><th>Responsabilidad</th><th>Usuario asignado</th><th>Requiere firma</th><th>Estado</th><th>Fecha firma</th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.title}-${index}`}><td>{row.category} · {row.role}</td><td><input className="input" value={row.title} disabled={readOnly} onChange={(e) => { const next = [...rows]; next[index] = { ...row, title: e.target.value }; setRows(next); setDirty(true); }} /></td><td><input className="input" value={row.employeeId ?? ''} placeholder="employeeId" disabled={readOnly} onChange={(e) => { const next = [...rows]; next[index] = { ...row, employeeId: e.target.value }; setRows(next); setDirty(true); }} /></td><td>{row.requiresSignature ? 'Sí' : 'No'}</td><td>{row.status}</td><td>{row.signature?.signedAt ? new Date(row.signature.signedAt).toLocaleDateString() : 'Pendiente'}</td></tr>)}</tbody></table><div className="actions"><Button type="button" disabled={readOnly} onClick={() => { setRows([...rows, { category: 'COPASST', role: 'MEMBER', title: '', employeeId: '', requiresSignature: true, active: true, status: 'PENDIENTE', signature: {} }]); setDirty(true); }}>Agregar responsabilidad</Button><Button type="button" disabled={readOnly} onClick={() => void save()}>Guardar</Button></div></div>;
+}
+
 function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
@@ -633,7 +657,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                item.code === '1.1.1' ? (
+                ['1.1.1', '1.1.2'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>

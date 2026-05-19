@@ -25,6 +25,7 @@ import { UsersService } from '../users/users.service';
 import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
 import { UploadResponsableSstDocumentDto } from './dto/upload-responsable-sst-document.dto';
 import { PhvaAdvancedService } from './phva-advanced.service';
+import { ResponsibilityAssignmentEntry } from './schemas/phva-advanced-responsibilities.schema';
 
 @Controller('phva-advanced')
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
@@ -79,6 +80,19 @@ export class PhvaAdvancedController {
   async responsableSstAudit(@Req() request: RequestWithUser) {
     const companyId = this.resolveCompanyId(request);
     return this.phvaAdvancedService.auditHistory(companyId);
+  }
+
+  @Get('responsibilities')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getResponsibilities(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateResponsibilities(this.resolveCompanyId(request));
+  }
+
+  @Patch('responsibilities')
+  @Roles('owner', 'admin')
+  async updateResponsibilities(@Req() request: RequestWithUser, @Body() dto: { responsibilities: ResponsibilityAssignmentEntry[] }) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateResponsibilities(this.resolveCompanyId(request), user, dto.responsibilities ?? []);
   }
 
   private resolveCompanyId(request: RequestWithUser): Types.ObjectId {
