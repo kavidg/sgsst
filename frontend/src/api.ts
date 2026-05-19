@@ -805,3 +805,31 @@ export function uploadResponsableSstDocument(token: string, payload: UploadRespo
 export function fetchResponsableSstAudit(token: string) {
   return apiFetch<ResponsableSstAuditEntryModel[]>('/phva-advanced/responsable-sst/audit', token, { method: 'GET' });
 }
+
+export interface ResponsibilityRowModel {
+  title: string;
+  category: string;
+  role: string;
+  employeeId?: string;
+  active: boolean;
+  requiresSignature: boolean;
+  status: string;
+  signature?: { accepted?: boolean; signatureImage?: string; signedAt?: string; signedBy?: string; version?: number; pdfUrl?: string };
+}
+
+export interface ResponsibilitiesAdvancedModel {
+  _id: string;
+  itemCode: string;
+  responsibilities: ResponsibilityRowModel[];
+  alerts: string[];
+  complianceStatus: ResponsableSstComplianceStatus;
+  complianceReason: string;
+}
+
+export function fetchResponsibilitiesAdvanced(token: string) {
+  return apiFetch<ResponsibilitiesAdvancedModel>('/phva-advanced/responsibilities', token, { method: 'GET' });
+}
+
+export function updateResponsibilitiesAdvanced(token: string, responsibilities: ResponsibilityRowModel[]) {
+  return apiFetch<ResponsibilitiesAdvancedModel>('/phva-advanced/responsibilities', token, { method: 'PATCH', body: JSON.stringify({ responsibilities }) });
+}

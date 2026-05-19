@@ -12,6 +12,12 @@ import {
   ResponsableSstDocumentType,
   ResponsableSstStoredDocument,
 } from './schemas/phva-advanced-responsable-sst.schema';
+import {
+  PhvaAdvancedResponsibilities,
+  PhvaAdvancedResponsibilitiesDocument,
+  ResponsibilitiesComplianceStatus,
+  ResponsibilityAssignmentEntry,
+} from './schemas/phva-advanced-responsibilities.schema';
 
 const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'fullName',
@@ -29,8 +35,46 @@ export class PhvaAdvancedService {
   constructor(
     @InjectModel(PhvaAdvancedResponsableSst.name)
     private readonly responsableSstModel: Model<PhvaAdvancedResponsableSstDocument>,
+    @InjectModel(PhvaAdvancedResponsibilities.name)
+    private readonly responsibilitiesModel: Model<PhvaAdvancedResponsibilitiesDocument>,
     private readonly alertsService: AlertsService,
   ) {}
+
+  async findOrCreateResponsibilities(companyId: Types.ObjectId) {
+    const current = await this.responsibilitiesModel.findOne({ companyId, itemCode: '1.1.2' }).exec();
+    if (current) return current;
+    return this.responsibilitiesModel.create({ companyId, itemCode: '1.1.2' });
+  }
+
+  async updateResponsibilities(companyId: Types.ObjectId, user: UserDocument, responsibilities: ResponsibilityAssignmentEntry[]) {
+    const record = await this.findOrCreateResponsibilities(companyId);
+    record.responsibilities = responsibilities;
+    const active = responsibilities.filter((entry) => entry.active);
+    const unassigned = active.filter((entry) => !entry.employeeId);
+    const pendingSignatures = active.filter((entry) => entry.requiresSignature && !entry.signature?.signedAt);
+    const coverageMissing = ['MANAGER', 'ADMIN', 'MEMBER'].some((role) => !active.some((entry) => entry.role === role));
+    record.alerts = [
+      ...unassigned.map((entry) => `Responsabilidad sin asignar: ${entry.title}`),
+      ...pendingSignatures.map((entry) => `Usuario con firma pendiente: ${entry.title}`),
+      ...(coverageMissing ? ['Cargo sin responsabilidades activas.'] : []),
+    ];
+    record.complianceStatus = active.length && !unassigned.length && !pendingSignatures.length && !coverageMissing
+      ? ResponsibilitiesComplianceStatus.COMPLIES
+      : (active.length ? ResponsibilitiesComplianceStatus.PENDING : ResponsibilitiesComplianceStatus.NON_COMPLIANT);
+    record.complianceReason = record.complianceStatus === ResponsibilitiesComplianceStatus.COMPLIES
+      ? 'Cumple con responsabilidades, asignaciones y firmas requeridas.'
+      : 'Pendiente completar asignaciones, cobertura por cargo y firmas.';
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'responsibilities',
+      oldValue: `${record.responsibilities.length}`,
+      newValue: `${responsibilities.length}`,
+    });
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
 
   async findOrCreateResponsableSst(companyId: Types.ObjectId) {
     const current = await this.responsableSstModel.findOne({ companyId, itemCode: '1.1.1' }).exec();
