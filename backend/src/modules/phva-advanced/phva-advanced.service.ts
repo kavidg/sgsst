@@ -18,6 +18,12 @@ import {
   ResponsibilitiesComplianceStatus,
   ResponsibilityAssignmentEntry,
 } from './schemas/phva-advanced-responsibilities.schema';
+import {
+  PhvaAdvancedResourceAssignment,
+  PhvaAdvancedResourceAssignmentDocument,
+  ResourceAssignmentComplianceStatus,
+} from './schemas/phva-advanced-resource-assignment.schema';
+import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dto';
 
 const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'fullName',
@@ -37,8 +43,64 @@ export class PhvaAdvancedService {
     private readonly responsableSstModel: Model<PhvaAdvancedResponsableSstDocument>,
     @InjectModel(PhvaAdvancedResponsibilities.name)
     private readonly responsibilitiesModel: Model<PhvaAdvancedResponsibilitiesDocument>,
+    @InjectModel(PhvaAdvancedResourceAssignment.name)
+    private readonly resourceAssignmentModel: Model<PhvaAdvancedResourceAssignmentDocument>,
     private readonly alertsService: AlertsService,
   ) {}
+
+  async findOrCreateResourceAssignment(companyId: Types.ObjectId) {
+    const current = await this.resourceAssignmentModel.findOne({ companyId, itemCode: '1.1.3' }).exec();
+    if (current) return current;
+    return this.resourceAssignmentModel.create({ companyId, itemCode: '1.1.3' });
+  }
+
+  async updateResourceAssignment(companyId: Types.ObjectId, user: UserDocument, dto: UpdateResourceAssignmentDto) {
+    const record = await this.findOrCreateResourceAssignment(companyId);
+    const before = JSON.stringify({
+      financial: record.financialResources.length,
+      human: record.humanResources.length,
+      technical: record.technicalResources.length,
+      evidences: record.evidences.length,
+      approved: record.approval?.approved ?? false,
+    });
+    if (dto.financialResources) record.financialResources = dto.financialResources as never;
+    if (dto.humanResources) record.humanResources = dto.humanResources as never;
+    if (dto.technicalResources) record.technicalResources = dto.technicalResources as never;
+    if (dto.activities) record.activities = dto.activities as never;
+    if (dto.evidences) record.evidences = dto.evidences as never;
+    if (dto.approval) record.approval = { ...record.approval, ...dto.approval, signedAt: dto.approval.signedAt ? new Date(dto.approval.signedAt) : record.approval?.signedAt };
+    const hasFinancial = record.financialResources.length > 0;
+    const hasHuman = record.humanResources.some((entry) => entry.active);
+    const hasTechnical = record.technicalResources.length > 0;
+    const hasEvidence = record.evidences.length > 0 || record.financialResources.some((entry) => entry.evidence?.fileUrl) || record.technicalResources.some((entry) => entry.evidence?.fileUrl);
+    const hasManagerApproval = Boolean(record.approval?.approved && record.approval.signatureImage);
+    record.alerts = [
+      ...(!hasManagerApproval ? ['Firma gerencial pendiente'] : []),
+      ...(!hasEvidence ? ['Evidencia faltante'] : []),
+      ...record.technicalResources.filter((entry) => !entry.responsible).map((entry) => `Recurso sin responsable: ${entry.name}`),
+    ];
+    record.complianceStatus = hasFinancial && hasHuman && hasTechnical && hasEvidence && hasManagerApproval
+      ? ResourceAssignmentComplianceStatus.COMPLIES
+      : (hasFinancial || hasHuman || hasTechnical ? ResourceAssignmentComplianceStatus.PENDING : ResourceAssignmentComplianceStatus.NON_COMPLIANT);
+    record.complianceReason = hasManagerApproval
+      ? 'Validación automática completada para recursos SG-SST.'
+      : 'Pendiente aprobación/firma gerencial y/o evidencias.';
+    record.auditHistory.push({
+      field: 'resourceAssignment',
+      oldValue: before,
+      newValue: JSON.stringify({
+        financial: record.financialResources.length,
+        human: record.humanResources.length,
+        technical: record.technicalResources.length,
+        evidences: record.evidences.length,
+        approved: record.approval?.approved ?? false,
+      }),
+      user: user.email,
+      timestamp: new Date(),
+    });
+    await record.save();
+    return record;
+  }
 
   async findOrCreateResponsibilities(companyId: Types.ObjectId) {
     const current = await this.responsibilitiesModel.findOne({ companyId, itemCode: '1.1.2' }).exec();
