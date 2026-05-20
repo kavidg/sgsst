@@ -23,6 +23,7 @@ import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
 import { UsersService } from '../users/users.service';
 import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
+import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dto';
 import { UploadResponsableSstDocumentDto } from './dto/upload-responsable-sst-document.dto';
 import { PhvaAdvancedService } from './phva-advanced.service';
 import { ResponsibilityAssignmentEntry } from './schemas/phva-advanced-responsibilities.schema';
@@ -93,6 +94,19 @@ export class PhvaAdvancedController {
   async updateResponsibilities(@Req() request: RequestWithUser, @Body() dto: { responsibilities: ResponsibilityAssignmentEntry[] }) {
     const user = await this.resolveUserFromRequest(request);
     return this.phvaAdvancedService.updateResponsibilities(this.resolveCompanyId(request), user, dto.responsibilities ?? []);
+  }
+
+  @Get('resource-assignment')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getResourceAssignment(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateResourceAssignment(this.resolveCompanyId(request));
+  }
+
+  @Patch('resource-assignment')
+  @Roles('owner', 'admin', 'manager')
+  async updateResourceAssignment(@Req() request: RequestWithUser, @Body() dto: UpdateResourceAssignmentDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateResourceAssignment(this.resolveCompanyId(request), user, dto);
   }
 
   private resolveCompanyId(request: RequestWithUser): Types.ObjectId {
