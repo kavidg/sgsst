@@ -9,6 +9,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { PhvaAdvancedController } from './phva-advanced.controller';
 import { PhvaAdvancedService } from './phva-advanced.service';
+import { PhvaAdvancedResourceAssignment, PhvaAdvancedResourceAssignmentSchema } from './schemas/phva-advanced-resource-assignment.schema';
 import { PhvaAdvancedResponsibilities, PhvaAdvancedResponsibilitiesSchema } from './schemas/phva-advanced-responsibilities.schema';
 import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from './schemas/phva-advanced-responsable-sst.schema';
 
@@ -20,6 +21,7 @@ import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from './
     MongooseModule.forFeature([
       { name: PhvaAdvancedResponsableSst.name, schema: PhvaAdvancedResponsableSstSchema },
       { name: PhvaAdvancedResponsibilities.name, schema: PhvaAdvancedResponsibilitiesSchema },
+      { name: PhvaAdvancedResourceAssignment.name, schema: PhvaAdvancedResourceAssignmentSchema },
       { name: User.name, schema: UserSchema },
       { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),

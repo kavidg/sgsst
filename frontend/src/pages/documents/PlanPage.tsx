@@ -7,8 +7,10 @@ import {
   ResponsableSstDocumentType,
   fetchResponsableSstAdvanced,
   fetchResponsibilitiesAdvanced,
+  fetchResourceAssignmentAdvanced,
   updateResponsableSstAdvanced,
   updateResponsibilitiesAdvanced,
+  updateResourceAssignmentAdvanced,
   uploadResponsableSstDocument,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
@@ -320,6 +322,9 @@ function AdvancedManagementPanel({
   if (item.code === '1.1.2') {
     return <ResponsibilitiesAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
+  if (item.code === '1.1.3') {
+    return <ResourceAssignmentAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+  }
   const [form, setForm] = useState<AdvancedManagementForm>(initialAdvancedManagementForm);
   const [savedRecord, setSavedRecord] = useState<ResponsableSstAdvancedModel | null>(null);
   const [pendingDocuments, setPendingDocuments] = useState<PendingDocuments>({});
@@ -619,6 +624,26 @@ function AdvancedManagementPanel({
   );
 }
 
+function ResourceAssignmentAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyChange, saveRequest, discardRequest, onSaved }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void; saveRequest: number; discardRequest: number; onSaved: () => void }) {
+  const [record, setRecord] = useState<any>(null);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => { if (!token) return; fetchResourceAssignmentAdvanced(token).then((r) => { setRecord(r); onComplianceChange(r.complianceStatus); }); }, [token, onComplianceChange]);
+  const badge = complianceBadge(record?.complianceStatus);
+  const updateRecord = (next: any) => { setRecord(next); setDirty(true); };
+  const save = async () => {
+    const saved = await updateResourceAssignmentAdvanced(token, record);
+    setRecord(saved);
+    onComplianceChange(saved.complianceStatus);
+    setDirty(false);
+    onSaved();
+  };
+  useEffect(() => { if (saveRequest > 0) void save(); }, [saveRequest]);
+  useEffect(() => { if (discardRequest > 0) setDirty(false); }, [discardRequest]);
+  if (!record) return <p className="muted">Cargando gestión avanzada...</p>;
+  return <div className="advanced-management"><section className="advanced-management__hero"><h3>Asignación de Recursos SG-SST</h3><span className={badge.className}>{badge.label}</span></section><div className="advanced-management__badges">{['Presupuesto aprobado', 'Recursos asignados', 'Firma gerencial', 'Evidencias completas'].map((l) => <span key={l} className={`advanced-management__badge ${record.complianceStatus === 'COMPLIES' ? 'advanced-management__badge--success' : 'advanced-management__badge--warning'}`}>{record.complianceStatus === 'COMPLIES' ? '✅' : '⚠'} {l}</span>)}</div><section className="advanced-management__section"><h3>Recursos financieros</h3><table className="table"><thead><tr><th>Concepto</th><th>Descripción</th><th>Valor</th><th>Estado</th><th>Responsable</th><th>Fecha</th></tr></thead><tbody>{record.financialResources.map((row: any, i: number) => <tr key={i}><td><input className="input" disabled={readOnly} value={row.concept || ''} onChange={(e) => { const next = [...record.financialResources]; next[i] = { ...row, concept: e.target.value }; updateRecord({ ...record, financialResources: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.description || ''} onChange={(e) => { const next = [...record.financialResources]; next[i] = { ...row, description: e.target.value }; updateRecord({ ...record, financialResources: next }); }} /></td><td><input className="input" disabled={readOnly} type="number" value={row.value || 0} onChange={(e) => { const next = [...record.financialResources]; next[i] = { ...row, value: Number(e.target.value) }; updateRecord({ ...record, financialResources: next }); }} /></td><td>{row.status || 'PENDIENTE'}</td><td><input className="input" disabled={readOnly} value={row.responsible || ''} onChange={(e) => { const next = [...record.financialResources]; next[i] = { ...row, responsible: e.target.value }; updateRecord({ ...record, financialResources: next }); }} /></td><td><input className="input" disabled={readOnly} type="date" value={toDateInputValue(row.date)} onChange={(e) => { const next = [...record.financialResources]; next[i] = { ...row, date: e.target.value }; updateRecord({ ...record, financialResources: next }); }} /></td></tr>)}</tbody></table><Button type="button" disabled={readOnly} onClick={() => updateRecord({ ...record, financialResources: [...record.financialResources, { concept: '', description: '', value: 0, status: 'PENDIENTE', responsible: '' }] })}>Agregar fila</Button></section><section className="advanced-management__section"><h3>Recursos humanos / técnicos / actividades</h3><p className="muted">Gestiona asignaciones usando employeeId, inventario técnico y actividades operativas SST.</p></section><section className="advanced-management__section"><h3>Aprobación gerencial</h3><label className="field"><span className="label">Firma digital (base64)</span><textarea className="input" disabled={readOnly} value={record.approval?.signatureImage || ''} onChange={(e) => updateRecord({ ...record, approval: { ...record.approval, signatureImage: e.target.value, approved: Boolean(e.target.value) } })} /></label></section><div className="advanced-management__footer"><div className="actions"><Button type="button" disabled={readOnly} onClick={() => void save()}>Guardar</Button></div></div></div>;
+}
+
 function ResponsibilitiesAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyChange, saveRequest, discardRequest, onSaved }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void; saveRequest: number; discardRequest: number; onSaved: () => void }) {
   const defaults = useMemo(() => ([
     { category: 'Gerencia', role: 'MANAGER', title: 'Aprobar recursos SG-SST', employeeId: '', requiresSignature: true, active: true, status: 'PENDIENTE', signature: {} },
@@ -657,7 +682,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                ['1.1.1', '1.1.2'].includes(item.code) ? (
+                ['1.1.1', '1.1.2', '1.1.3'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>
@@ -691,8 +716,9 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
   };
 
   const handleAdvancedComplianceChange = useCallback((status: ResponsableSstComplianceStatus) => {
-    setAnswerStatus('1.1.1', status === 'COMPLIES' ? 'Cumple totalmente' : 'No cumple');
-  }, [setAnswerStatus]);
+    if (!advancedManagementItem) return;
+    setAnswerStatus(advancedManagementItem.code, status === 'COMPLIES' ? 'Cumple totalmente' : 'No cumple');
+  }, [setAnswerStatus, advancedManagementItem]);
 
   return (
     <div className="grid">
