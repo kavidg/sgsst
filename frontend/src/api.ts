@@ -855,3 +855,21 @@ export function fetchResourceAssignmentAdvanced(token: string) {
 export function updateResourceAssignmentAdvanced(token: string, payload: Partial<ResourceAssignmentAdvancedModel>) {
   return apiFetch<ResourceAssignmentAdvancedModel>('/phva-advanced/resource-assignment', token, { method: 'PATCH', body: JSON.stringify(payload) });
 }
+
+export interface ArlAffiliationsAdvancedModel {
+  _id: string;
+  itemCode: string;
+  employees: Array<{ employeeId: string; employeeName: string; document?: string; position?: string; arlName?: string; riskClass?: string; affiliationStatus?: string; affiliationDate?: string; retirementDate?: string; socialSecurityActive?: boolean; evidences?: string[]; workCenter?: string; contractType?: string }>;
+  companyDocuments: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt?: string }>;
+  socialSecurityPeriods: Array<{ period: string; paymentDate?: string; status?: string; supportDocument?: string; observations?: string }>;
+  alerts: string[];
+  complianceStatus: ResponsableSstComplianceStatus;
+}
+
+export function fetchArlAffiliationsAdvanced(token: string) {
+  return apiFetch<ArlAffiliationsAdvancedModel>('/phva-advanced/arl-affiliations', token, { method: 'GET' });
+}
+
+export function updateArlAffiliationsAdvanced(token: string, payload: Partial<ArlAffiliationsAdvancedModel>) {
+  return apiFetch<ArlAffiliationsAdvancedModel>('/phva-advanced/arl-affiliations', token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
