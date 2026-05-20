@@ -8,9 +8,11 @@ import {
   fetchResponsableSstAdvanced,
   fetchResponsibilitiesAdvanced,
   fetchResourceAssignmentAdvanced,
+  fetchArlAffiliationsAdvanced,
   updateResponsableSstAdvanced,
   updateResponsibilitiesAdvanced,
   updateResourceAssignmentAdvanced,
+  updateArlAffiliationsAdvanced,
   uploadResponsableSstDocument,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
@@ -324,6 +326,9 @@ function AdvancedManagementPanel({
   }
   if (item.code === '1.1.3') {
     return <ResourceAssignmentAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+  }
+  if (item.code === '1.1.4') {
+    return <ArlAffiliationsAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
   const [form, setForm] = useState<AdvancedManagementForm>(initialAdvancedManagementForm);
   const [savedRecord, setSavedRecord] = useState<ResponsableSstAdvancedModel | null>(null);
@@ -663,6 +668,22 @@ function ResponsibilitiesAdvancedPanel({ token, readOnly, onComplianceChange, on
   return <div className="advanced-management"><section className="advanced-management__hero"><h3>Responsabilidades SG-SST</h3><span className={badge.className}>{badge.label}</span></section><p className="advanced-management__success">Tienes responsabilidades pendientes por firmar</p><table className="table"><thead><tr><th>Cargo / Rol</th><th>Responsabilidad</th><th>Usuario asignado</th><th>Requiere firma</th><th>Estado</th><th>Fecha firma</th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.title}-${index}`}><td>{row.category} · {row.role}</td><td><input className="input" value={row.title} disabled={readOnly} onChange={(e) => { const next = [...rows]; next[index] = { ...row, title: e.target.value }; setRows(next); setDirty(true); }} /></td><td><input className="input" value={row.employeeId ?? ''} placeholder="employeeId" disabled={readOnly} onChange={(e) => { const next = [...rows]; next[index] = { ...row, employeeId: e.target.value }; setRows(next); setDirty(true); }} /></td><td>{row.requiresSignature ? 'Sí' : 'No'}</td><td>{row.status}</td><td>{row.signature?.signedAt ? new Date(row.signature.signedAt).toLocaleDateString() : 'Pendiente'}</td></tr>)}</tbody></table><div className="actions"><Button type="button" disabled={readOnly} onClick={() => { setRows([...rows, { category: 'COPASST', role: 'MEMBER', title: '', employeeId: '', requiresSignature: true, active: true, status: 'PENDIENTE', signature: {} }]); setDirty(true); }}>Agregar responsabilidad</Button><Button type="button" disabled={readOnly} onClick={() => void save()}>Guardar</Button></div></div>;
 }
 
+function ArlAffiliationsAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyChange, saveRequest, discardRequest, onSaved }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void; saveRequest: number; discardRequest: number; onSaved: () => void }) {
+  const [record, setRecord] = useState<any>(null);
+  const [dirty, setDirty] = useState(false);
+  const [search, setSearch] = useState('');
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => { if (!token) return; fetchArlAffiliationsAdvanced(token).then((r) => { setRecord(r); onComplianceChange(r.complianceStatus); }); }, [token, onComplianceChange]);
+  const updateRecord = (next: any) => { setRecord(next); setDirty(true); };
+  const save = async () => { const saved = await updateArlAffiliationsAdvanced(token, record); setRecord(saved); onComplianceChange(saved.complianceStatus); setDirty(false); onSaved(); };
+  useEffect(() => { if (saveRequest > 0) void save(); }, [saveRequest]);
+  useEffect(() => { if (discardRequest > 0) setDirty(false); }, [discardRequest]);
+  if (!record) return <p className="muted">Cargando gestión avanzada...</p>;
+  const badge = complianceBadge(record.complianceStatus);
+  const rows = (record.employees || []).filter((r: any) => `${r.employeeName} ${r.document}`.toLowerCase().includes(search.toLowerCase()));
+  return <div className="advanced-management"><section className="advanced-management__hero"><h3>Afiliación al Sistema General de Riesgos Laborales</h3><span className={badge.className}>{badge.label}</span></section><div className="advanced-management__badges">{['Empleados afiliados', 'Seguridad social cargada', 'Alertas activas', 'Evidencias completas'].map((l: string) => <span key={l} className={`advanced-management__badge ${record.complianceStatus === 'COMPLIES' ? 'advanced-management__badge--success' : 'advanced-management__badge--warning'}`}>{record.complianceStatus === 'COMPLIES' ? '✅' : '⚠'} {l}</span>)}</div><section className="advanced-management__section"><h3>Afiliaciones por empleado</h3><div className="actions"><input className="input" placeholder="Buscar empleado o documento" value={search} onChange={(e) => setSearch(e.target.value)} /></div><table className="table"><thead><tr><th>Empleado</th><th>Documento</th><th>Cargo</th><th>ARL</th><th>Clase riesgo</th><th>Estado afiliación</th><th>Fecha afiliación</th><th>Fecha retiro</th><th>Seguridad social vigente</th><th>Evidencias</th></tr></thead><tbody>{rows.map((row: any, i: number) => <tr key={`${row.employeeId}-${i}`}><td><input className="input" disabled={readOnly} value={row.employeeName || ''} onChange={(e) => { const next=[...record.employees]; next[i]={...row, employeeName:e.target.value}; updateRecord({ ...record, employees: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.document || ''} onChange={(e) => { const next=[...record.employees]; next[i]={...row, document:e.target.value}; updateRecord({ ...record, employees: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.position || ''} onChange={(e) => { const next=[...record.employees]; next[i]={...row, position:e.target.value}; updateRecord({ ...record, employees: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.arlName || ''} onChange={(e) => { const next=[...record.employees]; next[i]={...row, arlName:e.target.value}; updateRecord({ ...record, employees: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.riskClass || ''} onChange={(e) => { const next=[...record.employees]; next[i]={...row, riskClass:e.target.value}; updateRecord({ ...record, employees: next }); }} /></td><td>{row.affiliationStatus || 'PENDING'}</td><td><input className="input" disabled={readOnly} type="date" value={toDateInputValue(row.affiliationDate)} onChange={(e) => { const next=[...record.employees]; next[i]={...row, affiliationDate:e.target.value}; updateRecord({ ...record, employees: next }); }} /></td><td><input className="input" disabled={readOnly} type="date" value={toDateInputValue(row.retirementDate)} onChange={(e) => { const next=[...record.employees]; next[i]={...row, retirementDate:e.target.value}; updateRecord({ ...record, employees: next }); }} /></td><td>{row.socialSecurityActive ? 'Sí' : 'No'}</td><td>{(row.evidences || []).length}</td></tr>)}</tbody></table><Button type="button" disabled={readOnly} onClick={() => updateRecord({ ...record, employees: [...(record.employees || []), { employeeId: `tmp-${Date.now()}`, employeeName: '', document: '', position: '', arlName: '', riskClass: '', affiliationStatus: 'PENDING', socialSecurityActive: false, evidences: [] }] })}>Agregar</Button></section><section className="advanced-management__section"><h3>Seguridad Social Empresa</h3><p className="muted">Gestiona PILA, planillas, soportes y certificados ARL a nivel compañía.</p></section><section className="advanced-management__section"><h3>Periodos seguridad social</h3><table className="table"><thead><tr><th>Periodo</th><th>Fecha pago</th><th>Estado</th><th>Documento soporte</th><th>Observaciones</th></tr></thead><tbody>{(record.socialSecurityPeriods || []).map((p: any, i: number) => <tr key={`${p.period}-${i}`}><td><input className="input" disabled={readOnly} value={p.period || ''} onChange={(e) => { const next=[...record.socialSecurityPeriods]; next[i]={...p, period:e.target.value}; updateRecord({ ...record, socialSecurityPeriods: next }); }} /></td><td><input className="input" disabled={readOnly} type="date" value={toDateInputValue(p.paymentDate)} onChange={(e) => { const next=[...record.socialSecurityPeriods]; next[i]={...p, paymentDate:e.target.value}; updateRecord({ ...record, socialSecurityPeriods: next }); }} /></td><td><input className="input" disabled={readOnly} value={p.status || ''} onChange={(e) => { const next=[...record.socialSecurityPeriods]; next[i]={...p, status:e.target.value}; updateRecord({ ...record, socialSecurityPeriods: next }); }} /></td><td><input className="input" disabled={readOnly} value={p.supportDocument || ''} onChange={(e) => { const next=[...record.socialSecurityPeriods]; next[i]={...p, supportDocument:e.target.value}; updateRecord({ ...record, socialSecurityPeriods: next }); }} /></td><td><input className="input" disabled={readOnly} value={p.observations || ''} onChange={(e) => { const next=[...record.socialSecurityPeriods]; next[i]={...p, observations:e.target.value}; updateRecord({ ...record, socialSecurityPeriods: next }); }} /></td></tr>)}</tbody></table></section><div className="advanced-management__footer"><Button type="button" disabled={readOnly} onClick={() => void save()}>Guardar</Button></div></div>;
+}
+
 function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
@@ -682,7 +703,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                ['1.1.1', '1.1.2', '1.1.3'].includes(item.code) ? (
+                ['1.1.1', '1.1.2', '1.1.3', '1.1.4'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>
