@@ -12,6 +12,7 @@ import { PhvaAdvancedService } from './phva-advanced.service';
 import { PhvaAdvancedResourceAssignment, PhvaAdvancedResourceAssignmentSchema } from './schemas/phva-advanced-resource-assignment.schema';
 import { PhvaAdvancedResponsibilities, PhvaAdvancedResponsibilitiesSchema } from './schemas/phva-advanced-responsibilities.schema';
 import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from './schemas/phva-advanced-responsable-sst.schema';
+import { PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsSchema } from './schemas/phva-advanced-arl-affiliations.schema';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from './
       { name: PhvaAdvancedResponsableSst.name, schema: PhvaAdvancedResponsableSstSchema },
       { name: PhvaAdvancedResponsibilities.name, schema: PhvaAdvancedResponsibilitiesSchema },
       { name: PhvaAdvancedResourceAssignment.name, schema: PhvaAdvancedResourceAssignmentSchema },
+      { name: PhvaAdvancedArlAffiliations.name, schema: PhvaAdvancedArlAffiliationsSchema },
       { name: User.name, schema: UserSchema },
       { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),
