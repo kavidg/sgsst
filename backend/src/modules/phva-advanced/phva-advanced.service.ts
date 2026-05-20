@@ -24,6 +24,8 @@ import {
   ResourceAssignmentComplianceStatus,
 } from './schemas/phva-advanced-resource-assignment.schema';
 import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dto';
+import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
+import { ArlComplianceStatus, PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsDocument } from './schemas/phva-advanced-arl-affiliations.schema';
 
 const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'fullName',
@@ -45,6 +47,8 @@ export class PhvaAdvancedService {
     private readonly responsibilitiesModel: Model<PhvaAdvancedResponsibilitiesDocument>,
     @InjectModel(PhvaAdvancedResourceAssignment.name)
     private readonly resourceAssignmentModel: Model<PhvaAdvancedResourceAssignmentDocument>,
+    @InjectModel(PhvaAdvancedArlAffiliations.name)
+    private readonly arlAffiliationsModel: Model<PhvaAdvancedArlAffiliationsDocument>,
     private readonly alertsService: AlertsService,
   ) {}
 
@@ -383,4 +387,42 @@ export class PhvaAdvancedService {
   private toDateOnly(date?: Date) {
     return date ? date.toISOString().slice(0, 10) : '';
   }
+
+  async findOrCreateArlAffiliations(companyId: Types.ObjectId) {
+    const current = await this.arlAffiliationsModel.findOne({ companyId, itemCode: '1.1.4' }).exec();
+    if (current) return current;
+    return this.arlAffiliationsModel.create({ companyId, itemCode: '1.1.4' });
+  }
+
+  async updateArlAffiliations(companyId: Types.ObjectId, user: UserDocument, dto: UpdateArlAffiliationsDto) {
+    const record = await this.findOrCreateArlAffiliations(companyId);
+    const before = JSON.stringify({ employees: record.employees.length, periods: record.socialSecurityPeriods.length, docs: record.companyDocuments.length });
+    if (dto.employees) record.employees = dto.employees.map((e) => ({ ...e, affiliationDate: e.affiliationDate ? new Date(e.affiliationDate) : undefined, retirementDate: e.retirementDate ? new Date(e.retirementDate) : undefined })) as never;
+    if (dto.companyDocuments) record.companyDocuments = dto.companyDocuments.map((d) => ({ ...d, uploadedAt: d.uploadedAt ? new Date(d.uploadedAt) : new Date() })) as never;
+    if (dto.socialSecurityPeriods) record.socialSecurityPeriods = dto.socialSecurityPeriods.map((p) => ({ ...p, paymentDate: p.paymentDate ? new Date(p.paymentDate) : undefined })) as never;
+
+    const activeEmployees = record.employees.filter((e) => e.affiliationStatus !== 'INACTIVE');
+    const missingArl = activeEmployees.filter((e) => !e.arlName);
+    const missingRisk = activeEmployees.filter((e) => !e.riskClass);
+    const missingEvidence = activeEmployees.filter((e) => !e.evidences?.length);
+    const inactiveAffiliation = activeEmployees.filter((e) => e.affiliationStatus !== 'ACTIVE');
+    const pendingPeriods = record.socialSecurityPeriods.filter((p) => p.status !== 'PAGADO');
+
+    record.alerts = [
+      ...missingArl.map((e) => `Empleado sin ARL: ${e.employeeName}`),
+      ...missingRisk.map((e) => `Clase de riesgo faltante: ${e.employeeName}`),
+      ...missingEvidence.map((e) => `Evidencia faltante: ${e.employeeName}`),
+      ...inactiveAffiliation.map((e) => `Afiliación inactiva o pendiente: ${e.employeeName}`),
+      ...pendingPeriods.map((p) => `Seguridad social pendiente: ${p.period}`),
+    ];
+
+    const hasCritical = missingArl.length > 0 || inactiveAffiliation.length > 0;
+    const complete = activeEmployees.length > 0 && !record.alerts.length && record.companyDocuments.length > 0 && record.socialSecurityPeriods.length > 0;
+    record.complianceStatus = complete ? ArlComplianceStatus.COMPLIES : (hasCritical ? ArlComplianceStatus.NON_COMPLIANT : ArlComplianceStatus.PENDING);
+
+    record.auditHistory.push({ field: 'arlAffiliations', oldValue: before, newValue: JSON.stringify({ employees: record.employees.length, periods: record.socialSecurityPeriods.length, docs: record.companyDocuments.length }), user: user.email, timestamp: new Date() });
+    await record.save();
+    return record;
+  }
+
 }

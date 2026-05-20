@@ -26,6 +26,7 @@ import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
 import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dto';
 import { UploadResponsableSstDocumentDto } from './dto/upload-responsable-sst-document.dto';
 import { PhvaAdvancedService } from './phva-advanced.service';
+import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ResponsibilityAssignmentEntry } from './schemas/phva-advanced-responsibilities.schema';
 
 @Controller('phva-advanced')
@@ -94,6 +95,20 @@ export class PhvaAdvancedController {
   async updateResponsibilities(@Req() request: RequestWithUser, @Body() dto: { responsibilities: ResponsibilityAssignmentEntry[] }) {
     const user = await this.resolveUserFromRequest(request);
     return this.phvaAdvancedService.updateResponsibilities(this.resolveCompanyId(request), user, dto.responsibilities ?? []);
+  }
+
+
+  @Get('arl-affiliations')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getArlAffiliations(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateArlAffiliations(this.resolveCompanyId(request));
+  }
+
+  @Patch('arl-affiliations')
+  @Roles('owner', 'admin')
+  async updateArlAffiliations(@Req() request: RequestWithUser, @Body() dto: UpdateArlAffiliationsDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateArlAffiliations(this.resolveCompanyId(request), user, dto);
   }
 
   @Get('resource-assignment')
