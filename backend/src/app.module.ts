@@ -18,6 +18,7 @@ import { AbsenteeismModule } from './modules/absenteeism/absenteeism.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { PhvaAdvancedModule } from './modules/phva-advanced/phva-advanced.module';
+import { CopasstModule } from './modules/copasst/copasst.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { PhvaAdvancedModule } from './modules/phva-advanced/phva-advanced.module
     AlertsModule,
     TemplatesModule,
     PhvaAdvancedModule,
+    CopasstModule,
   ],
 })
 export class AppModule {}
