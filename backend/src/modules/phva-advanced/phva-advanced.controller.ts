@@ -28,6 +28,7 @@ import { UploadResponsableSstDocumentDto } from './dto/upload-responsable-sst-do
 import { PhvaAdvancedService } from './phva-advanced.service';
 import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ResponsibilityAssignmentEntry } from './schemas/phva-advanced-responsibilities.schema';
+import { UpdateSpecialPensionDto } from './dto/update-special-pension.dto';
 
 @Controller('phva-advanced')
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
@@ -109,6 +110,20 @@ export class PhvaAdvancedController {
   async updateArlAffiliations(@Req() request: RequestWithUser, @Body() dto: UpdateArlAffiliationsDto) {
     const user = await this.resolveUserFromRequest(request);
     return this.phvaAdvancedService.updateArlAffiliations(this.resolveCompanyId(request), user, dto);
+  }
+
+
+  @Get('special-pension')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getSpecialPension(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateSpecialPension(this.resolveCompanyId(request));
+  }
+
+  @Patch('special-pension')
+  @Roles('owner', 'admin')
+  async updateSpecialPension(@Req() request: RequestWithUser, @Body() dto: UpdateSpecialPensionDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateSpecialPension(this.resolveCompanyId(request), user, dto);
   }
 
   @Get('resource-assignment')

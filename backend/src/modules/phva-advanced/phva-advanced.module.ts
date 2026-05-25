@@ -13,6 +13,7 @@ import { PhvaAdvancedResourceAssignment, PhvaAdvancedResourceAssignmentSchema } 
 import { PhvaAdvancedResponsibilities, PhvaAdvancedResponsibilitiesSchema } from './schemas/phva-advanced-responsibilities.schema';
 import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from './schemas/phva-advanced-responsable-sst.schema';
 import { PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsSchema } from './schemas/phva-advanced-arl-affiliations.schema';
+import { SpecialPensionConfiguration, SpecialPensionConfigurationSchema } from './schemas/phva-advanced-special-pension.schema';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsSchema } from '
       { name: PhvaAdvancedResponsibilities.name, schema: PhvaAdvancedResponsibilitiesSchema },
       { name: PhvaAdvancedResourceAssignment.name, schema: PhvaAdvancedResourceAssignmentSchema },
       { name: PhvaAdvancedArlAffiliations.name, schema: PhvaAdvancedArlAffiliationsSchema },
+      { name: SpecialPensionConfiguration.name, schema: SpecialPensionConfigurationSchema },
       { name: User.name, schema: UserSchema },
       { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),
