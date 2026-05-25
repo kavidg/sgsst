@@ -16,6 +16,10 @@ import {
   updateArlAffiliationsAdvanced,
   updateSpecialPensionAdvanced,
   uploadResponsableSstDocument,
+  fetchCopasstCurrent,
+  createCopasstPeriod,
+  addCopasstMember,
+  fetchCopasstResults,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
@@ -334,6 +338,9 @@ function AdvancedManagementPanel({
   }
   if (item.code === '1.1.5') {
     return <SpecialPensionAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+  }
+  if (item.code === '1.1.6') {
+    return <CopasstAdvancedPanel token={token} onComplianceChange={onComplianceChange} />;
   }
   const [form, setForm] = useState<AdvancedManagementForm>(initialAdvancedManagementForm);
   const [savedRecord, setSavedRecord] = useState<ResponsableSstAdvancedModel | null>(null);
@@ -705,6 +712,15 @@ function SpecialPensionAdvancedPanel({ token, readOnly, onComplianceChange, onDi
   return <div className="advanced-management"><section className="advanced-management__hero"><h3>Cotización Especial de Pensión</h3><span className={complianceBadge(record.complianceStatus).className}>{complianceBadge(record.complianceStatus).label}</span></section><label className="field"><span className="label">¿La empresa maneja trabajadores con cotización especial de pensión?</span><select className="input" disabled={readOnly} value={record.enabled ? 'YES' : 'NO'} onChange={(e) => updateRecord({ ...record, enabled: e.target.value === 'YES' })}><option value="NO">No</option><option value="YES">Sí</option></select></label>{record.enabled ? <><div className="actions"><input className="input" placeholder="Buscar empleado o cargo" value={search} onChange={(e) => setSearch(e.target.value)} /></div><table className="table"><thead><tr><th>Empleado</th><th>Cargo</th><th>Tipo alto riesgo</th><th>Requiere cotización especial</th><th>Estado cotización</th><th>Fecha inicio</th><th>Observaciones</th><th>Documento soporte</th><th></th></tr></thead><tbody>{rows.map((row: any, i: number) => <tr key={`${row.employeeId}-${i}`}><td><input className="input" disabled={readOnly} value={row.employeeName || ''} onChange={(e) => { const next=[...record.records]; next[i]={...row, employeeName:e.target.value}; updateRecord({ ...record, records: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.position || ''} onChange={(e) => { const next=[...record.records]; next[i]={...row, position:e.target.value}; updateRecord({ ...record, records: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.highRiskType || ''} onChange={(e) => { const next=[...record.records]; next[i]={...row, highRiskType:e.target.value}; updateRecord({ ...record, records: next }); }} /></td><td>{row.requiresSpecialContribution ? 'Sí' : 'No'}</td><td><input className="input" disabled={readOnly} value={row.contributionStatus || ''} onChange={(e) => { const next=[...record.records]; next[i]={...row, contributionStatus:e.target.value}; updateRecord({ ...record, records: next }); }} /></td><td><input className="input" type="date" disabled={readOnly} value={toDateInputValue(row.startDate)} onChange={(e) => { const next=[...record.records]; next[i]={...row, startDate:e.target.value}; updateRecord({ ...record, records: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.observations || ''} onChange={(e) => { const next=[...record.records]; next[i]={...row, observations:e.target.value}; updateRecord({ ...record, records: next }); }} /></td><td><input className="input" disabled={readOnly} value={row.supportDocument || ''} onChange={(e) => { const next=[...record.records]; next[i]={...row, supportDocument:e.target.value}; updateRecord({ ...record, records: next }); }} /></td><td><Button type="button" variant="danger" disabled={readOnly} onClick={() => updateRecord({ ...record, records: record.records.filter((_:any, idx:number) => idx !== i) })}>Quitar</Button></td></tr>)}</tbody></table><Button type="button" disabled={readOnly} onClick={() => updateRecord({ ...record, records: [...(record.records||[]), { employeeId: `tmp-${Date.now()}`, employeeName: '', position: '', highRiskType: '', requiresSpecialContribution: true, contributionStatus: 'PENDING', observations: '', supportDocument: '' }] })}>Agregar</Button><section className="advanced-management__section"><h3>Documentos</h3><p className="muted">Soporte cotización especial, Planilla seguridad social, PILA, Certificación fondo pensión, Documentos legales soporte.</p></section></> : <p className="muted">Cotización especial deshabilitada. Se omiten validaciones y cumplimiento asociado.</p>}<div className="advanced-management__footer"><Button type="button" disabled={readOnly} onClick={() => void save()}>Guardar</Button></div></div>;
 }
 
+
+function CopasstAdvancedPanel({ token, onComplianceChange }: { token: string; onComplianceChange: (status: ResponsableSstComplianceStatus) => void }) {
+  const [tab, setTab] = useState<'CONFORMACION'|'ELECCIONES'|'REUNIONES'|'DOCUMENTOS'|'ALERTAS'|'HISTORIAL'>('CONFORMACION');
+  const [period, setPeriod] = useState<any>(null);
+  const [results, setResults] = useState<any>(null);
+  useEffect(() => { if (!token) return; fetchCopasstCurrent(token).then((p) => { setPeriod(p); onComplianceChange(p.status === 'ACTIVO' && (p.members?.length||0) >= 4 ? 'COMPLIES' : 'PENDING'); }); }, [token, onComplianceChange]);
+  if (!period) return <p className="muted">Cargando COPASST...</p>;
+  return <div className="advanced-management"><div className="actions" style={{gap:8,flexWrap:'wrap'}}>{['CONFORMACION','ELECCIONES','REUNIONES','DOCUMENTOS','ALERTAS','HISTORIAL'].map((t) => <Button key={t} type="button" variant={tab===t?'primary':'secondary'} onClick={() => setTab(t as any)}>{t}</Button>)}</div>{tab==='CONFORMACION' ? <section><h3>Miembros COPASST</h3><p className="muted">Vigencia automática de 2 años. Estado: {period.status} · Inicio: {toDateInputValue(period.startDate)} · Fin: {toDateInputValue(period.endDate)}</p><table className="table"><thead><tr><th>Usuario</th><th>Cargo comité</th><th>Tipo representación</th><th>Principal/Suplente</th><th>Fecha inicio</th><th>Fecha fin</th><th>Estado</th></tr></thead><tbody>{(period.members||[]).map((m:any, i:number) => <tr key={i}><td>{m.userName}</td><td>{m.committeeRole}</td><td>{m.representationType}</td><td>{m.principalType}</td><td>{toDateInputValue(m.startDate)}</td><td>{toDateInputValue(m.endDate)}</td><td>{m.status}</td></tr>)}</tbody></table><Button type="button" onClick={async ()=>{const now=new Date().toISOString().slice(0,10); const next=await addCopasstMember(token, period._id, { userId: '000000000000000000000001', userName: 'Pendiente asignar', committeeRole:'PRINCIPAL', representationType:'TRABAJADOR', principalType:'PRINCIPAL', startDate: now}); setPeriod(next); }}>Agregar miembro</Button></section> : null}{tab==='ELECCIONES' ? <section><h3>Elecciones</h3><Button type="button" onClick={async () => setResults(await fetchCopasstResults(period._id))}>Ver resultados en tiempo real</Button>{results ? <p>Total votos: {results.totalVotes} · Participación: {results.participation.toFixed(1)}%</p> : null}</section> : null}{tab==='REUNIONES' ? <p className="muted">Programación y actas mensuales con firmas digitales.</p> : null}{tab==='DOCUMENTOS' ? <p className="muted">Repositorio versionado de actas, listas y evidencias.</p> : null}{tab==='ALERTAS' ? <p className="muted">Alertas por vencimientos, firmas pendientes y compromisos.</p> : null}{tab==='HISTORIAL' ? <table className="table"><thead><tr><th>Acción</th><th>Creado por</th><th>Fecha</th></tr></thead><tbody>{(period.auditHistory||[]).map((a:any,i:number)=><tr key={i}><td>{a.action}</td><td>{a.createdBy}</td><td>{new Date(a.createdAt).toLocaleString()}</td></tr>)}</tbody></table> : null}</div>;
+}
 function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
@@ -724,7 +740,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5'].includes(item.code) ? (
+                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>
