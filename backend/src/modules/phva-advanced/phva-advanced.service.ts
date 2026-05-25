@@ -26,6 +26,7 @@ import {
 import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dto';
 import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ArlComplianceStatus, PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsDocument } from './schemas/phva-advanced-arl-affiliations.schema';
+import { SpecialPensionComplianceStatus, SpecialPensionConfiguration, SpecialPensionConfigurationDocument } from './schemas/phva-advanced-special-pension.schema';
 
 const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'fullName',
@@ -49,6 +50,8 @@ export class PhvaAdvancedService {
     private readonly resourceAssignmentModel: Model<PhvaAdvancedResourceAssignmentDocument>,
     @InjectModel(PhvaAdvancedArlAffiliations.name)
     private readonly arlAffiliationsModel: Model<PhvaAdvancedArlAffiliationsDocument>,
+    @InjectModel(SpecialPensionConfiguration.name)
+    private readonly specialPensionModel: Model<SpecialPensionConfigurationDocument>,
     private readonly alertsService: AlertsService,
   ) {}
 
@@ -421,6 +424,49 @@ export class PhvaAdvancedService {
     record.complianceStatus = complete ? ArlComplianceStatus.COMPLIES : (hasCritical ? ArlComplianceStatus.NON_COMPLIANT : ArlComplianceStatus.PENDING);
 
     record.auditHistory.push({ field: 'arlAffiliations', oldValue: before, newValue: JSON.stringify({ employees: record.employees.length, periods: record.socialSecurityPeriods.length, docs: record.companyDocuments.length }), user: user.email, timestamp: new Date() });
+    await record.save();
+    return record;
+  }
+
+
+  async findOrCreateSpecialPension(companyId: Types.ObjectId) {
+    const current = await this.specialPensionModel.findOne({ companyId, itemCode: '1.1.5' }).exec();
+    if (current) return current;
+    return this.specialPensionModel.create({ companyId, itemCode: '1.1.5', enabled: false });
+  }
+
+  async updateSpecialPension(companyId: Types.ObjectId, user: UserDocument, dto: { enabled?: boolean; records?: Array<{ employeeId: string; employeeName?: string; position?: string; highRiskType?: string; requiresSpecialContribution?: boolean; contributionStatus?: string; startDate?: string; observations?: string; supportDocument?: string }>; documents?: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt?: string }> }) {
+    const record = await this.findOrCreateSpecialPension(companyId);
+    if (dto.enabled !== undefined) record.enabled = dto.enabled;
+    if (dto.records) record.records = dto.records.map((r) => ({ ...r, startDate: r.startDate ? new Date(r.startDate) : undefined })) as never;
+    if (dto.documents) record.documents = dto.documents.map((d) => ({ ...d, uploadedAt: d.uploadedAt ? new Date(d.uploadedAt) : new Date() })) as never;
+
+    if (!record.enabled) {
+      record.warnings = [];
+      record.alerts = [];
+      record.complianceStatus = SpecialPensionComplianceStatus.COMPLIES;
+      await record.save();
+      return record;
+    }
+
+    const incomplete = record.records.filter((r) => !r.employeeId || !r.employeeName || !r.position || !r.highRiskType || !r.startDate);
+    const highRiskWithout = record.records.filter((r) => r.requiresSpecialContribution && r.contributionStatus !== 'COMPLETED');
+    const docsMissing = record.documents.length === 0;
+    record.warnings = [
+      ...(highRiskWithout.length ? ['Trabajador alto riesgo sin cotización'] : []),
+      ...(docsMissing ? ['Documento faltante'] : []),
+      ...(incomplete.length ? ['Registro incompleto'] : []),
+    ];
+    record.alerts = [
+      ...highRiskWithout.map((r) => `Cotización especial pendiente: ${r.employeeName}`),
+      ...(docsMissing ? ['Documento faltante'] : []),
+      ...record.documents.filter((d) => d.uploadedAt && this.addDays(d.uploadedAt, 365) < new Date()).map((d) => `Soporte vencido: ${d.fileName}`),
+      ...highRiskWithout.map((r) => `Trabajador crítico sin cotización registrada: ${r.employeeName}`),
+    ];
+    const hasCompleted = record.records.some((r) => r.contributionStatus === 'COMPLETED');
+    const complete = record.records.length > 0 && !docsMissing && hasCompleted && highRiskWithout.length === 0 && incomplete.length === 0;
+    record.complianceStatus = complete ? SpecialPensionComplianceStatus.COMPLIES : (record.records.length ? SpecialPensionComplianceStatus.PENDING : SpecialPensionComplianceStatus.NON_COMPLIANT);
+    record.auditHistory = [...(record.auditHistory ?? []), { field: 'specialPension', oldValue: '', newValue: JSON.stringify({ enabled: record.enabled, records: record.records.length, docs: record.documents.length }), user: user.email, timestamp: new Date() }];
     await record.save();
     return record;
   }

@@ -873,3 +873,22 @@ export function fetchArlAffiliationsAdvanced(token: string) {
 export function updateArlAffiliationsAdvanced(token: string, payload: Partial<ArlAffiliationsAdvancedModel>) {
   return apiFetch<ArlAffiliationsAdvancedModel>('/phva-advanced/arl-affiliations', token, { method: 'PATCH', body: JSON.stringify(payload) });
 }
+
+export interface SpecialPensionAdvancedModel {
+  _id: string;
+  itemCode: string;
+  enabled: boolean;
+  records: Array<{ employeeId: string; employeeName: string; position?: string; highRiskType?: string; requiresSpecialContribution?: boolean; contributionStatus?: string; startDate?: string; observations?: string; supportDocument?: string }>;
+  documents: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt?: string }>;
+  alerts: string[];
+  warnings: string[];
+  complianceStatus: ResponsableSstComplianceStatus;
+}
+
+export function fetchSpecialPensionAdvanced(token: string) {
+  return apiFetch<SpecialPensionAdvancedModel>('/phva-advanced/special-pension', token, { method: 'GET' });
+}
+
+export function updateSpecialPensionAdvanced(token: string, payload: Partial<SpecialPensionAdvancedModel>) {
+  return apiFetch<SpecialPensionAdvancedModel>('/phva-advanced/special-pension', token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
