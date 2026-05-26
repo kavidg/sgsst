@@ -126,6 +126,27 @@ export class PhvaAdvancedController {
     return this.phvaAdvancedService.updateSpecialPension(this.resolveCompanyId(request), user, dto);
   }
 
+
+  @Get('training-management')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getTrainingManagement(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateTrainingManagement(this.resolveCompanyId(request));
+  }
+
+  @Patch('training-management')
+  @Roles('owner', 'admin', 'member')
+  async updateTrainingManagement(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateTrainingManagement(this.resolveCompanyId(request), user, dto as never);
+  }
+
+  @Patch('training-management/approval')
+  @Roles('owner', 'manager')
+  async approveTrainingManagement(@Req() request: RequestWithUser, @Body() dto: { status: 'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; comments?: string; }) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.approveTrainingManagement(this.resolveCompanyId(request), user, dto);
+  }
+
   @Get('resource-assignment')
   @Roles('owner', 'admin', 'manager', 'member')
   async getResourceAssignment(@Req() request: RequestWithUser) {
