@@ -57,7 +57,7 @@ export class CopasstService {
   private async refreshStatus(period: CopasstPeriodDocument) {
     const now = new Date(); const thirty = new Date(now); thirty.setDate(thirty.getDate() + 30);
     if (period.endDate < now) period.status = 'VENCIDO'; else if (period.endDate < thirty) period.status = 'PROXIMO_A_VENCER'; else period.status = 'ACTIVO';
-    if (period.status !== 'ACTIVO') await this.alertsService.create({ companyId: period.companyId, type: 'COPASST_EXPIRATION', message: `COPASST ${period.status.toLowerCase()}`, severity: 'MEDIUM' as never });
+    if (period.status !== 'ACTIVO') await this.alertsService.create({ companyId: period.companyId.toString(), type: 'COPASST_EXPIRATION', message: `COPASST ${period.status.toLowerCase()}`, severity: 'MEDIUM' as never });
     await period.save(); return period;
   }
 }
