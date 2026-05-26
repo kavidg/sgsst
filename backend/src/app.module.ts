@@ -19,6 +19,7 @@ import { AlertsModule } from './modules/alerts/alerts.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { PhvaAdvancedModule } from './modules/phva-advanced/phva-advanced.module';
 import { CopasstModule } from './modules/copasst/copasst.module';
+import { CommitteeEngineModule } from './modules/committee-engine/committee-engine.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { CopasstModule } from './modules/copasst/copasst.module';
     TemplatesModule,
     PhvaAdvancedModule,
     CopasstModule,
+    CommitteeEngineModule,
   ],
 })
 export class AppModule {}
