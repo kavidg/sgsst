@@ -4,6 +4,7 @@ import { AlertsModule } from '../alerts/alerts.module';
 import { AuthModule } from '../auth/auth.module';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { RolesGuard } from '../questions/roles.guard';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { CommitteeEngineController } from './committee-engine.controller';
 import { CommitteeEngineService } from './committee-engine.service';
 import { CommitteePeriod, CommitteePeriodSchema } from './schemas/committee.schema';
@@ -11,7 +12,10 @@ import { CommitteePeriod, CommitteePeriodSchema } from './schemas/committee.sche
 @Module({
   imports: [
     AuthModule,
-    MongooseModule.forFeature([{ name: CommitteePeriod.name, schema: CommitteePeriodSchema }]),
+    MongooseModule.forFeature([
+      { name: CommitteePeriod.name, schema: CommitteePeriodSchema },
+      { name: User.name, schema: UserSchema },
+    ]),
     AlertsModule,
   ],
   controllers: [CommitteeEngineController],
