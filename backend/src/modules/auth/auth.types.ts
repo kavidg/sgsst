@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 
 export interface AuthenticatedUser {
   uid: string;
+  email?: string;
 }
 
 export interface RequestWithUser {
