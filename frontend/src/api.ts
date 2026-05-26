@@ -923,6 +923,13 @@ export function updateSpecialPensionAdvanced(token: string, payload: Partial<Spe
   return apiFetch<SpecialPensionAdvancedModel>('/phva-advanced/special-pension', token, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
+
+export interface TrainingManagementAdvancedModel {
+  _id: string; itemCode: string; annualProgram: any[]; inductions: any[]; reinductions: any[]; trainings: any[]; attendanceEvidence: string[]; signatureEvidence: string[]; alerts: string[]; history: any[]; approval: { status: 'PENDING'|'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; approvedBy?: string; approvedAt?: string; comments?: string; version: number; }; complianceStatus: ResponsableSstComplianceStatus;
+}
+export const fetchTrainingManagementAdvanced = (token: string) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management', token, { method: 'GET' });
+export const updateTrainingManagementAdvanced = (token: string, payload: Partial<TrainingManagementAdvancedModel>) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management', token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const approveTrainingManagementAdvanced = (token: string, payload: { status: 'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; comments?: string }) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management/approval', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export interface CopasstPeriodModel { _id: string; periodName: string; startDate: string; endDate: string; status: 'ACTIVO'|'PROXIMO_A_VENCER'|'VENCIDO'|'ARCHIVADO'; members: Array<{ userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string; endDate: string; status: string }>; candidates: Array<{ name: string; document: string; phone: string; area: string; position: string; motivation: string; accepted: boolean; votes: number }>; meetings: Array<{ meetingDate: string; status: string; attendees: string[]; commitments: string[] }>; documents: Array<{ type: string; title: string; version: number; generatedAt: string }>; auditHistory: Array<{ action: string; createdBy: string; createdAt: string; data: string }>; }
 export const fetchCopasstCurrent = (token: string) => apiFetch<CopasstPeriodModel>('/copasst/current', token, { method: 'GET' });
 export const createCopasstPeriod = (token: string, payload: { periodName: string; startDate: string }) => apiFetch<CopasstPeriodModel>('/copasst/periods', token, { method: 'POST', body: JSON.stringify(payload) });
