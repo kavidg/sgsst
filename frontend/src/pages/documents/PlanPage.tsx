@@ -20,6 +20,9 @@ import {
   createCommitteePeriod,
   addCommitteeMember,
   fetchCommitteeResults,
+  fetchTrainingManagementAdvanced,
+  updateTrainingManagementAdvanced,
+  approveTrainingManagementAdvanced,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
@@ -327,6 +330,9 @@ function AdvancedManagementPanel({
   discardRequest: number;
   onSaved: () => void;
 }) {
+  if (item.code === '1.2.1') {
+    return <TrainingManagementAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+  }
   if (item.code === '1.1.2') {
     return <ResponsibilitiesAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
@@ -723,6 +729,21 @@ function CommitteeAdvancedPanel({ token, committeeType, title, onComplianceChang
   if (!period) return <p className='muted'>Cargando {title}...</p>;
   return <div className='advanced-management'><div className='actions' style={{gap:8,flexWrap:'wrap'}}>{['CONFORMACION','ELECCIONES','REUNIONES','REGLAMENTO','CONFIDENCIALIDAD','DOCUMENTOS','ALERTAS','HISTORIAL'].map((t)=><Button key={t} type='button' variant={tab===t?'primary':'secondary'} onClick={()=>setTab(t as any)}>{t}</Button>)}</div>{tab==='CONFORMACION'?<section><h3>Miembros {title}</h3><p className='muted'>Vigencia automática de 2 años. Estado: {period.status} · Inicio: {toDateInputValue(period.startDate)} · Fin: {toDateInputValue(period.endDate)}</p><table className='table'><thead><tr><th>Usuario</th><th>Cargo comité</th><th>Tipo representación</th><th>Principal/Suplente</th><th>Fecha inicio</th><th>Fecha fin</th><th>Estado</th></tr></thead><tbody>{(period.members||[]).map((m:any,i:number)=><tr key={i}><td>{m.userName}</td><td>{m.committeeRole}</td><td>{m.representationType}</td><td>{m.principalType}</td><td>{toDateInputValue(m.startDate)}</td><td>{toDateInputValue(m.endDate)}</td><td>{m.status}</td></tr>)}</tbody></table><Button type='button' onClick={async ()=>{const now=new Date().toISOString().slice(0,10); const next=await addCommitteeMember(token, period._id,{ userId:'000000000000000000000001', userName:'Pendiente asignar', committeeRole:'PRINCIPAL', representationType:'TRABAJADOR', principalType:'PRINCIPAL', startDate:now}); setPeriod(next);}}>Agregar miembro</Button></section>:null}{tab==='ELECCIONES'?<section><h3>Elecciones</h3><Button type='button' onClick={async()=>setResults(await fetchCommitteeResults(period._id))}>Ver resultados en tiempo real</Button>{results?<p>Total votos: {results.totalVotes} · Participación: {results.participation.toFixed(1)}%</p>:null}</section>:null}{tab==='REUNIONES'?<p className='muted'>Programación, actas mensuales, asistentes, firmas digitales y compromisos.</p>:null}{tab==='REGLAMENTO'?<p className='muted'>Versionado de reglamento, artículos y firmas de aceptación.</p>:null}{tab==='CONFIDENCIALIDAD'?<p className='muted'>Cláusulas versionadas, aceptación obligatoria y restricciones de acceso preparadas.</p>:null}{tab==='DOCUMENTOS'?<p className='muted'>Repositorio versionado de actas, reglamentos, acuerdos y evidencias.</p>:null}{tab==='ALERTAS'?<p className='muted'>Alertas por vencimientos, firmas pendientes, elecciones y confidencialidad.</p>:null}{tab==='HISTORIAL'?<table className='table'><thead><tr><th>Acción</th><th>Creado por</th><th>Fecha</th></tr></thead><tbody>{(period.auditHistory||[]).map((a:any,i:number)=><tr key={i}><td>{a.action}</td><td>{a.createdBy}</td><td>{new Date(a.createdAt).toLocaleString()}</td></tr>)}</tbody></table>:null}</div>;
 }
+
+function TrainingManagementAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyChange, saveRequest, discardRequest, onSaved }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void; saveRequest: number; discardRequest: number; onSaved: () => void }) {
+  const [record, setRecord] = useState<any>(null); const [dirty,setDirty]=useState(false); const [tab,setTab]=useState('Programa Anual');
+  useEffect(()=>{ onDirtyChange(dirty); },[dirty,onDirtyChange]);
+  useEffect(()=>{ if(!token) return; fetchTrainingManagementAdvanced(token).then((r)=>{setRecord(r); onComplianceChange(r.complianceStatus);}); },[token,onComplianceChange]);
+  const save=async()=>{ const saved=await updateTrainingManagementAdvanced(token, record); setRecord(saved); setDirty(false); onComplianceChange(saved.complianceStatus); onSaved(); };
+  useEffect(()=>{ if(saveRequest>0) void save(); },[saveRequest]);
+  useEffect(()=>{ if(discardRequest>0) setDirty(false); },[discardRequest]);
+  if(!record) return <p className='muted'>Cargando gestión avanzada de capacitación...</p>;
+  return <div className='advanced-management'><div className='actions' style={{gap:8,flexWrap:'wrap'}}>{['Programa Anual','Inducciones','Reinducciones','Capacitaciones','Asistencia','Material Multimedia','Alertas','Historial'].map((t)=><Button key={t} type='button' variant={tab===t?'primary':'secondary'} onClick={()=>setTab(t)}>{t}</Button>)}</div>
+    {tab==='Programa Anual'?<section><h3>Programa anual SST</h3><table className='table'><thead><tr><th>Capacitación</th><th>Tipo</th><th>Responsable</th><th>Fecha programada</th><th>Fecha vencimiento</th><th>Estado</th><th>Evidencias</th><th>Aprobación manager</th></tr></thead><tbody>{(record.annualProgram||[]).map((r:any,i:number)=><tr key={i}><td><input className='input' disabled={readOnly} value={r.title||''} onChange={(e)=>{const n=[...record.annualProgram];n[i]={...r,title:e.target.value};setRecord({...record,annualProgram:n});setDirty(true);}}/></td><td><input className='input' disabled={readOnly} value={r.type||''} onChange={(e)=>{const n=[...record.annualProgram];n[i]={...r,type:e.target.value};setRecord({...record,annualProgram:n});setDirty(true);}}/></td><td>{r.responsible||'-'}</td><td>{toDateInputValue(r.scheduledDate)}</td><td>{toDateInputValue(r.expirationDate)}</td><td>{r.status||'Pendiente'}</td><td>{(r.evidences||[]).length}</td><td>{record.approval?.status||'PENDING'}</td></tr>)}</tbody></table><Button type='button' disabled={readOnly} onClick={()=>{setRecord({...record,annualProgram:[...(record.annualProgram||[]),{title:'',type:'SST general',status:'Pendiente'}]});setDirty(true);}}>Agregar fila</Button></section>:null}
+    {tab==='Alertas'?<section><p className='muted'>Recordatorios automáticos: 30, 10, 8, 5, 2 días y vencida. Reprogramaciones notifican manager.</p><Button type='button' disabled={readOnly} onClick={async()=>{const saved=await approveTrainingManagementAdvanced(token,{status:'APPROVED',comments:'Aprobado gerencia'});setRecord(saved);onComplianceChange(saved.complianceStatus);}}>Aprobar programa anual</Button></section>:null}
+    {tab==='Historial'?<table className='table'><thead><tr><th>Acción</th><th>Usuario</th><th>Fecha</th></tr></thead><tbody>{(record.history||[]).map((h:any,i:number)=><tr key={i}><td>{h.action}</td><td>{h.createdBy}</td><td>{new Date(h.createdAt).toLocaleString()}</td></tr>)}</tbody></table>:<p className='muted'>Complete formularios por pestaña, adjunte evidencias multimedia y registre asistencia digital/escaneada.</p>}
+  </div>;
+}
 function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
@@ -742,7 +763,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.8'].includes(item.code) ? (
+                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.8', '1.2.1'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>

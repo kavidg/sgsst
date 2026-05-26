@@ -27,6 +27,7 @@ import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dt
 import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ArlComplianceStatus, PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsDocument } from './schemas/phva-advanced-arl-affiliations.schema';
 import { SpecialPensionComplianceStatus, SpecialPensionConfiguration, SpecialPensionConfigurationDocument } from './schemas/phva-advanced-special-pension.schema';
+import { TrainingManagement, TrainingManagementDocument } from './schemas/phva-advanced-training-management.schema';
 
 const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'fullName',
@@ -52,6 +53,8 @@ export class PhvaAdvancedService {
     private readonly arlAffiliationsModel: Model<PhvaAdvancedArlAffiliationsDocument>,
     @InjectModel(SpecialPensionConfiguration.name)
     private readonly specialPensionModel: Model<SpecialPensionConfigurationDocument>,
+    @InjectModel(TrainingManagement.name)
+    private readonly trainingManagementModel: Model<TrainingManagementDocument>,
     private readonly alertsService: AlertsService,
   ) {}
 
@@ -469,6 +472,42 @@ export class PhvaAdvancedService {
     record.auditHistory = [...(record.auditHistory ?? []), { field: 'specialPension', oldValue: '', newValue: JSON.stringify({ enabled: record.enabled, records: record.records.length, docs: record.documents.length }), user: user.email, timestamp: new Date() }];
     await record.save();
     return record;
+  }
+
+
+  async findOrCreateTrainingManagement(companyId: Types.ObjectId) {
+    const current = await this.trainingManagementModel.findOne({ companyId, itemCode: '1.2.1' }).exec();
+    if (current) return current;
+    return this.trainingManagementModel.create({ companyId, itemCode: '1.2.1' });
+  }
+
+  async updateTrainingManagement(companyId: Types.ObjectId, user: UserDocument, dto: Partial<TrainingManagement>) {
+    const record = await this.findOrCreateTrainingManagement(companyId);
+    Object.assign(record, dto);
+    const hasProgram = (record.annualProgram || []).length > 0;
+    const approved = record.approval?.status === 'APPROVED';
+    const executed = (record.trainings || []).some((item) => item.status === 'Finalizada');
+    const evidences = (record.trainings || []).some((item) => (item.evidences || []).length > 0);
+    const attendance = (record.attendanceEvidence || []).length > 0 || (record.signatureEvidence || []).length > 0;
+    const validExp = !(record.trainings || []).some((item) => item.expirationDate && item.expirationDate < new Date());
+    record.complianceStatus = hasProgram && approved && executed && evidences && attendance && validExp ? 'COMPLIES' : (hasProgram ? 'PENDING' : 'NON_COMPLIANT');
+    record.complianceReason = record.complianceStatus === 'COMPLIES' ? 'Cumple validaciones automáticas de capacitación SST.' : 'Pendiente aprobación, ejecución, evidencias o vigencia.';
+    record.history.push({ action: 'UPDATE', createdBy: user.email, createdAt: new Date(), details: 'Actualización integral de gestión avanzada capacitación SST' } as never);
+    return record.save();
+  }
+
+  async approveTrainingManagement(companyId: Types.ObjectId, user: UserDocument, payload: { status: 'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; comments?: string; }) {
+    const record = await this.findOrCreateTrainingManagement(companyId);
+    record.approval = {
+      ...record.approval,
+      status: payload.status,
+      comments: payload.comments,
+      approvedBy: user.email,
+      approvedAt: new Date(),
+      version: (record.approval?.version || 0) + 1,
+    } as never;
+    record.history.push({ action: `APPROVAL_${payload.status}`, createdBy: user.email, createdAt: new Date(), details: payload.comments } as never);
+    return record.save();
   }
 
 }
