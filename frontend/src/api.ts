@@ -187,11 +187,29 @@ export interface UpdateIncidentPayload {
 export interface TrainingModel {
   _id: string;
   companyId: string;
+  copasstId?: string;
   topic: string;
   date: string;
   instructor: string;
   description: string;
   evidenceUrl?: string;
+  attendanceControl?: {
+    initialListUrl?: string;
+    middleListUrl?: string;
+    finalListUrl?: string;
+  };
+  media?: {
+    videos?: string[];
+    presentations?: string[];
+    pdfs?: string[];
+    images?: string[];
+    supportMaterials?: string[];
+  };
+  structure?: {
+    duration?: string;
+    modality?: string;
+    participants?: number;
+  };
 }
 
 export interface CreateTrainingPayload {
@@ -200,15 +218,27 @@ export interface CreateTrainingPayload {
   instructor: string;
   description: string;
   evidenceUrl?: string;
+  copasstId?: string;
+  attendanceControl?: {
+    initialListUrl?: string;
+    middleListUrl?: string;
+    finalListUrl?: string;
+  };
+  media?: {
+    videos?: string[];
+    presentations?: string[];
+    pdfs?: string[];
+    images?: string[];
+    supportMaterials?: string[];
+  };
+  structure?: {
+    duration?: string;
+    modality?: string;
+    participants?: number;
+  };
 }
 
-export interface UpdateTrainingPayload {
-  topic?: string;
-  date?: string;
-  instructor?: string;
-  description?: string;
-  evidenceUrl?: string;
-}
+export interface UpdateTrainingPayload extends Partial<CreateTrainingPayload> {}
 
 export interface TrainingAttendanceModel {
   _id: string;

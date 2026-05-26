@@ -31,6 +31,23 @@ const emptyTraining: TrainingFormState = {
   date: '',
   instructor: '',
   description: '',
+  attendanceControl: {
+    initialListUrl: '',
+    middleListUrl: '',
+    finalListUrl: '',
+  },
+  media: {
+    videos: [],
+    presentations: [],
+    pdfs: [],
+    images: [],
+    supportMaterials: [],
+  },
+  structure: {
+    duration: '',
+    modality: '',
+    participants: 0,
+  },
 };
 
 export function TrainingsPage({ token }: TrainingsPageProps) {
@@ -110,6 +127,9 @@ export function TrainingsPage({ token }: TrainingsPageProps) {
       instructor: training.instructor,
       description: training.description,
       evidenceUrl: training.evidenceUrl,
+      attendanceControl: training.attendanceControl,
+      media: training.media,
+      structure: training.structure,
     });
   };
 
@@ -178,6 +198,15 @@ export function TrainingsPage({ token }: TrainingsPageProps) {
             <label className="field"><span className="label">Instructor</span><Input value={form.instructor} onChange={(event) => setForm((prev) => ({ ...prev, instructor: event.target.value }))} required /></label>
           </div>
           <label className="field"><span className="label">Descripción</span><textarea className="textarea" value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} rows={3} required /></label>
+          <h3>Control de asistencia</h3>
+          <div className="grid grid-3">
+            <label className="field"><span className="label">Lista asistencia inicial (PDF/Excel/Imagen URL)</span><Input value={form.attendanceControl?.initialListUrl ?? ''} onChange={(event) => setForm((prev) => ({ ...prev, attendanceControl: { ...prev.attendanceControl, initialListUrl: event.target.value } }))} /></label>
+            <label className="field"><span className="label">Lista durante capacitación (PDF/Excel/Imagen URL)</span><Input value={form.attendanceControl?.middleListUrl ?? ''} onChange={(event) => setForm((prev) => ({ ...prev, attendanceControl: { ...prev.attendanceControl, middleListUrl: event.target.value } }))} /></label>
+            <label className="field"><span className="label">Lista asistencia final (PDF/Excel/Imagen URL)</span><Input value={form.attendanceControl?.finalListUrl ?? ''} onChange={(event) => setForm((prev) => ({ ...prev, attendanceControl: { ...prev.attendanceControl, finalListUrl: event.target.value } }))} /></label>
+          </div>
+          <h3>Material multimedia</h3>
+          <label className="field"><span className="label">Videos (mp4/mov URLs separadas por coma)</span><Input value={(form.media?.videos ?? []).join(',')} onChange={(event) => setForm((prev) => ({ ...prev, media: { ...prev.media, videos: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) } }))} /></label>
+          <label className="field"><span className="label">Presentaciones (ppt/pptx/pdf URLs separadas por coma)</span><Input value={(form.media?.presentations ?? []).join(',')} onChange={(event) => setForm((prev) => ({ ...prev, media: { ...prev.media, presentations: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) } }))} /></label>
           <div className="actions">
             <Button type="submit" disabled={loading}>{editingTrainingId ? 'Editar capacitación' : 'Crear capacitación'}</Button>
             {editingTrainingId ? <Button type="button" variant="secondary" onClick={resetTrainingForm}>Cancelar edición</Button> : null}
