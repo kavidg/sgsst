@@ -16,10 +16,10 @@ import {
   updateArlAffiliationsAdvanced,
   updateSpecialPensionAdvanced,
   uploadResponsableSstDocument,
-  fetchCopasstCurrent,
-  createCopasstPeriod,
-  addCopasstMember,
-  fetchCopasstResults,
+  fetchCommitteeCurrent,
+  createCommitteePeriod,
+  addCommitteeMember,
+  fetchCommitteeResults,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
