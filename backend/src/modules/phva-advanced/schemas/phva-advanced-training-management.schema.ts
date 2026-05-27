@@ -9,6 +9,12 @@ class AuditEntry { @Prop({ required: true }) action!: string; @Prop({ required: 
 class Approval { @Prop() approvedBy?: string; @Prop() approvedAt?: Date; @Prop() comments?: string; @Prop({ default: 1 }) version!: number; @Prop({ default: 'PENDING' }) status!: 'PENDING'|'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; }
 @Schema({ _id: false })
 class Session { @Prop({ required: true }) title!: string; @Prop() type?: string; @Prop() responsible?: string; @Prop() scheduledDate?: Date; @Prop() expirationDate?: Date; @Prop({ default: 'Pendiente' }) status!: string; @Prop({ type: [String], default: [] }) participants!: string[]; @Prop({ type: [String], default: [] }) evidences!: string[]; @Prop({ type: [String], default: [] }) multimedia!: string[]; @Prop() instructor?: string; @Prop() location?: string; @Prop() duration?: string; @Prop() evaluation?: string; @Prop() completionDate?: Date; }
+@Schema({ _id: false })
+class ChecklistItem { @Prop({ required: true }) key!: string; @Prop({ required: true }) label!: string; @Prop({ default: 'PENDING' }) status!: 'COMPLETED'|'PENDING'|'NOT_APPLICABLE'; }
+@Schema({ _id: false })
+class TrainingSignature { @Prop() signedBy?: string; @Prop() signedAt?: Date; @Prop() ipAddress?: string; @Prop() device?: string; @Prop() signatureUrl?: string; @Prop() scannedDocumentUrl?: string; }
+@Schema({ _id: false })
+class EvaluationAttempt { @Prop({ default: 1 }) attemptNumber!: number; @Prop({ default: 0 }) score!: number; @Prop({ default: false }) passed!: boolean; @Prop({ default: 0 }) completionPercentage!: number; @Prop({ default: Date.now }) attemptedAt!: Date; }
 
 @Schema({ timestamps: true, collection: 'phva_advanced_training_management' })
 export class TrainingManagement {
@@ -18,6 +24,11 @@ export class TrainingManagement {
   @Prop({ type: [Session], default: [] }) annualProgram!: Session[];
   @Prop({ type: [Session], default: [] }) inductions!: Session[];
   @Prop({ type: [Session], default: [] }) reinductions!: Session[];
+  @Prop({ type: [ChecklistItem], default: [] }) checklistTemplate!: ChecklistItem[];
+  @Prop({ type: [EvaluationAttempt], default: [] }) evaluationAttempts!: EvaluationAttempt[];
+  @Prop({ type: [TrainingSignature], default: [] }) signatures!: TrainingSignature[];
+  @Prop({ type: [String], default: [] }) certificates!: string[];
+  @Prop({ type: [String], default: [] }) evidenceFiles!: string[];
   @Prop({ type: [Session], default: [] }) trainings!: Session[];
   @Prop({ type: [String], default: [] }) attendanceEvidence!: string[];
   @Prop({ type: [String], default: [] }) signatureEvidence!: string[];
