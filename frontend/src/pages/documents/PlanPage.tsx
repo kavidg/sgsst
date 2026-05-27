@@ -815,7 +815,13 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
         readOnly={readOnly}
         onOpenAdvancedManagement={setAdvancedManagementItem}
       />
-      <EvaluationSection title="Capacitación en el SG-SST (6%)" items={trainingItems} sectionId="plan-capacitacion" readOnly={readOnly} />
+      <EvaluationSection
+        title="Capacitación en el SG-SST (6%)"
+        items={trainingItems}
+        sectionId="plan-capacitacion"
+        readOnly={readOnly}
+        onOpenAdvancedManagement={setAdvancedManagementItem}
+      />
       <EvaluationSection title="Gestión Integral del SG-SST (15%)" items={integralManagementItems} sectionId="plan-gestion-integral" readOnly={readOnly}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/do')}>
