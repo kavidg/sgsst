@@ -615,6 +615,7 @@ function App() {
           <Input type="email" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           <Input type="password" placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)} required />
           <Button type="submit" disabled={loading}>{loading ? 'Ingresando...' : 'Login'}</Button>
+          <a className="auth-help-link" href="mailto:soporte@sgsst.com">¿Tienes problemas para iniciar sesión?</a>
         </form>
         {error ? <pre className="error">{error}</pre> : null}
       </div></main>
