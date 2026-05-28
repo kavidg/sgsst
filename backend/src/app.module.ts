@@ -20,6 +20,7 @@ import { TemplatesModule } from './modules/templates/templates.module';
 import { PhvaAdvancedModule } from './modules/phva-advanced/phva-advanced.module';
 import { CopasstModule } from './modules/copasst/copasst.module';
 import { CommitteeEngineModule } from './modules/committee-engine/committee-engine.module';
+import { ComplianceCredentialsModule } from './modules/compliance-credentials/compliance-credentials.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { CommitteeEngineModule } from './modules/committee-engine/committee-engi
     PhvaAdvancedModule,
     CopasstModule,
     CommitteeEngineModule,
+    ComplianceCredentialsModule,
   ],
 })
 export class AppModule {}
