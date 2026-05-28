@@ -151,6 +151,8 @@ a { color: inherit; }
 .muted { color:#64748b; margin:0; }
 
 .auth-wrap { max-width:460px; margin:8vh auto; padding:0 1rem; }
+.auth-help-link { color:#2563eb; font-size:.9rem; font-weight:600; justify-self:center; text-align:center; text-decoration:none; }
+.auth-help-link:hover, .auth-help-link:focus-visible { color:#1d4ed8; text-decoration:underline; }
 
 .mobile-toggle { display:none; }
 .sidebar-backdrop { display:none; }
