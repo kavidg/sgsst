@@ -1178,3 +1178,69 @@ a { color: inherit; }
   color: #92400e;
   font-weight: 700;
 }
+
+.advanced-management--50h {
+  position: relative;
+}
+
+.advanced-tabs {
+  display: flex;
+  gap: .5rem;
+  overflow-x: auto;
+  padding-bottom: .25rem;
+}
+
+.responsive-table {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.advanced-doc-grid,
+.advanced-list,
+.timeline {
+  display: grid;
+  gap: .75rem;
+}
+
+.advanced-doc-card,
+.advanced-list__item,
+.timeline__item,
+.empty-state {
+  border: 1px solid #e2e8f0;
+  border-radius: .9rem;
+  background: #f8fafc;
+  padding: .85rem;
+}
+
+.advanced-doc-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.advanced-list__item p,
+.timeline__item p,
+.empty-state {
+  margin: .25rem 0;
+  color: #475569;
+}
+
+.timeline__item {
+  position: relative;
+  border-left: 4px solid #2563eb;
+}
+
+.advanced-management__toast {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+@media (min-width: 769px) {
+  .sheet__content {
+    width: 50%;
+    max-width: none;
+  }
+}
