@@ -812,6 +812,140 @@ export interface UploadResponsableSstDocumentPayload {
   finalUserDate?: string;
 }
 
+
+export type ComplianceCredentialCourseType = 'COURSE_50_HOURS' | 'COURSE_20_HOURS';
+export type ComplianceCredentialStatus = 'Vigente' | 'Próximo a vencer' | 'Vencido';
+export type ComplianceCredentialValidationStatus = 'VALID' | 'PENDING_20H' | 'MISSING_DOCUMENTS' | 'INVALID';
+export type ComplianceResponsibleStatus = 'ACTIVE' | 'INACTIVE';
+export type ComplianceResponsibleType = 'Coordinador SST' | 'Líder SST' | 'Profesional SST' | 'Tecnólogo SST' | 'Responsable SG-SST';
+
+export interface ComplianceCredentialModel {
+  _id: string;
+  companyId: string;
+  itemCode: string;
+  responsibleUserId?: string;
+  courseType: ComplianceCredentialCourseType;
+  trainingEntity: string;
+  certificateNumber: string;
+  courseDate?: string;
+  expirationDate?: string;
+  status: ComplianceCredentialStatus;
+  comments: string;
+  requires20HourCourse: boolean;
+  relatedFiftyHourCredentialId?: string;
+  relatedTwentyHourCredentialId?: string;
+  validationStatus: ComplianceCredentialValidationStatus;
+  phvaComplianceStatus: ResponsableSstComplianceStatus;
+  phvaComplianceReason: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ComplianceCredentialResponsibleModel {
+  _id: string;
+  employeeId: string | EmployeeModel;
+  responsibleType: ComplianceResponsibleType;
+  status: ComplianceResponsibleStatus;
+  comments?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ComplianceCredentialDocumentModel {
+  _id: string;
+  credentialId: string;
+  courseType: ComplianceCredentialCourseType;
+  fileName: string;
+  fileUrl: string;
+  storagePath?: string;
+  mimeType?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ComplianceCredentialOcrModel {
+  _id: string;
+  credentialId: string;
+  documentId: string;
+  extractedCourseDate?: string;
+  originalOCRDate?: string;
+  modifiedDate?: string;
+  extractedCertificateNumber?: string;
+  extractedTrainingEntity?: string;
+  confidence?: number;
+  hasManualDateModification: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ComplianceCredentialAlertModel {
+  _id: string;
+  credentialId?: string;
+  type: 'expiration' | 'missing_documents' | 'missing_20h_course' | 'manual_ocr_modification';
+  message: string;
+  severity: 'info' | 'warning' | 'critical';
+  dueAt?: string;
+  generated: boolean;
+  resolved: boolean;
+  createdAt?: string;
+}
+
+export interface ComplianceCredentialHistoryModel {
+  _id: string;
+  credentialId?: string;
+  action: 'upload' | 'edit' | 'ocr_change' | 'expiration_update' | 'responsible_change' | 'validation_change';
+  field: string;
+  oldValue?: string;
+  newValue?: string;
+  details?: string;
+  createdAt?: string;
+}
+
+export interface ComplianceCredentialValidationModel {
+  _id: string;
+  status: ComplianceCredentialValidationStatus;
+  reason: string;
+  requires20HourCourse: boolean;
+  hasRequired20HourCourse: boolean;
+  hasDocuments: boolean;
+  hasActiveResponsible: boolean;
+  phvaComplianceStatus: ResponsableSstComplianceStatus;
+  createdAt?: string;
+}
+
+export interface ComplianceCredentialDetailModel {
+  credential: ComplianceCredentialModel;
+  documents: ComplianceCredentialDocumentModel[];
+  ocrData: ComplianceCredentialOcrModel[];
+  alerts: ComplianceCredentialAlertModel[];
+  validations: ComplianceCredentialValidationModel[];
+  history: ComplianceCredentialHistoryModel[];
+}
+
+export interface UpsertComplianceCredentialPayload {
+  responsibleUserId?: string;
+  courseType: ComplianceCredentialCourseType;
+  trainingEntity?: string;
+  certificateNumber?: string;
+  courseDate?: string;
+  expirationDate?: string;
+  comments?: string;
+  relatedFiftyHourCredentialId?: string;
+}
+
+export interface AttachComplianceCredentialDocumentPayload {
+  credentialId: string;
+  fileName: string;
+  fileUrl: string;
+  storagePath?: string;
+  mimeType?: string;
+  ocrCourseDate?: string;
+  ocrCertificateNumber?: string;
+  ocrTrainingEntity?: string;
+  rawOcrText?: string;
+}
+
 export function fetchResponsableSstAdvanced(token: string) {
   return apiFetch<ResponsableSstAdvancedModel>('/phva-advanced/responsable-sst', token, { method: 'GET' });
 }
@@ -835,6 +969,19 @@ export function uploadResponsableSstDocument(token: string, payload: UploadRespo
 export function fetchResponsableSstAudit(token: string) {
   return apiFetch<ResponsableSstAuditEntryModel[]>('/phva-advanced/responsable-sst/audit', token, { method: 'GET' });
 }
+
+
+export const fetchComplianceCredentials = (token: string) => apiFetch<ComplianceCredentialModel[]>('/compliance-credentials', token, { method: 'GET' });
+export const fetchComplianceCredential = (token: string, id: string) => apiFetch<ComplianceCredentialDetailModel>(`/compliance-credentials/${id}`, token, { method: 'GET' });
+export const createComplianceCredential = (token: string, payload: UpsertComplianceCredentialPayload) => apiFetch<ComplianceCredentialModel>('/compliance-credentials', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateComplianceCredential = (token: string, id: string, payload: Partial<UpsertComplianceCredentialPayload>) => apiFetch<ComplianceCredentialModel>(`/compliance-credentials/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const listComplianceResponsibles = (token: string) => apiFetch<ComplianceCredentialResponsibleModel[]>('/compliance-credentials/responsibles/list', token, { method: 'GET' });
+export const addComplianceResponsible = (token: string, payload: { employeeId: string; responsibleType: ComplianceResponsibleType; comments?: string }) => apiFetch<ComplianceCredentialResponsibleModel>('/compliance-credentials/responsibles', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateComplianceResponsible = (token: string, id: string, payload: { responsibleType?: ComplianceResponsibleType; comments?: string }) => apiFetch<ComplianceCredentialResponsibleModel>(`/compliance-credentials/responsibles/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const deactivateComplianceResponsible = (token: string, id: string) => apiFetch<ComplianceCredentialResponsibleModel>(`/compliance-credentials/responsibles/${id}/deactivate`, token, { method: 'PATCH' });
+export const removeComplianceResponsible = (token: string, id: string) => apiFetch<void>(`/compliance-credentials/responsibles/${id}`, token, { method: 'DELETE' });
+export const attachComplianceCredentialDocument = (token: string, payload: AttachComplianceCredentialDocumentPayload) => apiFetch<{ document: ComplianceCredentialDocumentModel; ocr: ComplianceCredentialOcrModel }>('/compliance-credentials/documents', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateComplianceCredentialOcrDate = (token: string, payload: { ocrDataId: string; modifiedDate: string }) => apiFetch<ComplianceCredentialOcrModel>('/compliance-credentials/ocr/date', token, { method: 'PATCH', body: JSON.stringify(payload) });
 
 export interface ResponsibilityRowModel {
   title: string;
