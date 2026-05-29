@@ -2,9 +2,30 @@ import type { ReactNode } from 'react';
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  EmployeeModel,
+  ComplianceCredentialAlertModel,
+  ComplianceCredentialCourseType,
+  ComplianceCredentialDetailModel,
+  ComplianceCredentialDocumentModel,
+  ComplianceCredentialHistoryModel,
+  ComplianceCredentialModel,
+  ComplianceCredentialResponsibleModel,
+  ComplianceResponsibleType,
   ResponsableSstAdvancedModel,
   ResponsableSstComplianceStatus,
   ResponsableSstDocumentType,
+  addComplianceResponsible,
+  attachComplianceCredentialDocument,
+  createComplianceCredential,
+  deactivateComplianceResponsible,
+  fetchComplianceCredential,
+  fetchComplianceCredentials,
+  fetchEmployees,
+  listComplianceResponsibles,
+  removeComplianceResponsible,
+  updateComplianceCredential,
+  updateComplianceCredentialOcrDate,
+  updateComplianceResponsible,
   fetchResponsableSstAdvanced,
   fetchResponsibilitiesAdvanced,
   fetchResourceAssignmentAdvanced,
@@ -17,7 +38,6 @@ import {
   updateSpecialPensionAdvanced,
   uploadResponsableSstDocument,
   fetchCommitteeCurrent,
-  createCommitteePeriod,
   addCommitteeMember,
   fetchCommitteeResults,
   fetchTrainingManagementAdvanced,
@@ -311,6 +331,242 @@ function complianceBadge(status?: ResponsableSstComplianceStatus) {
   return { label: '⚠ Pendiente', className: 'advanced-management__badge advanced-management__badge--warning' };
 }
 
+const responsibleTypes: ComplianceResponsibleType[] = ['Responsable SG-SST', 'Coordinador SST', 'Líder SST', 'Profesional SST', 'Tecnólogo SST'];
+const courseTypes: ComplianceCredentialCourseType[] = ['COURSE_50_HOURS', 'COURSE_20_HOURS'];
+
+type CourseFormState = {
+  responsibleUserId: string;
+  trainingEntity: string;
+  courseType: ComplianceCredentialCourseType;
+  certificateNumber: string;
+  courseDate: string;
+  expirationDate: string;
+  comments: string;
+};
+
+const emptyCourseForm: CourseFormState = {
+  responsibleUserId: '',
+  trainingEntity: '',
+  courseType: 'COURSE_50_HOURS',
+  certificateNumber: '',
+  courseDate: '',
+  expirationDate: '',
+  comments: '',
+};
+
+function statusBadgeClass(status?: string) {
+  if (status === 'Vigente') return 'advanced-management__badge advanced-management__badge--success';
+  if (status === 'Vencido') return 'advanced-management__badge advanced-management__badge--danger';
+  return 'advanced-management__badge advanced-management__badge--warning';
+}
+
+function employeeLabel(employee?: EmployeeModel) {
+  return employee ? `${employee.name} · ${employee.document}` : 'Sin usuario asignado';
+}
+
+function resolveResponsibleEmployee(responsible: ComplianceCredentialResponsibleModel, employeeById: Map<string, EmployeeModel>) {
+  if (typeof responsible.employeeId === 'object') return responsible.employeeId;
+  return employeeById.get(String(responsible.employeeId));
+}
+
+function resolveResponsibleEmployeeId(responsible: ComplianceCredentialResponsibleModel) {
+  return typeof responsible.employeeId === 'object' ? responsible.employeeId._id : String(responsible.employeeId);
+}
+
+function AdvancedCourse50HoursPanel({ token, readOnly, onComplianceChange, onDirtyChange, saveRequest, discardRequest, onSaved }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void; saveRequest: number; discardRequest: number; onSaved: () => void }) {
+  const [tab, setTab] = useState('Responsables SST');
+  const [employees, setEmployees] = useState<EmployeeModel[]>([]);
+  const [responsibles, setResponsibles] = useState<ComplianceCredentialResponsibleModel[]>([]);
+  const [credentials, setCredentials] = useState<ComplianceCredentialModel[]>([]);
+  const [detail, setDetail] = useState<ComplianceCredentialDetailModel | null>(null);
+  const [form, setForm] = useState<CourseFormState>(emptyCourseForm);
+  const [twentyForm, setTwentyForm] = useState<CourseFormState>({ ...emptyCourseForm, courseType: 'COURSE_20_HOURS' });
+  const [selectedResponsibleRecordId, setSelectedResponsibleRecordId] = useState('');
+  const [selectedResponsibleId, setSelectedResponsibleId] = useState('');
+  const [selectedResponsibleType, setSelectedResponsibleType] = useState<ComplianceResponsibleType>('Responsable SG-SST');
+  const [selectedComments, setSelectedComments] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pending20Files, setPending20Files] = useState<File[]>([]);
+  const [manualOcrDate, setManualOcrDate] = useState('');
+  const [dirty, setDirty] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState('');
+  const [error, setError] = useState('');
+
+  const employeeById = useMemo(() => new Map(employees.map((employee) => [employee._id, employee])), [employees]);
+  const fiftyCredential = useMemo(() => credentials.find((credential) => credential.courseType === 'COURSE_50_HOURS') ?? null, [credentials]);
+  const twentyCredential = useMemo(() => credentials.find((credential) => credential.courseType === 'COURSE_20_HOURS') ?? null, [credentials]);
+  const compliance = fiftyCredential?.phvaComplianceStatus ?? 'PENDING';
+  const complianceUi = complianceBadge(compliance);
+  const requires20Hour = Boolean(fiftyCredential?.requires20HourCourse || detail?.credential.requires20HourCourse);
+  const documents = detail?.documents ?? [];
+  const ocrData = detail?.ocrData ?? [];
+  const alerts = detail?.alerts ?? [];
+  const history = detail?.history ?? [];
+  const latestOcr = ocrData[0];
+  const detectedDate = toDateInputValue(latestOcr?.extractedCourseDate ?? latestOcr?.originalOCRDate);
+  const modifiedDate = toDateInputValue(latestOcr?.modifiedDate);
+  const ocrManuallyChanged = Boolean(latestOcr?.hasManualDateModification || (manualOcrDate && detectedDate && manualOcrDate !== detectedDate));
+
+  const notify = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 2800);
+  };
+
+  const markDirty = () => {
+    setDirty(true);
+    setError('');
+  };
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError('');
+    try {
+      const [employeesResult, responsiblesResult, credentialsResult] = await Promise.all([
+        fetchEmployees(token),
+        listComplianceResponsibles(token),
+        fetchComplianceCredentials(token),
+      ]);
+      const fifty = credentialsResult.find((credential) => credential.courseType === 'COURSE_50_HOURS') ?? null;
+      setEmployees(employeesResult);
+      setResponsibles(responsiblesResult);
+      setCredentials(credentialsResult);
+      if (fifty) {
+        const fetchedDetail = await fetchComplianceCredential(token, fifty._id);
+        setDetail(fetchedDetail);
+        setManualOcrDate(toDateInputValue(fetchedDetail.ocrData[0]?.modifiedDate ?? fetchedDetail.ocrData[0]?.extractedCourseDate));
+        setForm({
+          responsibleUserId: fifty.responsibleUserId ?? '',
+          trainingEntity: fifty.trainingEntity ?? '',
+          courseType: 'COURSE_50_HOURS',
+          certificateNumber: fifty.certificateNumber ?? '',
+          courseDate: toDateInputValue(fifty.courseDate),
+          expirationDate: toDateInputValue(fifty.expirationDate),
+          comments: fifty.comments ?? '',
+        });
+        onComplianceChange(fifty.phvaComplianceStatus);
+      }
+      const twenty = credentialsResult.find((credential) => credential.courseType === 'COURSE_20_HOURS') ?? null;
+      if (twenty) {
+        setTwentyForm({
+          responsibleUserId: twenty.responsibleUserId ?? '',
+          trainingEntity: twenty.trainingEntity ?? '',
+          courseType: 'COURSE_20_HOURS',
+          certificateNumber: twenty.certificateNumber ?? '',
+          courseDate: toDateInputValue(twenty.courseDate),
+          expirationDate: toDateInputValue(twenty.expirationDate),
+          comments: twenty.comments ?? '',
+        });
+      }
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar la gestión avanzada del curso.');
+    } finally {
+      setLoading(false);
+    }
+  }, [onComplianceChange, token]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => { if (saveRequest > 0) void saveAll(); }, [saveRequest]);
+  useEffect(() => { if (discardRequest > 0) { setDirty(false); setPendingFiles([]); setPending20Files([]); void load(); } }, [discardRequest, load]);
+
+  const saveCredential = async (current: ComplianceCredentialModel | null, payload: CourseFormState, files: File[], relatedFiftyHourCredentialId?: string) => {
+    const cleaned = {
+      responsibleUserId: payload.responsibleUserId || undefined,
+      courseType: payload.courseType,
+      trainingEntity: payload.trainingEntity,
+      certificateNumber: payload.certificateNumber,
+      courseDate: payload.courseDate || undefined,
+      expirationDate: payload.expirationDate || undefined,
+      comments: payload.comments,
+      relatedFiftyHourCredentialId,
+    };
+    const saved = current ? await updateComplianceCredential(token, current._id, cleaned) : await createComplianceCredential(token, cleaned);
+    for (const file of files) {
+      await attachComplianceCredentialDocument(token, {
+        credentialId: saved._id,
+        fileName: file.name,
+        fileUrl: URL.createObjectURL(file),
+        mimeType: file.type || 'application/octet-stream',
+        ocrCourseDate: detectDateFromFileName(file.name) || undefined,
+        rawOcrText: `Carga UI avanzada: ${file.name}`,
+      });
+    }
+    return saved;
+  };
+
+  const saveAll = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const savedFifty = await saveCredential(fiftyCredential, form, pendingFiles);
+      if (latestOcr && manualOcrDate && manualOcrDate !== detectedDate) await updateComplianceCredentialOcrDate(token, { ocrDataId: latestOcr._id, modifiedDate: manualOcrDate });
+      if (requires20Hour || pending20Files.length || twentyForm.courseDate || twentyForm.trainingEntity) await saveCredential(twentyCredential, twentyForm, pending20Files, savedFifty._id);
+      setDirty(false);
+      setPendingFiles([]);
+      setPending20Files([]);
+      notify('Cambios guardados y validados con backend.');
+      onSaved();
+      await load();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo guardar la gestión avanzada del curso.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addResponsible = async () => {
+    if (!selectedResponsibleId) { setError('Selecciona un usuario para agregar responsable.'); return; }
+    setLoading(true);
+    try {
+      if (selectedResponsibleRecordId) {
+        await updateComplianceResponsible(token, selectedResponsibleRecordId, { responsibleType: selectedResponsibleType, comments: selectedComments });
+        notify('Responsable actualizado.');
+      } else {
+        await addComplianceResponsible(token, { employeeId: selectedResponsibleId, responsibleType: selectedResponsibleType, comments: selectedComments });
+        notify('Responsable agregado.');
+      }
+      setSelectedResponsibleRecordId('');
+      setSelectedComments('');
+      await load();
+    } catch (addError) { setError(addError instanceof Error ? addError.message : 'No se pudo guardar responsable.'); }
+    finally { setLoading(false); }
+  };
+
+  const changeForm = (field: keyof CourseFormState, value: string, twenty = false) => {
+    if (twenty) setTwentyForm((current) => ({ ...current, [field]: value }));
+    else setForm((current) => ({ ...current, [field]: value }));
+    markDirty();
+  };
+
+  const CourseFields = ({ twenty = false }: { twenty?: boolean }) => {
+    const state = twenty ? twentyForm : form;
+    return <div className="form-grid"><div className="grid grid-2"><label className="field"><span className="label">Responsible user</span><select className="input" disabled={readOnly} value={state.responsibleUserId} onChange={(event) => changeForm('responsibleUserId', event.target.value, twenty)}><option value="">Seleccionar usuario</option>{employees.map((employee) => <option key={employee._id} value={employee._id}>{employee.name} · {employee.position}</option>)}</select></label><label className="field"><span className="label">Training entity</span><input className="input" disabled={readOnly} value={state.trainingEntity} onChange={(event) => changeForm('trainingEntity', event.target.value, twenty)} /></label></div>{!twenty ? <div className="grid grid-2"><label className="field"><span className="label">Course type</span><select className="input" disabled={readOnly} value={state.courseType} onChange={(event) => changeForm('courseType', event.target.value, twenty)}>{courseTypes.map((type) => <option key={type} value={type}>{type === 'COURSE_50_HOURS' ? 'Curso 50 horas' : 'Curso 20 horas'}</option>)}</select></label><label className="field"><span className="label">Certificate number</span><input className="input" disabled={readOnly} value={state.certificateNumber} onChange={(event) => changeForm('certificateNumber', event.target.value, twenty)} /></label></div> : null}<div className="grid grid-2"><label className="field"><span className="label">Course date</span><input type="date" className="input" disabled={readOnly} value={state.courseDate} onChange={(event) => changeForm('courseDate', event.target.value, twenty)} /></label><label className="field"><span className="label">Expiration date</span><input type="date" className="input" disabled={readOnly} value={state.expirationDate} onChange={(event) => changeForm('expirationDate', event.target.value, twenty)} /></label></div><label className="field"><span className="label">Comments</span><textarea className="input" disabled={readOnly} value={state.comments} onChange={(event) => changeForm('comments', event.target.value, twenty)} /></label></div>;
+  };
+
+  const renderDocuments = (courseDocuments: ComplianceCredentialDocumentModel[]) => <div className="advanced-doc-grid">{courseDocuments.length ? courseDocuments.map((document) => <article key={document._id} className="advanced-doc-card"><div><strong>{document.fileName}</strong><p className="muted">Versión {new Date(document.createdAt ?? '').toLocaleString()} · {document.mimeType || 'archivo'}</p></div><div className="actions"><a className="btn btn-secondary" href={document.fileUrl} target="_blank" rel="noreferrer">Preview</a><a className="btn btn-ghost" href={document.fileUrl} download={document.fileName}>Download</a></div></article>) : <p className="empty-state">No hay documentos cargados todavía.</p>}</div>;
+
+  return <div className="advanced-management advanced-management--50h">
+    <section className="advanced-management__hero"><div><p className="muted">Módulo 1.2.3</p><h3>Curso de 50 horas SG-SST</h3></div><span className={complianceUi.className}>{complianceUi.label}</span></section>
+    {toast ? <div className="toast-alert advanced-management__toast"><strong>Notificación</strong><p>{toast}</p></div> : null}
+    {error ? <p className="error">{error}</p> : null}
+    {loading ? <p className="muted">Sincronizando con backend...</p> : null}
+    <div className="advanced-tabs" role="tablist">{['Responsables SST', 'Curso 50 Horas', 'Curso 20 Horas', 'Documentos', 'Alertas', 'Historial'].map((name) => <Button key={name} type="button" variant={tab === name ? 'primary' : 'secondary'} onClick={() => setTab(name)}>{name}</Button>)}</div>
+
+    {tab === 'Responsables SST' ? <section className="advanced-management__section"><h3>Responsables SST</h3><div className="responsive-table"><table className="table"><thead><tr><th>Usuario</th><th>Cargo</th><th>Área</th><th>Tipo responsable</th><th>Estado</th><th>Curso 50h</th><th>Vigencia</th><th>Acciones</th></tr></thead><tbody>{responsibles.map((responsible) => { const employee = resolveResponsibleEmployee(responsible, employeeById); return <tr key={responsible._id}><td>{employeeLabel(employee)}</td><td>{employee?.position ?? '—'}</td><td>{employee?.area ?? '—'}</td><td><select className="input" disabled={readOnly} value={responsible.responsibleType} onChange={async (event) => { await updateComplianceResponsible(token, responsible._id, { responsibleType: event.target.value as ComplianceResponsibleType }); notify('Responsable actualizado.'); await load(); }}>{responsibleTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></td><td>{responsible.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}</td><td><span className={statusBadgeClass(fiftyCredential?.status)}>{fiftyCredential?.status ?? 'Pendiente'}</span></td><td>{toDateInputValue(fiftyCredential?.expirationDate) || '—'}</td><td><div className="actions"><Button type="button" variant="secondary" disabled={readOnly} onClick={() => { setSelectedResponsibleRecordId(responsible._id); setSelectedResponsibleId(resolveResponsibleEmployeeId(responsible)); setSelectedResponsibleType(responsible.responsibleType); setSelectedComments(responsible.comments ?? ''); }}>Editar</Button><Button type="button" variant="ghost" disabled={readOnly || responsible.status !== 'ACTIVE'} onClick={async () => { await deactivateComplianceResponsible(token, responsible._id); notify('Responsable desactivado.'); await load(); }}>Desactivar</Button><Button type="button" variant="danger" disabled={readOnly} onClick={async () => { await removeComplianceResponsible(token, responsible._id); notify('Responsable eliminado.'); await load(); }}>Remover</Button></div></td></tr>; })}</tbody></table></div>{!responsibles.length ? <p className="empty-state">No hay responsables SST. Agrega múltiples responsables para cubrir operación, suplencia y validación.</p> : null}<div className="grid grid-3"><label className="field"><span className="label">Usuario</span><select className="input" disabled={readOnly} value={selectedResponsibleId} onChange={(event) => setSelectedResponsibleId(event.target.value)}><option value="">Seleccionar empleado</option>{employees.map((employee) => <option key={employee._id} value={employee._id}>{employee.name} · {employee.area}</option>)}</select></label><label className="field"><span className="label">Tipo responsable</span><select className="input" disabled={readOnly} value={selectedResponsibleType} onChange={(event) => setSelectedResponsibleType(event.target.value as ComplianceResponsibleType)}>{responsibleTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label><label className="field"><span className="label">Comentarios</span><input className="input" disabled={readOnly} value={selectedComments} onChange={(event) => setSelectedComments(event.target.value)} /></label></div><Button type="button" disabled={readOnly} onClick={() => void addResponsible()}>{selectedResponsibleRecordId ? 'Guardar edición' : 'Agregar responsable'}</Button></section> : null}
+
+    {tab === 'Curso 50 Horas' ? <section className="advanced-management__section"><h3>Curso 50 Horas</h3><CourseFields /><div className="advanced-management__badges"><span className={statusBadgeClass(fiftyCredential?.status)}>{fiftyCredential?.status ?? 'Pendiente'}</span></div><label className="upload-zone"><input className="upload-zone__input" type="file" multiple accept=".pdf,image/*,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={readOnly} onChange={(event) => { setPendingFiles(Array.from(event.target.files ?? [])); markDirty(); }} /><span className="upload-zone__title">50h certificate, diploma y soportes</span><span className="muted">Acepta PDF, imágenes y Word.</span>{pendingFiles.map((file) => <span key={file.name} className="upload-zone__file">Pendiente: {file.name}</span>)}</label><section className="advanced-management__section advanced-management__related"><h3>OCR visualization</h3><div className="grid grid-2"><label className="field"><span className="label">OCR detected date</span><input type="date" className="input" value={detectedDate} disabled readOnly /></label><label className="field"><span className="label">Editable date field</span><input type="date" className="input" disabled={readOnly || !latestOcr} value={manualOcrDate} onChange={(event) => { setManualOcrDate(event.target.value); markDirty(); }} /></label></div>{ocrManuallyChanged ? <p className="advanced-management__audit-warning">Advertencia: la fecha fue modificada manualmente. Detectado: {detectedDate || '—'} · Usuario: {manualOcrDate || modifiedDate || '—'}</p> : <p className="muted">Valor detectado: {detectedDate || 'Sin OCR'} · Valor usuario: {manualOcrDate || 'Sin modificación'}</p>}</section></section> : null}
+
+    {tab === 'Curso 20 Horas' ? <section className="advanced-management__section"><h3>Curso 20 Horas</h3>{requires20Hour ? <p className="advanced-management__alert">El backend indica actualización requerida: carga el certificado de 20 horas para mantener el cumplimiento.</p> : <p className="advanced-management__success">No se requiere actualización de 20 horas según validación actual.</p>}<CourseFields twenty /><label className="upload-zone"><input className="upload-zone__input" type="file" multiple accept=".pdf,image/*,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={readOnly} onChange={(event) => { setPending20Files(Array.from(event.target.files ?? [])); markDirty(); }} /><span className="upload-zone__title">Required upload form</span><span className="muted">Certificado o soportes del curso de actualización 20 horas.</span>{pending20Files.map((file) => <span key={file.name} className="upload-zone__file">Pendiente: {file.name}</span>)}</label></section> : null}
+
+    {tab === 'Documentos' ? <section className="advanced-management__section"><h3>Repositorio centralizado</h3><p className="muted">Carga, previsualiza, descarga y conserva historial de versiones de PDF, imágenes y Word.</p>{renderDocuments(documents)}<h3>Version history</h3>{renderDocuments(documents.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))))}</section> : null}
+    {tab === 'Alertas' ? <section className="advanced-management__section"><h3>Alertas generadas</h3><div className="advanced-list">{alerts.length ? alerts.map((alert: ComplianceCredentialAlertModel) => <article key={alert._id} className="advanced-list__item"><span className={alert.severity === 'critical' ? 'advanced-management__badge advanced-management__badge--danger' : alert.severity === 'warning' ? 'advanced-management__badge advanced-management__badge--warning' : 'advanced-management__badge advanced-management__badge--success'}>{alert.severity}</span><strong>{alert.type}</strong><p>{alert.message}</p><small>Creada: {new Date(alert.createdAt ?? alert.dueAt ?? '').toLocaleString()} · Estado: {alert.resolved ? 'Resuelta' : 'Abierta'}</small></article>) : <p className="empty-state">No hay alertas generadas.</p>}</div></section> : null}
+    {tab === 'Historial' ? <section className="advanced-management__section"><h3>Timeline / historial</h3><div className="timeline">{history.length ? history.map((entry: ComplianceCredentialHistoryModel) => <article key={entry._id} className="timeline__item"><strong>{entry.action}</strong><p>{entry.details || `${entry.field}: ${entry.oldValue ?? '—'} → ${entry.newValue ?? '—'}`}</p><small>{new Date(entry.createdAt ?? '').toLocaleString()}</small></article>) : <p className="empty-state">Aún no hay movimientos registrados.</p>}</div></section> : null}
+    <div className="advanced-management__footer"><span className={dirty ? 'advanced-management__dirty' : 'muted'}>{dirty ? 'Cambios sin guardar' : 'Sin cambios pendientes'}</span><Button type="button" disabled={readOnly || loading} onClick={() => void saveAll()}>Guardar gestión avanzada</Button></div>
+  </div>;
+}
+
 function AdvancedManagementPanel({
   item,
   token,
@@ -330,6 +586,9 @@ function AdvancedManagementPanel({
   discardRequest: number;
   onSaved: () => void;
 }) {
+  if (item.code === '1.2.3') {
+    return <AdvancedCourse50HoursPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+  }
   if (item.code === '1.2.1') {
     return <TrainingManagementAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
