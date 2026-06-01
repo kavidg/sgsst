@@ -1091,3 +1091,94 @@ export const fetchCommitteeCurrent = (token: string, committeeType: 'COPASST'|'C
 export const createCommitteePeriod = (token: string, payload: { periodName: string; startDate: string; committeeType: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER' }) => apiFetch<CommitteePeriodModel>('/committee-engine/periods', token, { method: 'POST', body: JSON.stringify(payload) });
 export const addCommitteeMember = (token: string, periodId: string, payload: { userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string }) => apiFetch<CommitteePeriodModel>(`/committee-engine/periods/${periodId}/members`, token, { method: 'POST', body: JSON.stringify(payload) });
 export const fetchCommitteeResults = (periodId: string) => apiFetch<{ totalVotes:number; participation:number; winners:any[]; alternates:any[] }>(`/committee-engine/periods/${periodId}/results`, '', { method: 'GET' });
+
+export type SstPolicyStatus = 'Borrador' | 'Pendiente aprobación' | 'Aprobado' | 'Vencido' | 'Archivado';
+export type PolicySignatureStatus = 'Pendiente firma' | 'Firmado' | 'Rechazado';
+export type PolicySocializationStatus = 'Pendiente' | 'Leído' | 'Firmado digitalmente';
+
+export interface PolicyVersionModel {
+  version: string;
+  content: string;
+  status: SstPolicyStatus;
+  issuedAt?: string;
+  approvedAt?: string;
+  expiresAt?: string;
+  archived: boolean;
+}
+
+export interface PolicySignatureModel {
+  role: string;
+  signerName: string;
+  signerEmail: string;
+  required: boolean;
+  status: PolicySignatureStatus;
+  signedAt?: string;
+  evidence?: string;
+  rejectionReason?: string;
+}
+
+export interface PolicySocializationModel {
+  employeeId?: string;
+  employeeName: string;
+  area?: string;
+  status: PolicySocializationStatus;
+  readAt?: string;
+  signedAt?: string;
+  evidence?: string;
+}
+
+export interface PolicyAlertModel {
+  type: string;
+  message: string;
+  recipients: string[];
+  dueAt: string;
+  generated: boolean;
+}
+
+export interface PolicyHistoryModel {
+  userId?: string;
+  userEmail?: string;
+  action: string;
+  date: string;
+  previousValue?: string;
+  newValue?: string;
+}
+
+export interface SstPolicyAdvancedModel {
+  _id: string;
+  companyId: string;
+  itemCode: string;
+  documentCode: string;
+  documentName: string;
+  currentVersion: string;
+  status: SstPolicyStatus;
+  content?: string;
+  versions: PolicyVersionModel[];
+  signatures: PolicySignatureModel[];
+  socializations: PolicySocializationModel[];
+  alerts: PolicyAlertModel[];
+  history: PolicyHistoryModel[];
+  complianceStatus: ResponsableSstComplianceStatus;
+  complianceReason: string;
+}
+
+export interface PolicyMasterListRowModel {
+  code: string;
+  document: string;
+  version: string;
+  status: SstPolicyStatus;
+  issuedAt?: string;
+  expiresAt?: string;
+  responsible: string;
+}
+
+export const fetchSstPolicyAdvanced = (token: string) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy', token, { method: 'GET' });
+export const generateSstPolicyAdvanced = (token: string) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/generate', token, { method: 'POST' });
+export const updateSstPolicyAdvanced = (token: string, payload: Partial<SstPolicyAdvancedModel> & { issuedAt?: string; approvedAt?: string; expiresAt?: string }) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy', token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const createSstPolicyVersionAdvanced = (token: string) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/versions', token, { method: 'POST' });
+export const archiveSstPolicyVersionAdvanced = (token: string, version: string) => apiFetch<SstPolicyAdvancedModel>(`/phva-advanced/sst-policy/versions/${encodeURIComponent(version)}/archive`, token, { method: 'PATCH' });
+export const updateSstPolicySignatureAdvanced = (token: string, payload: Partial<PolicySignatureModel> & { role: string }) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/signatures', token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const approveSstPolicyAdvanced = (token: string) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/approve', token, { method: 'POST' });
+export const assignSstPolicySocializationAdvanced = (token: string, payload: { mode?: 'all' | 'selected' | 'area'; employeeIds?: string[]; area?: string }) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/socializations/assign', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateSstPolicySocializationAdvanced = (token: string, payload: { employeeId: string; status: PolicySocializationStatus; evidence?: string }) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/socializations', token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const fetchSstPolicyMasterListAdvanced = (token: string) => apiFetch<PolicyMasterListRowModel[]>('/phva-advanced/sst-policy/master-list', token, { method: 'GET' });

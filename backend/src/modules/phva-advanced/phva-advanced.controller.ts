@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   InternalServerErrorException,
+  Param,
   Patch,
   Post,
   Req,
@@ -145,6 +146,75 @@ export class PhvaAdvancedController {
   async approveTrainingManagement(@Req() request: RequestWithUser, @Body() dto: { status: 'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; comments?: string; }) {
     const user = await this.resolveUserFromRequest(request);
     return this.phvaAdvancedService.approveTrainingManagement(this.resolveCompanyId(request), user, dto);
+  }
+
+
+  @Get('sst-policy')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getSstPolicy(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateSstPolicy(this.resolveCompanyId(request));
+  }
+
+  @Post('sst-policy/generate')
+  @Roles('owner', 'admin', 'manager')
+  async generateSstPolicy(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.generateSstPolicy(this.resolveCompanyId(request), user);
+  }
+
+  @Patch('sst-policy')
+  @Roles('owner', 'admin', 'manager')
+  async updateSstPolicy(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateSstPolicy(this.resolveCompanyId(request), user, dto as never);
+  }
+
+  @Post('sst-policy/versions')
+  @Roles('owner', 'admin', 'manager')
+  async createSstPolicyVersion(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createSstPolicyVersion(this.resolveCompanyId(request), user);
+  }
+
+  @Patch('sst-policy/versions/:version/archive')
+  @Roles('owner', 'admin', 'manager')
+  async archiveSstPolicyVersion(@Req() request: RequestWithUser, @Param('version') version: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.archiveSstPolicyVersion(this.resolveCompanyId(request), user, version);
+  }
+
+  @Patch('sst-policy/signatures')
+  @Roles('owner', 'admin', 'manager')
+  async updateSstPolicySignature(@Req() request: RequestWithUser, @Body() dto: { role: string; signerName?: string; signerEmail?: string; required?: boolean; status?: string; evidence?: string; rejectionReason?: string }) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateSstPolicySignature(this.resolveCompanyId(request), user, dto as never);
+  }
+
+  @Post('sst-policy/approve')
+  @Roles('owner', 'manager')
+  async approveSstPolicy(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.approveSstPolicy(this.resolveCompanyId(request), user);
+  }
+
+  @Post('sst-policy/socializations/assign')
+  @Roles('owner', 'admin', 'manager')
+  async assignSstPolicySocialization(@Req() request: RequestWithUser, @Body() dto: { mode?: 'all' | 'selected' | 'area'; employeeIds?: string[]; area?: string }) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.assignSstPolicySocialization(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Patch('sst-policy/socializations')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async updateSstPolicySocialization(@Req() request: RequestWithUser, @Body() dto: { employeeId: string; status: string; evidence?: string }) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateSstPolicySocialization(this.resolveCompanyId(request), user, dto as never);
+  }
+
+  @Get('sst-policy/master-list')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getSstPolicyMasterList(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.getSstPolicyMasterList(this.resolveCompanyId(request));
   }
 
   @Get('resource-assignment')
