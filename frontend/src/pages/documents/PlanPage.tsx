@@ -43,6 +43,18 @@ import {
   fetchTrainingManagementAdvanced,
   updateTrainingManagementAdvanced,
   approveTrainingManagementAdvanced,
+  SstPolicyAdvancedModel,
+  PolicyMasterListRowModel,
+  fetchSstPolicyAdvanced,
+  generateSstPolicyAdvanced,
+  updateSstPolicyAdvanced,
+  createSstPolicyVersionAdvanced,
+  archiveSstPolicyVersionAdvanced,
+  updateSstPolicySignatureAdvanced,
+  approveSstPolicyAdvanced,
+  assignSstPolicySocializationAdvanced,
+  updateSstPolicySocializationAdvanced,
+  fetchSstPolicyMasterListAdvanced,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
@@ -567,6 +579,108 @@ function AdvancedCourse50HoursPanel({ token, readOnly, onComplianceChange, onDir
   </div>;
 }
 
+
+function SstPolicyAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyChange, saveRequest, discardRequest, onSaved }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void; saveRequest: number; discardRequest: number; onSaved: () => void }) {
+  const [tab, setTab] = useState('Política SST');
+  const [record, setRecord] = useState<SstPolicyAdvancedModel | null>(null);
+  const [masterList, setMasterList] = useState<PolicyMasterListRowModel[]>([]);
+  const [employees, setEmployees] = useState<EmployeeModel[]>([]);
+  const [area, setArea] = useState('');
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
+  const [filter, setFilter] = useState('');
+  const [dirty, setDirty] = useState(false);
+  const badge = complianceBadge(record?.complianceStatus);
+  const currentVersion = record?.versions.find((version) => version.version === record.currentVersion);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    const [policy, list, workerList] = await Promise.all([fetchSstPolicyAdvanced(token), fetchSstPolicyMasterListAdvanced(token), fetchEmployees(token)]);
+    setRecord(policy);
+    setMasterList(list);
+    setEmployees(workerList);
+    onComplianceChange(policy.complianceStatus);
+    setDirty(false);
+  }, [onComplianceChange, token]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => { if (saveRequest && record) void save(); }, [saveRequest]);
+  useEffect(() => { if (discardRequest) void load(); }, [discardRequest, load]);
+
+  const patchRecord = (patch: Partial<SstPolicyAdvancedModel>) => {
+    setRecord((current) => current ? { ...current, ...patch } : current);
+    setDirty(true);
+  };
+
+  const save = async () => {
+    if (!record) return;
+    const saved = await updateSstPolicyAdvanced(token, {
+      documentCode: record.documentCode,
+      documentName: record.documentName,
+      currentVersion: record.currentVersion,
+      status: record.status,
+      content: record.content,
+      issuedAt: toDateInputValue(currentVersion?.issuedAt),
+      approvedAt: toDateInputValue(currentVersion?.approvedAt),
+      expiresAt: toDateInputValue(currentVersion?.expiresAt),
+    });
+    setRecord(saved);
+    setMasterList(await fetchSstPolicyMasterListAdvanced(token));
+    onComplianceChange(saved.complianceStatus);
+    setDirty(false);
+    onSaved();
+  };
+
+  const setCurrentVersionDate = (field: 'issuedAt' | 'approvedAt' | 'expiresAt', value: string) => {
+    if (!record) return;
+    patchRecord({ versions: record.versions.map((version) => version.version === record.currentVersion ? { ...version, [field]: value } : version) });
+  };
+
+  const exportDocument = (type: 'pdf' | 'word') => {
+    if (!record) return;
+    const body = `${record.documentCode} · ${record.documentName}\nVersión ${record.currentVersion}\n\n${record.content ?? ''}`;
+    const blob = new Blob([body], { type: type === 'pdf' ? 'application/pdf' : 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${record.documentCode || 'POL-SST'}.${type === 'pdf' ? 'pdf' : 'doc'}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportMaster = (type: 'excel' | 'pdf') => {
+    const rows = masterList.map((row) => [row.code, row.document, row.version, row.status, toDateInputValue(row.issuedAt), toDateInputValue(row.expiresAt), row.responsible].join(type === 'excel' ? ',' : ' | ')).join('\n');
+    const blob = new Blob([`Código,Documento,Versión,Estado,Fecha emisión,Fecha vencimiento,Responsable\n${rows}`], { type: type === 'excel' ? 'text/csv' : 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `listado-maestro-politica-sst.${type === 'excel' ? 'csv' : 'pdf'}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (!record) return <p className="muted">Cargando política SST avanzada...</p>;
+  const areas = Array.from(new Set(employees.map((employee) => employee.area).filter(Boolean)));
+  const filteredMaster = masterList.filter((row) => `${row.code} ${row.document} ${row.status} ${row.responsible}`.toLowerCase().includes(filter.toLowerCase()));
+
+  return <div className="advanced-management advanced-management--policy">
+    <section className="advanced-management__hero"><div><p className="muted">Módulo 2.1.1</p><h3>Política SST</h3><p className="muted">{record.complianceReason}</p></div><span className={badge.className}>{badge.label}</span></section>
+    <div className="advanced-tabs" role="tablist">{['Política SST', 'Firmas', 'Socialización', 'Listado Maestro', 'Alertas', 'Historial'].map((name) => <Button key={name} type="button" variant={tab === name ? 'primary' : 'secondary'} onClick={() => setTab(name)}>{name}</Button>)}</div>
+
+    {tab === 'Política SST' ? <section className="advanced-management__section"><div className="actions"><Button type="button" disabled={readOnly} onClick={async () => { const generated = await generateSstPolicyAdvanced(token); setRecord(generated); onComplianceChange(generated.complianceStatus); }}>Generar Política SST</Button><Button type="button" variant="secondary" disabled={readOnly} onClick={save}>Guardar cambios</Button><Button type="button" variant="ghost" disabled={readOnly} onClick={async () => setRecord(await createSstPolicyVersionAdvanced(token))}>Nueva versión</Button><Button type="button" variant="ghost" onClick={() => exportDocument('pdf')}>Exportar PDF</Button><Button type="button" variant="ghost" onClick={() => exportDocument('word')}>Exportar Word</Button></div><div className="form-grid"><label className="field"><span className="label">Código documental</span><input className="input" value={record.documentCode} disabled={readOnly} onChange={(event) => patchRecord({ documentCode: event.target.value })} /></label><label className="field"><span className="label">Nombre documento</span><input className="input" value={record.documentName} disabled={readOnly} onChange={(event) => patchRecord({ documentName: event.target.value })} /></label><label className="field"><span className="label">Versión</span><input className="input" value={record.currentVersion} disabled={readOnly} onChange={(event) => patchRecord({ currentVersion: event.target.value })} /></label><label className="field"><span className="label">Estado</span><select className="input" value={record.status} disabled={readOnly} onChange={(event) => patchRecord({ status: event.target.value as never })}>{['Borrador', 'Pendiente aprobación', 'Aprobado', 'Vencido', 'Archivado'].map((status) => <option key={status}>{status}</option>)}</select></label><label className="field"><span className="label">Fecha emisión</span><input className="input" type="date" value={toDateInputValue(currentVersion?.issuedAt)} disabled={readOnly} onChange={(event) => setCurrentVersionDate('issuedAt', event.target.value)} /></label><label className="field"><span className="label">Fecha aprobación</span><input className="input" type="date" value={toDateInputValue(currentVersion?.approvedAt)} disabled={readOnly} onChange={(event) => setCurrentVersionDate('approvedAt', event.target.value)} /></label><label className="field"><span className="label">Fecha vencimiento</span><input className="input" type="date" value={toDateInputValue(currentVersion?.expiresAt)} disabled={readOnly} onChange={(event) => setCurrentVersionDate('expiresAt', event.target.value)} /></label></div><label className="field"><span className="label">Plantilla editable</span><textarea className="input" rows={12} value={record.content ?? ''} disabled={readOnly} onChange={(event) => patchRecord({ content: event.target.value })} /></label><div className="responsive-table"><table className="table"><thead><tr><th>Versión</th><th>Estado</th><th>Aprobación</th><th>Vencimiento</th><th>Archivada</th><th>Acción</th></tr></thead><tbody>{record.versions.map((version) => <tr key={version.version}><td>{version.version}</td><td>{version.status}</td><td>{toDateInputValue(version.approvedAt) || '—'}</td><td>{toDateInputValue(version.expiresAt) || '—'}</td><td>{version.archived ? 'Sí' : 'No'}</td><td><Button type="button" variant="ghost" disabled={readOnly || version.archived} onClick={async () => setRecord(await archiveSstPolicyVersionAdvanced(token, version.version))}>Archivar</Button></td></tr>)}</tbody></table></div></section> : null}
+
+    {tab === 'Firmas' ? <section className="advanced-management__section"><p className="muted">La política no puede aprobarse sin firmas obligatorias de Manager y Representante legal.</p><table className="table"><thead><tr><th>Firmante</th><th>Correo</th><th>Obligatoria</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>{record.signatures.map((signature) => <tr key={signature.role}><td><input className="input" value={signature.signerName} disabled={readOnly} onChange={(event) => setRecord({ ...record, signatures: record.signatures.map((item) => item.role === signature.role ? { ...item, signerName: event.target.value } : item) })} /></td><td><input className="input" value={signature.signerEmail} disabled={readOnly} onChange={(event) => setRecord({ ...record, signatures: record.signatures.map((item) => item.role === signature.role ? { ...item, signerEmail: event.target.value } : item) })} /></td><td>{signature.required ? 'Sí' : 'No'}</td><td>{signature.status}</td><td>{signature.signedAt ? new Date(signature.signedAt).toLocaleString() : '—'}</td><td><div className="actions"><Button type="button" disabled={readOnly} onClick={async () => setRecord(await updateSstPolicySignatureAdvanced(token, { ...signature, status: 'Firmado', evidence: 'Firma digital reutilizada' }))}>Firmar</Button><Button type="button" variant="danger" disabled={readOnly} onClick={async () => setRecord(await updateSstPolicySignatureAdvanced(token, { ...signature, status: 'Rechazado', rejectionReason: 'Rechazado por firmante' }))}>Rechazar</Button></div></td></tr>)}</tbody></table><Button type="button" disabled={readOnly} onClick={async () => setRecord(await approveSstPolicyAdvanced(token))}>Aprobar política</Button></section> : null}
+
+    {tab === 'Socialización' ? <section className="advanced-management__section"><div className="actions"><Button type="button" disabled={readOnly} onClick={async () => setRecord(await assignSstPolicySocializationAdvanced(token, { mode: 'all' }))}>Asignar todos</Button><select className="input" value={area} disabled={readOnly} onChange={(event) => setArea(event.target.value)}><option value="">Área...</option>{areas.map((name) => <option key={name}>{name}</option>)}</select><Button type="button" variant="secondary" disabled={readOnly || !area} onClick={async () => setRecord(await assignSstPolicySocializationAdvanced(token, { mode: 'area', area }))}>Asignar por área</Button><select className="input" multiple value={selectedEmployees} disabled={readOnly} onChange={(event) => setSelectedEmployees(Array.from(event.target.selectedOptions).map((option) => option.value))}>{employees.map((employee) => <option key={employee._id} value={employee._id}>{employee.name} · {employee.area}</option>)}</select><Button type="button" variant="secondary" disabled={readOnly || !selectedEmployees.length} onClick={async () => setRecord(await assignSstPolicySocializationAdvanced(token, { mode: 'selected', employeeIds: selectedEmployees }))}>Asignar seleccionados</Button></div><table className="table"><thead><tr><th>Trabajador</th><th>Área</th><th>Estado</th><th>Fecha/Hora</th><th>Evidencia</th><th>Acción</th></tr></thead><tbody>{record.socializations.map((item) => <tr key={item.employeeId ?? item.employeeName}><td>{item.employeeName}</td><td>{item.area ?? '—'}</td><td>{item.status}</td><td>{item.signedAt ? new Date(item.signedAt).toLocaleString() : item.readAt ? new Date(item.readAt).toLocaleString() : '—'}</td><td>{item.evidence ?? '—'}</td><td><div className="actions"><Button type="button" variant="ghost" disabled={readOnly || !item.employeeId} onClick={async () => setRecord(await updateSstPolicySocializationAdvanced(token, { employeeId: String(item.employeeId), status: 'Leído', evidence: 'Lectura registrada' }))}>Leído</Button><Button type="button" disabled={readOnly || !item.employeeId} onClick={async () => setRecord(await updateSstPolicySocializationAdvanced(token, { employeeId: String(item.employeeId), status: 'Firmado digitalmente', evidence: 'Firma digital trabajador' }))}>Firma digital</Button></div></td></tr>)}</tbody></table></section> : null}
+
+    {tab === 'Listado Maestro' ? <section className="advanced-management__section"><div className="actions"><input className="input" placeholder="Filtrar" value={filter} onChange={(event) => setFilter(event.target.value)} /><Button type="button" variant="ghost" onClick={() => exportMaster('excel')}>Exportar Excel</Button><Button type="button" variant="ghost" onClick={() => exportMaster('pdf')}>Exportar PDF</Button></div><table className="table"><thead><tr><th>Código</th><th>Documento</th><th>Versión</th><th>Estado</th><th>Fecha emisión</th><th>Fecha vencimiento</th><th>Responsable</th></tr></thead><tbody>{filteredMaster.map((row) => <tr key={`${row.code}-${row.version}`}><td>{row.code}</td><td>{row.document}</td><td>{row.version}</td><td>{row.status}</td><td>{toDateInputValue(row.issuedAt) || '—'}</td><td>{toDateInputValue(row.expiresAt) || '—'}</td><td>{row.responsible}</td></tr>)}</tbody></table></section> : null}
+
+    {tab === 'Alertas' ? <section className="advanced-management__section"><table className="table"><thead><tr><th>Tipo</th><th>Mensaje</th><th>Vence</th><th>Destinatarios</th></tr></thead><tbody>{record.alerts.map((alert) => <tr key={`${alert.type}-${alert.dueAt}`}><td>{alert.type}</td><td>{alert.message}</td><td>{new Date(alert.dueAt).toLocaleDateString()}</td><td>{alert.recipients.join(', ')}</td></tr>)}</tbody></table></section> : null}
+
+    {tab === 'Historial' ? <section className="advanced-management__section"><table className="table"><thead><tr><th>Acción</th><th>Usuario</th><th>Fecha</th><th>Valor anterior</th><th>Valor nuevo</th></tr></thead><tbody>{record.history.map((entry, index) => <tr key={`${entry.action}-${index}`}><td>{entry.action}</td><td>{entry.userEmail ?? 'Sistema'}</td><td>{new Date(entry.date).toLocaleString()}</td><td>{entry.previousValue ?? '—'}</td><td>{entry.newValue ?? '—'}</td></tr>)}</tbody></table></section> : null}
+  </div>;
+}
+
 function AdvancedManagementPanel({
   item,
   token,
@@ -586,6 +700,9 @@ function AdvancedManagementPanel({
   discardRequest: number;
   onSaved: () => void;
 }) {
+  if (item.code === '2.1.1') {
+    return <SstPolicyAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+  }
   if (item.code === '1.2.3') {
     return <AdvancedCourse50HoursPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
@@ -1026,7 +1143,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.8', '1.2.1', '1.2.2', '1.2.3'].includes(item.code) ? (
+                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.8', '1.2.1', '1.2.2', '1.2.3', '2.1.1'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>
@@ -1085,7 +1202,7 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
         readOnly={readOnly}
         onOpenAdvancedManagement={setAdvancedManagementItem}
       />
-      <EvaluationSection title="Gestión Integral del SG-SST (15%)" items={integralManagementItems} sectionId="plan-gestion-integral" readOnly={readOnly}>
+      <EvaluationSection title="Gestión Integral del SG-SST (15%)" items={integralManagementItems} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={setAdvancedManagementItem}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/do')}>
             Siguiente → Hacer
