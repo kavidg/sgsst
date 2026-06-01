@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlertsService } from '../alerts/alerts.service';
+import { Company, CompanyDocument } from '../companies/schemas/company.schema';
+import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
 import { AlertSeverity } from '../alerts/schemas/alert.schema';
 import { UserDocument } from '../users/schemas/user.schema';
 import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
@@ -28,6 +30,7 @@ import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ArlComplianceStatus, PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsDocument } from './schemas/phva-advanced-arl-affiliations.schema';
 import { SpecialPensionComplianceStatus, SpecialPensionConfiguration, SpecialPensionConfigurationDocument } from './schemas/phva-advanced-special-pension.schema';
 import { TrainingManagement, TrainingManagementDocument } from './schemas/phva-advanced-training-management.schema';
+import { PolicySignatureStatus, PolicySocializationStatus, SstPolicy, SstPolicyDocument, SstPolicyStatus } from './schemas/phva-advanced-sst-policy.schema';
 
 const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'fullName',
@@ -55,6 +58,12 @@ export class PhvaAdvancedService {
     private readonly specialPensionModel: Model<SpecialPensionConfigurationDocument>,
     @InjectModel(TrainingManagement.name)
     private readonly trainingManagementModel: Model<TrainingManagementDocument>,
+    @InjectModel(SstPolicy.name)
+    private readonly sstPolicyModel: Model<SstPolicyDocument>,
+    @InjectModel(Company.name)
+    private readonly companyModel: Model<CompanyDocument>,
+    @InjectModel(Employee.name)
+    private readonly employeeModel: Model<EmployeeDocument>,
     private readonly alertsService: AlertsService,
   ) {}
 
@@ -474,6 +483,252 @@ export class PhvaAdvancedService {
     return record;
   }
 
+
+
+  async findOrCreateSstPolicy(companyId: Types.ObjectId) {
+    const current = await this.sstPolicyModel.findOne({ companyId, itemCode: '2.1.1' }).exec();
+    if (current) return this.refreshSstPolicyCompliance(current);
+    const documentCode = await this.nextPolicyCode(companyId);
+    const record = await this.sstPolicyModel.create({
+      companyId,
+      itemCode: '2.1.1',
+      documentCode,
+      documentName: 'Política de Seguridad y Salud en el Trabajo',
+      currentVersion: '1.0',
+      status: SstPolicyStatus.DRAFT,
+      signatures: this.defaultPolicySignatures(),
+      history: [{ action: 'CREATE', date: new Date(), newValue: documentCode }],
+    });
+    return this.refreshSstPolicyCompliance(record);
+  }
+
+  async generateSstPolicy(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    const company = await this.companyModel.findById(companyId).exec();
+    const employeesCount = await this.employeeModel.countDocuments({ companyId }).exec();
+    const representative = record.signatures.find((signature) => signature.role === 'Representante legal')?.signerName || 'Representante legal';
+    record.documentName = record.documentName || 'Política de Seguridad y Salud en el Trabajo';
+    record.content = [
+      `POLÍTICA DE SEGURIDAD Y SALUD EN EL TRABAJO`,
+      `Empresa: ${company?.name ?? 'Nombre empresa'} · NIT: ${company?.nit ?? 'NIT'}`,
+      `Representante legal: ${representative}`,
+      `Actividad económica: Actividad económica de la empresa`,
+      `Número de trabajadores: ${employeesCount}`,
+      '',
+      'La alta dirección se compromete con la protección de la seguridad y salud de todos los trabajadores, contratistas y partes interesadas, mediante la identificación de peligros, valoración y control de riesgos, prevención de accidentes y enfermedades laborales, cumplimiento de la normatividad aplicable y mejora continua del SG-SST.',
+      '',
+      'Esta política será comunicada, publicada, revisada como mínimo una vez al año y actualizada cuando cambien las condiciones de la organización o los requisitos legales aplicables.',
+    ].join('\n');
+    if (!record.versions.some((version) => version.version === record.currentVersion)) {
+      record.versions.push({ version: record.currentVersion, content: record.content, status: record.status, issuedAt: new Date(), archived: false, createdBy: this.resolveUserId(user) } as never);
+    }
+    this.pushPolicyHistory(record, user, 'GENERATE_TEMPLATE', '', record.content);
+    return this.saveSstPolicyWithCompliance(record);
+  }
+
+  async updateSstPolicy(companyId: Types.ObjectId, user: UserDocument, dto: Partial<SstPolicy> & { issuedAt?: string; approvedAt?: string; expiresAt?: string }) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    const before = JSON.stringify({ documentCode: record.documentCode, documentName: record.documentName, version: record.currentVersion, status: record.status });
+    if (dto.documentCode) record.documentCode = dto.documentCode;
+    if (dto.documentName) record.documentName = dto.documentName;
+    if (dto.currentVersion) record.currentVersion = dto.currentVersion;
+    if (dto.status) record.status = dto.status as SstPolicyStatus;
+    if (dto.content !== undefined) record.content = dto.content;
+    const currentVersion = this.currentPolicyVersion(record);
+    if (currentVersion) {
+      currentVersion.content = record.content ?? currentVersion.content;
+      currentVersion.status = record.status;
+      currentVersion.issuedAt = this.parseOptionalDate(dto.issuedAt, 'issuedAt') ?? currentVersion.issuedAt;
+      currentVersion.approvedAt = this.parseOptionalDate(dto.approvedAt, 'approvedAt') ?? currentVersion.approvedAt;
+      currentVersion.expiresAt = this.parseOptionalDate(dto.expiresAt, 'expiresAt') ?? currentVersion.expiresAt;
+    } else {
+      record.versions.push({
+        version: record.currentVersion,
+        content: record.content ?? '',
+        status: record.status,
+        issuedAt: this.parseOptionalDate(dto.issuedAt, 'issuedAt'),
+        approvedAt: this.parseOptionalDate(dto.approvedAt, 'approvedAt'),
+        expiresAt: this.parseOptionalDate(dto.expiresAt, 'expiresAt'),
+        archived: false,
+        createdBy: this.resolveUserId(user),
+      } as never);
+    }
+    this.pushPolicyHistory(record, user, 'UPDATE', before, JSON.stringify({ documentCode: record.documentCode, documentName: record.documentName, version: record.currentVersion, status: record.status }));
+    return this.saveSstPolicyWithCompliance(record);
+  }
+
+  async createSstPolicyVersion(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    const current = this.currentPolicyVersion(record);
+    if (current) current.archived = true;
+    const next = this.incrementVersion(record.currentVersion);
+    record.currentVersion = next;
+    record.status = SstPolicyStatus.DRAFT;
+    record.signatures = this.defaultPolicySignatures();
+    record.socializations = [];
+    record.versions.push({ version: next, content: record.content ?? '', status: SstPolicyStatus.DRAFT, issuedAt: new Date(), archived: false, createdBy: this.resolveUserId(user) } as never);
+    this.pushPolicyHistory(record, user, 'NEW_VERSION', current?.version ?? '', next);
+    return this.saveSstPolicyWithCompliance(record);
+  }
+
+  async archiveSstPolicyVersion(companyId: Types.ObjectId, user: UserDocument, version: string) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    const target = record.versions.find((entry) => entry.version === version);
+    if (!target) throw new NotFoundException('Versión de política no encontrada');
+    target.archived = true;
+    target.status = SstPolicyStatus.ARCHIVED;
+    if (record.currentVersion === version) record.status = SstPolicyStatus.ARCHIVED;
+    this.pushPolicyHistory(record, user, 'ARCHIVE_VERSION', version, 'Archivado');
+    return this.saveSstPolicyWithCompliance(record);
+  }
+
+  async updateSstPolicySignature(companyId: Types.ObjectId, user: UserDocument, dto: { role: string; signerName?: string; signerEmail?: string; required?: boolean; status?: PolicySignatureStatus; evidence?: string; rejectionReason?: string }) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    const signature = record.signatures.find((entry) => entry.role === dto.role);
+    if (!signature) {
+      record.signatures.push({ role: dto.role, signerName: dto.signerName || dto.role, signerEmail: dto.signerEmail || user.email, required: dto.required ?? false, status: dto.status ?? PolicySignatureStatus.PENDING, signedAt: dto.status === PolicySignatureStatus.SIGNED ? new Date() : undefined, evidence: dto.evidence, rejectionReason: dto.rejectionReason } as never);
+    } else {
+      Object.assign(signature, { ...dto, signedAt: dto.status === PolicySignatureStatus.SIGNED ? new Date() : signature.signedAt });
+    }
+    this.pushPolicyHistory(record, user, 'SIGNATURE', dto.role, dto.status ?? 'Actualizada');
+    return this.saveSstPolicyWithCompliance(record);
+  }
+
+  async approveSstPolicy(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    const missingRequired = record.signatures.filter((signature) => signature.required && signature.status !== PolicySignatureStatus.SIGNED);
+    if (missingRequired.length) throw new BadRequestException('La política no puede aprobarse sin firmas obligatorias.');
+    record.status = SstPolicyStatus.APPROVED;
+    const current = this.currentPolicyVersion(record);
+    if (current) {
+      current.status = SstPolicyStatus.APPROVED;
+      current.approvedAt = new Date();
+      current.expiresAt = current.expiresAt ?? this.addYears(new Date(), 1);
+      current.approvedBy = this.resolveUserId(user);
+    }
+    await this.ensurePolicySocialization(record);
+    this.pushPolicyHistory(record, user, 'APPROVE', '', record.currentVersion);
+    return this.saveSstPolicyWithCompliance(record);
+  }
+
+  async assignSstPolicySocialization(companyId: Types.ObjectId, user: UserDocument, dto: { mode?: 'all' | 'selected' | 'area'; employeeIds?: string[]; area?: string }) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    const query: Record<string, unknown> = { companyId, status: 'Activo' };
+    if (dto.mode === 'selected') query._id = { $in: (dto.employeeIds ?? []).map((id) => new Types.ObjectId(id)) };
+    if (dto.mode === 'area' && dto.area) query.area = dto.area;
+    const employees = await this.employeeModel.find(query).exec();
+    const existing = new Set(record.socializations.map((entry) => entry.employeeId?.toString()).filter(Boolean));
+    for (const employee of employees) {
+      const employeeId = (employee as unknown as { _id: Types.ObjectId })._id;
+      if (existing.has(employeeId.toString())) continue;
+      record.socializations.push({ employeeId, employeeName: employee.name, area: employee.area, status: PolicySocializationStatus.PENDING } as never);
+    }
+    this.pushPolicyHistory(record, user, 'SOCIALIZATION_ASSIGN', '', `${employees.length} trabajadores`);
+    return this.saveSstPolicyWithCompliance(record);
+  }
+
+  async updateSstPolicySocialization(companyId: Types.ObjectId, user: UserDocument, dto: { employeeId: string; status: PolicySocializationStatus; evidence?: string }) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    const entry = record.socializations.find((item) => item.employeeId?.toString() === dto.employeeId);
+    if (!entry) throw new NotFoundException('Trabajador no asignado a socialización');
+    entry.status = dto.status;
+    if (dto.status === PolicySocializationStatus.READ) entry.readAt = new Date();
+    if (dto.status === PolicySocializationStatus.DIGITALLY_SIGNED) entry.signedAt = new Date();
+    if (dto.evidence) entry.evidence = dto.evidence;
+    this.pushPolicyHistory(record, user, 'SOCIALIZATION', entry.employeeName, dto.status);
+    return this.saveSstPolicyWithCompliance(record);
+  }
+
+  async getSstPolicyMasterList(companyId: Types.ObjectId) {
+    const record = await this.findOrCreateSstPolicy(companyId);
+    return record.versions.map((version) => ({
+      code: record.documentCode,
+      document: record.documentName,
+      version: version.version,
+      status: version.status,
+      issuedAt: version.issuedAt,
+      expiresAt: version.expiresAt,
+      responsible: 'Coordinador SST',
+    }));
+  }
+
+  private async saveSstPolicyWithCompliance(record: SstPolicyDocument) {
+    this.refreshSstPolicyCompliance(record);
+    record.alerts = this.buildPolicyAlerts(record);
+    await record.save();
+    await Promise.all(record.alerts.filter((alert) => alert.dueAt <= this.startOfToday()).map((alert) => this.alertsService.createUnique({ companyId: record.companyId, type: `SST_POLICY_${alert.type}`, message: alert.message, severity: AlertSeverity.HIGH })));
+    return record;
+  }
+
+  private refreshSstPolicyCompliance(record: SstPolicyDocument) {
+    const current = this.currentPolicyVersion(record);
+    const isExpired = Boolean(current?.expiresAt && current.expiresAt < this.startOfToday());
+    if (isExpired) record.status = SstPolicyStatus.EXPIRED;
+    const hasApproved = record.status === SstPolicyStatus.APPROVED && current?.status === SstPolicyStatus.APPROVED;
+    const signed = record.signatures.filter((signature) => signature.required).every((signature) => signature.status === PolicySignatureStatus.SIGNED);
+    const socialized = record.socializations.length > 0 && record.socializations.every((entry) => entry.status === PolicySocializationStatus.DIGITALLY_SIGNED);
+    if (hasApproved && signed && socialized && !isExpired) {
+      record.complianceStatus = 'COMPLIES';
+      record.complianceReason = 'Cumple: política aprobada, firmada, socializada y vigente.';
+    } else if (record.content || record.versions.length || record.signatures.some((signature) => signature.status === PolicySignatureStatus.SIGNED) || record.socializations.length) {
+      record.complianceStatus = 'PENDING';
+      record.complianceReason = 'Pendiente completar aprobación, firmas, socialización o vigencia.';
+    } else {
+      record.complianceStatus = 'NON_COMPLIANT';
+      record.complianceReason = 'No existe política SST gestionada.';
+    }
+    return record;
+  }
+
+  private currentPolicyVersion(record: SstPolicyDocument) {
+    return record.versions.find((version) => version.version === record.currentVersion);
+  }
+
+  private buildPolicyAlerts(record: SstPolicyDocument) {
+    const current = this.currentPolicyVersion(record);
+    const alerts = [] as Array<{ type: string; message: string; recipients: string[]; dueAt: Date; generated: boolean }>;
+    const recipients = ['ADMIN', 'MANAGER', 'OWNER'];
+    if (current?.expiresAt) {
+      alerts.push({ type: 'PROXIMA_REVISION_30', message: 'Política SST próxima a revisión en 30 días.', recipients, dueAt: this.addDays(current.expiresAt, -30), generated: false });
+      alerts.push({ type: 'PROXIMA_REVISION_15', message: 'Política SST próxima a revisión en 15 días.', recipients, dueAt: this.addDays(current.expiresAt, -15), generated: false });
+      if (current.expiresAt < this.startOfToday()) alerts.push({ type: 'POLITICA_VENCIDA', message: 'Política SST vencida.', recipients, dueAt: new Date(), generated: false });
+    }
+    if (record.signatures.some((signature) => signature.required && signature.status !== PolicySignatureStatus.SIGNED)) alerts.push({ type: 'FALTA_FIRMA', message: 'Falta firma obligatoria de Política SST.', recipients, dueAt: new Date(), generated: false });
+    if (record.status === SstPolicyStatus.APPROVED && record.socializations.some((entry) => entry.status !== PolicySocializationStatus.DIGITALLY_SIGNED)) alerts.push({ type: 'FALTA_SOCIALIZACION', message: 'Falta socialización completa de Política SST.', recipients, dueAt: new Date(), generated: false });
+    return alerts;
+  }
+
+  private async ensurePolicySocialization(record: SstPolicyDocument) {
+    if (record.socializations.length) return;
+    const employees = await this.employeeModel.find({ companyId: record.companyId, status: 'Activo' }).exec();
+    record.socializations = employees.map((employee) => ({ employeeId: (employee as unknown as { _id: Types.ObjectId })._id, employeeName: employee.name, area: employee.area, status: PolicySocializationStatus.PENDING })) as never;
+  }
+
+  private defaultPolicySignatures() {
+    return [
+      { role: 'Manager', signerName: 'Gerencia', signerEmail: 'manager@empresa.com', required: true, status: PolicySignatureStatus.PENDING },
+      { role: 'Representante legal', signerName: 'Representante legal', signerEmail: 'legal@empresa.com', required: true, status: PolicySignatureStatus.PENDING },
+      { role: 'Líder SST', signerName: 'Líder SST', signerEmail: 'sst@empresa.com', required: false, status: PolicySignatureStatus.PENDING },
+      { role: 'Coordinador SST', signerName: 'Coordinador SST', signerEmail: 'coordinador.sst@empresa.com', required: false, status: PolicySignatureStatus.PENDING },
+    ];
+  }
+
+  private async nextPolicyCode(companyId: Types.ObjectId) {
+    const count = await this.sstPolicyModel.countDocuments({ companyId }).exec();
+    return `POL-SST-${String(count + 1).padStart(3, '0')}`;
+  }
+
+  private incrementVersion(version: string) {
+    const [majorRaw, minorRaw] = version.split('.').map((part) => Number(part));
+    const major = Number.isFinite(majorRaw) ? majorRaw : 1;
+    const minor = Number.isFinite(minorRaw) ? minorRaw : 0;
+    return `${major}.${minor + 1}`;
+  }
+
+  private pushPolicyHistory(record: SstPolicyDocument, user: UserDocument, action: string, previousValue?: string, newValue?: string) {
+    record.history.push({ userId: this.resolveUserId(user).toString(), userEmail: user.email, action, date: new Date(), previousValue, newValue } as never);
+    record.updatedBy = this.resolveUserId(user);
+  }
 
   async findOrCreateTrainingManagement(companyId: Types.ObjectId) {
     const current = await this.trainingManagementModel.findOne({ companyId, itemCode: '1.2.1' }).exec();
