@@ -55,6 +55,11 @@ import {
   assignSstPolicySocializationAdvanced,
   updateSstPolicySocializationAdvanced,
   fetchSstPolicyMasterListAdvanced,
+  SstObjectivesAdvancedModel,
+  SstObjectiveItemModel,
+  fetchSstObjectivesAdvanced,
+  updateSstObjectivesAdvanced,
+  updateSstObjectiveActivitiesAdvanced,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
@@ -681,6 +686,75 @@ function SstPolicyAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyCh
   </div>;
 }
 
+
+const objectiveMethodLabels: Record<string, string> = {
+  MANUAL: 'Manual Progress',
+  AUTOMATIC: 'Automatic Progress',
+  ACTIVITY_BASED: 'Activity-Based Progress',
+};
+
+const objectiveStatusLabels: Record<string, string> = {
+  'Not Started': 'No iniciado',
+  'In Progress': 'En progreso',
+  Completed: 'Completado',
+  Delayed: 'Retrasado',
+};
+
+function objectiveProgressClass(progress: number) {
+  if (progress <= 30) return 'objective-progress__bar objective-progress__bar--low';
+  if (progress <= 70) return 'objective-progress__bar objective-progress__bar--medium';
+  return 'objective-progress__bar objective-progress__bar--high';
+}
+
+function SstObjectivesAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyChange, saveRequest, discardRequest, onSaved }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void; saveRequest: number; discardRequest: number; onSaved: () => void }) {
+  const [record, setRecord] = useState<SstObjectivesAdvancedModel | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [tab, setTab] = useState('Dashboard');
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => { if (!token) return; fetchSstObjectivesAdvanced(token).then((response) => { setRecord(response); onComplianceChange(response.complianceStatus); }); }, [token, onComplianceChange]);
+  const patchObjective = (objectiveId: string, patch: Partial<SstObjectiveItemModel>) => {
+    if (!record) return;
+    setRecord({ ...record, objectives: record.objectives.map((objective) => objective.objectiveId === objectiveId ? { ...objective, ...patch } : objective) });
+    setDirty(true);
+  };
+  const save = async () => {
+    if (!record) return;
+    const saved = await updateSstObjectivesAdvanced(token, record);
+    setRecord(saved);
+    setDirty(false);
+    onComplianceChange(saved.complianceStatus);
+    onSaved();
+  };
+  const addObjective = () => {
+    if (!record) return;
+    const objective: SstObjectiveItemModel = { objectiveId: `tmp-${Date.now()}`, name: 'Nuevo objetivo SST', responsible: 'Responsable SST', dueDate: new Date().toISOString().slice(0, 10), active: true, measurementMethod: 'MANUAL', status: 'Not Started', currentProgress: 0, targetProgress: 100, indicator: 'Avance del objetivo', targetValue: 100, currentValue: 0, automaticSource: 'MANUAL', activities: [], lastUpdatedAt: new Date().toISOString() };
+    setRecord({ ...record, objectives: [...record.objectives, objective] });
+    setDirty(true);
+  };
+  useEffect(() => { if (saveRequest > 0) void save(); }, [saveRequest]);
+  useEffect(() => { if (discardRequest > 0) { setDirty(false); if (token) fetchSstObjectivesAdvanced(token).then(setRecord); } }, [discardRequest, token]);
+  if (!record) return <p className="muted">Cargando objetivos SST avanzados...</p>;
+  const badge = complianceBadge(record.complianceStatus);
+  return <div className="advanced-management advanced-management--objectives">
+    <section className="advanced-management__hero"><div><p className="muted">Módulo 2.2.1</p><h3>Objetivos SST</h3><p className="muted">{record.complianceReason}</p></div><span className={badge.className}>{badge.label}</span></section>
+    <div className="advanced-tabs" role="tablist">{['Dashboard', 'Objetivos', 'Actividades', 'Alertas', 'Historial'].map((name) => <Button key={name} type="button" variant={tab === name ? 'primary' : 'secondary'} onClick={() => setTab(name)}>{name}</Button>)}</div>
+
+    {tab === 'Dashboard' ? <section className="advanced-management__section"><div className="objective-card-grid">{record.objectives.map((objective) => {
+      const completed = objective.activities.filter((activity) => activity.status === 'Completed').length;
+      return <article key={objective.objectiveId} className="objective-card"><div><p className="muted">{objectiveMethodLabels[objective.measurementMethod]}</p><h3>{objective.name}</h3><p className="muted">Responsable: {objective.responsible} · Vence: {toDateInputValue(objective.dueDate)}</p></div><div className="objective-progress"><div className="objective-progress__track"><span className={objectiveProgressClass(objective.currentProgress)} style={{ width: `${Math.min(100, objective.currentProgress)}%` }} /></div><strong>{objective.currentProgress}%</strong></div><p><span className={statusBadgeClass(objective.status)}>{objectiveStatusLabels[objective.status] ?? objective.status}</span></p>{objective.measurementMethod === 'AUTOMATIC' ? <p className="muted">{objective.currentValue ?? 0} / {objective.targetValue ?? 0} · {objective.indicator}</p> : null}{objective.measurementMethod === 'ACTIVITY_BASED' ? <p className="muted">Actividades: {completed}/{objective.activities.length}</p> : null}</article>;
+    })}</div></section> : null}
+
+    {tab === 'Objetivos' ? <section className="advanced-management__section"><div className="actions"><Button type="button" disabled={readOnly} onClick={addObjective}>Agregar objetivo</Button><Button type="button" variant="secondary" disabled={readOnly || !dirty} onClick={() => void save()}>Guardar cambios</Button></div><div className="responsive-table"><table className="table"><thead><tr><th>Objetivo</th><th>Método</th><th>Responsable</th><th>Vence</th><th>Indicador</th><th>Actual</th><th>Meta</th><th>Fuente</th><th>Estado</th></tr></thead><tbody>{record.objectives.map((objective) => <tr key={objective.objectiveId}><td><input className="input" disabled={readOnly} value={objective.name} onChange={(event) => patchObjective(objective.objectiveId, { name: event.target.value })} /></td><td><select className="input" disabled={readOnly} value={objective.measurementMethod} onChange={(event) => patchObjective(objective.objectiveId, { measurementMethod: event.target.value as never })}>{Object.entries(objectiveMethodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td><td><input className="input" disabled={readOnly} value={objective.responsible} onChange={(event) => patchObjective(objective.objectiveId, { responsible: event.target.value })} /></td><td><input className="input" type="date" disabled={readOnly} value={toDateInputValue(objective.dueDate)} onChange={(event) => patchObjective(objective.objectiveId, { dueDate: event.target.value })} /></td><td><input className="input" disabled={readOnly} value={objective.indicator ?? ''} onChange={(event) => patchObjective(objective.objectiveId, { indicator: event.target.value })} /></td><td><input className="input" type="number" disabled={readOnly || objective.measurementMethod === 'AUTOMATIC'} value={objective.measurementMethod === 'MANUAL' ? objective.currentProgress : objective.currentValue ?? 0} onChange={(event) => patchObjective(objective.objectiveId, objective.measurementMethod === 'MANUAL' ? { currentProgress: Number(event.target.value) } : { currentValue: Number(event.target.value) })} /></td><td><input className="input" type="number" disabled={readOnly} value={objective.measurementMethod === 'MANUAL' ? objective.targetProgress : objective.targetValue ?? 0} onChange={(event) => patchObjective(objective.objectiveId, objective.measurementMethod === 'MANUAL' ? { targetProgress: Number(event.target.value) } : { targetValue: Number(event.target.value) })} /></td><td><select className="input" disabled={readOnly || objective.measurementMethod !== 'AUTOMATIC'} value={objective.automaticSource ?? 'MANUAL'} onChange={(event) => patchObjective(objective.objectiveId, { automaticSource: event.target.value as never })}>{['MANUAL', 'TRAININGS', 'INSPECTIONS', 'EMPLOYEES', 'INCIDENTS'].map((source) => <option key={source}>{source}</option>)}</select></td><td>{objectiveStatusLabels[objective.status] ?? objective.status}</td></tr>)}</tbody></table></div></section> : null}
+
+    {tab === 'Actividades' ? <section className="advanced-management__section">{record.objectives.map((objective) => <article key={objective.objectiveId} className="advanced-management__related"><div className="actions" style={{ justifyContent: 'space-between' }}><h3>{objective.name}</h3><Button type="button" variant="secondary" disabled={readOnly} onClick={() => patchObjective(objective.objectiveId, { measurementMethod: 'ACTIVITY_BASED', activities: [...objective.activities, { name: 'Nueva actividad', responsible: objective.responsible, dueDate: new Date().toISOString().slice(0, 10), status: 'Pending' }] })}>Agregar actividad</Button></div><table className="table"><thead><tr><th>Actividad</th><th>Responsable</th><th>Vence</th><th>Estado</th></tr></thead><tbody>{objective.activities.map((activity, index) => <tr key={`${objective.objectiveId}-${index}`}><td><input className="input" disabled={readOnly} value={activity.name} onChange={(event) => { const activities = [...objective.activities]; activities[index] = { ...activity, name: event.target.value }; patchObjective(objective.objectiveId, { activities }); }} /></td><td><input className="input" disabled={readOnly} value={activity.responsible} onChange={(event) => { const activities = [...objective.activities]; activities[index] = { ...activity, responsible: event.target.value }; patchObjective(objective.objectiveId, { activities }); }} /></td><td><input className="input" type="date" disabled={readOnly} value={toDateInputValue(activity.dueDate)} onChange={(event) => { const activities = [...objective.activities]; activities[index] = { ...activity, dueDate: event.target.value }; patchObjective(objective.objectiveId, { activities }); }} /></td><td><select className="input" disabled={readOnly} value={activity.status} onChange={async (event) => { const activities = [...objective.activities]; activities[index] = { ...activity, status: event.target.value as never, completedAt: event.target.value === 'Completed' ? new Date().toISOString() : undefined }; const saved = await updateSstObjectiveActivitiesAdvanced(token, objective.objectiveId, activities); setRecord(saved); onComplianceChange(saved.complianceStatus); }}><option value="Pending">Pendiente</option><option value="In Progress">En progreso</option><option value="Completed">Completada</option></select></td></tr>)}</tbody></table></article>)}</section> : null}
+
+    {tab === 'Alertas' ? <section className="advanced-management__section"><table className="table"><thead><tr><th>Tipo</th><th>Mensaje</th><th>Destinatarios</th><th>Fecha</th></tr></thead><tbody>{record.alerts.map((alert) => <tr key={`${alert.type}-${alert.objectiveId}`}><td>{alert.type}</td><td>{alert.message}</td><td>{alert.recipients.join(', ')}</td><td>{new Date(alert.dueAt).toLocaleDateString()}</td></tr>)}</tbody></table></section> : null}
+
+    {tab === 'Historial' ? <section className="advanced-management__section"><table className="table"><thead><tr><th>Acción</th><th>Usuario</th><th>Fecha</th><th>Campo</th><th>Anterior</th><th>Nuevo</th></tr></thead><tbody>{record.history.map((entry, index) => <tr key={`${entry.action}-${index}`}><td>{entry.action}</td><td>{entry.userEmail ?? 'Sistema'}</td><td>{new Date(entry.date).toLocaleString()}</td><td>{entry.field}</td><td>{entry.previousValue ?? '—'}</td><td>{entry.newValue ?? '—'}</td></tr>)}</tbody></table></section> : null}
+    <div className="advanced-management__footer"><span className={dirty ? 'advanced-management__dirty' : 'muted'}>{dirty ? 'Cambios sin guardar' : 'Sin cambios pendientes'}</span><Button type="button" disabled={readOnly || !dirty} onClick={() => void save()}>Guardar</Button></div>
+  </div>;
+}
+
 function AdvancedManagementPanel({
   item,
   token,
@@ -700,6 +774,9 @@ function AdvancedManagementPanel({
   discardRequest: number;
   onSaved: () => void;
 }) {
+  if (item.code === '2.2.1') {
+    return <SstObjectivesAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+  }
   if (item.code === '2.1.1') {
     return <SstPolicyAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
@@ -1143,7 +1220,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.8', '1.2.1', '1.2.2', '1.2.3', '2.1.1'].includes(item.code) ? (
+                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.8', '1.2.1', '1.2.2', '1.2.3', '2.1.1', '2.2.1'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>
