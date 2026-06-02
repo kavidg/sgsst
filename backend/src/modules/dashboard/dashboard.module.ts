@@ -12,7 +12,6 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
-import { SstObjectives, SstObjectivesSchema } from '../phva-advanced/schemas/phva-advanced-sst-objective.schema';
 
 @Module({
   imports: [
@@ -26,7 +25,6 @@ import { SstObjectives, SstObjectivesSchema } from '../phva-advanced/schemas/phv
       { name: Risk.name, schema: RiskSchema },
       { name: EvaluationAnswer.name, schema: EvaluationAnswerSchema },
       { name: Question.name, schema: QuestionSchema },
-      { name: SstObjectives.name, schema: SstObjectivesSchema },
     ]),
   ],
   controllers: [DashboardController],
