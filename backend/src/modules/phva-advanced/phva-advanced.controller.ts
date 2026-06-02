@@ -217,6 +217,34 @@ export class PhvaAdvancedController {
     return this.phvaAdvancedService.getSstPolicyMasterList(this.resolveCompanyId(request));
   }
 
+
+  @Get('sst-objectives')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getSstObjectives(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateSstObjectives(this.resolveCompanyId(request));
+  }
+
+  @Patch('sst-objectives')
+  @Roles('owner', 'admin', 'manager')
+  async updateSstObjectives(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateSstObjectives(this.resolveCompanyId(request), user, dto as never);
+  }
+
+  @Patch('sst-objectives/:objectiveId/progress')
+  @Roles('owner', 'admin', 'manager')
+  async updateSstObjectiveProgress(@Req() request: RequestWithUser, @Param('objectiveId') objectiveId: string, @Body() dto: Record<string, unknown>) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateSstObjectiveProgress(this.resolveCompanyId(request), user, objectiveId, dto as never);
+  }
+
+  @Patch('sst-objectives/:objectiveId/activities')
+  @Roles('owner', 'admin', 'manager')
+  async updateSstObjectiveActivities(@Req() request: RequestWithUser, @Param('objectiveId') objectiveId: string, @Body() dto: { activities?: unknown[] }) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateSstObjectiveActivities(this.resolveCompanyId(request), user, objectiveId, dto.activities ?? []);
+  }
+
   @Get('resource-assignment')
   @Roles('owner', 'admin', 'manager', 'member')
   async getResourceAssignment(@Req() request: RequestWithUser) {
