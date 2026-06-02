@@ -31,4 +31,22 @@ export class DashboardController {
 
     return this.dashboardService.getCompanyStats(user.companyId);
   }
+
+  @Get('sst-objectives')
+  @Roles('owner', 'admin', 'manager')
+  async getSstObjectives(@Req() request: RequestWithUser) {
+    const firebaseUid = request.user?.uid;
+
+    if (!firebaseUid) {
+      throw new ForbiddenException('Missing authenticated user');
+    }
+
+    const user = await this.usersService.findByFirebaseUid(firebaseUid);
+
+    if (!user) {
+      throw new ForbiddenException('Authenticated user is not registered');
+    }
+
+    return this.dashboardService.getSstObjectivesSummary(user.companyId);
+  }
 }
