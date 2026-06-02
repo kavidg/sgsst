@@ -18,6 +18,10 @@ import { PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsSchema } from '
 import { SpecialPensionConfiguration, SpecialPensionConfigurationSchema } from './schemas/phva-advanced-special-pension.schema';
 import { TrainingManagement, TrainingManagementSchema } from './schemas/phva-advanced-training-management.schema';
 import { SstPolicy, SstPolicySchema } from './schemas/phva-advanced-sst-policy.schema';
+import { SstObjectives, SstObjectivesSchema } from './schemas/phva-advanced-sst-objective.schema';
+import { Training, TrainingSchema } from '../trainings/schemas/training.schema';
+import { InspectionActivity, InspectionActivitySchema } from '../inspections/schemas/inspection-activity.schema';
+import { Incident, IncidentSchema } from '../incidents/schemas/incident.schema';
 
 @Module({
   imports: [
@@ -34,6 +38,10 @@ import { SstPolicy, SstPolicySchema } from './schemas/phva-advanced-sst-policy.s
       { name: CompanyUser.name, schema: CompanyUserSchema },
       { name: TrainingManagement.name, schema: TrainingManagementSchema },
       { name: SstPolicy.name, schema: SstPolicySchema },
+      { name: SstObjectives.name, schema: SstObjectivesSchema },
+      { name: Training.name, schema: TrainingSchema },
+      { name: InspectionActivity.name, schema: InspectionActivitySchema },
+      { name: Incident.name, schema: IncidentSchema },
       { name: Company.name, schema: CompanySchema },
       { name: Employee.name, schema: EmployeeSchema },
     ]),
