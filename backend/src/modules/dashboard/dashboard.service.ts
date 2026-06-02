@@ -1,13 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types, Document } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
 import { EvaluationAnswer, EvaluationAnswerDocument } from '../evaluation-answers/schemas/evaluation-answer.schema';
 import { Incident, IncidentDocument } from '../incidents/schemas/incident.schema';
 import { Question, QuestionDocument } from '../questions/schemas/question.schema';
 import { Risk, RiskDocument } from '../risks/schemas/risk.schema';
 import { Training, TrainingDocument } from '../trainings/schemas/training.schema';
-import { SstObjectives } from '../phva-advanced/schemas/phva-advanced-sst-objective.schema';
 
 export interface DashboardStats {
   employees: number;
@@ -15,15 +14,6 @@ export interface DashboardStats {
   trainings: number;
   compliance: number;
   highRisks: number;
-}
-
-export interface SstObjectivesSummary {
-  total: number;
-  active: number;
-  completed: number;
-  delayed: number;
-  expired: number;
-  compliance: number; // percentage
 }
 
 @Injectable()
@@ -41,8 +31,6 @@ export class DashboardService {
     private readonly evaluationAnswerModel: Model<EvaluationAnswerDocument>,
     @InjectModel(Question.name)
     private readonly questionModel: Model<QuestionDocument>,
-    @InjectModel(SstObjectives.name)
-    private readonly sstObjectivesModel: Model<Document & SstObjectives>,
   ) {}
 
   async getCompanyStats(companyId: Types.ObjectId): Promise<DashboardStats> {
@@ -103,21 +91,5 @@ export class DashboardService {
       compliance,
       highRisks,
     };
-  }
-
-  async getSstObjectivesSummary(companyId: Types.ObjectId): Promise<{ summary: SstObjectivesSummary; objectives: any[] }> {
-    const record = await this.sstObjectivesModel.findOne({ companyId }).lean().exec();
-    const objectives = (record?.objectives ?? []) as any[];
-    const total = objectives.length;
-    const active = objectives.filter((o) => o.active).length;
-    const completed = objectives.filter((o) => o.status === 'Completed').length;
-    const delayed = objectives.filter((o) => o.status === 'Delayed').length;
-    const now = new Date();
-    const expired = objectives.filter((o) => o.dueDate && new Date(o.dueDate) < now && o.status !== 'Completed').length;
-    const compliance = total === 0 ? 0 : Math.round((completed / total) * 100);
-
-    const summary: SstObjectivesSummary = { total, active, completed, delayed, expired, compliance };
-
-    return { summary, objectives };
   }
 }
