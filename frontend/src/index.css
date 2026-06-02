@@ -1244,3 +1244,51 @@ a { color: inherit; }
     max-width: none;
   }
 }
+
+.objective-card-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.objective-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.objective-progress {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr auto;
+}
+
+.objective-progress__track {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 0.75rem;
+  overflow: hidden;
+}
+
+.objective-progress__bar {
+  display: block;
+  height: 100%;
+  transition: width 180ms ease;
+}
+
+.objective-progress__bar--low {
+  background: linear-gradient(90deg, #f87171, #dc2626);
+}
+
+.objective-progress__bar--medium {
+  background: linear-gradient(90deg, #facc15, #ca8a04);
+}
+
+.objective-progress__bar--high {
+  background: linear-gradient(90deg, #22c55e, #15803d);
+}

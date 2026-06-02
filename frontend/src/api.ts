@@ -1182,3 +1182,70 @@ export const approveSstPolicyAdvanced = (token: string) => apiFetch<SstPolicyAdv
 export const assignSstPolicySocializationAdvanced = (token: string, payload: { mode?: 'all' | 'selected' | 'area'; employeeIds?: string[]; area?: string }) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/socializations/assign', token, { method: 'POST', body: JSON.stringify(payload) });
 export const updateSstPolicySocializationAdvanced = (token: string, payload: { employeeId: string; status: PolicySocializationStatus; evidence?: string }) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/socializations', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const fetchSstPolicyMasterListAdvanced = (token: string) => apiFetch<PolicyMasterListRowModel[]>('/phva-advanced/sst-policy/master-list', token, { method: 'GET' });
+export type SstObjectiveMeasurementMethod = 'MANUAL' | 'AUTOMATIC' | 'ACTIVITY_BASED';
+export type SstObjectiveStatus = 'Not Started' | 'In Progress' | 'Completed' | 'Delayed';
+export type SstObjectiveActivityStatus = 'Pending' | 'In Progress' | 'Completed';
+export type SstObjectiveAutomaticSource = 'MANUAL' | 'TRAININGS' | 'INSPECTIONS' | 'EMPLOYEES' | 'INCIDENTS';
+
+export interface SstObjectiveActivityModel {
+  name: string;
+  responsible: string;
+  dueDate: string;
+  status: SstObjectiveActivityStatus;
+  completedAt?: string;
+}
+
+export interface SstObjectiveItemModel {
+  objectiveId: string;
+  name: string;
+  responsible: string;
+  dueDate: string;
+  active: boolean;
+  measurementMethod: SstObjectiveMeasurementMethod;
+  status: SstObjectiveStatus;
+  currentProgress: number;
+  targetProgress: number;
+  indicator?: string;
+  targetValue?: number;
+  currentValue?: number;
+  automaticSource?: SstObjectiveAutomaticSource;
+  activities: SstObjectiveActivityModel[];
+  lastUpdatedAt?: string;
+}
+
+export interface SstObjectiveAlertModel {
+  type: string;
+  objectiveId: string;
+  message: string;
+  recipients: string[];
+  dueAt: string;
+  generated: boolean;
+}
+
+export interface SstObjectiveHistoryModel {
+  userId?: string;
+  userEmail?: string;
+  action: string;
+  objectiveId: string;
+  field: string;
+  date: string;
+  previousValue?: string;
+  newValue?: string;
+}
+
+export interface SstObjectivesAdvancedModel {
+  _id: string;
+  companyId: string;
+  itemCode: string;
+  objectives: SstObjectiveItemModel[];
+  alerts: SstObjectiveAlertModel[];
+  history: SstObjectiveHistoryModel[];
+  complianceStatus: ResponsableSstComplianceStatus;
+  complianceReason: string;
+}
+
+export const fetchSstObjectivesAdvanced = (token: string) => apiFetch<SstObjectivesAdvancedModel>('/phva-advanced/sst-objectives', token, { method: 'GET' });
+export const updateSstObjectivesAdvanced = (token: string, payload: Partial<SstObjectivesAdvancedModel>) => apiFetch<SstObjectivesAdvancedModel>('/phva-advanced/sst-objectives', token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const updateSstObjectiveProgressAdvanced = (token: string, objectiveId: string, payload: Partial<SstObjectiveItemModel>) => apiFetch<SstObjectivesAdvancedModel>(`/phva-advanced/sst-objectives/${encodeURIComponent(objectiveId)}/progress`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const updateSstObjectiveActivitiesAdvanced = (token: string, objectiveId: string, activities: SstObjectiveActivityModel[]) => apiFetch<SstObjectivesAdvancedModel>(`/phva-advanced/sst-objectives/${encodeURIComponent(objectiveId)}/activities`, token, { method: 'PATCH', body: JSON.stringify({ activities }) });
+
