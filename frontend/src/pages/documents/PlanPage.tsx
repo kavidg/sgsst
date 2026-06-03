@@ -60,6 +60,18 @@ import {
   fetchSstObjectivesAdvanced,
   updateSstObjectivesAdvanced,
   updateSstObjectiveActivitiesAdvanced,
+  InitialEvaluationModel,
+  InitialEvaluationStandardModel,
+  InitialEvaluationFindingModel,
+  InitialEvaluationActionModel,
+  fetchInitialEvaluationAdvanced,
+  runInitialEvaluationAutoDiagnostic,
+  updateInitialEvaluationStandard,
+  upsertInitialEvaluationFinding,
+  upsertInitialEvaluationAction,
+  generateInitialEvaluationActions,
+  submitInitialEvaluationApproval,
+  signInitialEvaluationApproval,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
@@ -755,6 +767,102 @@ function SstObjectivesAdvancedPanel({ token, readOnly, onComplianceChange, onDir
   </div>;
 }
 
+
+function chapterCompliance(evaluation: InitialEvaluationModel) {
+  const grouped = new Map<string, { total: number; complies: number }>();
+  evaluation.standards.forEach((standard) => {
+    if (standard.status === 'No Aplica') return;
+    const current = grouped.get(standard.chapter) ?? { total: 0, complies: 0 };
+    current.total += 1;
+    if (standard.status === 'Cumple') current.complies += 1;
+    grouped.set(standard.chapter, current);
+  });
+  return Array.from(grouped.entries()).map(([chapter, value]) => ({ chapter, percentage: value.total ? Math.round((value.complies / value.total) * 100) : 100 }));
+}
+
+function InitialEvaluationAdvancedPanel({ token, readOnly, onComplianceChange, onDirtyChange }: { token: string; readOnly?: boolean; onComplianceChange: (status: ResponsableSstComplianceStatus) => void; onDirtyChange: (dirty: boolean) => void }) {
+  const tabs = ['Diagnóstico General', 'Evaluación por Estándares', 'Brechas', 'Hallazgos', 'Plan de Acción', 'Indicadores', 'Firma Gerencial', 'Historial'];
+  const [tab, setTab] = useState(tabs[0]);
+  const [record, setRecord] = useState<InitialEvaluationModel | null>(null);
+  const [chapterFilter, setChapterFilter] = useState('Todos');
+  const [finding, setFinding] = useState({ title: '', description: '', severity: 'Medium', responsible: '', dueDate: '', status: 'Open' });
+  const [action, setAction] = useState({ title: '', description: '', responsible: '', dueDate: '', manualProgress: 0, automaticProgress: 0, activityProgress: 0, status: 'Open' });
+  const [signature, setSignature] = useState({ signerName: '', signerEmail: '', comments: '' });
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError('');
+    try {
+      const next = await fetchInitialEvaluationAdvanced(token);
+      setRecord(next);
+      onComplianceChange(next.status === 'Aprobada' ? 'COMPLIES' : next.overallCompliance > 0 ? 'PENDING' : 'NON_COMPLIANT');
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'No fue posible cargar la evaluación inicial.');
+    } finally {
+      setLoading(false);
+    }
+  }, [onComplianceChange, token]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { onDirtyChange(false); }, [onDirtyChange]);
+
+  const updateStandard = async (standard: InitialEvaluationStandardModel, payload: Partial<InitialEvaluationStandardModel>) => {
+    setRecord(await updateInitialEvaluationStandard(token, standard.code, payload));
+    setMessage(`Estándar ${standard.code} actualizado.`);
+  };
+
+  const chapters = ['Todos', ...Array.from(new Set(record?.standards.map((standard) => standard.chapter) ?? []))];
+  const standards = record?.standards.filter((standard) => chapterFilter === 'Todos' || standard.chapter === chapterFilter) ?? [];
+  const chapterRows = record ? chapterCompliance(record) : [];
+  const completed = record?.standards.filter((standard) => standard.status === 'Cumple').length ?? 0;
+  const pending = record?.standards.filter((standard) => standard.status === 'No Cumple').length ?? 0;
+  const na = record?.standards.filter((standard) => standard.status === 'No Aplica').length ?? 0;
+  const criticalFindings = record?.findings.filter((item) => item.severity === 'Critical' && item.status !== 'Closed').length ?? 0;
+  const pendingActions = record?.actionPlan.filter((item) => item.status !== 'Closed').length ?? 0;
+  const riskLevel = criticalFindings > 0 || (record?.overallCompliance ?? 0) < 60 ? 'Alto' : (record?.overallCompliance ?? 0) < 85 ? 'Medio' : 'Bajo';
+
+  if (loading && !record) return <p className="muted">Cargando gestión avanzada de evaluación inicial...</p>;
+  if (!record) return <div className="advanced-management"><p className="advanced-management__audit-warning">{error || 'Sin datos disponibles.'}</p></div>;
+
+  return (
+    <div className="advanced-management initial-evaluation-management">
+      {error ? <p className="advanced-management__audit-warning">{error}</p> : null}
+      {message ? <p className="advanced-management__success">{message}</p> : null}
+      <section className="advanced-management__hero">
+        <h3>{record.name}</h3>
+        <p className="muted">Cumplimiento ejecutivo: {record.overallCompliance}% · Estado: {record.status} · Próxima reevaluación: {toDateInputValue(record.nextReassessmentAt)}</p>
+        <div className="advanced-management__badges">
+          <span className="advanced-management__badge advanced-management__badge--success">Cumplen: {completed}</span>
+          <span className="advanced-management__badge advanced-management__badge--warning">Pendientes: {pending}</span>
+          <span className="advanced-management__badge">No aplica: {na}</span>
+          <span className={riskLevel === 'Alto' ? 'advanced-management__badge advanced-management__badge--danger' : 'advanced-management__badge'}>Riesgo: {riskLevel}</span>
+        </div>
+      </section>
+      <div className="advanced-tabs">{tabs.map((item) => <Button key={item} type="button" variant={tab === item ? 'primary' : 'secondary'} onClick={() => setTab(item)}>{item}</Button>)}</div>
+
+      {tab === 'Diagnóstico General' ? <section className="advanced-management__section"><h3>Diagnóstico General</h3><div className="advanced-doc-grid"><article className="advanced-doc-card"><strong>Fecha evaluación</strong><span>{toDateInputValue(record.evaluationDate)}</span></article><article className="advanced-doc-card"><strong>Responsable SST</strong><span>{record.responsibleSst || 'Detectado desde responsable SST / pendiente'}</span></article><article className="advanced-doc-card"><strong>Estado</strong><span>{record.status}</span></article><article className="advanced-doc-card"><strong>Cumplimiento General</strong><span>{record.overallCompliance}%</span></article><article className="advanced-doc-card"><strong>Total estándares evaluados</strong><span>{record.totalStandardsEvaluated}</span></article></div><div className="actions"><Button type="button" disabled={readOnly} onClick={async () => { setRecord(await runInitialEvaluationAutoDiagnostic(token)); setMessage('Auto-diagnóstico ejecutado leyendo módulos existentes.'); }}>Ejecutar auto-diagnóstico</Button></div></section> : null}
+
+      {tab === 'Evaluación por Estándares' ? <section className="advanced-management__section"><h3>Evaluación por Estándares</h3><label>Filtrar capítulo<select value={chapterFilter} onChange={(event) => setChapterFilter(event.target.value)}>{chapters.map((chapter) => <option key={chapter}>{chapter}</option>)}</select></label><table className="table"><thead><tr><th>Estándar</th><th>Capítulo</th><th>Estado</th><th>Observaciones</th><th>Evidencia</th><th>Adjuntos</th></tr></thead><tbody>{standards.map((standard) => <tr key={standard.code}><td><strong>{standard.code}</strong><br />{standard.title}{standard.autoEvaluated ? <small> · auto: {standard.autoSource}</small> : null}</td><td>{standard.chapter}</td><td><select disabled={readOnly} value={standard.status} onChange={(event) => void updateStandard(standard, { status: event.target.value as InitialEvaluationStandardModel['status'] })}><option>Cumple</option><option>No Cumple</option><option>No Aplica</option></select></td><td><textarea disabled={readOnly} defaultValue={standard.observations} onBlur={(event) => void updateStandard(standard, { observations: event.target.value })} /></td><td><input disabled={readOnly} defaultValue={standard.evidence.join(', ')} onBlur={(event) => void updateStandard(standard, { evidence: event.target.value.split(',').map((value) => value.trim()).filter(Boolean) })} /></td><td><input disabled={readOnly} defaultValue={standard.attachments.join(', ')} onBlur={(event) => void updateStandard(standard, { attachments: event.target.value.split(',').map((value) => value.trim()).filter(Boolean) })} /></td></tr>)}</tbody></table><h4>Cumplimiento por capítulo</h4>{chapterRows.map((row) => <p key={row.chapter}>{row.chapter}: {row.percentage}%</p>)}</section> : null}
+
+      {tab === 'Brechas' ? <section className="advanced-management__section"><h3>Análisis de Brechas</h3><p>Cumplidos: {completed} · Pendientes: {pending} · No aplica: {na} · Cumplimiento: {record.overallCompliance}%</p><table className="table"><thead><tr><th>Capítulo</th><th>Estándar</th><th>Estado</th><th>Acción recomendada</th></tr></thead><tbody>{record.gaps.map((gap) => <tr key={gap.code}><td>{gap.chapter}</td><td>{gap.code} · {gap.title}</td><td>{gap.status}</td><td>{gap.recommendedAction}</td></tr>)}</tbody></table></section> : null}
+
+      {tab === 'Hallazgos' ? <section className="advanced-management__section"><h3>Hallazgos</h3><div className="form-grid"><input placeholder="Título" value={finding.title} onChange={(event) => setFinding({ ...finding, title: event.target.value })} /><textarea placeholder="Descripción" value={finding.description} onChange={(event) => setFinding({ ...finding, description: event.target.value })} /><select value={finding.severity} onChange={(event) => setFinding({ ...finding, severity: event.target.value })}><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select><input placeholder="Responsable" value={finding.responsible} onChange={(event) => setFinding({ ...finding, responsible: event.target.value })} /><input type="date" value={finding.dueDate} onChange={(event) => setFinding({ ...finding, dueDate: event.target.value })} /><select value={finding.status} onChange={(event) => setFinding({ ...finding, status: event.target.value })}><option>Open</option><option>In Progress</option><option>Closed</option></select><Button type="button" disabled={readOnly || !finding.title} onClick={async () => { setRecord(await upsertInitialEvaluationFinding(token, finding as Partial<InitialEvaluationFindingModel> & { title: string })); setFinding({ title: '', description: '', severity: 'Medium', responsible: '', dueDate: '', status: 'Open' }); }}>Registrar hallazgo</Button></div><table className="table"><thead><tr><th>Título</th><th>Severidad</th><th>Responsable</th><th>Vence</th><th>Estado</th></tr></thead><tbody>{record.findings.map((item) => <tr key={item.id}><td>{item.title}<br /><small>{item.description}</small></td><td>{item.severity}</td><td>{item.responsible}</td><td>{toDateInputValue(item.dueDate)}</td><td>{item.status}</td></tr>)}</tbody></table></section> : null}
+
+      {tab === 'Plan de Acción' ? <section className="advanced-management__section"><h3>Plan de Acción</h3><div className="actions"><Button type="button" disabled={readOnly} onClick={async () => { setRecord(await generateInitialEvaluationActions(token)); setMessage('Plan de acción generado desde brechas y hallazgos.'); }}>Generar acciones automáticas</Button></div><div className="form-grid"><input placeholder="Acción" value={action.title} onChange={(event) => setAction({ ...action, title: event.target.value })} /><input placeholder="Responsable" value={action.responsible} onChange={(event) => setAction({ ...action, responsible: event.target.value })} /><input type="date" value={action.dueDate} onChange={(event) => setAction({ ...action, dueDate: event.target.value })} /><input type="number" min="0" max="100" value={action.manualProgress} onChange={(event) => setAction({ ...action, manualProgress: Number(event.target.value) })} /><input type="number" min="0" max="100" value={action.automaticProgress} onChange={(event) => setAction({ ...action, automaticProgress: Number(event.target.value) })} /><input type="number" min="0" max="100" value={action.activityProgress} onChange={(event) => setAction({ ...action, activityProgress: Number(event.target.value) })} /><Button type="button" disabled={readOnly || !action.title} onClick={async () => { setRecord(await upsertInitialEvaluationAction(token, action as Partial<InitialEvaluationActionModel> & { title: string })); setAction({ title: '', description: '', responsible: '', dueDate: '', manualProgress: 0, automaticProgress: 0, activityProgress: 0, status: 'Open' }); }}>Agregar acción</Button></div>{record.actionPlan.map((item) => <article className="advanced-list__item" key={item.id}><strong>{item.title}</strong><p>{item.description}</p><div className="progress"><div style={{ width: `${item.progress}%` }} /></div><small>{item.progress}% · Manual {item.manualProgress}% · Automático {item.automaticProgress}% · Actividades {item.activityProgress}% · {item.status}</small></article>)}</section> : null}
+
+      {tab === 'Indicadores' ? <section className="advanced-management__section"><h3>Indicadores</h3><div className="advanced-doc-grid"><article className="advanced-doc-card"><strong>Overall Compliance</strong><span>{record.overallCompliance}%</span></article><article className="advanced-doc-card"><strong>Open Findings</strong><span>{record.findings.filter((item) => item.status !== 'Closed').length}</span></article><article className="advanced-doc-card"><strong>Closed Findings</strong><span>{record.findings.filter((item) => item.status === 'Closed').length}</span></article><article className="advanced-doc-card"><strong>Pending Actions</strong><span>{pendingActions}</span></article></div><h4>Compliance by Chapter</h4>{chapterRows.map((row) => <p key={row.chapter}>{row.chapter}: {row.percentage}%</p>)}<h4>Findings by Severity</h4>{['Low', 'Medium', 'High', 'Critical'].map((severity) => <p key={severity}>{severity}: {record.findings.filter((item) => item.severity === severity).length}</p>)}<h4>Monthly Progress Trend</h4><p className="muted">Tendencia actual basada en cambios auditados y progreso de acciones: {Math.round(record.actionPlan.reduce((sum, item) => sum + item.progress, 0) / Math.max(record.actionPlan.length, 1))}%.</p></section> : null}
+
+      {tab === 'Firma Gerencial' ? <section className="advanced-management__section"><h3>Firma Gerencial</h3><p className="muted">Sin firma MANAGER la evaluación queda pendiente y PHVA avanzado no puede marcarse como totalmente conforme.</p>{record.approval ? <div className="advanced-management__success">Aprobada por {record.approval.approvedByEmail} el {new Date(record.approval.approvedAt).toLocaleString()}. Documento: {record.approval.approvalDocumentUrl}</div> : <><div className="actions"><Button type="button" disabled={readOnly} onClick={async () => { setRecord(await submitInitialEvaluationApproval(token, 'Evaluación completada y enviada a aprobación ejecutiva.')); setMessage('Evaluación enviada a aprobación gerencial.'); }}>Enviar a aprobación</Button></div><div className="form-grid"><input placeholder="Nombre Representante Legal" value={signature.signerName} onChange={(event) => setSignature({ ...signature, signerName: event.target.value })} /><input placeholder="Correo" value={signature.signerEmail} onChange={(event) => setSignature({ ...signature, signerEmail: event.target.value })} /><textarea placeholder="Comentarios" value={signature.comments} onChange={(event) => setSignature({ ...signature, comments: event.target.value })} /><Button type="button" disabled={!signature.signerName} onClick={async () => { setRecord(await signInitialEvaluationApproval(token, signature)); setMessage('Firma digital gerencial registrada.'); onComplianceChange('COMPLIES'); }}>Firmar digitalmente (MANAGER)</Button></div></>}<h4>Resumen a firmar</h4><p>Resultados: {record.overallCompliance}% · Hallazgos: {record.findings.length} · Acciones: {record.actionPlan.length}</p></section> : null}
+
+      {tab === 'Historial' ? <section className="advanced-management__section"><h3>Historial y trazabilidad</h3><table className="table"><thead><tr><th>Usuario</th><th>Fecha</th><th>Entidad</th><th>Campo</th><th>Anterior</th><th>Nuevo</th></tr></thead><tbody>{record.history.slice().reverse().map((item, index) => <tr key={`${item.date}-${index}`}><td>{item.userEmail || 'Sistema'}</td><td>{new Date(item.date).toLocaleString()}</td><td>{item.entity}</td><td>{item.field}</td><td>{item.previousValue}</td><td>{item.newValue}</td></tr>)}</tbody></table></section> : null}
+    </div>
+  );
+}
+
 function AdvancedManagementPanel({
   item,
   token,
@@ -774,6 +882,9 @@ function AdvancedManagementPanel({
   discardRequest: number;
   onSaved: () => void;
 }) {
+  if (item.code === '2.3.1') {
+    return <InitialEvaluationAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} />;
+  }
   if (item.code === '2.2.1') {
     return <SstObjectivesAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
@@ -1220,7 +1331,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.8', '1.2.1', '1.2.2', '1.2.3', '2.1.1', '2.2.1'].includes(item.code) ? (
+                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.8', '1.2.1', '1.2.2', '1.2.3', '2.1.1', '2.2.1', '2.3.1'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>
