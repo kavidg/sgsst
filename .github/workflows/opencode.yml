@@ -27,8 +27,8 @@ jobs:
           fetch-depth: 0
 
       - name: Run OpenCode Agent
-        # Apuntamos directamente a la versión estable en su repositorio oficial
-        uses: anomalyco/opencode/github@0.1.0
+        # Apuntamos directamente al hash del commit de la acción para forzar la descarga sin errores de versión
+        uses: anomalyco/opencode/github@9db7459178225fc9e5910fa789bcfe0bd4eb4305
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
