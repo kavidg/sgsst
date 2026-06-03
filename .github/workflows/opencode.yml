@@ -27,8 +27,8 @@ jobs:
           fetch-depth: 0
 
       - name: Run OpenCode Agent
-        # CAMBIAMOS @latest POR @v1 PARA EVITAR EL BUG DE LA VERSIÓN RECIENTE
-        uses: anomalyco/opencode/github@v1
+        # Apuntamos directamente a la versión estable en su repositorio oficial
+        uses: anomalyco/opencode/github@0.1.0
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
