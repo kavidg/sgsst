@@ -26,11 +26,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run OpenCode Agent
-        # Apuntamos directamente al hash del commit de la acción para forzar la descarga sin errores de versión
-        uses: anomalyco/opencode/github@9db7459178225fc9e5910fa789bcfe0bd4eb4305
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run OpenCode Agent via NPX
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          model: anthropic/claude-3-7-sonnet
+          # Pasamos las variables del evento de GitHub para que el CLI sepa qué Issue leer
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: |
+          # Instalamos y ejecutamos el CLI oficial de opencode directamente desde npm
+          npx @anomalyco/opencode-cli github-action --model anthropic/claude-3-7-sonnet
