@@ -1,0 +1,36 @@
+name: OpenCode Agent
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+
+jobs:
+  opencode-run:
+    if: |
+      contains(github.event.issue.body, '/opencode') || 
+      contains(github.event.comment.body, '/opencode') ||
+      contains(github.event.issue.body, '/oc') || 
+      contains(github.event.comment.body, '/oc')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Usamos tu token personalizado para clonar el repositorio con permisos
+          token: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+
+      - name: Run OpenCode Agent
+        uses: anomalyco/opencode/github@main
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Le pasamos el token también al agente para que pueda crear el PR
+          GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
+        with:
+          model: anthropic/claude-3-7-sonnet
