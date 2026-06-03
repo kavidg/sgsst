@@ -21,6 +21,7 @@ import { PhvaAdvancedModule } from './modules/phva-advanced/phva-advanced.module
 import { CopasstModule } from './modules/copasst/copasst.module';
 import { CommitteeEngineModule } from './modules/committee-engine/committee-engine.module';
 import { ComplianceCredentialsModule } from './modules/compliance-credentials/compliance-credentials.module';
+import { InitialEvaluationModule } from './modules/initial-evaluation/initial-evaluation.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ComplianceCredentialsModule } from './modules/compliance-credentials/co
     CopasstModule,
     CommitteeEngineModule,
     ComplianceCredentialsModule,
+    InitialEvaluationModule,
   ],
 })
 export class AppModule {}

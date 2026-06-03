@@ -3,10 +3,12 @@ import {
   AbsenteeismModel,
   DashboardEvaluationModel,
   InspectionActivityModel,
+  InitialEvaluationExecutiveDashboardModel,
   fetchAbsenteeismByCompany,
   fetchDashboardEvaluations,
   fetchInspectionActivities,
   fetchInspectionScheduleByCompany,
+  fetchInitialEvaluationExecutiveDashboard,
 } from '../api';
 import { useCompanyContext } from '../context/CompanyContext';
 import { KpiCard } from '../components/KpiCard';
@@ -64,6 +66,7 @@ export function DashboardPage({ token }: DashboardPageProps) {
   const [evaluations, setEvaluations] = useState<DashboardEvaluationModel[]>([]);
   const [absenteeism, setAbsenteeism] = useState<AbsenteeismModel[]>([]);
   const [inspections, setInspections] = useState<InspectionActivityModel[]>([]);
+  const [initialEvaluationDashboard, setInitialEvaluationDashboard] = useState<InitialEvaluationExecutiveDashboardModel | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -77,11 +80,13 @@ export function DashboardPage({ token }: DashboardPageProps) {
       fetchDashboardEvaluations(token, companyId),
       fetchAbsenteeismByCompany(token, companyId),
       fetchInspectionScheduleByCompany(token, companyId).catch(() => fetchInspectionActivities(token)),
+      fetchInitialEvaluationExecutiveDashboard(token).catch(() => null),
     ])
-      .then(([evaluationData, absenteeismData, inspectionData]) => {
+      .then(([evaluationData, absenteeismData, inspectionData, initialEvaluationData]) => {
         setEvaluations(evaluationData);
         setAbsenteeism(absenteeismData);
         setInspections(inspectionData);
+        setInitialEvaluationDashboard(initialEvaluationData);
         setError('');
       })
       .catch((requestError) => {
@@ -170,6 +175,18 @@ export function DashboardPage({ token }: DashboardPageProps) {
         <KpiCard title="% ejecución inspecciones" value={`${metrics.inspectionsExecutionRate}%`} />
         <KpiCard title="Alertas activas" value={metrics.activeAlerts} />
       </div>
+
+
+      <article className="card">
+        <h3 className="card-title">Evaluación Inicial SG-SST · Gestión avanzada</h3>
+        <div className="grid grid-3">
+          <div><p><strong>Cumplimiento:</strong> {initialEvaluationDashboard ? `${initialEvaluationDashboard.overallCompliance}%` : 'Pendiente'}</p></div>
+          <div><p><strong>Hallazgos críticos:</strong> {initialEvaluationDashboard?.criticalFindings ?? 0}</p></div>
+          <div><p><strong>Acciones pendientes:</strong> {initialEvaluationDashboard?.pendingActions ?? 0}</p></div>
+          <div><p><strong>Nivel de riesgo:</strong> {initialEvaluationDashboard?.riskLevel ?? 'Sin diagnóstico'}</p></div>
+          <div><p><strong>Estado ejecutivo:</strong> {initialEvaluationDashboard?.status ?? 'No iniciado'}</p></div>
+        </div>
+      </article>
 
       <div className="grid grid-3">
         <article className="card" style={{ minHeight: 300 }}>
