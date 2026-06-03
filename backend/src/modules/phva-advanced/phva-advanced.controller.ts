@@ -245,6 +245,27 @@ export class PhvaAdvancedController {
     return this.phvaAdvancedService.updateSstObjectiveActivities(this.resolveCompanyId(request), user, objectiveId, dto.activities ?? []);
   }
 
+
+  @Get('annual-work-plan')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getAnnualWorkPlan(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateAnnualWorkPlan(this.resolveCompanyId(request));
+  }
+
+  @Patch('annual-work-plan')
+  @Roles('owner', 'admin', 'manager')
+  async updateAnnualWorkPlan(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateAnnualWorkPlan(this.resolveCompanyId(request), user, dto as never);
+  }
+
+  @Patch('annual-work-plan/:objectiveId/activities')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async updateAnnualWorkPlanActivities(@Req() request: RequestWithUser, @Param('objectiveId') objectiveId: string, @Body() dto: { activities?: unknown[] }) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateAnnualWorkPlanActivities(this.resolveCompanyId(request), user, objectiveId, dto.activities ?? []);
+  }
+
   @Get('resource-assignment')
   @Roles('owner', 'admin', 'manager', 'member')
   async getResourceAssignment(@Req() request: RequestWithUser) {
