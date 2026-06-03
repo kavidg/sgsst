@@ -14,8 +14,9 @@ jobs:
       contains(github.event.comment.body, '/oc')
     runs-on: ubuntu-latest
     
-    # Añadimos permisos explícitos para el entorno de GitHub
+    # Este bloque es CRUCIAL. Debe incluir id-token: write
     permissions:
+      id-token: write
       contents: write
       pull-requests: write
       issues: write
@@ -31,9 +32,7 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Usamos tu token personalizado mapeado como GITHUB_TOKEN estándar de la acción
           GITHUB_TOKEN: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
         with:
           model: anthropic/claude-3-7-sonnet
-          # Le pasamos explícitamente el token también en los parámetros de la acción
           token: ${{ secrets.OPENCODE_GITHUB_TOKEN }}
