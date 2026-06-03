@@ -27,10 +27,10 @@ jobs:
           fetch-depth: 0
 
       - name: Run OpenCode Agent
-        uses: anomalyco/opencode/github@latest
+        # CAMBIAMOS @latest POR @v1 PARA EVITAR EL BUG DE LA VERSIÓN RECIENTE
+        uses: anomalyco/opencode/github@v1
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Usamos el token nativo automático de GitHub
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: anthropic/claude-3-7-sonnet
