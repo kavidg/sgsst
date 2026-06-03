@@ -1292,3 +1292,30 @@ a { color: inherit; }
 .objective-progress__bar--high {
   background: linear-gradient(90deg, #22c55e, #15803d);
 }
+
+.initial-evaluation-management .table textarea {
+  min-height: 4rem;
+  width: 100%;
+}
+
+.initial-evaluation-management .progress {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 0.65rem;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.initial-evaluation-management .progress > div {
+  background: linear-gradient(90deg, #2563eb, #22c55e);
+  height: 100%;
+  transition: width 180ms ease;
+}
+
+.initial-evaluation-management select,
+.initial-evaluation-management textarea,
+.initial-evaluation-management input {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.75rem;
+}

@@ -1249,3 +1249,121 @@ export const updateSstObjectivesAdvanced = (token: string, payload: Partial<SstO
 export const updateSstObjectiveProgressAdvanced = (token: string, objectiveId: string, payload: Partial<SstObjectiveItemModel>) => apiFetch<SstObjectivesAdvancedModel>(`/phva-advanced/sst-objectives/${encodeURIComponent(objectiveId)}/progress`, token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const updateSstObjectiveActivitiesAdvanced = (token: string, objectiveId: string, activities: SstObjectiveActivityModel[]) => apiFetch<SstObjectivesAdvancedModel>(`/phva-advanced/sst-objectives/${encodeURIComponent(objectiveId)}/activities`, token, { method: 'PATCH', body: JSON.stringify({ activities }) });
 
+
+export type InitialEvaluationStatus = 'Borrador' | 'En evaluación' | 'Pendiente aprobación' | 'Aprobada' | 'Archivada';
+export type InitialEvaluationStandardStatus = 'Cumple' | 'No Cumple' | 'No Aplica';
+export type InitialEvaluationSeverity = 'Low' | 'Medium' | 'High' | 'Critical';
+export type InitialEvaluationWorkStatus = 'Open' | 'In Progress' | 'Closed';
+
+export interface InitialEvaluationStandardModel {
+  code: string;
+  chapter: string;
+  title: string;
+  description: string;
+  weight: number;
+  status: InitialEvaluationStandardStatus;
+  observations: string;
+  evidence: string[];
+  attachments: string[];
+  autoEvaluated: boolean;
+  autoSource?: string;
+  evaluatedAt?: string;
+}
+
+export interface InitialEvaluationGapModel {
+  code: string;
+  chapter: string;
+  title: string;
+  status: string;
+  recommendedAction: string;
+}
+
+export interface InitialEvaluationFindingModel {
+  id: string;
+  title: string;
+  description: string;
+  severity: InitialEvaluationSeverity;
+  responsible: string;
+  dueDate?: string;
+  status: InitialEvaluationWorkStatus;
+  createdAt: string;
+}
+
+export interface InitialEvaluationActionModel {
+  id: string;
+  source: string;
+  title: string;
+  description: string;
+  responsible: string;
+  dueDate?: string;
+  manualProgress: number;
+  automaticProgress: number;
+  activityProgress: number;
+  progress: number;
+  status: InitialEvaluationWorkStatus;
+  evidence: string[];
+}
+
+export interface InitialEvaluationSignatureModel {
+  signerRole: string;
+  signerName: string;
+  signerEmail: string;
+  signatureHash: string;
+  signedAt: string;
+  signatureUrl?: string;
+}
+
+export interface InitialEvaluationApprovalModel {
+  approvedByEmail: string;
+  approvedAt: string;
+  compliancePercentage: number;
+  comments: string;
+  signature: InitialEvaluationSignatureModel;
+  approvalDocumentUrl: string;
+}
+
+export interface InitialEvaluationHistoryModel {
+  userEmail?: string;
+  date: string;
+  entity: string;
+  field: string;
+  previousValue?: string;
+  newValue?: string;
+}
+
+export interface InitialEvaluationModel {
+  _id: string;
+  companyId: string;
+  name: string;
+  evaluationDate: string;
+  responsibleSst: string;
+  status: InitialEvaluationStatus;
+  overallCompliance: number;
+  totalStandardsEvaluated: number;
+  standards: InitialEvaluationStandardModel[];
+  gaps: InitialEvaluationGapModel[];
+  findings: InitialEvaluationFindingModel[];
+  actionPlan: InitialEvaluationActionModel[];
+  approval?: InitialEvaluationApprovalModel;
+  signatures: InitialEvaluationSignatureModel[];
+  history: InitialEvaluationHistoryModel[];
+  nextReassessmentAt?: string;
+}
+
+export interface InitialEvaluationExecutiveDashboardModel {
+  overallCompliance: number;
+  criticalFindings: number;
+  pendingActions: number;
+  riskLevel: string;
+  status: InitialEvaluationStatus;
+}
+
+export const fetchInitialEvaluationAdvanced = (token: string) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation', token, { method: 'GET' });
+export const runInitialEvaluationAutoDiagnostic = (token: string) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation/auto-diagnostic', token, { method: 'POST' });
+export const updateInitialEvaluationStandard = (token: string, code: string, payload: Partial<InitialEvaluationStandardModel>) => apiFetch<InitialEvaluationModel>(`/advanced-management/initial-evaluation/standards/${encodeURIComponent(code)}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const upsertInitialEvaluationFinding = (token: string, payload: Partial<InitialEvaluationFindingModel> & { title: string }) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation/findings', token, { method: 'POST', body: JSON.stringify(payload) });
+export const upsertInitialEvaluationAction = (token: string, payload: Partial<InitialEvaluationActionModel> & { title: string }) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation/actions', token, { method: 'POST', body: JSON.stringify(payload) });
+export const generateInitialEvaluationActions = (token: string) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation/actions/generate', token, { method: 'POST' });
+export const submitInitialEvaluationApproval = (token: string, comments?: string) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation/submit-approval', token, { method: 'POST', body: JSON.stringify({ comments }) });
+export const signInitialEvaluationApproval = (token: string, payload: { signerName: string; signerEmail?: string; signatureUrl?: string; comments?: string }) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation/manager-sign', token, { method: 'POST', body: JSON.stringify(payload) });
+export const fetchInitialEvaluationExecutiveDashboard = (token: string) => apiFetch<InitialEvaluationExecutiveDashboardModel>('/advanced-management/initial-evaluation/executive-dashboard', token, { method: 'GET' });
