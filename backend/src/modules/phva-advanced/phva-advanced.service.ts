@@ -31,7 +31,7 @@ import { ArlComplianceStatus, PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffili
 import { SpecialPensionComplianceStatus, SpecialPensionConfiguration, SpecialPensionConfigurationDocument } from './schemas/phva-advanced-special-pension.schema';
 import { TrainingManagement, TrainingManagementDocument } from './schemas/phva-advanced-training-management.schema';
 import { PolicySignatureStatus, PolicySocializationStatus, SstPolicy, SstPolicyDocument, SstPolicyStatus } from './schemas/phva-advanced-sst-policy.schema';
-import { SstObjectives, SstObjectivesDocument, SstObjectiveActivityStatus, SstObjectiveAutomaticSource, SstObjectiveMeasurementMethod, SstObjectiveStatus } from './schemas/phva-advanced-sst-objective.schema';
+import { SstObjectives, SstObjectivesDocument, SstObjectiveActivityStatus, SstObjectiveAutomaticSource, SstObjectiveMeasurementMethod, SstObjectiveStatus, SstObjectiveTaskPriority } from './schemas/phva-advanced-sst-objective.schema';
 import { Training, TrainingDocument } from '../trainings/schemas/training.schema';
 import { InspectionActivity, InspectionActivityDocument } from '../inspections/schemas/inspection-activity.schema';
 import { Incident, IncidentDocument } from '../incidents/schemas/incident.schema';
@@ -496,20 +496,25 @@ export class PhvaAdvancedService {
   }
 
 
-  async findOrCreateSstObjectives(companyId: Types.ObjectId) {
-    const current = await this.sstObjectivesModel.findOne({ companyId, itemCode: '2.2.1' }).exec();
+  async findOrCreateSstObjectives(companyId: Types.ObjectId, itemCode = '2.2.1') {
+    const current = await this.sstObjectivesModel.findOne({ companyId, itemCode }).exec();
     if (current) return this.saveSstObjectivesWithCompliance(current, false);
+    const annualPlan = itemCode === '2.4.1';
     const record = await this.sstObjectivesModel.create({
       companyId,
-      itemCode: '2.2.1',
-      objectives: this.defaultSstObjectives(),
-      history: [{ action: 'CREATE', objectiveId: 'system', field: 'objectives', date: new Date(), newValue: 'Objetivos SST iniciales' }],
+      itemCode,
+      objectives: annualPlan ? this.defaultAnnualWorkPlanObjectives() : this.defaultSstObjectives(),
+      history: [{ action: 'CREATE', objectiveId: 'system', field: annualPlan ? 'annualWorkPlan' : 'objectives', date: new Date(), newValue: annualPlan ? 'Plan anual de trabajo inicial' : 'Objetivos SST iniciales' }],
     });
     return this.saveSstObjectivesWithCompliance(record, false);
   }
 
-  async updateSstObjectives(companyId: Types.ObjectId, user: UserDocument, dto: Partial<SstObjectives>) {
-    const record = await this.findOrCreateSstObjectives(companyId);
+  async findOrCreateAnnualWorkPlan(companyId: Types.ObjectId) {
+    return this.findOrCreateSstObjectives(companyId, '2.4.1');
+  }
+
+  async updateSstObjectives(companyId: Types.ObjectId, user: UserDocument, dto: Partial<SstObjectives>, itemCode = '2.2.1') {
+    const record = await this.findOrCreateSstObjectives(companyId, itemCode);
     const incomingObjectives = (dto.objectives ?? []) as never[];
     const previousById = new Map((record.objectives ?? []).map((objective) => [(objective as { objectiveId?: string }).objectiveId, JSON.stringify(objective)]));
     if (dto.objectives) {
@@ -519,9 +524,14 @@ export class PhvaAdvancedService {
         const before = previousById.get(normalized.objectiveId) ?? '';
         const after = JSON.stringify(objective);
         if (before !== after) this.pushSstObjectiveHistory(record, user, before ? 'UPDATE_OBJECTIVE' : 'CREATE_OBJECTIVE', normalized.objectiveId, normalized.name, before, after);
+        this.pushNestedAnnualWorkPlanHistory(record, user, before ? JSON.parse(before) as Record<string, unknown> : undefined, objective as Record<string, unknown>);
       }
     }
     return this.saveSstObjectivesWithCompliance(record, true);
+  }
+
+  async updateAnnualWorkPlan(companyId: Types.ObjectId, user: UserDocument, dto: Partial<SstObjectives>) {
+    return this.updateSstObjectives(companyId, user, dto, '2.4.1');
   }
 
   async updateSstObjectiveProgress(companyId: Types.ObjectId, user: UserDocument, objectiveId: string, dto: { currentProgress?: number; targetProgress?: number; currentValue?: number; targetValue?: number; indicator?: string }) {
@@ -541,8 +551,8 @@ export class PhvaAdvancedService {
     return this.saveSstObjectivesWithCompliance(record, true);
   }
 
-  async updateSstObjectiveActivities(companyId: Types.ObjectId, user: UserDocument, objectiveId: string, activities: unknown[]) {
-    const record = await this.findOrCreateSstObjectives(companyId);
+  async updateSstObjectiveActivities(companyId: Types.ObjectId, user: UserDocument, objectiveId: string, activities: unknown[], itemCode = '2.2.1') {
+    const record = await this.findOrCreateSstObjectives(companyId, itemCode);
     const objective = (record.objectives as never[]).find((item) => (item as { objectiveId: string }).objectiveId === objectiveId) as Record<string, unknown> | undefined;
     if (!objective) throw new NotFoundException('Objetivo SST no encontrado');
     const before = JSON.stringify(objective.activities ?? []);
@@ -551,6 +561,10 @@ export class PhvaAdvancedService {
     objective.lastUpdatedAt = new Date();
     this.pushSstObjectiveHistory(record, user, 'ACTIVITY_COMPLETION', objectiveId, 'activities', before, JSON.stringify(activities));
     return this.saveSstObjectivesWithCompliance(record, true);
+  }
+
+  async updateAnnualWorkPlanActivities(companyId: Types.ObjectId, user: UserDocument, objectiveId: string, activities: unknown[]) {
+    return this.updateSstObjectiveActivities(companyId, user, objectiveId, activities, '2.4.1');
   }
 
   private async saveSstObjectivesWithCompliance(record: SstObjectivesDocument, emitAlerts: boolean) {
@@ -587,7 +601,26 @@ export class PhvaAdvancedService {
   }
 
   private refreshSstObjectiveProgress(record: SstObjectivesDocument) {
+    const today = this.startOfToday();
     for (const objective of record.objectives as unknown as Record<string, unknown>[]) {
+      for (const activity of (objective.activities ?? []) as Record<string, unknown>[]) {
+        for (const task of (activity.tasks ?? []) as Record<string, unknown>[]) {
+          const status = String(task.status ?? SstObjectiveActivityStatus.PENDING);
+          const progress = Number(task.progress ?? 0);
+          const dueDate = task.dueDate ? new Date(task.dueDate as string) : undefined;
+          if (status !== SstObjectiveActivityStatus.COMPLETED && status !== SstObjectiveActivityStatus.CANCELLED && dueDate && dueDate < today) task.status = SstObjectiveActivityStatus.DELAYED;
+          if (progress >= 100) task.status = SstObjectiveActivityStatus.COMPLETED;
+          if (progress > 0 && progress < 100 && task.status !== SstObjectiveActivityStatus.DELAYED) task.status = SstObjectiveActivityStatus.IN_PROGRESS;
+          if (progress <= 0 && task.status !== SstObjectiveActivityStatus.DELAYED && task.status !== SstObjectiveActivityStatus.CANCELLED) task.status = SstObjectiveActivityStatus.PENDING;
+        }
+        const tasks = (activity.tasks ?? []) as Array<{ status?: string; progress?: number }>;
+        if (tasks.length) {
+          const done = tasks.filter((task) => task.status === SstObjectiveActivityStatus.COMPLETED || Number(task.progress ?? 0) >= 100).length;
+          if (done === tasks.length) activity.status = SstObjectiveActivityStatus.COMPLETED;
+          else if (tasks.some((task) => task.status === SstObjectiveActivityStatus.DELAYED)) activity.status = SstObjectiveActivityStatus.DELAYED;
+          else if (tasks.some((task) => Number(task.progress ?? 0) > 0)) activity.status = SstObjectiveActivityStatus.IN_PROGRESS;
+        }
+      }
       if (objective.measurementMethod === SstObjectiveMeasurementMethod.AUTOMATIC) {
         const targetValue = Number(objective.targetValue ?? 0);
         const currentValue = Number(objective.currentValue ?? 0);
@@ -595,9 +628,13 @@ export class PhvaAdvancedService {
         objective.targetProgress = 100;
       }
       if (objective.measurementMethod === SstObjectiveMeasurementMethod.ACTIVITY_BASED) {
-        const activities = (objective.activities ?? []) as Array<{ status?: string }>;
-        const completed = activities.filter((activity) => activity.status === SstObjectiveActivityStatus.COMPLETED).length;
-        objective.currentProgress = activities.length ? Math.round((completed / activities.length) * 100) : 0;
+        const activities = (objective.activities ?? []) as Array<{ status?: string; tasks?: Array<{ progress?: number; status?: string }> }>;
+        const taskProgress = activities.flatMap((activity) => activity.tasks ?? []).map((task) => Number(task.progress ?? (task.status === SstObjectiveActivityStatus.COMPLETED ? 100 : 0)));
+        if (taskProgress.length) objective.currentProgress = Math.round(taskProgress.reduce((sum, value) => sum + value, 0) / taskProgress.length);
+        else {
+          const completed = activities.filter((activity) => activity.status === SstObjectiveActivityStatus.COMPLETED).length;
+          objective.currentProgress = activities.length ? Math.round((completed / activities.length) * 100) : 0;
+        }
         objective.targetProgress = 100;
       }
       const progress = Number(objective.currentProgress ?? 0);
@@ -605,12 +642,37 @@ export class PhvaAdvancedService {
       if (progress <= 0) objective.status = SstObjectiveStatus.NOT_STARTED;
       if (progress > 0 && progress < 100) objective.status = SstObjectiveStatus.IN_PROGRESS;
       if (progress >= 100) objective.status = SstObjectiveStatus.COMPLETED;
-      if (progress < 100 && dueDate && dueDate < this.startOfToday()) objective.status = SstObjectiveStatus.DELAYED;
+      if (progress < 100 && dueDate && dueDate < today) objective.status = SstObjectiveStatus.DELAYED;
     }
   }
 
   private refreshSstObjectiveCompliance(record: SstObjectivesDocument) {
     const activeObjectives = (record.objectives ?? []).filter((objective) => (objective as { active?: boolean }).active !== false);
+    if (record.itemCode === '2.4.1') {
+      const tasks = this.flattenAnnualWorkPlanTasks(record);
+      const completedTasks = tasks.filter((task) => task.status === SstObjectiveActivityStatus.COMPLETED || Number(task.progress ?? 0) >= 100).length;
+      const delayedTasks = tasks.filter((task) => task.status === SstObjectiveActivityStatus.DELAYED).length;
+      const justifiedDelayed = tasks.filter((task) => task.status === SstObjectiveActivityStatus.DELAYED && ((task.justifications as unknown[] | undefined) ?? []).length > 0).length;
+      const tasksWithEvidence = tasks.filter((task) => ((task.evidence as unknown[] | undefined) ?? []).length > 0).length;
+      const activityCount = activeObjectives.reduce((sum, objective) => sum + (((objective as { activities?: unknown[] }).activities ?? []).length), 0);
+      const completedActivities = activeObjectives.reduce((sum, objective) => sum + (((objective as { activities?: Array<{ status?: string }> }).activities ?? []).filter((activity) => activity.status === SstObjectiveActivityStatus.COMPLETED).length), 0);
+      const completion = tasks.length ? completedTasks / tasks.length : 0;
+      const activityCompletion = activityCount ? completedActivities / activityCount : 0;
+      const evidenceCoverage = tasks.length ? tasksWithEvidence / tasks.length : 0;
+      const justifiedDelayCoverage = delayedTasks ? justifiedDelayed / delayedTasks : 1;
+      const compliance = Math.round(((completion * 0.45) + (activityCompletion * 0.25) + (evidenceCoverage * 0.2) + (justifiedDelayCoverage * 0.1)) * 100);
+      if (tasks.length && compliance >= 85) {
+        record.complianceStatus = 'COMPLIES';
+        record.complianceReason = `Cumple: plan anual con ${completedTasks}/${tasks.length} tareas completadas, evidencias cargadas y retrasos justificados (${compliance}%).`;
+      } else if (tasks.length) {
+        record.complianceStatus = 'PENDING';
+        record.complianceReason = `Pendiente: cumplimiento automático ${compliance}%; revise tareas atrasadas, evidencias y justificaciones.`;
+      } else {
+        record.complianceStatus = 'NON_COMPLIANT';
+        record.complianceReason = 'No existen tareas en el plan anual de trabajo.';
+      }
+      return;
+    }
     const compliantObjectives = activeObjectives.filter((objective) => {
       const item = objective as { indicator?: string; targetValue?: number; targetProgress?: number; currentProgress?: number; lastUpdatedAt?: Date; activities?: unknown[] };
       return Boolean((item.targetValue && item.targetValue > 0) || (item.targetProgress && item.targetProgress > 0))
@@ -632,21 +694,35 @@ export class PhvaAdvancedService {
 
   private buildSstObjectiveAlerts(record: SstObjectivesDocument) {
     const today = this.startOfToday();
-    const recipients = ['ADMIN', 'MANAGER'];
     const alerts: Array<{ type: string; objectiveId: string; message: string; recipients: string[]; dueAt: Date; generated: boolean }> = [];
-    for (const objective of record.objectives as unknown as Array<{ objectiveId: string; name: string; dueDate?: Date; currentProgress?: number; lastUpdatedAt?: Date; activities?: Array<{ name: string; dueDate?: Date; status?: string }> }>) {
+    const dueWarningDays = [30, 15, 5, 1];
+    for (const objective of record.objectives as unknown as Array<{ objectiveId: string; name: string; dueDate?: Date; currentProgress?: number; lastUpdatedAt?: Date; activities?: Array<{ activityId?: string; name: string; dueDate?: Date; status?: string; tasks?: Array<Record<string, unknown>> }> }>) {
       const progress = Number(objective.currentProgress ?? 0);
       const dueDate = objective.dueDate ? new Date(objective.dueDate) : undefined;
       if (dueDate) {
         const elapsed = this.expectedObjectiveProgress(dueDate);
-        if (progress < elapsed) alerts.push({ type: 'PROGRESS_BELOW_EXPECTED', objectiveId: objective.objectiveId, message: `Objetivo SST con progreso inferior al esperado: ${objective.name}.`, recipients, dueAt: today, generated: false });
-        if (progress < 100 && dueDate < today) alerts.push({ type: 'OBJECTIVE_OVERDUE', objectiveId: objective.objectiveId, message: `Objetivo SST vencido: ${objective.name}.`, recipients, dueAt: today, generated: false });
+        if (progress < elapsed) alerts.push({ type: 'PROGRESS_BELOW_EXPECTED', objectiveId: objective.objectiveId, message: `Objetivo SST con progreso inferior al esperado: ${objective.name}.`, recipients: ['ADMIN', 'MANAGER'], dueAt: today, generated: false });
+        if (progress < 100 && dueDate < today) alerts.push({ type: 'OBJECTIVE_OVERDUE', objectiveId: objective.objectiveId, message: `Objetivo SST vencido: ${objective.name}.`, recipients: ['ADMIN', 'MANAGER'], dueAt: today, generated: false });
       }
       const lastUpdatedAt = objective.lastUpdatedAt ? new Date(objective.lastUpdatedAt) : undefined;
-      if (!lastUpdatedAt || this.addDays(lastUpdatedAt, 30) < today) alerts.push({ type: 'NO_UPDATES_30_DAYS', objectiveId: objective.objectiveId, message: `Objetivo SST sin actualizaciones en 30 días: ${objective.name}.`, recipients, dueAt: today, generated: false });
+      if (!lastUpdatedAt || this.addDays(lastUpdatedAt, 30) < today) alerts.push({ type: 'NO_UPDATES_30_DAYS', objectiveId: objective.objectiveId, message: `Objetivo SST sin actualizaciones en 30 días: ${objective.name}.`, recipients: ['ADMIN', 'MANAGER'], dueAt: today, generated: false });
       for (const activity of objective.activities ?? []) {
         if (activity.status !== SstObjectiveActivityStatus.COMPLETED && activity.dueDate && new Date(activity.dueDate) < today) {
-          alerts.push({ type: 'ACTIVITY_OVERDUE', objectiveId: objective.objectiveId, message: `Actividad vencida en ${objective.name}: ${activity.name}.`, recipients, dueAt: today, generated: false });
+          alerts.push({ type: 'ACTIVITY_OVERDUE', objectiveId: objective.objectiveId, message: `Actividad vencida en ${objective.name}: ${activity.name}.`, recipients: ['ADMIN', 'MANAGER'], dueAt: today, generated: false });
+        }
+        for (const task of (activity.tasks ?? []) as Array<Record<string, unknown>>) {
+          const taskDueDate = task.dueDate ? new Date(task.dueDate as string) : undefined;
+          const taskName = String(task.name ?? 'Tarea');
+          const taskId = String(task.taskId ?? taskName);
+          const responsible = String(task.responsibleUser ?? 'Sin responsable');
+          if (!taskDueDate || task.status === SstObjectiveActivityStatus.COMPLETED || task.status === SstObjectiveActivityStatus.CANCELLED) continue;
+          const daysUntilDue = Math.ceil((taskDueDate.getTime() - today.getTime()) / 86_400_000);
+          if (dueWarningDays.includes(daysUntilDue)) alerts.push({ type: `TASK_DUE_${daysUntilDue}_DAYS`, objectiveId: objective.objectiveId, message: `Tarea próxima a vencer (${daysUntilDue} días): ${taskName}. Responsable: ${responsible}.`, recipients: ['ASSIGNED_USER', 'ADMIN'], dueAt: today, generated: false });
+          if (taskDueDate < today) {
+            const daysOverdue = Math.max(1, Math.ceil((today.getTime() - taskDueDate.getTime()) / 86_400_000));
+            alerts.push({ type: `TASK_OVERDUE_${taskId}`, objectiveId: objective.objectiveId, message: `Escalación MANAGER: ${taskName}. Responsable: ${responsible}. Vence: ${taskDueDate.toISOString().slice(0, 10)}. Días vencida: ${daysOverdue}.`, recipients: ['RESPONSIBLE_USER', 'ADMIN', 'MANAGER'], dueAt: today, generated: false });
+            if (!((task.justifications as unknown[] | undefined) ?? []).length) alerts.push({ type: `MISSING_JUSTIFICATION_${taskId}`, objectiveId: objective.objectiveId, message: `Justificación requerida: ${taskName} no fue completada en fecha.`, recipients: ['RESPONSIBLE_USER', 'ADMIN'], dueAt: today, generated: false });
+          }
         }
       }
     }
@@ -676,22 +752,150 @@ export class PhvaAdvancedService {
       targetValue: Number(objective.targetValue ?? 0),
       currentValue: Number(objective.currentValue ?? 0),
       automaticSource: (objective.automaticSource as SstObjectiveAutomaticSource) || SstObjectiveAutomaticSource.MANUAL,
-      activities: (objective.activities ?? []) as never[],
+      activities: ((objective.activities ?? []) as Record<string, unknown>[]).map((activity) => this.normalizeSstObjectiveActivity(activity)),
+      executionLog: ((objective.executionLog ?? []) as Record<string, unknown>[]).map((log) => ({
+        logId: String(log.logId || new Types.ObjectId().toString()),
+        userId: log.userId ? String(log.userId) : undefined,
+        userEmail: log.userEmail ? String(log.userEmail) : undefined,
+        date: this.parseOptionalDate(log.date as string, 'date') ?? new Date(),
+        progressNotes: String(log.progressNotes ?? ''),
+        achievements: String(log.achievements ?? ''),
+        difficulties: String(log.difficulties ?? ''),
+        observations: String(log.observations ?? ''),
+        nextActions: String(log.nextActions ?? ''),
+      })),
       lastUpdatedAt: objective.lastUpdatedAt ? new Date(objective.lastUpdatedAt as string) : new Date(),
     } as never;
+  }
+
+  private normalizeSstObjectiveActivity(activity: Record<string, unknown>) {
+    return {
+      activityId: String(activity.activityId || new Types.ObjectId().toString()),
+      name: String(activity.name || 'Nueva actividad'),
+      responsible: String(activity.responsible || 'Responsable SST'),
+      dueDate: this.parseOptionalDate(activity.dueDate as string, 'dueDate') ?? this.addDays(new Date(), 30),
+      status: (activity.status as SstObjectiveActivityStatus) || SstObjectiveActivityStatus.PENDING,
+      completedAt: activity.completedAt ? new Date(activity.completedAt as string) : undefined,
+      tasks: ((activity.tasks ?? []) as Record<string, unknown>[]).map((task) => this.normalizeSstObjectiveTask(task, String(activity.activityId || activity.name || ''))),
+    };
+  }
+
+  private normalizeSstObjectiveTask(task: Record<string, unknown>, activityId: string) {
+    const progress = this.nearestAllowedProgress(Number(task.progress ?? 0));
+    return {
+      taskId: String(task.taskId || new Types.ObjectId().toString()),
+      name: String(task.name || 'Nueva tarea'),
+      description: String(task.description ?? ''),
+      relatedObjective: String(task.relatedObjective ?? ''),
+      relatedActivity: String(task.relatedActivity || activityId),
+      responsibleUser: String(task.responsibleUser || 'ADMIN'),
+      assignmentDate: this.parseOptionalDate(task.assignmentDate as string, 'assignmentDate') ?? new Date(),
+      dueDate: this.parseOptionalDate(task.dueDate as string, 'dueDate') ?? this.addDays(new Date(), 30),
+      priority: (task.priority as SstObjectiveTaskPriority) || SstObjectiveTaskPriority.MEDIUM,
+      estimatedCost: Number(task.estimatedCost ?? 0),
+      notes: String(task.notes ?? ''),
+      status: (task.status as SstObjectiveActivityStatus) || SstObjectiveActivityStatus.PENDING,
+      progress,
+      subtasks: ((task.subtasks ?? []) as Record<string, unknown>[]).map((subtask) => ({ subtaskId: String(subtask.subtaskId || new Types.ObjectId().toString()), name: String(subtask.name || 'Nueva subtarea'), description: String(subtask.description ?? ''), status: (subtask.status as SstObjectiveActivityStatus) || SstObjectiveActivityStatus.PENDING, progress: this.nearestAllowedProgress(Number(subtask.progress ?? 0)) })),
+      evidence: ((task.evidence ?? []) as Record<string, unknown>[]).map((evidence) => ({ evidenceId: String(evidence.evidenceId || new Types.ObjectId().toString()), fileName: String(evidence.fileName || 'Evidencia'), fileUrl: String(evidence.fileUrl ?? ''), fileType: String(evidence.fileType || 'document'), uploadedBy: String(evidence.uploadedBy ?? ''), uploadedAt: this.parseOptionalDate(evidence.uploadedAt as string, 'uploadedAt') ?? new Date() })),
+      justifications: ((task.justifications ?? []) as Record<string, unknown>[]).map((justification) => ({ justificationId: String(justification.justificationId || new Types.ObjectId().toString()), reason: String(justification.reason || 'Other'), comments: String(justification.comments ?? ''), userId: String(justification.userId ?? ''), userEmail: String(justification.userEmail ?? ''), date: this.parseOptionalDate(justification.date as string, 'date') ?? new Date() })),
+      reschedules: ((task.reschedules ?? []) as Record<string, unknown>[]).map((request) => ({ requestId: String(request.requestId || new Types.ObjectId().toString()), newDueDate: this.parseOptionalDate(request.newDueDate as string, 'newDueDate') ?? this.addDays(new Date(), 30), correctiveAction: String(request.correctiveAction || 'Acción correctiva'), comments: String(request.comments ?? ''), status: String(request.status || 'Pending Manager Approval'), managerComments: String(request.managerComments ?? ''), reviewedBy: String(request.reviewedBy ?? ''), reviewedAt: request.reviewedAt ? new Date(request.reviewedAt as string) : undefined })),
+      lastProgressAt: task.lastProgressAt ? new Date(task.lastProgressAt as string) : (progress > 0 ? new Date() : undefined),
+    };
+  }
+
+  private nearestAllowedProgress(progress: number) {
+    const allowed = [0, 25, 50, 75, 100];
+    return allowed.reduce((closest, value) => Math.abs(value - progress) < Math.abs(closest - progress) ? value : closest, 0);
   }
 
   private defaultSstObjectives() {
     const dueDate = this.addDays(new Date(), 90);
     return [
-      { objectiveId: new Types.ObjectId().toString(), name: 'Mejorar la cultura de seguridad', responsible: 'Coordinador SST', dueDate, active: true, measurementMethod: SstObjectiveMeasurementMethod.MANUAL, status: SstObjectiveStatus.NOT_STARTED, currentProgress: 0, targetProgress: 100, indicator: 'Porcentaje de avance cualitativo', targetValue: 100, currentValue: 0, automaticSource: SstObjectiveAutomaticSource.MANUAL, activities: [], lastUpdatedAt: new Date() },
-      { objectiveId: new Types.ObjectId().toString(), name: 'Capacitar trabajadores en SST', responsible: 'Líder SST', dueDate, active: true, measurementMethod: SstObjectiveMeasurementMethod.AUTOMATIC, status: SstObjectiveStatus.NOT_STARTED, currentProgress: 0, targetProgress: 100, indicator: 'Capacitaciones registradas', targetValue: 12, currentValue: 0, automaticSource: SstObjectiveAutomaticSource.TRAININGS, activities: [], lastUpdatedAt: new Date() },
+      { objectiveId: new Types.ObjectId().toString(), name: 'Mejorar la cultura de seguridad', responsible: 'Coordinador SST', dueDate, active: true, measurementMethod: SstObjectiveMeasurementMethod.MANUAL, status: SstObjectiveStatus.NOT_STARTED, currentProgress: 0, targetProgress: 100, indicator: 'Porcentaje de avance cualitativo', targetValue: 100, currentValue: 0, automaticSource: SstObjectiveAutomaticSource.MANUAL, activities: [], executionLog: [], lastUpdatedAt: new Date() },
+      { objectiveId: new Types.ObjectId().toString(), name: 'Capacitar trabajadores en SST', responsible: 'Líder SST', dueDate, active: true, measurementMethod: SstObjectiveMeasurementMethod.AUTOMATIC, status: SstObjectiveStatus.NOT_STARTED, currentProgress: 0, targetProgress: 100, indicator: 'Capacitaciones registradas', targetValue: 12, currentValue: 0, automaticSource: SstObjectiveAutomaticSource.TRAININGS, activities: [], executionLog: [], lastUpdatedAt: new Date() },
       { objectiveId: new Types.ObjectId().toString(), name: 'Ejecutar plan de actividades preventivas', responsible: 'Manager SST', dueDate, active: true, measurementMethod: SstObjectiveMeasurementMethod.ACTIVITY_BASED, status: SstObjectiveStatus.NOT_STARTED, currentProgress: 0, targetProgress: 100, indicator: 'Actividades completadas', targetValue: 3, currentValue: 0, automaticSource: SstObjectiveAutomaticSource.MANUAL, activities: [
-        { name: 'Definir responsables', responsible: 'Manager SST', dueDate: this.addDays(new Date(), 15), status: SstObjectiveActivityStatus.PENDING },
-        { name: 'Socializar metas', responsible: 'Coordinador SST', dueDate: this.addDays(new Date(), 30), status: SstObjectiveActivityStatus.PENDING },
-        { name: 'Revisar cierre', responsible: 'Líder SST', dueDate: this.addDays(new Date(), 60), status: SstObjectiveActivityStatus.PENDING },
-      ], lastUpdatedAt: new Date() },
+        { activityId: new Types.ObjectId().toString(), name: 'Definir responsables', responsible: 'Manager SST', dueDate: this.addDays(new Date(), 15), status: SstObjectiveActivityStatus.PENDING, tasks: [] },
+        { activityId: new Types.ObjectId().toString(), name: 'Socializar metas', responsible: 'Coordinador SST', dueDate: this.addDays(new Date(), 30), status: SstObjectiveActivityStatus.PENDING, tasks: [] },
+        { activityId: new Types.ObjectId().toString(), name: 'Revisar cierre', responsible: 'Líder SST', dueDate: this.addDays(new Date(), 60), status: SstObjectiveActivityStatus.PENDING, tasks: [] },
+      ], executionLog: [], lastUpdatedAt: new Date() },
     ] as never[];
+  }
+
+  private defaultAnnualWorkPlanObjectives() {
+    const objectiveId = new Types.ObjectId().toString();
+    const activityId = new Types.ObjectId().toString();
+    return [{
+      objectiveId,
+      name: 'Ejecutar el Plan Anual de Trabajo SG-SST',
+      responsible: 'MANAGER',
+      dueDate: this.addDays(new Date(), 365),
+      active: true,
+      measurementMethod: SstObjectiveMeasurementMethod.ACTIVITY_BASED,
+      status: SstObjectiveStatus.NOT_STARTED,
+      currentProgress: 0,
+      targetProgress: 100,
+      indicator: 'Cumplimiento de tareas del plan anual',
+      targetValue: 100,
+      currentValue: 0,
+      automaticSource: SstObjectiveAutomaticSource.MANUAL,
+      executionLog: [],
+      activities: [{
+        activityId,
+        name: 'Gestión preventiva anual',
+        responsible: 'ADMIN',
+        dueDate: this.addDays(new Date(), 90),
+        status: SstObjectiveActivityStatus.PENDING,
+        tasks: [{
+          taskId: new Types.ObjectId().toString(),
+          name: 'Definir cronograma anual SG-SST',
+          description: 'Consolidar actividades, responsables, presupuesto e indicadores de ejecución.',
+          relatedObjective: objectiveId,
+          relatedActivity: activityId,
+          responsibleUser: 'ADMIN',
+          assignmentDate: new Date(),
+          dueDate: this.addDays(new Date(), 30),
+          priority: SstObjectiveTaskPriority.HIGH,
+          estimatedCost: 0,
+          notes: 'Tarea inicial sugerida por el sistema.',
+          status: SstObjectiveActivityStatus.PENDING,
+          progress: 0,
+          subtasks: [],
+          evidence: [],
+          justifications: [],
+          reschedules: [],
+        }],
+      }],
+      lastUpdatedAt: new Date(),
+    }] as never[];
+  }
+
+  private flattenAnnualWorkPlanTasks(record: SstObjectivesDocument) {
+    return (record.objectives as unknown as Array<{ activities?: Array<{ tasks?: Array<Record<string, unknown>> }> }>).flatMap((objective) => (objective.activities ?? []).flatMap((activity) => activity.tasks ?? []));
+  }
+
+  private pushNestedAnnualWorkPlanHistory(record: SstObjectivesDocument, user: UserDocument, before: Record<string, unknown> | undefined, after: Record<string, unknown>) {
+    if (record.itemCode !== '2.4.1') return;
+    const beforeActivities = ((before?.activities ?? []) as Array<Record<string, unknown>>);
+    for (const activity of (after.activities ?? []) as Array<Record<string, unknown>>) {
+      const oldActivity = beforeActivities.find((item) => item.activityId === activity.activityId);
+      if (!oldActivity) this.pushSstObjectiveHistory(record, user, 'CREATE_ACTIVITY', String(after.objectiveId), 'activity', '', String(activity.name ?? ''));
+      const oldTasks = ((oldActivity?.tasks ?? []) as Array<Record<string, unknown>>);
+      for (const task of (activity.tasks ?? []) as Array<Record<string, unknown>>) {
+        const oldTask = oldTasks.find((item) => item.taskId === task.taskId);
+        if (!oldTask) this.pushSstObjectiveHistory(record, user, 'CREATE_TASK', String(after.objectiveId), String(task.name ?? 'task'), '', JSON.stringify(task));
+        else {
+          for (const field of ['responsibleUser', 'dueDate', 'priority', 'status', 'progress', 'evidence', 'justifications', 'reschedules', 'subtasks'] as const) {
+            if (JSON.stringify(oldTask[field]) !== JSON.stringify(task[field])) this.pushSstObjectiveHistory(record, user, this.historyActionForTaskField(field), String(after.objectiveId), String(field), JSON.stringify(oldTask[field] ?? ''), JSON.stringify(task[field] ?? ''));
+          }
+        }
+      }
+    }
+  }
+
+  private historyActionForTaskField(field: string) {
+    const actionByField: Record<string, string> = { responsibleUser: 'ASSIGNMENT', dueDate: 'RESCHEDULE', priority: 'UPDATE_TASK', status: 'PROGRESS_UPDATE', progress: 'PROGRESS_UPDATE', evidence: 'EVIDENCE_UPLOAD', justifications: 'JUSTIFICATION', reschedules: 'MANAGER_APPROVAL', subtasks: 'UPDATE_SUBTASK' };
+    return actionByField[field] ?? 'UPDATE_TASK';
   }
 
   private pushSstObjectiveHistory(record: SstObjectivesDocument, user: UserDocument, action: string, objectiveId: string, field: string, previousValue?: string, newValue?: string) {

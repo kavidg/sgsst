@@ -4,11 +4,13 @@ import {
   DashboardEvaluationModel,
   InspectionActivityModel,
   InitialEvaluationExecutiveDashboardModel,
+  SstObjectivesAdvancedModel,
   fetchAbsenteeismByCompany,
   fetchDashboardEvaluations,
   fetchInspectionActivities,
   fetchInspectionScheduleByCompany,
   fetchInitialEvaluationExecutiveDashboard,
+  fetchAnnualWorkPlanAdvanced,
 } from '../api';
 import { useCompanyContext } from '../context/CompanyContext';
 import { KpiCard } from '../components/KpiCard';
@@ -67,6 +69,7 @@ export function DashboardPage({ token }: DashboardPageProps) {
   const [absenteeism, setAbsenteeism] = useState<AbsenteeismModel[]>([]);
   const [inspections, setInspections] = useState<InspectionActivityModel[]>([]);
   const [initialEvaluationDashboard, setInitialEvaluationDashboard] = useState<InitialEvaluationExecutiveDashboardModel | null>(null);
+  const [annualWorkPlan, setAnnualWorkPlan] = useState<SstObjectivesAdvancedModel | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -81,12 +84,14 @@ export function DashboardPage({ token }: DashboardPageProps) {
       fetchAbsenteeismByCompany(token, companyId),
       fetchInspectionScheduleByCompany(token, companyId).catch(() => fetchInspectionActivities(token)),
       fetchInitialEvaluationExecutiveDashboard(token).catch(() => null),
+      fetchAnnualWorkPlanAdvanced(token).catch(() => null),
     ])
-      .then(([evaluationData, absenteeismData, inspectionData, initialEvaluationData]) => {
+      .then(([evaluationData, absenteeismData, inspectionData, initialEvaluationData, annualWorkPlanData]) => {
         setEvaluations(evaluationData);
         setAbsenteeism(absenteeismData);
         setInspections(inspectionData);
         setInitialEvaluationDashboard(initialEvaluationData);
+        setAnnualWorkPlan(annualWorkPlanData);
         setError('');
       })
       .catch((requestError) => {
@@ -147,6 +152,17 @@ export function DashboardPage({ token }: DashboardPageProps) {
       }));
   }, [absenteeism]);
 
+  const annualWorkPlanMetrics = useMemo(() => {
+    const tasks = annualWorkPlan?.objectives.flatMap((objective) => objective.activities.flatMap((activity) => activity.tasks ?? [])) ?? [];
+    return {
+      total: tasks.length,
+      completed: tasks.filter((task) => task.status === 'Completed' || task.progress === 100).length,
+      delayed: tasks.filter((task) => task.status === 'Delayed' || (task.status !== 'Completed' && new Date(task.dueDate) < new Date())).length,
+      upcoming: tasks.filter((task) => task.status !== 'Completed' && new Date(task.dueDate) >= new Date()).length,
+      critical: tasks.filter((task) => task.priority === 'Critical').length,
+    };
+  }, [annualWorkPlan]);
+
   const phaseCompliance = useMemo(
     () =>
       PHASE_ORDER.map((phase) => {
@@ -176,6 +192,18 @@ export function DashboardPage({ token }: DashboardPageProps) {
         <KpiCard title="Alertas activas" value={metrics.activeAlerts} />
       </div>
 
+
+      <article className="card">
+        <h3 className="card-title">Annual Work Plan Execution</h3>
+        <div className="grid grid-3">
+          <div><p><strong>Total Tasks:</strong> {annualWorkPlanMetrics.total}</p></div>
+          <div><p><strong>Completed Tasks:</strong> {annualWorkPlanMetrics.completed}</p></div>
+          <div><p><strong>Delayed Tasks:</strong> {annualWorkPlanMetrics.delayed}</p></div>
+          <div><p><strong>Upcoming Tasks:</strong> {annualWorkPlanMetrics.upcoming}</p></div>
+          <div><p><strong>Critical Tasks:</strong> {annualWorkPlanMetrics.critical}</p></div>
+          <div><p><strong>Compliance:</strong> {annualWorkPlan?.complianceReason ?? 'Sin plan anual cargado'}</p></div>
+        </div>
+      </article>
 
       <article className="card">
         <h3 className="card-title">Evaluación Inicial SG-SST · Gestión avanzada</h3>
