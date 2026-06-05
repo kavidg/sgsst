@@ -132,6 +132,7 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
                   </NavLink>
                 ))}
               </div>
+
             </div>
         </nav>
       </aside>

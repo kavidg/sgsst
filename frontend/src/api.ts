@@ -1263,6 +1263,264 @@ export const fetchAnnualWorkPlanAdvanced = (token: string) => apiFetch<SstObject
 export const updateAnnualWorkPlanAdvanced = (token: string, payload: Partial<SstObjectivesAdvancedModel>) => apiFetch<SstObjectivesAdvancedModel>('/phva-advanced/annual-work-plan', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const updateAnnualWorkPlanActivitiesAdvanced = (token: string, objectiveId: string, activities: SstObjectiveActivityModel[]) => apiFetch<SstObjectivesAdvancedModel>(`/phva-advanced/annual-work-plan/${encodeURIComponent(objectiveId)}/activities`, token, { method: 'PATCH', body: JSON.stringify({ activities }) });
 
+// ==================== DEDICATED ANNUAL WORK PLAN API ====================
+
+export interface AnnualWorkPlanModel {
+  _id: string;
+  companyId: string;
+  year: number;
+  status: 'Draft' | 'Active' | 'Completed' | 'Archived';
+  compliancePercentage: number;
+  createdBy: { _id: string; email?: string } | string;
+  approval?: {
+    approvedBy: { _id: string; email?: string } | string;
+    approvedByEmail: string;
+    approvedByName: string;
+    approvalDate: string;
+    signatureHash?: string;
+    signatureUrl?: string;
+    comments?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanActivityModel {
+  _id: string;
+  annualPlanId: string;
+  title: string;
+  description?: string;
+  objectiveId?: string;
+  sourceModule?: string;
+  startDate: string;
+  endDate: string;
+  responsibleUser: string;
+  priority: 'Low' | 'Medium' | 'High' | 'Critical';
+  estimatedCost: number;
+  actualCost: number;
+  progress: number;
+  status: 'Pending' | 'InProgress' | 'Completed' | 'Delayed' | 'Cancelled';
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanTaskModel {
+  _id: string;
+  activityId: string;
+  title: string;
+  description?: string;
+  assignedTo: string;
+  startDate: string;
+  dueDate: string;
+  progress: number;
+  status: 'Pending' | 'InProgress' | 'Completed' | 'Delayed' | 'Cancelled';
+  comments: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanSubtaskModel {
+  _id: string;
+  taskId: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskEvidenceModel {
+  _id: string;
+  taskId: string;
+  fileUrl: string;
+  fileType: string;
+  uploadedBy: string;
+  uploadDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskJustificationModel {
+  _id: string;
+  taskId: string;
+  reason: string;
+  correctiveAction?: string;
+  newDueDate?: string;
+  approvedBy?: string;
+  approvedByEmail?: string;
+  approvalStatus: 'Pending' | 'Approved' | 'Rejected';
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ComplianceReportModel {
+  overallPercentage: number;
+  completedActivities: number;
+  totalActivities: number;
+  completedTasks: number;
+  totalTasks: number;
+  overdueTasks: number;
+  justifiedOverdueTasks: number;
+  tasksWithEvidence: number;
+  weights: {
+    activityCompletion: number;
+    taskCompletion: number;
+    evidenceCoverage: number;
+    overdueJustification: number;
+  };
+}
+
+export interface PlanHistoryModel {
+  _id: string;
+  entityType: string;
+  entityId: string;
+  userId: string;
+  userEmail: string;
+  action: string;
+  previousValue?: string;
+  newValue?: string;
+  timestamp: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function fetchAnnualWorkPlans(token: string) {
+  return apiFetch<AnnualWorkPlanModel[]>('/annual-work-plan', token, { method: 'GET' });
+}
+
+export function fetchAnnualWorkPlanCurrent(token: string) {
+  return apiFetch<AnnualWorkPlanModel | null>('/annual-work-plan/current', token, { method: 'GET' });
+}
+
+export function fetchAnnualWorkPlanById(token: string, id: string) {
+  return apiFetch<AnnualWorkPlanModel>(`/annual-work-plan/${id}`, token, { method: 'GET' });
+}
+
+export function createAnnualWorkPlan(token: string, payload: { year: number }) {
+  return apiFetch<AnnualWorkPlanModel>('/annual-work-plan', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function ensureCurrentAnnualWorkPlan(token: string) {
+  return apiFetch<AnnualWorkPlanModel>('/annual-work-plan/ensure-current', token, { method: 'POST' });
+}
+
+export function updateAnnualWorkPlanStatus(token: string, id: string, status: string) {
+  return apiFetch<AnnualWorkPlanModel>(`/annual-work-plan/${id}/status`, token, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+export function approveAnnualWorkPlan(token: string, id: string, payload: { approvedByName: string; approvedByEmail: string; signatureHash?: string; signatureUrl?: string; comments?: string }) {
+  return apiFetch<AnnualWorkPlanModel>(`/annual-work-plan/${id}/approve`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function deleteAnnualWorkPlan(token: string, id: string) {
+  return apiFetch<void>(`/annual-work-plan/${id}`, token, { method: 'DELETE' });
+}
+
+export function recalculateCompliance(token: string, id: string) {
+  return apiFetch<number>(`/annual-work-plan/${id}/recalculate`, token, { method: 'POST' });
+}
+
+export function fetchComplianceReport(token: string, id: string) {
+  return apiFetch<ComplianceReportModel>(`/annual-work-plan/${id}/compliance-report`, token, { method: 'GET' });
+}
+
+export function fetchPlanActivities(token: string, planId: string) {
+  return apiFetch<PlanActivityModel[]>(`/annual-work-plan/${planId}/activities`, token, { method: 'GET' });
+}
+
+export function createPlanActivity(token: string, planId: string, payload: {
+  title: string;
+  description?: string;
+  sourceModule?: string;
+  startDate: string;
+  endDate: string;
+  responsibleUser: string;
+  priority?: string;
+  estimatedCost?: number;
+}) {
+  return apiFetch<PlanActivityModel>(`/annual-work-plan/${planId}/activities`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updatePlanActivity(token: string, planId: string, activityId: string, payload: Record<string, unknown>) {
+  return apiFetch<PlanActivityModel>(`/annual-work-plan/${planId}/activities/${activityId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deletePlanActivity(token: string, planId: string, activityId: string) {
+  return apiFetch<void>(`/annual-work-plan/${planId}/activities/${activityId}`, token, { method: 'DELETE' });
+}
+
+export function fetchPlanTasks(token: string, planId: string, activityId: string) {
+  return apiFetch<PlanTaskModel[]>(`/annual-work-plan/${planId}/activities/${activityId}/tasks`, token, { method: 'GET' });
+}
+
+export function createPlanTask(token: string, planId: string, activityId: string, payload: {
+  title: string;
+  description?: string;
+  assignedTo: string;
+  startDate: string;
+  dueDate: string;
+  progress?: number;
+}) {
+  return apiFetch<PlanTaskModel>(`/annual-work-plan/${planId}/activities/${activityId}/tasks`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updatePlanTask(token: string, planId: string, activityId: string, taskId: string, payload: Record<string, unknown>) {
+  return apiFetch<PlanTaskModel>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deletePlanTask(token: string, planId: string, activityId: string, taskId: string) {
+  return apiFetch<void>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}`, token, { method: 'DELETE' });
+}
+
+export function fetchPlanSubtasks(token: string, planId: string, activityId: string, taskId: string) {
+  return apiFetch<PlanSubtaskModel[]>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/subtasks`, token, { method: 'GET' });
+}
+
+export function createPlanSubtask(token: string, planId: string, activityId: string, taskId: string, payload: { title: string }) {
+  return apiFetch<PlanSubtaskModel>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/subtasks`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updatePlanSubtask(token: string, planId: string, activityId: string, taskId: string, subtaskId: string, payload: { title?: string; completed?: boolean }) {
+  return apiFetch<PlanSubtaskModel>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/subtasks/${subtaskId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deletePlanSubtask(token: string, planId: string, activityId: string, taskId: string, subtaskId: string) {
+  return apiFetch<void>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/subtasks/${subtaskId}`, token, { method: 'DELETE' });
+}
+
+export function fetchTaskEvidence(token: string, planId: string, activityId: string, taskId: string) {
+  return apiFetch<TaskEvidenceModel[]>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/evidence`, token, { method: 'GET' });
+}
+
+export function createTaskEvidence(token: string, planId: string, activityId: string, taskId: string, payload: { fileUrl: string; fileType: string }) {
+  return apiFetch<TaskEvidenceModel>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/evidence`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function deleteTaskEvidence(token: string, planId: string, activityId: string, taskId: string, evidenceId: string) {
+  return apiFetch<void>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/evidence/${evidenceId}`, token, { method: 'DELETE' });
+}
+
+export function fetchTaskJustifications(token: string, planId: string, activityId: string, taskId: string) {
+  return apiFetch<TaskJustificationModel[]>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/justifications`, token, { method: 'GET' });
+}
+
+export function createTaskJustification(token: string, planId: string, activityId: string, taskId: string, payload: { reason: string; correctiveAction?: string; newDueDate?: string }) {
+  return apiFetch<TaskJustificationModel>(`/annual-work-plan/${planId}/activities/${activityId}/tasks/${taskId}/justifications`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function approveJustification(token: string, justificationId: string, payload: { approvalStatus: 'Approved' | 'Rejected'; rejectionReason?: string }) {
+  return apiFetch<TaskJustificationModel>(`/annual-work-plan/justifications/${justificationId}/approve`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function fetchPlanHistory(token: string, planId: string) {
+  return apiFetch<PlanHistoryModel[]>(`/annual-work-plan/${planId}/history`, token, { method: 'GET' });
+}
+
+export function processAutoStatus(token: string) {
+  return apiFetch<{ message: string }>('/annual-work-plan/process-auto-status', token, { method: 'POST' });
+}
+
 
 export type InitialEvaluationStatus = 'Borrador' | 'En evaluación' | 'Pendiente aprobación' | 'Aprobada' | 'Archivada';
 export type InitialEvaluationStandardStatus = 'Cumple' | 'No Cumple' | 'No Aplica';

@@ -22,6 +22,7 @@ import { CopasstModule } from './modules/copasst/copasst.module';
 import { CommitteeEngineModule } from './modules/committee-engine/committee-engine.module';
 import { ComplianceCredentialsModule } from './modules/compliance-credentials/compliance-credentials.module';
 import { InitialEvaluationModule } from './modules/initial-evaluation/initial-evaluation.module';
+import { AnnualWorkPlanModule } from './modules/annual-work-plan/annual-work-plan.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { InitialEvaluationModule } from './modules/initial-evaluation/initial-ev
     CommitteeEngineModule,
     ComplianceCredentialsModule,
     InitialEvaluationModule,
+    AnnualWorkPlanModule,
   ],
 })
 export class AppModule {}
