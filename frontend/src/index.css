@@ -1319,3 +1319,19 @@ a { color: inherit; }
   border-radius: 0.75rem;
   padding: 0.55rem 0.75rem;
 }
+
+.badge { display:inline-flex; padding:.2rem .55rem; border-radius:999px; font-size:.78rem; font-weight:600; }
+.badge--priority { background:#eff6ff; color:#1d4ed8; }
+.badge--status { background:#f0fdf4; color:#15803d; }
+.objective-progress__bar--medium { display:block; height:100%; border-radius:999px; transition:width .3s ease; }
+
+.annual-plan-entry-btn {
+  display:flex; gap:.6rem; align-items:center; padding:.65rem .75rem; border-radius:.75rem;
+  color:#93c5fd; text-decoration:none; border:1px solid #1e3a5f;
+  background: #1e3a5f; transition:all .2s; margin-top:.5rem;
+}
+.annual-plan-entry-btn:hover { background:#2d5a8e; color:#fff; }
+
+@media (max-width: 768px) {
+  .annual-plan-entry-btn { width:100%; }
+}

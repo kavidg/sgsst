@@ -35,6 +35,7 @@ import { AbsenteeismPage } from './pages/AbsenteeismPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
 import { PlanPage } from './pages/documents/PlanPage';
+import { AnnualWorkPlanPage } from './pages/AnnualWorkPlanPage';
 import { DoPage } from './pages/documents/DoPage';
 import { CheckPage } from './pages/documents/CheckPage';
 import { ActPage } from './pages/documents/ActPage';
@@ -706,6 +707,23 @@ function App() {
         <Route path="/absenteeism" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderAbsenteeismRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
         <Route path="/inspections" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderInspectionsRoutePage()} />
+        <Route
+          path="/annual-work-plan"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <AnnualWorkPlanPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para ver el plan anual.</p>
+                )}
+              </>
+            )
+          }
+        />
         <Route
           path="/profile"
           element={
