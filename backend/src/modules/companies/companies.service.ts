@@ -6,6 +6,7 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompanyUser, CompanyUserDocument } from './schemas/company-user.schema';
 import { Company, CompanyDocument } from './schemas/company.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { LegalMatrixService } from '../legal-matrix/legal-matrix.service';
 
 export interface MyCompanyResponse {
   id: string;
@@ -22,6 +23,7 @@ export class CompaniesService {
     private readonly companyUserModel: Model<CompanyUserDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    private readonly legalMatrixService: LegalMatrixService,
   ) {}
 
   async create(firebaseUid: string, createCompanyDto: CreateCompanyDto): Promise<Company> {
@@ -31,10 +33,24 @@ export class CompaniesService {
       name: createCompanyDto.name,
       nit: createCompanyDto.nit,
       standardsType: createCompanyDto.standardsType,
+      economicSector: createCompanyDto.economicSector,
       ownerId: user._id,
     });
 
-    return company.save();
+    const savedCompany = await company.save();
+
+    // Auto-assign legal matrix based on economic sector
+    try {
+      await this.legalMatrixService.autoAssignLegalMatrix(
+        savedCompany._id.toString(),
+        savedCompany.economicSector,
+      );
+    } catch (matrixError) {
+      // Log but don't fail company creation if legal matrix assignment fails
+      console.error(`Failed to auto-assign legal matrix for company ${savedCompany._id}:`, matrixError);
+    }
+
+    return savedCompany;
   }
 
   async findAllByOwner(firebaseUid: string): Promise<Company[]> {

@@ -1,4 +1,5 @@
 import { IsEnum, IsMongoId, IsOptional, IsString } from 'class-validator';
+import { EconomicSectors } from '../schemas/company.schema';
 
 export class UpdateCompanyDto {
   @IsOptional()
@@ -12,6 +13,10 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsEnum(['7', '21', '60'])
   standardsType?: string;
+
+  @IsOptional()
+  @IsEnum(EconomicSectors)
+  economicSector?: string;
 
   @IsOptional()
   @IsMongoId()

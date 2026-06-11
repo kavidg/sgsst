@@ -1,4 +1,5 @@
 import { IsEnum, IsString } from 'class-validator';
+import { EconomicSectors } from '../schemas/company.schema';
 
 export class CreateCompanyDto {
   @IsString()
@@ -9,4 +10,7 @@ export class CreateCompanyDto {
 
   @IsEnum(['7', '21', '60'])
   standardsType!: string;
+
+  @IsEnum(EconomicSectors)
+  economicSector!: string;
 }

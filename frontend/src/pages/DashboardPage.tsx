@@ -194,14 +194,14 @@ export function DashboardPage({ token }: DashboardPageProps) {
 
 
       <article className="card">
-        <h3 className="card-title">Annual Work Plan Execution</h3>
+        <h3 className="card-title">Ejecución del Plan Anual</h3>
         <div className="grid grid-3">
-          <div><p><strong>Total Tasks:</strong> {annualWorkPlanMetrics.total}</p></div>
-          <div><p><strong>Completed Tasks:</strong> {annualWorkPlanMetrics.completed}</p></div>
-          <div><p><strong>Delayed Tasks:</strong> {annualWorkPlanMetrics.delayed}</p></div>
-          <div><p><strong>Upcoming Tasks:</strong> {annualWorkPlanMetrics.upcoming}</p></div>
-          <div><p><strong>Critical Tasks:</strong> {annualWorkPlanMetrics.critical}</p></div>
-          <div><p><strong>Compliance:</strong> {annualWorkPlan?.complianceReason ?? 'Sin plan anual cargado'}</p></div>
+          <div><p><strong>Total Tareas:</strong> {annualWorkPlanMetrics.total}</p></div>
+          <div><p><strong>Completadas:</strong> {annualWorkPlanMetrics.completed}</p></div>
+          <div><p><strong>Retrasadas:</strong> {annualWorkPlanMetrics.delayed}</p></div>
+          <div><p><strong>Próximas:</strong> {annualWorkPlanMetrics.upcoming}</p></div>
+          <div><p><strong>Críticas:</strong> {annualWorkPlanMetrics.critical}</p></div>
+          <div><p><strong>Cumplimiento:</strong> {annualWorkPlan?.complianceReason ?? 'Sin plan anual cargado'}</p></div>
         </div>
       </article>
 

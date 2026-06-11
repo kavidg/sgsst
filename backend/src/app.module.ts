@@ -23,6 +23,10 @@ import { CommitteeEngineModule } from './modules/committee-engine/committee-engi
 import { ComplianceCredentialsModule } from './modules/compliance-credentials/compliance-credentials.module';
 import { InitialEvaluationModule } from './modules/initial-evaluation/initial-evaluation.module';
 import { AnnualWorkPlanModule } from './modules/annual-work-plan/annual-work-plan.module';
+import { DocumentManagementModule } from './modules/document-management/document-management.module';
+import { AccountabilityModule } from './modules/accountability/accountability.module';
+import { LegalMatrixModule } from './modules/legal-matrix/legal-matrix.module';
+import { CommunicationModule } from './modules/communication/communication.module';
 
 @Module({
   imports: [
@@ -57,6 +61,10 @@ import { AnnualWorkPlanModule } from './modules/annual-work-plan/annual-work-pla
     ComplianceCredentialsModule,
     InitialEvaluationModule,
     AnnualWorkPlanModule,
+    DocumentManagementModule,
+    AccountabilityModule,
+    LegalMatrixModule,
+    CommunicationModule,
   ],
 })
 export class AppModule {}

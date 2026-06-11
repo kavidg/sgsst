@@ -7,6 +7,7 @@ import { CompanyUser, CompanyUserSchema } from './schemas/company-user.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { AuthModule } from '../auth/auth.module';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
+import { LegalMatrixModule } from '../legal-matrix/legal-matrix.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CompanyAccessGuard } from '../auth/company-access.guard';
       { name: CompanyUser.name, schema: CompanyUserSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    LegalMatrixModule,
   ],
   controllers: [CompaniesController],
   providers: [CompaniesService, CompanyAccessGuard],

@@ -549,7 +549,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
 
   const detailTask = tasks.find((t) => t._id === detailTaskId);
 
-  const tabs = ['Plan General', 'Actividades', 'Tareas', 'Cronograma', 'Evidencias', 'Alertas', 'Dashboard', 'Firma Gerencial', 'Historial'];
+  const tabs = ['Plan General', 'Actividades', 'Tareas', 'Cronograma', 'Evidencias', 'Alertas', 'Panel', 'Firma Gerencial', 'Historial'];
 
   if (!plan && !loading) {
     return (
@@ -1020,7 +1020,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
       ) : null}
 
       {/* TAB 7: Dashboard */}
-      {tab === 'Dashboard' ? (
+      {tab === 'Panel' ? (
         <div className="grid" style={{ gap: '1.1rem' }}>
           <div className="kpi-grid">
             <KpiCard title="Cumplimiento General" value={`${plan?.compliancePercentage ?? 0}%`} />
