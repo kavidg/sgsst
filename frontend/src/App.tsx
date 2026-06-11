@@ -36,6 +36,10 @@ import { AlertsPage } from './pages/AlertsPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
 import { PlanPage } from './pages/documents/PlanPage';
 import { AnnualWorkPlanPage } from './pages/AnnualWorkPlanPage';
+import { AccountabilityPage } from './pages/AccountabilityPage';
+import { DocumentManagementPage } from './pages/DocumentManagementPage';
+import CommunicationWorkerPortal from './components/CommunicationWorkerPortal';
+import { LegalMatrixPage } from './pages/LegalMatrixPage';
 import { DoPage } from './pages/documents/DoPage';
 import { CheckPage } from './pages/documents/CheckPage';
 import { ActPage } from './pages/documents/ActPage';
@@ -43,6 +47,18 @@ import { DocumentsEvaluationProvider } from './pages/documents/evaluationState';
 import { useCompanyContext } from './context/CompanyContext';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ProfilePage } from './pages/ProfilePage';
+
+const ECONOMIC_SECTORS = [
+  'Agriculture', 'Livestock', 'Forestry', 'Fishing',
+  'Mining', 'Oil and Gas', 'Manufacturing', 'Construction',
+  'Electricity', 'Water and Sanitation', 'Transportation', 'Logistics',
+  'Telecommunications', 'Technology', 'Financial Services', 'Insurance',
+  'Healthcare', 'Pharmaceuticals', 'Education', 'Universities',
+  'Retail Commerce', 'Wholesale Commerce', 'Hotels', 'Restaurants',
+  'Tourism', 'Public Administration', 'Security Services', 'Cleaning Services',
+  'Temporary Staffing', 'Professional Services', 'Legal Services', 'Consulting',
+  'Real Estate', 'Industrial Maintenance', 'Waste Management', 'Other',
+] as const;
 
 type CompaniesPageProps = {
   companies: CompanyModel[];
@@ -52,12 +68,14 @@ type CompaniesPageProps = {
   newCompanyName: string;
   newCompanyNit: string;
   newCompanyStandardsType: string;
+  newCompanyEconomicSector: string;
   onDeleteCompany: (companyId: string) => Promise<void>;
   onUpdateCompany: (company: CompanyModel) => Promise<void>;
   profileRole?: UserModel['role'];
   setNewCompanyName: (value: string) => void;
   setNewCompanyNit: (value: string) => void;
   setNewCompanyStandardsType: (value: string) => void;
+  setNewCompanyEconomicSector: (value: string) => void;
   sharedHeader: ReactNode;
 };
 
@@ -69,12 +87,14 @@ function CompaniesPage({
   newCompanyName,
   newCompanyNit,
   newCompanyStandardsType,
+  newCompanyEconomicSector,
   onDeleteCompany,
   onUpdateCompany,
   profileRole,
   setNewCompanyName,
   setNewCompanyNit,
   setNewCompanyStandardsType,
+  setNewCompanyEconomicSector,
   sharedHeader,
 }: CompaniesPageProps) {
   return (
@@ -92,11 +112,17 @@ function CompaniesPage({
               <option value="21">21 Estándares</option>
               <option value="60">60 Estándares</option>
             </Select>
+            <Select value={newCompanyEconomicSector} onChange={(event) => setNewCompanyEconomicSector(event.target.value)} required>
+              <option value="">Selecciona sector económico</option>
+              {ECONOMIC_SECTORS.map((sector) => (
+                <option key={sector} value={sector}>{sector}</option>
+              ))}
+            </Select>
             <Button type="submit" disabled={loading}>Guardar Empresa</Button>
           </form>
           {companies.map((company) => (
             <div key={company._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
-              <p>{company.name} - {company.nit} - {company.standardsType ?? 'Sin estándar'}</p>
+              <p><strong>{company.name}</strong> - {company.nit} - {company.standardsType ?? 'Sin estándar'} {company.economicSector ? `- ${company.economicSector}` : ''}</p>
               <Button type="button" variant="secondary" onClick={() => onUpdateCompany(company).catch((e) => errorSetter(e.message))}>Editar empresa</Button>
               <Button type="button" variant="danger" onClick={() => onDeleteCompany(company._id).catch((e) => errorSetter(e.message))}>Eliminar</Button>
             </div>
@@ -138,6 +164,7 @@ function App() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
   const [newCompanyStandardsType, setNewCompanyStandardsType] = useState('');
+  const [newCompanyEconomicSector, setNewCompanyEconomicSector] = useState('');
   const [userFirstName, setUserFirstName] = useState('User');
   const [userLastName, setUserLastName] = useState('');
   const [userProfileImage, setUserProfileImage] = useState('');
@@ -399,10 +426,11 @@ function App() {
     setError('');
 
     try {
-      await createCompany(idToken, { name: newCompanyName, nit: newCompanyNit, standardsType: newCompanyStandardsType });
+      await createCompany(idToken, { name: newCompanyName, nit: newCompanyNit, standardsType: newCompanyStandardsType, economicSector: newCompanyEconomicSector });
       setNewCompanyName('');
       setNewCompanyNit('');
       setNewCompanyStandardsType('');
+      setNewCompanyEconomicSector('');
       await refreshOwnerData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible crear la empresa.');
@@ -656,6 +684,7 @@ function App() {
                 newCompanyName={newCompanyName}
                 newCompanyNit={newCompanyNit}
                 newCompanyStandardsType={newCompanyStandardsType}
+                newCompanyEconomicSector={newCompanyEconomicSector}
                 onDeleteCompany={(companyId) => deleteCompany(idToken, companyId).then(() => refreshOwnerData())}
                 onUpdateCompany={async (company) => {
                   const nextName = window.prompt('Nombre de la empresa', company.name)?.trim();
@@ -677,10 +706,23 @@ function App() {
                     throw new Error('El tipo de estándar debe ser 7, 21 o 60.');
                   }
 
+                  const sectorOptions = ECONOMIC_SECTORS.join(', ');
+                  const nextSector = window.prompt(
+                    `Sector económico (${sectorOptions})`,
+                    company.economicSector ?? '',
+                  )?.trim();
+                  if (!nextSector) {
+                    return;
+                  }
+                  if (!ECONOMIC_SECTORS.includes(nextSector as typeof ECONOMIC_SECTORS[number])) {
+                    throw new Error(`El sector debe ser uno de: ${sectorOptions}`);
+                  }
+
                   await updateCompany(idToken, company._id, {
                     name: nextName,
                     nit: nextNit,
                     standardsType: nextStandardsType,
+                    economicSector: nextSector,
                   });
                   await refreshOwnerData();
                 }}
@@ -688,6 +730,7 @@ function App() {
                 setNewCompanyName={setNewCompanyName}
                 setNewCompanyNit={setNewCompanyNit}
                 setNewCompanyStandardsType={setNewCompanyStandardsType}
+                setNewCompanyEconomicSector={setNewCompanyEconomicSector}
                 sharedHeader={renderSharedHeader()}
               />
             )
@@ -707,6 +750,74 @@ function App() {
         <Route path="/absenteeism" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderAbsenteeismRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
         <Route path="/inspections" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderInspectionsRoutePage()} />
+        <Route
+          path="/my-communications"
+          element={
+            profile?.role !== 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <CommunicationWorkerPortal token={idToken} employeeId={profile?._id ?? ''} employeeName={userFirstName || profile?.email?.split('@')[0] || 'Trabajador'} />
+                ) : (
+                  <p>Selecciona una empresa para ver tus comunicaciones.</p>
+                )}
+              </>
+            )
+          }
+        />
+        <Route
+          path="/document-management"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <DocumentManagementPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para gestionar documentos.</p>
+                )}
+              </>
+            )
+          }
+        />
+        <Route
+          path="/accountability"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <AccountabilityPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para ver rendición de cuentas.</p>
+                )}
+              </>
+            )
+          }
+        />
+        <Route
+          path="/legal-matrix"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <LegalMatrixPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para ver la matriz legal.</p>
+                )}
+              </>
+            )
+          }
+        />
         <Route
           path="/annual-work-plan"
           element={

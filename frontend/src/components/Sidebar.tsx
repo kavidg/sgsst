@@ -26,6 +26,10 @@ const links: SidebarLink[] = [
   { to: '/risks', label: 'Riesgos', icon: Icons.shield },
   { to: '/trainings', label: 'Capacitaciones', icon: Icons.chart },
   { to: '/inspections', label: 'Inspecciones', icon: Icons.shield },
+  { to: '/document-management', label: 'Conservación Doc.', icon: Icons.file },
+  { to: '/accountability', label: 'Rend. Cuentas', icon: Icons.chart },
+  { to: '/legal-matrix', label: 'Matriz Legal', icon: Icons.file },
+  { to: '/my-communications', label: 'Mis Comunic.', icon: Icons.bell },
 ];
 
 const documentsSubmenu: DocumentsSubmenuLink[] = [
@@ -48,7 +52,11 @@ type SidebarProps = {
 export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCollapsed }: SidebarProps) {
   const visibleLinks = role === 'manager'
     ? managerLinks
-    : links.filter((link) => (link.to === '/companies' ? role === 'owner' : true));
+    : links.filter((link) => {
+      if (link.to === '/companies') return role === 'owner';
+      if (link.to === '/my-communications') return role === 'member';
+      return true;
+    });
   const location = useLocation();
   const navigate = useNavigate();
   const [openDocuments, setOpenDocuments] = useState(false);

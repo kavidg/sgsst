@@ -141,7 +141,7 @@ export function Layout({ token, role, companies, activeCompanyId, onSelectCompan
               <Button type="button" variant="ghost" className="mobile-toggle" onClick={() => setMobileOpen(true)}>
                 <Icons.menu />
               </Button>
-              <strong>Safety Dashboard</strong>
+              <strong>Panel SST</strong>
             </div>
             <div className="actions" style={{ alignItems: 'center' }}>
               {showCompanySelector ? (

@@ -16,6 +16,7 @@ export interface CompanyModel {
   name: string;
   nit: string;
   standardsType?: string;
+  economicSector?: string;
   ownerId: string;
 }
 
@@ -365,12 +366,14 @@ interface CreateCompanyPayload {
   name: string;
   nit: string;
   standardsType: string;
+  economicSector: string;
 }
 
 interface UpdateCompanyPayload {
   name?: string;
   nit?: string;
   standardsType?: string;
+  economicSector?: string;
 }
 
 interface CreateEvaluationPayload {
@@ -1263,6 +1266,841 @@ export const fetchAnnualWorkPlanAdvanced = (token: string) => apiFetch<SstObject
 export const updateAnnualWorkPlanAdvanced = (token: string, payload: Partial<SstObjectivesAdvancedModel>) => apiFetch<SstObjectivesAdvancedModel>('/phva-advanced/annual-work-plan', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const updateAnnualWorkPlanActivitiesAdvanced = (token: string, objectiveId: string, activities: SstObjectiveActivityModel[]) => apiFetch<SstObjectivesAdvancedModel>(`/phva-advanced/annual-work-plan/${encodeURIComponent(objectiveId)}/activities`, token, { method: 'PATCH', body: JSON.stringify({ activities }) });
 
+// ==================== DOCUMENT MANAGEMENT SYSTEM API ====================
+
+export type DocumentType =
+  | 'POLICY' | 'PROCEDURE' | 'MANUAL' | 'FORMAT' | 'RECORD'
+  | 'MEETING_MINUTES' | 'TRAINING_RECORD' | 'AUDIT' | 'INSPECTION'
+  | 'EMERGENCY_PLAN' | 'COPASST' | 'COMMITTEE' | 'LEGAL_DOCUMENT'
+  | 'MEDICAL_RECORD' | 'CONTRACTOR_RECORD' | 'OTHER';
+
+export type DocumentStatus =
+  | 'DRAFT' | 'UNDER_REVIEW' | 'PENDING_APPROVAL' | 'APPROVED'
+  | 'ACTIVE' | 'OBSOLETE' | 'ARCHIVED';
+
+export type DocumentHistoryAction =
+  | 'CREATE' | 'EDIT' | 'DELETE' | 'VERSION_CHANGE' | 'APPROVAL'
+  | 'SIGNATURE' | 'ARCHIVE' | 'RESTORE' | 'STATUS_CHANGE' | 'DOWNLOAD' | 'REPLACEMENT';
+
+export interface DocumentMasterModel {
+  _id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  description?: string;
+  documentType: DocumentType;
+  process?: string;
+  version: number;
+  status: DocumentStatus;
+  ownerUser?: { _id: string; name?: string; email?: string } | string;
+  approvalUser?: { _id: string; name?: string; email?: string } | string;
+  approvalDate?: string;
+  expirationDate?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentVersionModel {
+  _id: string;
+  documentId: string;
+  versionNumber: number;
+  fileUrl: string;
+  uploadedBy?: { _id: string; name?: string; email?: string } | string;
+  uploadDate?: string;
+  changeDescription?: string;
+  isCurrent: boolean;
+  createdAt: string;
+}
+
+export interface DocumentHistoryModel {
+  _id: string;
+  companyId: string;
+  documentId: string;
+  userId: { _id: string; name?: string; email?: string } | string;
+  action: DocumentHistoryAction;
+  previousValue?: Record<string, unknown>;
+  newValue?: Record<string, unknown>;
+  description?: string;
+  createdAt: string;
+}
+
+export interface DocumentApprovalModel {
+  _id: string;
+  companyId: string;
+  documentId: string | DocumentMasterModel;
+  requestedBy: { _id: string; name?: string; email?: string } | string;
+  approvedBy?: { _id: string; name?: string; email?: string } | string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  comments?: string;
+  rejectionReason?: string;
+  approvedAt?: string;
+  createdAt: string;
+}
+
+export interface DocumentSignatureModel {
+  _id: string;
+  companyId: string;
+  documentId: string;
+  userId: { _id: string; name?: string; email?: string } | string;
+  signerName: string;
+  signerEmail?: string;
+  signatureHash?: string;
+  signatureUrl?: string;
+  comments?: string;
+  isExecutiveSignature: boolean;
+  createdAt: string;
+}
+
+export interface RetentionRuleModel {
+  _id: string;
+  companyId: string;
+  documentType: DocumentType;
+  retentionYears: number;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface DocumentStatsModel {
+  total: number;
+  byType: Record<string, number>;
+  byStatus: Record<string, number>;
+  active: number;
+  expiringSoon: number;
+  expired: number;
+}
+
+export interface DocumentSearchResult {
+  documents: DocumentMasterModel[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ExpirationInfo {
+  isExpired: boolean;
+  retentionDate: string | null;
+  daysUntilExpiration: number | null;
+}
+
+export function fetchDocumentsMaster(token: string) {
+  return apiFetch<DocumentMasterModel[]>('/document-management', token, { method: 'GET' });
+}
+
+export function fetchDocumentMaster(token: string, id: string) {
+  return apiFetch<DocumentMasterModel>(`/document-management/${id}`, token, { method: 'GET' });
+}
+
+export function createDocumentMaster(token: string, payload: {
+  code: string;
+  name: string;
+  description?: string;
+  documentType: DocumentType;
+  process?: string;
+  version?: number;
+  status?: DocumentStatus;
+  ownerUser?: string;
+  approvalUser?: string;
+  expirationDate?: string;
+}) {
+  return apiFetch<DocumentMasterModel>('/document-management', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateDocumentMaster(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<DocumentMasterModel>(`/document-management/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteDocumentMaster(token: string, id: string) {
+  return apiFetch<void>(`/document-management/${id}`, token, { method: 'DELETE' });
+}
+
+export function changeDocumentStatus(token: string, id: string, status: DocumentStatus, reason?: string) {
+  return apiFetch<DocumentMasterModel>(`/document-management/${id}/status`, token, { method: 'PATCH', body: JSON.stringify({ status, reason }) });
+}
+
+export function fetchDocumentStats(token: string) {
+  return apiFetch<DocumentStatsModel>('/document-management/stats', token, { method: 'GET' });
+}
+
+export function searchDocuments(token: string, params: Record<string, string | number | undefined>) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.append(key, String(value));
+  });
+  return apiFetch<DocumentSearchResult>(`/document-management/search?${query.toString()}`, token, { method: 'GET' });
+}
+
+export function uploadDocumentVersion(token: string, documentId: string, fileUrl: string, changeDescription?: string) {
+  return apiFetch<{ document: DocumentMasterModel; version: DocumentVersionModel }>(
+    `/document-management/${documentId}/versions`, token,
+    { method: 'POST', body: JSON.stringify({ fileUrl, changeDescription }) },
+  );
+}
+
+export function fetchDocumentVersions(token: string, documentId: string) {
+  return apiFetch<DocumentVersionModel[]>(`/document-management/${documentId}/versions`, token, { method: 'GET' });
+}
+
+export function fetchDocumentHistory(token: string, documentId: string) {
+  return apiFetch<DocumentHistoryModel[]>(`/document-management/${documentId}/history`, token, { method: 'GET' });
+}
+
+export function fetchAllHistory(token: string) {
+  return apiFetch<DocumentHistoryModel[]>('/document-management/history/all', token, { method: 'GET' });
+}
+
+export function submitDocumentForApproval(token: string, documentId: string, comments?: string) {
+  return apiFetch<DocumentApprovalModel>(
+    `/document-management/${documentId}/submit-approval`, token,
+    { method: 'POST', body: JSON.stringify({ comments }) },
+  );
+}
+
+export function fetchPendingApprovals(token: string) {
+  return apiFetch<DocumentApprovalModel[]>('/document-management/approvals/pending', token, { method: 'GET' });
+}
+
+export function fetchApprovalHistory(token: string) {
+  return apiFetch<DocumentApprovalModel[]>('/document-management/approvals/history', token, { method: 'GET' });
+}
+
+export function approveDocument(token: string, approvalId: string, payload: {
+  approvedBy: string;
+  comments?: string;
+  signatureHash?: string;
+  signatureUrl?: string;
+  signerName?: string;
+  signerEmail?: string;
+}) {
+  return apiFetch<{ approval: DocumentApprovalModel; document: DocumentMasterModel }>(
+    `/document-management/approvals/${approvalId}/approve`, token,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export function rejectDocument(token: string, approvalId: string, rejectionReason: string, comments?: string) {
+  return apiFetch<DocumentApprovalModel>(
+    `/document-management/approvals/${approvalId}/reject`, token,
+    { method: 'POST', body: JSON.stringify({ rejectionReason, comments }) },
+  );
+}
+
+export function addDocumentSignature(token: string, documentId: string, payload: {
+  signerName: string;
+  signerEmail?: string;
+  signatureHash?: string;
+  signatureUrl?: string;
+  comments?: string;
+  isExecutiveSignature?: boolean;
+}) {
+  return apiFetch<DocumentSignatureModel>(
+    `/document-management/${documentId}/signatures`, token,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export function fetchDocumentSignatures(token: string, documentId: string) {
+  return apiFetch<DocumentSignatureModel[]>(`/document-management/${documentId}/signatures`, token, { method: 'GET' });
+}
+
+export function fetchRetentionRules(token: string) {
+  return apiFetch<RetentionRuleModel[]>('/document-management/retention-rules', token, { method: 'GET' });
+}
+
+export function createRetentionRule(token: string, payload: { documentType: DocumentType; retentionYears: number; description?: string }) {
+  return apiFetch<RetentionRuleModel>('/document-management/retention-rules', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateRetentionRule(token: string, documentType: DocumentType, payload: { retentionYears?: number; description?: string }) {
+  return apiFetch<RetentionRuleModel>(`/document-management/retention-rules/${documentType}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteRetentionRule(token: string, documentType: DocumentType) {
+  return apiFetch<void>(`/document-management/retention-rules/${documentType}`, token, { method: 'DELETE' });
+}
+
+export function checkDocumentExpiration(token: string, documentId: string) {
+  return apiFetch<ExpirationInfo>(`/document-management/${documentId}/expiration`, token, { method: 'GET' });
+}
+
+export function fetchExpiringDocuments(token: string, withinDays: number) {
+  return apiFetch<DocumentMasterModel[]>(`/document-management/expiring/${withinDays}`, token, { method: 'GET' });
+}
+
+export function fetchExpiredDocuments(token: string) {
+  return apiFetch<DocumentMasterModel[]>('/document-management/expired', token, { method: 'GET' });
+}
+
+export function triggerDocumentAlerts(token: string) {
+  return apiFetch<{ message: string }>('/document-management/alerts/check', token, { method: 'POST' });
+}
+
+
+// ==================== COMMUNICATION / COMUNICACIÓN SG-SST API ====================
+
+export type CommunicationType =
+  | 'ANNOUNCEMENT' | 'CIRCULAR' | 'BULLETIN' | 'CAMPAIGN'
+  | 'EMERGENCY_NOTICE' | 'POLICY_COMMUNICATION'
+  | 'PROCEDURE_COMMUNICATION' | 'TRAINING_COMMUNICATION';
+
+export type CommunicationPriority = 'INFORMATIVE' | 'IMPORTANT' | 'URGENT' | 'CRITICAL';
+
+export type TargetAudienceType =
+  | 'ALL_COMPANY' | 'AREA' | 'POSITION' | 'INDIVIDUAL'
+  | 'COPASST' | 'COMMITTEE' | 'BRIGADE' | 'MANAGERS' | 'SST_TEAM';
+
+export type CommunicationStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+export type CommunicationCampaignStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+
+export type SurveyQuestionType = 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'OPEN_TEXT';
+
+export type SurveyStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED';
+
+export type MailboxType = 'SUGGESTION' | 'COMPLAINT' | 'UNSAFE_ACT' | 'UNSAFE_CONDITION' | 'IMPROVEMENT_IDEA' | 'REPORT';
+
+export type MailboxStatus = 'PENDING' | 'UNDER_REVIEW' | 'RESOLVED' | 'CLOSED';
+
+export interface CommunicationModel {
+  _id: string;
+  companyId: string;
+  title: string;
+  body?: string;
+  communicationType: CommunicationType;
+  priority: CommunicationPriority;
+  targetAudience: TargetAudienceType;
+  targetIds: string[];
+  status: CommunicationStatus;
+  publishedAt?: string;
+  scheduledAt?: string;
+  expiresAt?: string;
+  createdBy?: { _id: string } | string;
+  createdByName?: string;
+  linkedDocumentIds: string[];
+  attachmentUrls: string[];
+  requiresSignature: boolean;
+  requiresSurvey: boolean;
+  surveyId?: string;
+  isFromAutoGeneration: boolean;
+  autoGeneratedFromModule?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunicationRecipientModel {
+  _id: string;
+  companyId: string;
+  communicationId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeEmail?: string;
+  status: 'PENDING' | 'DELIVERED' | 'READ' | 'SIGNED';
+  deliveredAt?: string;
+  readAt?: string;
+  signedAt?: string;
+}
+
+export interface CommunicationReadReceiptModel {
+  _id: string;
+  companyId: string;
+  communicationId: string;
+  employeeId: string;
+  employeeName: string;
+  readDate: string;
+  readTime: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface CommunicationSignatureModel {
+  _id: string;
+  companyId: string;
+  communicationId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeEmail?: string;
+  signatureDate: string;
+  signatureHash?: string;
+  signatureUrl?: string;
+  comments?: string;
+}
+
+export interface CommunicationCampaignModel {
+  _id: string;
+  companyId: string;
+  name: string;
+  description?: string;
+  status: CommunicationCampaignStatus;
+  startDate?: string;
+  endDate?: string;
+  linkedCommunicationIds: string[];
+  attachmentUrls: string[];
+  tags: string[];
+  totalReached: number;
+  totalRead: number;
+  totalSigned: number;
+  createdAt: string;
+}
+
+export interface CommunicationSurveyQuestionModel {
+  questionId: string;
+  questionText: string;
+  questionType: SurveyQuestionType;
+  options: string[];
+  required: boolean;
+}
+
+export interface CommunicationSurveyModel {
+  _id: string;
+  companyId: string;
+  title: string;
+  description?: string;
+  status: SurveyStatus;
+  questions: CommunicationSurveyQuestionModel[];
+  communicationId?: string;
+  startDate?: string;
+  endDate?: string;
+  totalResponses: number;
+  totalInvited: number;
+  createdAt: string;
+}
+
+export interface CommunicationSurveyResponseModel {
+  _id: string;
+  companyId: string;
+  surveyId: string;
+  employeeId: string;
+  employeeName: string;
+  answers: Array<{ questionId: string; answer?: string; selectedOptions: string[] }>;
+  submittedAt: string;
+  isAnonymous: boolean;
+}
+
+export interface CommunicationMailboxModel {
+  _id: string;
+  companyId: string;
+  mailboxType: MailboxType;
+  subject: string;
+  message: string;
+  isAnonymous: boolean;
+  submittedBy?: string;
+  submittedByName?: string;
+  status: MailboxStatus;
+  response?: string;
+  respondedBy?: string;
+  respondedAt?: string;
+  attachmentUrls: string[];
+  isPriority: boolean;
+  createdAt: string;
+}
+
+export interface CommunicationDashboardModel {
+  totalCommunications: number;
+  published: number;
+  drafts: number;
+  unread: number;
+  pendingSignatures: number;
+  pendingSurveys: number;
+  totalRecipients: number;
+  totalRead: number;
+  mailboxPending: number;
+  campaignsActive: number;
+  readRate: number;
+}
+
+export interface CommunicationAutoComplianceModel {
+  complies: boolean;
+  reasons: string[];
+  score: number;
+}
+
+export function fetchCommunicationDashboard(token: string) {
+  return apiFetch<CommunicationDashboardModel>('/communication/dashboard', token, { method: 'GET' });
+}
+
+export function fetchCommunicationAutoCompliance(token: string) {
+  return apiFetch<CommunicationAutoComplianceModel>('/communication/auto-compliance', token, { method: 'GET' });
+}
+
+export function fetchCommunications(token: string) {
+  return apiFetch<CommunicationModel[]>('/communication', token, { method: 'GET' });
+}
+
+export function createCommunication(token: string, payload: Partial<CommunicationModel>) {
+  return apiFetch<CommunicationModel>('/communication', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateCommunication(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<CommunicationModel>(`/communication/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function publishCommunication(token: string, id: string) {
+  return apiFetch<CommunicationModel>(`/communication/${id}/publish`, token, { method: 'POST' });
+}
+
+export function archiveCommunication(token: string, id: string) {
+  return apiFetch<CommunicationModel>(`/communication/${id}/archive`, token, { method: 'POST' });
+}
+
+export function deleteCommunication(token: string, id: string) {
+  return apiFetch<void>(`/communication/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchCommunicationRecipients(token: string, id: string) {
+  return apiFetch<CommunicationRecipientModel[]>(`/communication/${id}/recipients`, token, { method: 'GET' });
+}
+
+export function addCommunicationRecipients(token: string, id: string, employeeIds: string[]) {
+  return apiFetch<CommunicationRecipientModel[]>(`/communication/${id}/recipients`, token, { method: 'POST', body: JSON.stringify({ employeeIds }) });
+}
+
+export function registerCommunicationRead(token: string, id: string, employeeId: string, employeeName: string) {
+  return apiFetch<CommunicationReadReceiptModel>(`/communication/${id}/read`, token, { method: 'POST', body: JSON.stringify({ employeeId, employeeName }) });
+}
+
+export function fetchCommunicationReadReceipts(token: string, id: string) {
+  return apiFetch<CommunicationReadReceiptModel[]>(`/communication/${id}/read-receipts`, token, { method: 'GET' });
+}
+
+export function signCommunication(token: string, id: string, payload: { employeeId: string; employeeName: string; employeeEmail: string; signatureHash?: string; signatureUrl?: string; comments?: string }) {
+  return apiFetch<CommunicationSignatureModel>(`/communication/${id}/sign`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function fetchCommunicationSignatures(token: string, id: string) {
+  return apiFetch<CommunicationSignatureModel[]>(`/communication/${id}/signatures`, token, { method: 'GET' });
+}
+
+export function fetchCommunicationCampaigns(token: string) {
+  return apiFetch<CommunicationCampaignModel[]>('/communication/campaigns', token, { method: 'GET' });
+}
+
+export function createCommunicationCampaign(token: string, payload: Partial<CommunicationCampaignModel>) {
+  return apiFetch<CommunicationCampaignModel>('/communication/campaigns', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateCommunicationCampaign(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<CommunicationCampaignModel>(`/communication/campaigns/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteCommunicationCampaign(token: string, id: string) {
+  return apiFetch<void>(`/communication/campaigns/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchSurveys(token: string) {
+  return apiFetch<CommunicationSurveyModel[]>('/communication/surveys', token, { method: 'GET' });
+}
+
+export function createSurvey(token: string, payload: Partial<CommunicationSurveyModel>) {
+  return apiFetch<CommunicationSurveyModel>('/communication/surveys', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateSurvey(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<CommunicationSurveyModel>(`/communication/surveys/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteSurvey(token: string, id: string) {
+  return apiFetch<void>(`/communication/surveys/${id}`, token, { method: 'DELETE' });
+}
+
+export function submitSurveyResponse(token: string, surveyId: string, payload: { employeeId: string; employeeName: string; answers: Array<{ questionId: string; answer?: string; selectedOptions: string[] }>; isAnonymous?: boolean }) {
+  return apiFetch<CommunicationSurveyResponseModel>(`/communication/surveys/${surveyId}/respond`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function fetchSurveyResults(token: string, surveyId: string) {
+  return apiFetch<{ survey: CommunicationSurveyModel; totalResponses: number; stats: any[] }>(`/communication/surveys/${surveyId}/results`, token, { method: 'GET' });
+}
+
+export function fetchSurveyStats(token: string, surveyId: string) {
+  return apiFetch<{ total: number; participationRate: number }>(`/communication/surveys/${surveyId}/stats`, token, { method: 'GET' });
+}
+
+export function fetchMailbox(token: string, status?: string) {
+  const q = status ? `?status=${status}` : '';
+  return apiFetch<CommunicationMailboxModel[]>(`/communication/mailbox${q}`, token, { method: 'GET' });
+}
+
+export function createMailboxEntry(token: string, payload: { mailboxType: MailboxType; subject: string; message: string; isAnonymous?: boolean; employeeId?: string }) {
+  return apiFetch<CommunicationMailboxModel>('/communication/mailbox', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function respondMailbox(token: string, id: string, response: string, respondedBy: string) {
+  return apiFetch<CommunicationMailboxModel>(`/communication/mailbox/${id}/respond`, token, { method: 'POST', body: JSON.stringify({ response, respondedBy }) });
+}
+
+export function deleteMailboxEntry(token: string, id: string) {
+  return apiFetch<void>(`/communication/mailbox/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchCommunicationHistory(token: string, limit = 100, skip = 0) {
+  return apiFetch<any[]>(`/communication/history?limit=${limit}&skip=${skip}`, token, { method: 'GET' });
+}
+
+export function triggerCommunicationAlerts(token: string) {
+  return apiFetch<string[]>('/communication/check-alerts', token, { method: 'POST' });
+}
+
+// ==================== ACCOUNTABILITY / RENDICIÓN DE CUENTAS API ====================
+
+export type AccountabilityReportType = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
+export type AccountabilityReportStatus = 'DRAFT' | 'GENERATED' | 'SIGNED' | 'ARCHIVED';
+export type AccountabilityMeetingType = 'MONTHLY' | 'QUARTERLY' | 'EXTRAORDINARY';
+export type AccountabilityMeetingStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+export type AccountabilityCommitmentPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type AccountabilityCommitmentStatus = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'CANCELLED';
+
+export interface AccountabilityReportModel {
+  _id: string;
+  companyId: string;
+  reportNumber: string;
+  reportType: AccountabilityReportType;
+  periodStart: string;
+  periodEnd: string;
+  status: AccountabilityReportStatus;
+  generatedBy?: { _id: string; name?: string; email?: string };
+  signedBy?: { _id: string; name?: string; email?: string };
+  signedAt?: string;
+  executiveSummary: string;
+  achievements: string;
+  pendingActions: string;
+  riskAreas: string;
+  compliancePercentage: number;
+  criticalFindings: string;
+  recommendations: string;
+  nextActions: string;
+  documentId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccountabilityMeetingModel {
+  _id: string;
+  companyId: string;
+  title: string;
+  date: string;
+  time?: string;
+  location?: string;
+  meetingType: AccountabilityMeetingType;
+  status: AccountabilityMeetingStatus;
+  participants?: Array<{ _id: string; name?: string; email?: string }>;
+  createdBy?: { _id: string; name?: string; email?: string };
+  topicsDiscussed?: string;
+  decisions?: string;
+  minutesContent?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccountabilityCommitmentModel {
+  _id: string;
+  companyId: string;
+  title: string;
+  description?: string;
+  responsibleUser: { _id: string; name?: string; email?: string };
+  dueDate: string;
+  priority: AccountabilityCommitmentPriority;
+  status: AccountabilityCommitmentStatus;
+  meetingId?: { _id: string; title: string; date: string };
+  justificationReason?: string;
+  justificationCorrectiveAction?: string;
+  justificationNewDate?: string;
+  justificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  justificationApprovedBy?: { _id: string; name?: string; email?: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccountabilityHistoryModel {
+  _id: string;
+  companyId: string;
+  userId?: { _id: string; name?: string; email?: string } | string;
+  userEmail: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  previousValue?: Record<string, unknown>;
+  newValue?: Record<string, unknown>;
+  description: string;
+  createdAt: string;
+}
+
+export interface AccountabilityDashboardModel {
+  totalMeetings: number;
+  completedMeetings: number;
+  scheduledMeetings: number;
+  totalReports: number;
+  signedReports: number;
+  draftReports: number;
+  totalCommitments: number;
+  openCommitments: number;
+  overdueCommitments: number;
+  completedCommitments: number;
+  compliancePercentage: number;
+}
+
+export interface AutoComplianceModel {
+  complies: boolean;
+  reasons: string[];
+  score: number;
+}
+
+export function fetchAccountabilityDashboard(token: string) {
+  return apiFetch<AccountabilityDashboardModel>('/accountability/dashboard', token, { method: 'GET' });
+}
+
+export function fetchAutoCompliance(token: string) {
+  return apiFetch<AutoComplianceModel>('/accountability/auto-compliance', token, { method: 'GET' });
+}
+
+export function fetchAccountabilityReports(token: string) {
+  return apiFetch<AccountabilityReportModel[]>('/accountability/reports', token, { method: 'GET' });
+}
+
+export function fetchAccountabilityReportStats(token: string) {
+  return apiFetch<{ total: number; byType: Record<string, number>; byStatus: Record<string, number>; signed: number; draft: number }>('/accountability/reports/stats', token, { method: 'GET' });
+}
+
+export function fetchAccountabilityReport(token: string, id: string) {
+  return apiFetch<AccountabilityReportModel>(`/accountability/reports/${id}`, token, { method: 'GET' });
+}
+
+export function createAccountabilityReport(token: string, payload: {
+  reportType: AccountabilityReportType;
+  periodStart: string;
+  periodEnd: string;
+  executiveSummary?: string;
+  achievements?: string;
+  pendingActions?: string;
+  riskAreas?: string;
+  compliancePercentage?: number;
+  criticalFindings?: string;
+  recommendations?: string;
+  nextActions?: string;
+}) {
+  return apiFetch<AccountabilityReportModel>('/accountability/reports', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function createIndividualReport(token: string, payload: {
+  activitiesPerformed: string;
+  activitiesPending: string;
+  difficulties?: string;
+  correctiveActions?: string;
+  recommendations?: string;
+  observations?: string;
+}) {
+  return apiFetch<AccountabilityReportModel>('/accountability/reports/individual', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateAccountabilityReport(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<AccountabilityReportModel>(`/accountability/reports/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function signAccountabilityReport(token: string, id: string, payload: { signedBy: string; signatureHash?: string; signatureUrl?: string }) {
+  return apiFetch<AccountabilityReportModel>(`/accountability/reports/${id}/sign`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function archiveAccountabilityReport(token: string, id: string) {
+  return apiFetch<AccountabilityReportModel>(`/accountability/reports/${id}/archive`, token, { method: 'POST' });
+}
+
+export function fetchAccountabilityMeetings(token: string) {
+  return apiFetch<AccountabilityMeetingModel[]>('/accountability/meetings', token, { method: 'GET' });
+}
+
+export function fetchUpcomingMeetings(token: string, days = 30) {
+  return apiFetch<AccountabilityMeetingModel[]>(`/accountability/meetings/upcoming?days=${days}`, token, { method: 'GET' });
+}
+
+export function fetchAccountabilityMeeting(token: string, id: string) {
+  return apiFetch<AccountabilityMeetingModel>(`/accountability/meetings/${id}`, token, { method: 'GET' });
+}
+
+export function createAccountabilityMeeting(token: string, payload: {
+  title: string;
+  date: string;
+  time?: string;
+  location?: string;
+  meetingType: AccountabilityMeetingType;
+  participants?: string[];
+  topicsDiscussed?: string;
+  decisions?: string;
+}) {
+  return apiFetch<AccountabilityMeetingModel>('/accountability/meetings', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateAccountabilityMeeting(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<AccountabilityMeetingModel>(`/accountability/meetings/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function completeAccountabilityMeeting(token: string, id: string, payload: { topicsDiscussed?: string; decisions?: string; minutesContent?: string }) {
+  return apiFetch<AccountabilityMeetingModel>(`/accountability/meetings/${id}/complete`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function deleteAccountabilityMeeting(token: string, id: string) {
+  return apiFetch<void>(`/accountability/meetings/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchAccountabilityCommitments(token: string) {
+  return apiFetch<AccountabilityCommitmentModel[]>('/accountability/commitments', token, { method: 'GET' });
+}
+
+export function fetchCommitmentStats(token: string) {
+  return apiFetch<{ total: number; open: number; inProgress: number; completed: number; overdue: number; cancelled: number }>('/accountability/commitments/stats', token, { method: 'GET' });
+}
+
+export function fetchMyCommitments(token: string) {
+  return apiFetch<AccountabilityCommitmentModel[]>('/accountability/commitments/my', token, { method: 'GET' });
+}
+
+export function fetchCommitmentsByMeeting(token: string, meetingId: string) {
+  return apiFetch<AccountabilityCommitmentModel[]>(`/accountability/commitments/meeting/${meetingId}`, token, { method: 'GET' });
+}
+
+export function createAccountabilityCommitment(token: string, payload: {
+  title: string;
+  description?: string;
+  responsibleUser: string;
+  dueDate: string;
+  priority?: AccountabilityCommitmentPriority;
+  meetingId?: string;
+}) {
+  return apiFetch<AccountabilityCommitmentModel>('/accountability/commitments', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateAccountabilityCommitment(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<AccountabilityCommitmentModel>(`/accountability/commitments/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function completeAccountabilityCommitment(token: string, id: string) {
+  return apiFetch<AccountabilityCommitmentModel>(`/accountability/commitments/${id}/complete`, token, { method: 'POST' });
+}
+
+export function submitCommitmentJustification(token: string, id: string, payload: { reason: string; correctiveAction?: string; newProposedDate?: string }) {
+  return apiFetch<AccountabilityCommitmentModel>(`/accountability/commitments/${id}/justify`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function approveCommitmentJustification(token: string, id: string, payload: { approved: boolean; rejectionReason?: string }) {
+  return apiFetch<AccountabilityCommitmentModel>(`/accountability/commitments/${id}/justify/approve`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function fetchAccountabilityHistory(token: string, limit = 100, skip = 0) {
+  return apiFetch<AccountabilityHistoryModel[]>(`/accountability/history?limit=${limit}&skip=${skip}`, token, { method: 'GET' });
+}
+
+export function fetchAccountabilityEntityHistory(token: string, entityType: string, entityId: string) {
+  return apiFetch<AccountabilityHistoryModel[]>(`/accountability/history/${entityType}/${entityId}`, token, { method: 'GET' });
+}
+
+export function checkAccountabilityAlerts(token: string) {
+  return apiFetch<string[]>('/accountability/check-alerts', token, { method: 'POST' });
+}
+
+export function checkAccountabilityOverdue(token: string) {
+  return apiFetch<{ message: string; overdueCount: number }>('/accountability/check-overdue', token, { method: 'POST' });
+}
+
+
 // ==================== DEDICATED ANNUAL WORK PLAN API ====================
 
 export interface AnnualWorkPlanModel {
@@ -1639,3 +2477,276 @@ export const generateInitialEvaluationActions = (token: string) => apiFetch<Init
 export const submitInitialEvaluationApproval = (token: string, comments?: string) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation/submit-approval', token, { method: 'POST', body: JSON.stringify({ comments }) });
 export const signInitialEvaluationApproval = (token: string, payload: { signerName: string; signerEmail?: string; signatureUrl?: string; comments?: string }) => apiFetch<InitialEvaluationModel>('/advanced-management/initial-evaluation/manager-sign', token, { method: 'POST', body: JSON.stringify(payload) });
 export const fetchInitialEvaluationExecutiveDashboard = (token: string) => apiFetch<InitialEvaluationExecutiveDashboardModel>('/advanced-management/initial-evaluation/executive-dashboard', token, { method: 'GET' });
+
+// ==================== LEGAL MATRIX API ====================
+
+export interface LegalMatrixItemModel {
+  regulationCode: string;
+  regulationName: string;
+  description?: string;
+  status: 'CUMPLE' | 'NO_CUMPLE' | 'NO_APLICA' | 'PENDIENTE';
+  observation?: string;
+  evidenceUrl?: string;
+  lastUpdatedAt?: string;
+}
+
+export interface CompanyLegalMatrixModel {
+  _id: string;
+  companyId: string;
+  economicSector: string;
+  items: LegalMatrixItemModel[];
+}
+
+export interface LegalMatrixComplianceModel {
+  total: number;
+  cumplen: number;
+  noCumplen: number;
+  noAplica: number;
+  pendiente: number;
+  compliancePercentage: number;
+}
+
+export function fetchCompanyLegalMatrix(token: string) {
+  return apiFetch<CompanyLegalMatrixModel>('/legal-matrix/company/current', token, { method: 'GET' });
+}
+
+export function fetchLegalMatrixCompliance(token: string) {
+  return apiFetch<LegalMatrixComplianceModel>('/legal-matrix/company/current/compliance', token, { method: 'GET' });
+}
+
+export function updateLegalMatrixItemStatus(token: string, regulationCode: string, status: string, observation?: string) {
+  return apiFetch<CompanyLegalMatrixModel>(
+    `/legal-matrix/company/current/item/${encodeURIComponent(regulationCode)}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify({ status, observation }) },
+  );
+}
+
+export function fetchSectorRegulations(token: string, sector: string) {
+  return apiFetch<Array<{ regulationCode: string; regulationName: string; description?: string }>>(
+    `/legal-matrix/sectors/${encodeURIComponent(sector)}`,
+    token,
+    { method: 'GET' },
+  );
+}
+
+export function addCustomRegulationToCurrent(token: string, regulationCode: string, regulationName: string, description?: string) {
+  return apiFetch<CompanyLegalMatrixModel>(`/legal-matrix/company/current/items`, token, { method: 'POST', body: JSON.stringify({ regulationCode, regulationName, description }) });
+}
+
+export function removeRegulationFromMatrix(token: string, regulationCode: string) {
+  return apiFetch<CompanyLegalMatrixModel>(`/legal-matrix/company/current/item/${encodeURIComponent(regulationCode)}`, token, { method: 'DELETE' });
+}
+
+// ==================== ADVANCED LEGAL MATRIX API ====================
+
+export interface LegalDashboardModel {
+  totalRequirements: number;
+  compliant: number;
+  partial: number;
+  nonCompliant: number;
+  expiringReviews: number;
+  pendingEvidence: number;
+  regulatoryChanges: number;
+  overallCompliancePercentage: number;
+}
+
+export interface LegalRequirementModel {
+  _id: string;
+  companyId: string;
+  regulationCode: string;
+  regulationName: string;
+  article?: string;
+  requirement: string;
+  responsibleUser?: { _id: string; email?: string; name?: string } | string;
+  reviewFrequency: string;
+  complianceStatus: 'CUMPLE' | 'PARCIAL' | 'NO_CUMPLE';
+  linkedModules: Array<{ module: string; entityId: string; entityName?: string; isCompliant: boolean }>;
+  notes?: string;
+  lastReviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LegalEvidenceModel {
+  _id: string;
+  companyId: string;
+  requirementId: string;
+  documentId?: string;
+  documentName?: string;
+  documentVersion?: string;
+  fileUrl?: string;
+  description: string;
+  status: string;
+  uploadedBy?: string;
+  uploadDate?: string;
+  createdAt: string;
+}
+
+export interface LegalFollowUpModel {
+  _id: string;
+  companyId: string;
+  requirementId: string;
+  reviewDate: string;
+  reviewer?: { _id: string; email?: string; name?: string } | string;
+  reviewerName?: string;
+  findings?: string;
+  recommendations?: string;
+  complianceResult: string;
+  isSigned: boolean;
+  signedByName?: string;
+  signedAt?: string;
+  signatureHash?: string;
+  nextReviewDate?: string;
+  createdAt: string;
+}
+
+export interface LegalRegulatoryChangeModel {
+  _id: string;
+  companyId: string;
+  changeType: 'NEW_REGULATION' | 'AMENDMENT' | 'REPEAL' | 'UPDATE';
+  regulationCode: string;
+  regulationName: string;
+  previousRegulationCode?: string;
+  description?: string;
+  impact: 'HIGH' | 'MEDIUM' | 'LOW';
+  effectiveDate: string;
+  isReviewed: boolean;
+  alertGenerated: boolean;
+  createdAt: string;
+}
+
+export interface LegalActionPlanModel {
+  _id: string;
+  companyId: string;
+  requirementId: string;
+  title: string;
+  description?: string;
+  responsibleUser?: string;
+  dueDate?: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  linkedActivityId?: string;
+  activityTitle?: string;
+  syncedToAnnualPlan: boolean;
+  completedAt?: string;
+  completionNotes?: string;
+  createdAt: string;
+}
+
+export interface LegalHistoryModel {
+  _id: string;
+  companyId: string;
+  userId: string;
+  userEmail: string;
+  userName?: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  requirementId?: string;
+  description?: string;
+  previousValue?: Record<string, unknown>;
+  newValue?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AutoComplianceResult {
+  complies: boolean;
+  reasons: string[];
+  score: number;
+}
+
+export function fetchLegalDashboard(token: string) {
+  return apiFetch<LegalDashboardModel>('/legal-matrix/dashboard', token, { method: 'GET' });
+}
+
+export function fetchLegalRequirements(token: string, regulationCode?: string) {
+  const q = regulationCode ? `?regulationCode=${encodeURIComponent(regulationCode)}` : '';
+  return apiFetch<LegalRequirementModel[]>(`/legal-matrix/requirements${q}`, token, { method: 'GET' });
+}
+
+export function createLegalRequirement(token: string, payload: {
+  regulationCode: string; regulationName: string; article?: string;
+  requirement: string; responsibleUser?: string; reviewFrequency?: string;
+}) {
+  return apiFetch<LegalRequirementModel>('/legal-matrix/requirements', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateLegalRequirement(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<LegalRequirementModel>(`/legal-matrix/requirements/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteLegalRequirement(token: string, id: string) {
+  return apiFetch<void>(`/legal-matrix/requirements/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchLegalEvidence(token: string) {
+  return apiFetch<LegalEvidenceModel[]>('/legal-matrix/evidence', token, { method: 'GET' });
+}
+
+export function createLegalEvidence(token: string, payload: {
+  requirementId: string; description: string; documentName?: string; fileUrl?: string;
+}) {
+  return apiFetch<LegalEvidenceModel>('/legal-matrix/evidence', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function deleteLegalEvidence(token: string, id: string) {
+  return apiFetch<void>(`/legal-matrix/evidence/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchLegalFollowUps(token: string) {
+  return apiFetch<LegalFollowUpModel[]>('/legal-matrix/follow-ups', token, { method: 'GET' });
+}
+
+export function createLegalFollowUp(token: string, payload: {
+  requirementId: string; reviewDate: string; findings?: string; recommendations?: string;
+  complianceResult: string; nextReviewDate?: string;
+}) {
+  return apiFetch<LegalFollowUpModel>('/legal-matrix/follow-ups', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function signLegalFollowUp(token: string, id: string, payload: { signedByName: string; signatureHash?: string; signatureUrl?: string }) {
+  return apiFetch<LegalFollowUpModel>(`/legal-matrix/follow-ups/${id}/sign`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function fetchLegalRegulatoryChanges(token: string, unreviewedOnly?: boolean) {
+  const q = unreviewedOnly ? '?unreviewed=true' : '';
+  return apiFetch<LegalRegulatoryChangeModel[]>(`/legal-matrix/regulatory-changes${q}`, token, { method: 'GET' });
+}
+
+export function createLegalRegulatoryChange(token: string, payload: {
+  changeType: string; regulationCode: string; regulationName: string;
+  description?: string; impact: string; effectiveDate: string;
+}) {
+  return apiFetch<LegalRegulatoryChangeModel>('/legal-matrix/regulatory-changes', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function markRegulatoryChangeReviewed(token: string, id: string) {
+  return apiFetch<LegalRegulatoryChangeModel>(`/legal-matrix/regulatory-changes/${id}/review`, token, { method: 'PATCH' });
+}
+
+export function fetchLegalActionPlans(token: string, requirementId?: string) {
+  const q = requirementId ? `?requirementId=${requirementId}` : '';
+  return apiFetch<LegalActionPlanModel[]>(`/legal-matrix/action-plans${q}`, token, { method: 'GET' });
+}
+
+export function createLegalActionPlan(token: string, payload: {
+  requirementId: string; title: string; description?: string; dueDate?: string;
+}) {
+  return apiFetch<LegalActionPlanModel>('/legal-matrix/action-plans', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateLegalActionPlan(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<LegalActionPlanModel>(`/legal-matrix/action-plans/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function fetchLegalHistory(token: string, limit = 100, skip = 0) {
+  return apiFetch<LegalHistoryModel[]>(`/legal-matrix/history?limit=${limit}&skip=${skip}`, token, { method: 'GET' });
+}
+
+export function fetchLegalAutoCompliance(token: string) {
+  return apiFetch<AutoComplianceResult>('/legal-matrix/auto-compliance', token, { method: 'GET' });
+}
+
+export function triggerLegalAlerts(token: string) {
+  return apiFetch<string[]>('/legal-matrix/check-alerts', token, { method: 'POST' });
+}
