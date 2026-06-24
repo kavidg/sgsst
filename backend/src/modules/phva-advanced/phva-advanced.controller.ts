@@ -69,6 +69,24 @@ export class PhvaAdvancedController {
     const user = await this.resolveUserFromRequest(request);
     const fileUrl = await this.uploadToFirebaseStorage(companyId, file);
 
+    const isLicenseDoc = ['SST_LICENSE_PDF', 'SST_LICENSE_SCANNED', 'SST_LICENSE_RESOLUTION', 'SST_LICENSE_SUPPORTING'].includes(dto.type);
+
+    if (isLicenseDoc) {
+      return this.phvaAdvancedService.attachLicenseDocument({
+        companyId,
+        user,
+        type: dto.type as any,
+        fileName: file.originalname,
+        fileUrl,
+        ocrLicenseNumber: dto.ocrLicenseNumber,
+        ocrIssueDate: dto.ocrIssueDate,
+        ocrExpirationDate: dto.ocrExpirationDate,
+        ocrIssuingAuthority: dto.ocrIssuingAuthority,
+        ocrLicenseHolder: dto.ocrLicenseHolder,
+        rawOcrText: dto.rawOcrText,
+      });
+    }
+
     return this.phvaAdvancedService.attachDocument({
       companyId,
       user,
@@ -77,6 +95,48 @@ export class PhvaAdvancedController {
       fileUrl,
       finalUserDate: dto.finalUserDate,
     });
+  }
+
+  @Post('responsable-sst/license-ocr-modify')
+  @Roles('owner', 'admin')
+  async modifyLicenseOcr(
+    @Req() request: RequestWithUser,
+    @Body() dto: { ocrIndex: number; licenseNumber?: string; issueDate?: string; expirationDate?: string; issuingAuthority?: string },
+  ) {
+    const companyId = this.resolveCompanyId(request);
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.registerLicenseOcrModification(companyId, user, dto.ocrIndex, {
+      licenseNumber: dto.licenseNumber,
+      issueDate: dto.issueDate,
+      expirationDate: dto.expirationDate,
+      issuingAuthority: dto.issuingAuthority,
+    });
+  }
+
+  @Get('responsable-sst/license-dashboard')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getLicenseDashboard(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateResponsableSst(companyId);
+    this.phvaAdvancedService['resolveLicenseStatus'](record as any);
+
+    let remainingDays: number | null = null;
+    if (record.licenseExpiresAt) {
+      const now = new Date();
+      remainingDays = Math.ceil((record.licenseExpiresAt.getTime() - now.getTime()) / 86_400_000);
+    }
+
+    return {
+      responsibleName: record.fullName || 'Sin asignar',
+      licenseNumber: record.sstLicenseNumber || '—',
+      licenseType: record.licenseType || '—',
+      status: record.licenseStatus || 'Pendiente',
+      expirationDate: record.licenseExpiresAt?.toISOString() || null,
+      remainingDays,
+      hasLicenseDocument: record.documents.some((document) =>
+        document.type === 'SST_LICENSE_PDF' || document.type === 'SST_LICENSE_SCANNED'
+      ),
+    };
   }
 
   @Get('responsable-sst/audit')

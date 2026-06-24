@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { UsersModule } from '../users/users.module';
+import { CommunicationModule } from '../communication/communication.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { InspectionsController } from './inspections.controller';
 import { InspectionsService } from './inspections.service';
@@ -18,6 +19,7 @@ import { InspectionActivity, InspectionActivitySchema } from './schemas/inspecti
       { name: InspectionActivity.name, schema: InspectionActivitySchema },
     ]),
     UsersModule,
+    CommunicationModule,
   ],
   controllers: [InspectionsController],
   providers: [InspectionsService, RolesGuard],

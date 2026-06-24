@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { CommunicationController } from './communication.controller';
 import { CommunicationService } from './communication.service';
+import { AutoCommunicationService } from './auto-communication.service';
 import { Communication, CommunicationSchema } from './schemas/communication.schema';
 import { CommunicationRecipient, CommunicationRecipientSchema } from './schemas/communication-recipient.schema';
 import { CommunicationReadReceipt, CommunicationReadReceiptSchema } from './schemas/communication-read-receipt.schema';
@@ -13,6 +14,7 @@ import { CommunicationSurvey, CommunicationSurveySchema } from './schemas/commun
 import { CommunicationSurveyResponse, CommunicationSurveyResponseSchema } from './schemas/communication-survey-response.schema';
 import { CommunicationMailbox, CommunicationMailboxSchema } from './schemas/communication-mailbox.schema';
 import { CommunicationHistory, CommunicationHistorySchema } from './schemas/communication-history.schema';
+import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
 
 @Module({
   imports: [
@@ -28,10 +30,11 @@ import { CommunicationHistory, CommunicationHistorySchema } from './schemas/comm
       { name: CommunicationSurveyResponse.name, schema: CommunicationSurveyResponseSchema },
       { name: CommunicationMailbox.name, schema: CommunicationMailboxSchema },
       { name: CommunicationHistory.name, schema: CommunicationHistorySchema },
+      { name: Employee.name, schema: EmployeeSchema },
     ]),
   ],
   controllers: [CommunicationController],
-  providers: [CommunicationService],
-  exports: [CommunicationService],
+  providers: [CommunicationService, AutoCommunicationService],
+  exports: [CommunicationService, AutoCommunicationService],
 })
 export class CommunicationModule {}

@@ -1,4 +1,4 @@
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { EconomicSectors } from '../schemas/company.schema';
 
 export class CreateCompanyDto {
@@ -13,4 +13,21 @@ export class CreateCompanyDto {
 
   @IsEnum(EconomicSectors)
   economicSector!: string;
+
+  @IsOptional()
+  @IsString()
+  economicActivity?: string;
+
+  @IsOptional()
+  @IsString()
+  ciiuCode?: string;
+
+  @IsOptional()
+  @IsEnum(['I', 'II', 'III', 'IV', 'V'])
+  arlRiskLevel?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  employeeCount?: number;
 }

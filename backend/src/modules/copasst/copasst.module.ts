@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AlertsModule } from '../alerts/alerts.module';
 import { AuthModule } from '../auth/auth.module';
+import { CommunicationModule } from '../communication/communication.module';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { RolesGuard } from '../questions/roles.guard';
@@ -16,6 +17,7 @@ import { CopasstPeriod, CopasstPeriodSchema } from './schemas/copasst.schema';
     AuthModule,
     UsersModule,
     AlertsModule,
+    CommunicationModule,
     MongooseModule.forFeature([
       { name: CopasstPeriod.name, schema: CopasstPeriodSchema },
       { name: User.name, schema: UserSchema },

@@ -34,6 +34,10 @@ export class CompaniesService {
       nit: createCompanyDto.nit,
       standardsType: createCompanyDto.standardsType,
       economicSector: createCompanyDto.economicSector,
+      economicActivity: createCompanyDto.economicActivity,
+      ciiuCode: createCompanyDto.ciiuCode,
+      arlRiskLevel: createCompanyDto.arlRiskLevel,
+      employeeCount: createCompanyDto.employeeCount ?? 0,
       ownerId: user._id,
     });
 

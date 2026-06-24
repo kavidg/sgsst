@@ -32,7 +32,7 @@ export class CompanyAccessGuard implements CanActivate {
       throw new ForbiddenException('Invalid x-company-id header');
     }
 
-    const user = await this.userModel.findOne({ firebaseUid: authenticatedUser.uid }, { _id: 1 }).exec();
+    const user = await this.userModel.findOne({ firebaseUid: authenticatedUser.uid }).exec();
 
     if (!user) {
       throw new ForbiddenException('Authenticated user is not registered');
@@ -50,6 +50,13 @@ export class CompanyAccessGuard implements CanActivate {
     }
 
     request.companyId = membership.companyId;
+    // Enrich request.user with MongoDB _id and email so controllers can use them
+    request.user = {
+      ...authenticatedUser,
+      _id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    };
 
     return true;
   }

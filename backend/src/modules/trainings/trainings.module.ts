@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { RolesGuard } from '../questions/roles.guard';
+import { CommunicationModule } from '../communication/communication.module';
 import { TrainingsController } from './trainings.controller';
 import { TrainingsService } from './trainings.service';
 import { TrainingAttendance, TrainingAttendanceSchema } from './schemas/training-attendance.schema';
@@ -18,6 +19,7 @@ import { Training, TrainingSchema } from './schemas/training.schema';
       { name: TrainingAttendance.name, schema: TrainingAttendanceSchema },
     ]),
     UsersModule,
+    CommunicationModule,
   ],
   controllers: [TrainingsController],
   providers: [TrainingsService, RolesGuard],

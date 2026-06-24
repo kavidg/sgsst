@@ -38,6 +38,8 @@ import { PlanPage } from './pages/documents/PlanPage';
 import { AnnualWorkPlanPage } from './pages/AnnualWorkPlanPage';
 import { AccountabilityPage } from './pages/AccountabilityPage';
 import { DocumentManagementPage } from './pages/DocumentManagementPage';
+import CompanyConfigurationPage from './pages/CompanyConfigurationPage';
+import ImplementationWizardPage from './pages/ImplementationWizardPage';
 import CommunicationWorkerPortal from './components/CommunicationWorkerPortal';
 import { LegalMatrixPage } from './pages/LegalMatrixPage';
 import { DoPage } from './pages/documents/DoPage';
@@ -47,18 +49,65 @@ import { DocumentsEvaluationProvider } from './pages/documents/evaluationState';
 import { useCompanyContext } from './context/CompanyContext';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import WorkerSignPage from './pages/WorkerSignPage';
+import AdvancedManagementPage from './pages/AdvancedManagementPage';
 
 const ECONOMIC_SECTORS = [
-  'Agriculture', 'Livestock', 'Forestry', 'Fishing',
-  'Mining', 'Oil and Gas', 'Manufacturing', 'Construction',
-  'Electricity', 'Water and Sanitation', 'Transportation', 'Logistics',
-  'Telecommunications', 'Technology', 'Financial Services', 'Insurance',
-  'Healthcare', 'Pharmaceuticals', 'Education', 'Universities',
-  'Retail Commerce', 'Wholesale Commerce', 'Hotels', 'Restaurants',
-  'Tourism', 'Public Administration', 'Security Services', 'Cleaning Services',
-  'Temporary Staffing', 'Professional Services', 'Legal Services', 'Consulting',
-  'Real Estate', 'Industrial Maintenance', 'Waste Management', 'Other',
+  'Agricultura', 'Ganadería', 'Silvicultura', 'Pesca',
+  'Minería', 'Petróleo y Gas', 'Manufactura', 'Construcción',
+  'Electricidad', 'Agua y Saneamiento', 'Transporte', 'Logística',
+  'Telecomunicaciones', 'Tecnología', 'Servicios Financieros', 'Seguros',
+  'Salud', 'Farmacéutica', 'Educación', 'Universidades',
+  'Comercio Minorista', 'Comercio Mayorista', 'Hoteles', 'Restaurantes',
+  'Turismo', 'Administración Pública', 'Servicios de Seguridad', 'Servicios de Limpieza',
+  'Servicios Temporales', 'Servicios Profesionales', 'Servicios Legales', 'Consultoría',
+  'Bienes Raíces', 'Mantenimiento Industrial', 'Gestión de Residuos', 'Otro',
 ] as const;
+
+// Mapa de traducción inglés → español para sectores económicos de empresas existentes
+const SECTOR_TRANSLATIONS: Record<string, string> = {
+  'Agriculture': 'Agricultura',
+  'Livestock': 'Ganadería',
+  'Forestry': 'Silvicultura',
+  'Fishing': 'Pesca',
+  'Mining': 'Minería',
+  'Oil and Gas': 'Petróleo y Gas',
+  'Manufacturing': 'Manufactura',
+  'Construction': 'Construcción',
+  'Electricity': 'Electricidad',
+  'Water and Sanitation': 'Agua y Saneamiento',
+  'Transportation': 'Transporte',
+  'Logistics': 'Logística',
+  'Telecommunications': 'Telecomunicaciones',
+  'Technology': 'Tecnología',
+  'Financial Services': 'Servicios Financieros',
+  'Insurance': 'Seguros',
+  'Healthcare': 'Salud',
+  'Pharmaceuticals': 'Farmacéutica',
+  'Education': 'Educación',
+  'Universities': 'Universidades',
+  'Retail Commerce': 'Comercio Minorista',
+  'Wholesale Commerce': 'Comercio Mayorista',
+  'Hotels': 'Hoteles',
+  'Restaurants': 'Restaurantes',
+  'Tourism': 'Turismo',
+  'Public Administration': 'Administración Pública',
+  'Security Services': 'Servicios de Seguridad',
+  'Cleaning Services': 'Servicios de Limpieza',
+  'Temporary Staffing': 'Servicios Temporales',
+  'Professional Services': 'Servicios Profesionales',
+  'Legal Services': 'Servicios Legales',
+  'Consulting': 'Consultoría',
+  'Real Estate': 'Bienes Raíces',
+  'Industrial Maintenance': 'Mantenimiento Industrial',
+  'Waste Management': 'Gestión de Residuos',
+  'Other': 'Otro',
+};
+
+/** Traduce un sector económico del inglés al español si es necesario */
+function toSpanishSector(sector: string): string {
+  return SECTOR_TRANSLATIONS[sector] || sector;
+}
 
 type CompaniesPageProps = {
   companies: CompanyModel[];
@@ -460,7 +509,7 @@ function App() {
   const renderManagerDashboardRoutePage = () => (
       <>
       {renderSharedHeader(true)}
-      {activeCompanyId ? <DashboardPage token={idToken} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
+      {activeCompanyId ? <DashboardPage token={idToken} role={profile?.role} /> : <p>Selecciona una empresa para ver el dashboard.</p>}
     </>
   );
 
@@ -707,14 +756,16 @@ function App() {
                   }
 
                   const sectorOptions = ECONOMIC_SECTORS.join(', ');
+                  const sectorDefault = toSpanishSector(company.economicSector ?? '');
                   const nextSector = window.prompt(
                     `Sector económico (${sectorOptions})`,
-                    company.economicSector ?? '',
+                    sectorDefault,
                   )?.trim();
                   if (!nextSector) {
                     return;
                   }
-                  if (!ECONOMIC_SECTORS.includes(nextSector as typeof ECONOMIC_SECTORS[number])) {
+                  const mappedSector = toSpanishSector(nextSector);
+                  if (!ECONOMIC_SECTORS.includes(mappedSector as typeof ECONOMIC_SECTORS[number])) {
                     throw new Error(`El sector debe ser uno de: ${sectorOptions}`);
                   }
 
@@ -722,7 +773,7 @@ function App() {
                     name: nextName,
                     nit: nextNit,
                     standardsType: nextStandardsType,
-                    economicSector: nextSector,
+                    economicSector: mappedSector,
                   });
                   await refreshOwnerData();
                 }}
@@ -738,6 +789,40 @@ function App() {
         />
         <Route path="/users" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderUsersPage()} />
         <Route path="/employees" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEmployeesRoutePage()} />
+        <Route
+          path="/company-configuration"
+          element={
+            profile?.role === 'member' || profile?.role === 'manager' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <CompanyConfigurationPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para configurarla.</p>
+                )}
+              </>
+            )
+          }
+        />
+        <Route
+          path="/implementation-wizard"
+          element={
+            profile?.role === 'member' || profile?.role === 'manager' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <ImplementationWizardPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para ver el wizard de implementación.</p>
+                )}
+              </>
+            )
+          }
+        />
         <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEvaluationsRoutePage()} />
         <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderRisksRoutePage()} />
         <Route path="/documents" element={renderDocumentsRoutePage(<DocumentsPage token={idToken} />)} />
@@ -854,6 +939,23 @@ function App() {
           }
         />
       </Route>
+      <Route
+          path="/advanced-management/:standardCode"
+          element={
+            <>
+              {activeCompanyId ? (
+                <AdvancedManagementPage token={idToken} />
+              ) : (
+                <div className="page">
+                  <div className="card" style={{ margin: '2rem' }}>
+                    <p>Selecciona una empresa para acceder a la gestión avanzada.</p>
+                  </div>
+                </div>
+              )}
+            </>
+          }
+        />
+      <Route path="/sign/:token" element={<WorkerSignPage />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

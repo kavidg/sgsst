@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlertsService } from '../alerts/alerts.service';
+import { AutoCommunicationService } from '../communication/auto-communication.service';
 import { AlertSeverity } from '../alerts/schemas/alert.schema';
 import { CreateInspectionActivityDto } from './dto/create-inspection-activity.dto';
 import { UpdateInspectionActivityDto } from './dto/update-inspection-activity.dto';
@@ -13,6 +14,7 @@ export class InspectionsService {
     @InjectModel(InspectionActivity.name)
     private readonly inspectionActivityModel: Model<InspectionActivityDocument>,
     private readonly alertsService: AlertsService,
+    private readonly autoCommService: AutoCommunicationService,
   ) {}
 
   async create(companyId: Types.ObjectId, dto: CreateInspectionActivityDto): Promise<InspectionActivity> {
@@ -47,9 +49,27 @@ export class InspectionsService {
 
     if (!activity) {
       throw new NotFoundException(`Inspection activity with id ${id} not found`);
+    }    await this.ensureInspectionAlert(activity);
+
+    // Auto-generate communication when inspection is completed (audit results)
+    const rawStatus = activity.status as unknown;
+    const isCompleted = rawStatus === true || rawStatus === 'true' || rawStatus === 'completada' || rawStatus === 'Completada' || rawStatus === 'Completed' || rawStatus === 'completed';
+    if (isCompleted) {
+      await this.autoCommService.generateCommunication({
+        companyId,
+        title: `Resultados de Inspección: ${activity.title}`,
+        body: `Se ha completado la actividad de inspección "${activity.title}". Descripción: ${activity.description || 'Sin descripción'}. Fecha planificada: ${new Date(activity.plannedDate).toISOString().slice(0, 10)}.`,
+        communicationType: 'ANNOUNCEMENT',
+        priority: 'INFORMATIVE',
+        targetAudience: 'ALL_COMPANY',
+        requiresSignature: false,
+        sourceModule: 'AUDIT_RESULTS',
+        sourceEntityId: activity._id.toString(),
+      }).catch((err) => {
+        console.error('Auto-communication generation failed for inspection:', err.message);
+      });
     }
 
-    await this.ensureInspectionAlert(activity);
     return activity;
   }
 

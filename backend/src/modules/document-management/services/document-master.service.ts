@@ -12,6 +12,7 @@ import { DocumentHistoryAction } from '../schemas/document-history.schema';
 import { DocumentApproval, DocumentApprovalDocument, ApprovalStatus } from '../schemas/document-approval.schema';
 import { DocumentSignature, DocumentSignatureDocument } from '../schemas/document-signature.schema';
 import { AlertsService } from '../../alerts/alerts.service';
+import { AutoCommunicationService } from '../../communication/auto-communication.service';
 import { AlertSeverity } from '../../alerts/schemas/alert.schema';
 
 interface UserRef {
@@ -34,6 +35,7 @@ export class DocumentMasterService {
     private readonly historyService: DocumentHistoryService,
     private readonly retentionService: DocumentRetentionService,
     private readonly alertsService: AlertsService,
+    private readonly autoCommService: AutoCommunicationService,
   ) {}
 
   // ==================== DOCUMENT CRUD ====================
@@ -100,6 +102,34 @@ export class DocumentMasterService {
       newValue: { code: dto.code, name: dto.name, documentType: dto.documentType },
       description: `Document "${dto.name}" created`,
     });
+
+    // Auto-generate communication for new emergency plans, policies, or procedures
+    if (dto.documentType === 'EMERGENCY_PLAN' || dto.documentType === 'POLICY' || dto.documentType === 'PROCEDURE') {
+      const typeLabels: Record<string, string> = {
+        EMERGENCY_PLAN: 'Plan de Emergencia',
+        POLICY: 'Política',
+        PROCEDURE: 'Procedimiento',
+      };
+      const sourceModule = dto.documentType === 'EMERGENCY_PLAN' ? 'EMERGENCY_PLAN_UPDATED' as const
+        : dto.documentType === 'PROCEDURE' ? 'PROCEDURE_UPDATED' as const
+        : 'POLICY_CREATED' as const;
+      await this.autoCommService.generateCommunication({
+        companyId,
+        title: `Nuevo ${typeLabels[dto.documentType]}: ${dto.name}`,
+        body: `Se ha creado un nuevo documento: "${dto.name}" (${dto.code}). Tipo: ${typeLabels[dto.documentType]}. Por favor revisar y confirmar su conocimiento.`,
+        communicationType: dto.documentType === 'EMERGENCY_PLAN' ? 'EMERGENCY_NOTICE' as const
+          : dto.documentType === 'PROCEDURE' ? 'PROCEDURE_COMMUNICATION' as const
+          : 'POLICY_COMMUNICATION' as const,
+        priority: 'IMPORTANT',
+        targetAudience: 'ALL_COMPANY',
+        requiresSignature: dto.documentType === 'POLICY',
+        sourceModule,
+        sourceEntityId: document._id.toString(),
+        linkedDocumentIds: [document._id.toString()],
+      }).catch((err) => {
+        console.error('Auto-communication generation failed for document:', err.message);
+      });
+    }
 
     return document;
   }
@@ -218,6 +248,28 @@ export class DocumentMasterService {
       newValue: { status } as Record<string, unknown>,
       description: reason || `Status changed from ${previousStatus} to ${status}`,
     });
+
+    // Auto-generate communication when a policy/procedure/emergency plan becomes ACTIVE
+    if (status === 'ACTIVE' && (document.documentType === 'POLICY' || document.documentType === 'PROCEDURE' || document.documentType === 'EMERGENCY_PLAN')) {
+      const typeLabels: Record<string, string> = { EMERGENCY_PLAN: 'Plan de Emergencia', POLICY: 'Política', PROCEDURE: 'Procedimiento' };
+      const sourceModule = document.documentType === 'EMERGENCY_PLAN' ? 'EMERGENCY_PLAN_UPDATED' as const
+        : document.documentType === 'PROCEDURE' ? 'PROCEDURE_UPDATED' as const
+        : 'POLICY_UPDATED' as const;
+      await this.autoCommService.generateCommunication({
+        companyId,
+        title: `Actualización: ${typeLabels[document.documentType]} "${updated.name}" ahora activa`,
+        body: `El documento "${updated.name}" (${updated.code}) ha cambiado su estado a ACTIVO. Por favor revisar los cambios y confirmar su conocimiento.`,
+        communicationType: document.documentType === 'EMERGENCY_PLAN' ? 'EMERGENCY_NOTICE' as const
+          : document.documentType === 'PROCEDURE' ? 'PROCEDURE_COMMUNICATION' as const
+          : 'POLICY_COMMUNICATION' as const,
+        priority: 'IMPORTANT',
+        targetAudience: 'ALL_COMPANY',
+        requiresSignature: document.documentType === 'POLICY',
+        sourceModule,
+        sourceEntityId: updated._id.toString(),
+        linkedDocumentIds: [updated._id.toString()],
+      }).catch((err) => console.error('Auto-comm failed for doc status:', err.message));
+    }
 
     return updated;
   }
@@ -457,6 +509,28 @@ export class DocumentMasterService {
         action: DocumentHistoryAction.SIGNATURE,
         description: `Digital signature registered for document`,
       });
+    }
+
+    // Auto-generate communication for approved policies, procedures, and emergency plans
+    if (document.documentType === 'POLICY' || document.documentType === 'PROCEDURE' || document.documentType === 'EMERGENCY_PLAN') {
+      const typeLabels: Record<string, string> = { EMERGENCY_PLAN: 'Plan de Emergencia', POLICY: 'Política', PROCEDURE: 'Procedimiento' };
+      const sourceModule = document.documentType === 'EMERGENCY_PLAN' ? 'EMERGENCY_PLAN_UPDATED' as const
+        : document.documentType === 'PROCEDURE' ? 'PROCEDURE_UPDATED' as const
+        : 'POLICY_CREATED' as const;
+      await this.autoCommService.generateCommunication({
+        companyId,
+        title: `${typeLabels[document.documentType]} aprobada: ${document.name}`,
+        body: `El documento "${document.name}" (${document.code}) ha sido aprobado y está activo. Tipo: ${typeLabels[document.documentType]}. Por favor revisar y confirmar su conocimiento.`,
+        communicationType: document.documentType === 'EMERGENCY_PLAN' ? 'EMERGENCY_NOTICE' as const
+          : document.documentType === 'PROCEDURE' ? 'PROCEDURE_COMMUNICATION' as const
+          : 'POLICY_COMMUNICATION' as const,
+        priority: 'IMPORTANT',
+        targetAudience: 'ALL_COMPANY',
+        requiresSignature: document.documentType === 'POLICY',
+        sourceModule,
+        sourceEntityId: document._id.toString(),
+        linkedDocumentIds: [document._id.toString()],
+      }).catch((err) => console.error('Auto-comm failed for doc approval:', err.message));
     }
 
     return { approval, document };

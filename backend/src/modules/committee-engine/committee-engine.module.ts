@@ -6,6 +6,7 @@ import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { CommunicationModule } from '../communication/communication.module';
 import { CommitteeEngineController } from './committee-engine.controller';
 import { CommitteeEngineService } from './committee-engine.service';
 import { CommitteePeriod, CommitteePeriodSchema } from './schemas/committee.schema';
@@ -19,6 +20,7 @@ import { CommitteePeriod, CommitteePeriodSchema } from './schemas/committee.sche
       { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),
     AlertsModule,
+    CommunicationModule,
   ],
   controllers: [CommitteeEngineController],
   providers: [CommitteeEngineService, RolesGuard, CompanyAccessGuard],

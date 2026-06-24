@@ -2,13 +2,18 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlertsService } from '../alerts/alerts.service';
+import { AutoCommunicationService } from '../communication/auto-communication.service';
 import { CommitteeType, RegisterCommitteeCandidateDto, SendCommitteeOtpDto, UpsertCommitteeMemberDto, UpsertCommitteePeriodDto, VoteCommitteeDto } from './dto/committee.dto';
 import { CommitteePeriod, CommitteePeriodDocument } from './schemas/committee.schema';
 
 @Injectable()
 export class CommitteeEngineService {
   private readonly otpStore = new Map<string, string>();
-  constructor(@InjectModel(CommitteePeriod.name) private readonly periodModel: Model<CommitteePeriodDocument>, private readonly alertsService: AlertsService) {}
+  constructor(
+    @InjectModel(CommitteePeriod.name) private readonly periodModel: Model<CommitteePeriodDocument>,
+    private readonly alertsService: AlertsService,
+    private readonly autoCommService: AutoCommunicationService,
+  ) {}
   async getCurrent(companyId: Types.ObjectId, committeeType: CommitteeType) {
     const current = await this.periodModel.findOne({ companyId, committeeType, status: { $ne: 'ARCHIVADO' } }).sort({ createdAt: -1 }).exec();
     if (current) return this.refreshStatus(current);
@@ -17,7 +22,28 @@ export class CommitteeEngineService {
   async createPeriod(companyId: Types.ObjectId, dto: UpsertCommitteePeriodDto, email: string) {
     await this.periodModel.updateMany({ companyId, committeeType: dto.committeeType, status: { $ne: 'ARCHIVADO' } }, { $set: { status: 'ARCHIVADO' } }).exec();
     const start = new Date(dto.startDate); const end = new Date(start); end.setFullYear(end.getFullYear() + 2);
-    return this.periodModel.create({ companyId, committeeType: dto.committeeType, periodName: dto.periodName, startDate: start, endDate: end, status: 'ACTIVO', auditHistory: [{ action: 'CREATE_PERIOD', createdBy: email, createdAt: new Date(), data: JSON.stringify(dto) }] });
+    const created = await this.periodModel.create({ companyId, committeeType: dto.committeeType, periodName: dto.periodName, startDate: start, endDate: end, status: 'ACTIVO', auditHistory: [{ action: 'CREATE_PERIOD', createdBy: email, createdAt: new Date(), data: JSON.stringify(dto) }] });
+    // Auto-generate communication for committee election
+    const committeeLabels: Record<string, string> = {
+      COPASST: 'Comité Paritario de Seguridad y Salud en el Trabajo',
+      CONVIVENCIA: 'Comité de Convivencia Laboral',
+      BRIGADA: 'Brigada de Emergencia',
+      OTHER: dto.committeeType,
+    };
+    await this.autoCommService.generateCommunication({
+      companyId,
+      title: `Elección ${committeeLabels[dto.committeeType] || dto.committeeType}: ${created.periodName}`,
+      body: `Se ha iniciado el proceso de elección del ${committeeLabels[dto.committeeType] || dto.committeeType} para el periodo "${created.periodName}". Fecha inicio: ${start.toISOString().slice(0, 10)}. Se invita a todos los trabajadores a participar.`,
+      communicationType: 'ANNOUNCEMENT',
+      priority: 'IMPORTANT',
+      targetAudience: 'ALL_COMPANY',
+      requiresSignature: false,
+      sourceModule: 'COMMITTEE_ELECTION',
+      sourceEntityId: created._id.toString(),
+    }).catch((err) => {
+      console.error('Auto-communication generation failed for committee:', err.message);
+    });
+    return created;
   }
   async addMember(periodId: string, dto: UpsertCommitteeMemberDto, email: string) { const p = await this.periodModel.findById(periodId).exec(); if (!p) throw new BadRequestException('Periodo no encontrado'); const start = new Date(dto.startDate); const end = new Date(start); end.setFullYear(end.getFullYear() + 2); p.members.push({ ...dto, userId: new Types.ObjectId(dto.userId), startDate: start, endDate: end, status: 'ACTIVO' } as never); p.auditHistory.push({ action: 'ADD_MEMBER', createdBy: email, createdAt: new Date(), data: JSON.stringify(dto) }); return p.save(); }
   async registerCandidate(periodId: string, dto: RegisterCommitteeCandidateDto) { const p = await this.periodModel.findById(periodId).exec(); if (!p) throw new BadRequestException('Periodo no encontrado'); p.candidates.push({ ...dto, votes: 0 } as never); return p.save(); }

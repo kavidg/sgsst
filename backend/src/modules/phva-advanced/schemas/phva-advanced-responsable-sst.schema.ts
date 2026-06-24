@@ -13,6 +13,10 @@ export enum ResponsableSstDocumentType {
   DIPLOMA = 'DIPLOMA',
   FIFTY_HOUR_CERTIFICATE = 'FIFTY_HOUR_CERTIFICATE',
   TWENTY_HOUR_UPDATE_CERTIFICATE = 'TWENTY_HOUR_UPDATE_CERTIFICATE',
+  SST_LICENSE_PDF = 'SST_LICENSE_PDF',
+  SST_LICENSE_SCANNED = 'SST_LICENSE_SCANNED',
+  SST_LICENSE_RESOLUTION = 'SST_LICENSE_RESOLUTION',
+  SST_LICENSE_SUPPORTING = 'SST_LICENSE_SUPPORTING',
 }
 
 @Schema({ _id: false })
@@ -34,6 +38,57 @@ export class ResponsableSstStoredDocument {
 
   @Prop()
   uploadedAt?: Date;
+}
+
+@Schema({ _id: false })
+export class ResponsableSstOcrEntry {
+  @Prop()
+  detectedLicenseNumber?: string;
+
+  @Prop()
+  detectedIssueDate?: Date;
+
+  @Prop()
+  detectedExpirationDate?: Date;
+
+  @Prop()
+  detectedIssuingAuthority?: string;
+
+  @Prop()
+  detectedLicenseHolder?: string;
+
+  @Prop()
+  modifiedLicenseNumber?: string;
+
+  @Prop()
+  modifiedIssueDate?: Date;
+
+  @Prop()
+  modifiedExpirationDate?: Date;
+
+  @Prop()
+  modifiedIssuingAuthority?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  modifiedBy?: Types.ObjectId;
+
+  @Prop()
+  modifiedAt?: Date;
+
+  @Prop({ default: false })
+  hasManualModification!: boolean;
+
+  @Prop()
+  documentId?: string;
+
+  @Prop()
+  sourceFileName?: string;
+
+  @Prop()
+  rawOcrText?: string;
+
+  @Prop({ default: 0 })
+  confidence!: number;
 }
 
 @Schema({ _id: false })
@@ -104,8 +159,29 @@ export class PhvaAdvancedResponsableSst {
   @Prop({ default: '' })
   sstLicenseNumber!: string;
 
+  @Prop({ default: '' })
+  licenseType!: string;
+
+  @Prop({ default: '' })
+  issuingAuthority!: string;
+
+  @Prop({ default: '' })
+  department!: string;
+
+  @Prop({ default: '' })
+  observations!: string;
+
+  @Prop()
+  licenseIssueDate?: Date;
+
   @Prop()
   licenseExpiresAt?: Date;
+
+  @Prop({ default: 'Pendiente' })
+  licenseStatus!: string;
+
+  @Prop({ type: [ResponsableSstOcrEntry], default: [] })
+  licenseOcrEntries!: ResponsableSstOcrEntry[];
 
   @Prop()
   course50HoursDate?: Date;

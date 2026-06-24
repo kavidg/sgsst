@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlertsService } from '../alerts/alerts.service';
+import { AutoCommunicationService } from '../communication/auto-communication.service';
 import { Company, CompanyDocument } from '../companies/schemas/company.schema';
 import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
 import { AlertSeverity } from '../alerts/schemas/alert.schema';
@@ -31,6 +32,7 @@ import { ArlComplianceStatus, PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffili
 import { SpecialPensionComplianceStatus, SpecialPensionConfiguration, SpecialPensionConfigurationDocument } from './schemas/phva-advanced-special-pension.schema';
 import { TrainingManagement, TrainingManagementDocument } from './schemas/phva-advanced-training-management.schema';
 import { PolicySignatureStatus, PolicySocializationStatus, SstPolicy, SstPolicyDocument, SstPolicyStatus } from './schemas/phva-advanced-sst-policy.schema';
+import { PolicyTemplateService } from './policy-template.service';
 import { SstObjectives, SstObjectivesDocument, SstObjectiveActivityStatus, SstObjectiveAutomaticSource, SstObjectiveMeasurementMethod, SstObjectiveStatus, SstObjectiveTaskPriority } from './schemas/phva-advanced-sst-objective.schema';
 import { Training, TrainingDocument } from '../trainings/schemas/training.schema';
 import { InspectionActivity, InspectionActivityDocument } from '../inspections/schemas/inspection-activity.schema';
@@ -44,7 +46,16 @@ const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'sstProfessionalType',
   'sstLicenseNumber',
   'licenseExpiresAt',
+  'licenseType',
+  'issuingAuthority',
   'course50HoursDate',
+];
+
+const SST_LICENSE_DOCUMENT_TYPES: ResponsableSstDocumentType[] = [
+  ResponsableSstDocumentType.SST_LICENSE_PDF,
+  ResponsableSstDocumentType.SST_LICENSE_SCANNED,
+  ResponsableSstDocumentType.SST_LICENSE_RESOLUTION,
+  ResponsableSstDocumentType.SST_LICENSE_SUPPORTING,
 ];
 
 @Injectable()
@@ -77,6 +88,8 @@ export class PhvaAdvancedService {
     @InjectModel(Employee.name)
     private readonly employeeModel: Model<EmployeeDocument>,
     private readonly alertsService: AlertsService,
+    private readonly autoCommService: AutoCommunicationService,
+    private readonly policyTemplateService: PolicyTemplateService,
   ) {}
 
   async findOrCreateResourceAssignment(companyId: Types.ObjectId) {
@@ -214,6 +227,223 @@ export class PhvaAdvancedService {
     return record;
   }
 
+  async attachLicenseDocument(params: {
+    companyId: Types.ObjectId;
+    user: UserDocument;
+    type: ResponsableSstDocumentType;
+    fileName: string;
+    fileUrl: string;
+    ocrLicenseNumber?: string;
+    ocrIssueDate?: string;
+    ocrExpirationDate?: string;
+    ocrIssuingAuthority?: string;
+    ocrLicenseHolder?: string;
+    rawOcrText?: string;
+  }) {
+    if (!SST_LICENSE_DOCUMENT_TYPES.includes(params.type)) {
+      throw new BadRequestException('El tipo de documento no es una licencia SST válida.');
+    }
+    const record = await this.findOrCreateResponsableSst(params.companyId);
+    const previousDocument = record.documents.find((document) => document.type === params.type);
+
+    const storedDocument: ResponsableSstStoredDocument = {
+      type: params.type,
+      fileName: params.fileName,
+      fileUrl: params.fileUrl,
+      detectedDate: params.ocrIssueDate ? this.parseOptionalDate(params.ocrIssueDate, 'ocrIssueDate') : undefined,
+      uploadedBy: this.resolveUserId(params.user),
+      uploadedAt: new Date(),
+    };
+
+    record.documents = [
+      ...record.documents.filter((document) => document.type !== params.type),
+      storedDocument,
+    ];
+
+    // Store OCR entry
+    const detectedIssueDate = params.ocrIssueDate ? this.parseOptionalDate(params.ocrIssueDate, 'ocrIssueDate') : this.detectDateFromFileName(params.fileName);
+    const detectedExpirationDate = params.ocrExpirationDate ? this.parseOptionalDate(params.ocrExpirationDate, 'ocrExpirationDate') : undefined;
+    const ocrEntry = {
+      detectedLicenseNumber: params.ocrLicenseNumber || this.detectLicenseNumberFromText(params.fileName + ' ' + (params.rawOcrText || '')),
+      detectedIssueDate,
+      detectedExpirationDate,
+      detectedIssuingAuthority: params.ocrIssuingAuthority,
+      detectedLicenseHolder: params.ocrLicenseHolder,
+      documentId: storedDocument.fileName,
+      sourceFileName: params.fileName,
+      rawOcrText: params.rawOcrText,
+      confidence: params.ocrLicenseNumber || params.ocrIssueDate || params.ocrExpirationDate ? 0.9 : 0.35,
+      hasManualModification: false,
+    };
+    record.licenseOcrEntries.push(ocrEntry as never);
+
+    // Auto-populate license fields from OCR if not set
+    if (params.ocrLicenseNumber && !record.sstLicenseNumber) record.sstLicenseNumber = params.ocrLicenseNumber;
+    if (detectedIssueDate && !record.licenseIssueDate) record.licenseIssueDate = detectedIssueDate;
+    if (detectedExpirationDate && !record.licenseExpiresAt) record.licenseExpiresAt = detectedExpirationDate;
+    if (params.ocrIssuingAuthority && !record.issuingAuthority) record.issuingAuthority = params.ocrIssuingAuthority;
+    if (params.ocrLicenseHolder && !record.fullName) record.fullName = params.ocrLicenseHolder;
+
+    // Audit: document upload
+    record.auditHistory.push({
+      userId: this.resolveUserId(params.user),
+      userEmail: params.user.email,
+      changedAt: new Date(),
+      field: `documents.${params.type}`,
+      oldValue: previousDocument?.fileName ?? '',
+      newValue: params.fileName,
+    });
+
+    // Audit: OCR auto-population
+    if (params.ocrLicenseNumber || params.ocrIssueDate || params.ocrExpirationDate) {
+      record.auditHistory.push({
+        userId: this.resolveUserId(params.user),
+        userEmail: params.user.email,
+        changedAt: new Date(),
+        field: 'license.ocr',
+        oldValue: '',
+        newValue: JSON.stringify({
+          licenseNumber: params.ocrLicenseNumber || '—',
+          issueDate: params.ocrIssueDate || '—',
+          expirationDate: params.ocrExpirationDate || '—',
+          authority: params.ocrIssuingAuthority || '—',
+          holder: params.ocrLicenseHolder || '—',
+        }),
+        warning: 'Valores detectados automáticamente mediante OCR.',
+      });
+    }
+
+    this.resolveLicenseStatus(record);
+    const compliance = this.calculateCompliance(record);
+    record.complianceStatus = compliance.status;
+    record.complianceReason = compliance.reason;
+    record.alerts = this.buildAlertSchedule(record);
+    record.updatedBy = this.resolveUserId(params.user);
+
+    await record.save();
+    await this.generateAlerts(record);
+    return record;
+  }
+
+  async registerLicenseOcrModification(companyId: Types.ObjectId, user: UserDocument, ocrIndex: number, modifiedValues: {
+    licenseNumber?: string;
+    issueDate?: string;
+    expirationDate?: string;
+    issuingAuthority?: string;
+  }) {
+    const record = await this.findOrCreateResponsableSst(companyId);
+    const ocrEntry = record.licenseOcrEntries[ocrIndex];
+    if (!ocrEntry) throw new NotFoundException('Entrada OCR no encontrada');
+
+    const auditEntries = [];
+
+    if (modifiedValues.licenseNumber !== undefined && modifiedValues.licenseNumber !== ocrEntry.detectedLicenseNumber) {
+      auditEntries.push({
+        userId: this.resolveUserId(user),
+        userEmail: user.email,
+        changedAt: new Date(),
+        field: 'licenseNumber',
+        oldValue: ocrEntry.detectedLicenseNumber || '',
+        newValue: modifiedValues.licenseNumber,
+        warning: 'El usuario modificó el número de licencia detectado por OCR.',
+      });
+      ocrEntry.modifiedLicenseNumber = modifiedValues.licenseNumber;
+      record.sstLicenseNumber = modifiedValues.licenseNumber;
+    }
+
+    if (modifiedValues.issueDate !== undefined) {
+      const oldDate = ocrEntry.detectedIssueDate?.toISOString().slice(0, 10) || '';
+      const newDate = modifiedValues.issueDate;
+      if (oldDate !== newDate) {
+        auditEntries.push({
+          userId: this.resolveUserId(user),
+          userEmail: user.email,
+          changedAt: new Date(),
+          field: 'licenseIssueDate',
+          oldValue: oldDate,
+          newValue: newDate,
+          warning: 'El usuario modificó la fecha de expedición detectada por OCR.',
+        });
+        ocrEntry.modifiedIssueDate = this.parseOptionalDate(newDate, 'modifiedIssueDate');
+        record.licenseIssueDate = ocrEntry.modifiedIssueDate;
+      }
+    }
+
+    if (modifiedValues.expirationDate !== undefined) {
+      const oldDate = ocrEntry.detectedExpirationDate?.toISOString().slice(0, 10) || '';
+      const newDate = modifiedValues.expirationDate;
+      if (oldDate !== newDate) {
+        auditEntries.push({
+          userId: this.resolveUserId(user),
+          userEmail: user.email,
+          changedAt: new Date(),
+          field: 'licenseExpiresAt',
+          oldValue: oldDate,
+          newValue: newDate,
+          warning: 'El usuario modificó la fecha de vencimiento detectada por OCR.',
+        });
+        ocrEntry.modifiedExpirationDate = this.parseOptionalDate(newDate, 'modifiedExpirationDate');
+        record.licenseExpiresAt = ocrEntry.modifiedExpirationDate;
+      }
+    }
+
+    if (modifiedValues.issuingAuthority !== undefined && modifiedValues.issuingAuthority !== ocrEntry.detectedIssuingAuthority) {
+      auditEntries.push({
+        userId: this.resolveUserId(user),
+        userEmail: user.email,
+        changedAt: new Date(),
+        field: 'issuingAuthority',
+        oldValue: ocrEntry.detectedIssuingAuthority || '',
+        newValue: modifiedValues.issuingAuthority,
+        warning: 'El usuario modificó la autoridad emisora detectada por OCR.',
+      });
+      ocrEntry.modifiedIssuingAuthority = modifiedValues.issuingAuthority;
+      record.issuingAuthority = modifiedValues.issuingAuthority;
+    }
+
+    ocrEntry.hasManualModification = true;
+    ocrEntry.modifiedBy = this.resolveUserId(user);
+    ocrEntry.modifiedAt = new Date();
+
+    // Security notification for OCR modifications
+    if (auditEntries.length > 0) {
+      record.auditHistory.push(...auditEntries);
+
+      // Notify OWNER and MANAGER about OCR changes
+      await this.alertsService.createUnique({
+        companyId,
+        type: 'SST_LICENSE_OCR_MODIFICATION',
+        message: `Se modificaron valores OCR de la licencia SST. Campos: ${auditEntries.map((e) => e.field).join(', ')}. Usuario: ${user.email}.`,
+        severity: AlertSeverity.MEDIUM,
+      });
+    }
+
+    this.resolveLicenseStatus(record);
+    const compliance = this.calculateCompliance(record);
+    record.complianceStatus = compliance.status;
+    record.complianceReason = compliance.reason;
+    record.alerts = this.buildAlertSchedule(record);
+    record.updatedBy = this.resolveUserId(user);
+
+    await record.save();
+    await this.generateAlerts(record);
+    return record;
+  }
+
+  private detectLicenseNumberFromText(text: string): string | undefined {
+    // Common patterns: license numbers, resolutions, etc.
+    const patterns = [
+      /(?:licencia|lic|license|no\.?|nro\.?|número|num)\s*[:#-]?\s*([A-Z0-9-]{6,})/i,
+      /(?:resolución|res|resolution)\s*[:#-]?\s*(\d{4,})/i,
+      /(?:matrícula|mat|registration)\s*[:#-]?\s*([A-Z0-9-]{6,})/i,
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) return match[1];
+    }
+    return undefined;
+  }
+
   async attachDocument(params: {
     companyId: Types.ObjectId;
     user: UserDocument;
@@ -295,7 +525,18 @@ export class PhvaAdvancedService {
     const licenseValid = Boolean(record.licenseExpiresAt && record.licenseExpiresAt >= this.startOfToday());
     const courseExpired = this.isCourseOlderThanThreeYears(record.course50HoursDate);
 
-    if (missingFields.length || !hasDiploma || !has50HourCertificate || (courseExpired && (!record.course20HoursDate || !has20HourCertificate)) || !licenseValid) {
+    // Check if license type requires SST license document
+    const licenseRequiresDoc = ['Tecnólogo SST', 'Profesional SST', 'Especialista SST'].includes(record.licenseType);
+    const hasLicenseDocument = record.documents.some((document) =>
+      document.type === ResponsableSstDocumentType.SST_LICENSE_PDF ||
+      document.type === ResponsableSstDocumentType.SST_LICENSE_SCANNED
+    );
+    const licenseMissing = licenseRequiresDoc && !hasLicenseDocument;
+
+    // Resolve license status
+    this.resolveLicenseStatus(record);
+
+    if (missingFields.length || !hasDiploma || !has50HourCertificate || (courseExpired && (!record.course20HoursDate || !has20HourCertificate)) || !licenseValid || licenseMissing) {
       const reasons = [
         missingFields.length ? `Campos requeridos pendientes: ${missingFields.join(', ')}` : '',
         !hasDiploma ? 'Diploma pendiente.' : '',
@@ -303,6 +544,7 @@ export class PhvaAdvancedService {
         courseExpired && !record.course20HoursDate ? 'Fecha curso 20 horas requerida.' : '',
         courseExpired && !has20HourCertificate ? 'Certificado de actualización 20 horas requerido.' : '',
         !licenseValid ? 'Licencia SST no vigente o sin fecha válida.' : '',
+        licenseMissing ? `Licencia SST requerida para tipo "${record.licenseType}" pero no cargada.` : '',
       ].filter(Boolean);
 
       return {
@@ -314,20 +556,53 @@ export class PhvaAdvancedService {
     return { status: ResponsableSstComplianceStatus.COMPLIES, reason: 'Cumple validaciones avanzadas del responsable SG-SST.' };
   }
 
+  private resolveLicenseStatus(record: PhvaAdvancedResponsableSstDocument) {
+    if (!record.licenseExpiresAt) {
+      record.licenseStatus = 'Vencida';
+      return;
+    }
+    const today = this.startOfToday();
+    const daysUntilExpiry = Math.ceil((record.licenseExpiresAt.getTime() - today.getTime()) / 86_400_000);
+    if (record.licenseExpiresAt < today) {
+      record.licenseStatus = 'Vencida';
+    } else if (daysUntilExpiry <= 30) {
+      record.licenseStatus = 'Próxima a vencer';
+    } else {
+      record.licenseStatus = 'Vigente';
+    }
+  }
+
   private buildAlertSchedule(record: PhvaAdvancedResponsableSstDocument) {
     const alerts: Array<{ type: string; message: string; severity: string; dueAt: Date; generated: boolean }> = [];
     if (record.licenseExpiresAt) {
-      for (const days of [30, 15, 5, 1]) {
+      // Enhanced alert schedule: 90, 60, 30, 15, 5, 1 day(s)
+      for (const days of [90, 60, 30, 15, 5, 1]) {
         alerts.push({
           type: `PHVA_RESPONSABLE_SST_LICENSE_${days}_DAYS`,
           message: `La licencia SST vence en ${days} día(s).`,
-          severity: days <= 5 ? AlertSeverity.HIGH : AlertSeverity.MEDIUM,
+          severity: days <= 5 ? AlertSeverity.HIGH : days <= 30 ? AlertSeverity.MEDIUM : AlertSeverity.LOW,
           dueAt: this.addDays(record.licenseExpiresAt, -days),
           generated: false,
         });
       }
       if (record.licenseExpiresAt < this.startOfToday()) {
-        alerts.push({ type: 'PHVA_RESPONSABLE_SST_LICENSE_EXPIRED', message: 'Licencia expirada.', severity: AlertSeverity.HIGH, dueAt: new Date(), generated: false });
+        alerts.push({ type: 'PHVA_RESPONSABLE_SST_LICENSE_EXPIRED', message: 'Licencia SST expirada.', severity: AlertSeverity.HIGH, dueAt: new Date(), generated: false });
+      }
+
+      // Missing license document alert for critical types
+      const licenseRequiresDoc = ['Tecnólogo SST', 'Profesional SST', 'Especialista SST'].includes(record.licenseType);
+      const hasLicenseDocument = record.documents.some((document) =>
+        document.type === ResponsableSstDocumentType.SST_LICENSE_PDF ||
+        document.type === ResponsableSstDocumentType.SST_LICENSE_SCANNED
+      );
+      if (licenseRequiresDoc && !hasLicenseDocument) {
+        alerts.push({
+          type: 'PHVA_RESPONSABLE_SST_LICENSE_DOC_MISSING',
+          message: `Documento de licencia SST requerido para tipo "${record.licenseType}" no ha sido cargado.`,
+          severity: AlertSeverity.HIGH,
+          dueAt: new Date(),
+          generated: false,
+        });
       }
     }
     if (this.isCourseOlderThanThreeYears(record.course50HoursDate)) {
@@ -375,7 +650,10 @@ export class PhvaAdvancedService {
 
   private parseOptionalDate(value: string | undefined, fieldName: string): Date | undefined {
     if (!value) return undefined;
-    const parsed = new Date(`${value}T00:00:00.000Z`);
+    // If the value already contains time info (ISO format like '2027-06-23T12:00:00.000Z'),
+    // parse it directly instead of appending T00:00:00.000Z
+    const isoString = value.includes('T') ? value : `${value}T00:00:00.000Z`;
+    const parsed = new Date(isoString);
     if (Number.isNaN(parsed.getTime())) throw new BadRequestException(`Fecha inválida para ${fieldName}`);
     return parsed;
   }
@@ -922,25 +1200,301 @@ export class PhvaAdvancedService {
     return this.refreshSstPolicyCompliance(record);
   }
 
+  /**
+   * Sector-specific risk language for policy generation.
+   */
+  private sectorRiskLanguage(sector: string = ''): string[] {
+    const sectorLower = sector.toLowerCase();
+    
+    // Default risks that apply to all sectors
+    const baseRisks = [
+      '• Identificación de peligros y valoración de riesgos en todos los procesos',
+      '• Implementación de controles operacionales para prevenir accidentes y enfermedades laborales',
+    ];
+    
+    // Sector-specific risks
+    const sectorRisks: Record<string, string[]> = {
+      construcción: [
+        '• Trabajo en alturas: uso obligatorio de arnés de seguridad, líneas de vida y anclajes certificados',
+        '• Manipulación de equipos pesados: excavadoras, montacargas y grúas con operadores certificados',
+        '• Excavaciones y zanjas: apuntalamiento, señalización y protección contra derrumbes',
+        '• Riesgos eléctricos: bloqueo y etiquetado (LOTO), distancias de seguridad y equipos dielectricos',
+        '• Exposición a ruido, polvo y vibraciones: EPP auditivo, respiradores y monitoreo ambiental',
+      ],
+      manufactura: [
+        '• Riesgos mecánicos en maquinaria industrial: guardas de seguridad, paros de emergencia y LOTO',
+        '• Manipulación manual de cargas: ergonomía, ayudas mecánicas y rotación de puestos',
+        '• Exposición a sustancias químicas: hojas de seguridad (SDS), ventilación y EPP específico',
+        '• Riesgo de incendio y explosión: sistemas de detección, extinción y plan de emergencia',
+        '• Ruido industrial: programas de conservación auditiva y monitoreo periódico',
+      ],
+      comercio: [
+        '• Riesgos ergonómicos por movimientos repetitivos y posturas prolongadas',
+        '• Manipulación y almacenamiento de mercancías: estanterías seguras y levantamiento seguro',
+        '• Atención al público: medidas de seguridad ciudadana y prevención de robos',
+        '• Riesgo eléctrico en instalaciones comerciales',
+        '• Iluminación, ventilación y condiciones ambientales en locales comerciales',
+      ],
+      servicios: [
+        '• Riesgos psicosociales: carga mental, estrés laboral, acoso y violencia en el trabajo',
+        '• Trabajo en oficinas: ergonomía de puestos con pantallas de visualización de datos',
+        '• Desplazamientos laborales: seguridad vial y prevención de accidentes in itinere',
+        '• Trabajo remoto: condiciones de seguridad y salud en teletrabajo',
+        '• Relaciones interpersonales: promoción de convivencia laboral y prevención de acoso',
+      ],
+      transporte: [
+        '• Seguridad vial: programas de conducción segura, fatiga al volante y tiempos de conducción',
+        '• Gestión de fatiga del conductor: pausas activas, rotación y monitoreo',
+        '• Mantenimiento preventivo de vehículos: frenos, llantas, luces y sistemas de seguridad',
+        '• Carga y descarga de mercancías: técnicas seguras, amarre y estabilización',
+        '• Emergencias en carretera: kit de emergencia, comunicaciones y procedimientos',
+      ],
+      salud: [
+        '• Exposición biológica: agentes infecciosos, sangre y fluidos corporales, precauciones universales',
+        '• Manejo de residuos peligrosos: clasificación, almacenamiento y disposición final',
+        '• Riesgo de cortopunzantes: uso seguro de agujas, bisturís y eliminación en guardián',
+        '• Manipulación de pacientes: biomecánica corporal, ayudas mecánicas y prevención de lesiones',
+        '• Control de infecciones: higiene de manos, aislamiento y protocolos de bioseguridad',
+      ],
+      educación: [
+        '• Riesgos psicosociales: estrés laboral docente, violencia escolar y acoso',
+        '• Condiciones de infraestructura: aulas, laboratorios y áreas recreativas seguras',
+        '• Gestión de emergencias escolares: simulacros, rutas de evacuación y brigadas',
+        '• Exposición a agentes biológicos en laboratorios',
+        '• Manipulación de sustancias químicas en laboratorios educativos',
+      ],
+      tecnología: [
+        '• Riesgos ergonómicos: puestos de trabajo con pantallas, pausas activas y mobiliario ajustable',
+        '• Riesgos psicosociales: trabajo bajo presión, jornadas extendidas y teletrabajo',
+        '• Riesgo eléctrico en equipos de cómputo y centros de datos',
+        '• Exposición a campos electromagnéticos',
+        '• Condiciones de iluminación y clima laboral en entornos tecnológicos',
+      ],
+      agricultura: [
+        '• Exposición a plaguicidas y agroquímicos: manejo seguro, EPP y vigilancia epidemiológica',
+        '• Riesgos con maquinaria agrícola: tractores, cosechadoras y equipos de labranza',
+        '• Trabajo a la intemperie: golpe de calor, protección solar e hidratación',
+        '• Manipulación manual de cargas y posturas forzadas',
+        '• Riesgos biológicos: zoonosis, mordeduras y picaduras',
+      ],
+      minería: [
+        '• Riesgos geotécnicos: deslizamientos, derrumbes y estabilidad de taludes',
+        '• Ventilación en espacios confinados: monitoreo de gases y atmósferas peligrosas',
+        '• Exposición a polvo de sílice y material particulado: control ambiental y EPP respiratorio',
+        '• Ruido y vibraciones en equipos mineros',
+        '• Manipulación de explosivos: almacenamiento, transporte y detonación segura',
+      ],
+      petróleo: [
+        '• Trabajo en espacios confinados: monitoreo de atmósferas peligrosas y permisos de entrada',
+        '• Manejo de hidrocarburos y sustancias inflamables: prevención de incendio y explosión',
+        '• Trabajo en alturas y plataformas: sistemas de detención de caídas y anclajes',
+        '• Operaciones de perforación y extracción: controles de seguridad críticos',
+        '• Emergencias ambientales: planes de contingencia y respuesta a derrames',
+      ],
+      pesca: [
+        '• Riesgos biológicos en ambientes húmedos y mojados',
+        '• Manipulación manual de cargas y sobreesfuerzos',
+        '• Operaciones en cadena de frío: hipotermia y condiciones térmicas extremas',
+        '• Trabajo en embarcaciones: seguridad marítima y equipos de flotación',
+        '• Corte y procesamiento: uso seguro de herramientas cortantes',
+      ],
+    };
+    
+    // Find matching sector
+    for (const [key, risks] of Object.entries(sectorRisks)) {
+      if (sectorLower.includes(key)) {
+        return [...baseRisks, ...risks];
+      }
+    }
+    
+    // Generic risks for unrecognized sectors
+    return [
+      ...baseRisks,
+      '• Identificación y control de peligros específicos según la actividad económica',
+      '• Implementación de medidas preventivas acordes a la naturaleza del trabajo',
+      '• Promoción de estilos de vida saludables y prevención de enfermedades laborales',
+    ];
+  }
+
   async generateSstPolicy(companyId: Types.ObjectId, user: UserDocument) {
     const record = await this.findOrCreateSstPolicy(companyId);
     const company = await this.companyModel.findById(companyId).exec();
     const employeesCount = await this.employeeModel.countDocuments({ companyId }).exec();
     const representative = record.signatures.find((signature) => signature.role === 'Representante legal')?.signerName || 'Representante legal';
+    const economicSector = company?.economicSector || 'Actividad económica general';
+    const ciiuCode = (company as unknown as Record<string, string>)?.ciiuCode || 'No registrado';
+    const arlRiskLevel: string = (company as unknown as Record<string, string>)?.arlRiskLevel || 'No definido';
+    const riskLabel: Record<string, string> = { I: 'Mínimo', II: 'Bajo', III: 'Medio', IV: 'Alto', V: 'Máximo' };
+    const companySize = employeesCount <= 10 ? 'Microempresa' : employeesCount <= 50 ? 'Pequeña empresa' : employeesCount <= 200 ? 'Mediana empresa' : 'Gran empresa';
+    // Fetch sector template from database, fall back to hardcoded
+    let sectorRisks = this.sectorRiskLanguage(economicSector);
+    let sectorCommitments: string[] = [];
+    let legalReferences: string[] = [];
+    let recommendedResponsibilities: string[] = [];
+    try {
+      await this.policyTemplateService.seedDefaults();
+      const template = await this.policyTemplateService.findBySector(economicSector).catch(() => null);
+      if (template) {
+        sectorRisks = template.sectorRisks.length > 0
+          ? [
+              '• Identificación de peligros y valoración de riesgos en todos los procesos',
+              '• Implementación de controles operacionales para prevenir accidentes y enfermedades laborales',
+              ...template.sectorRisks.map((r: string) => `• ${r}`),
+            ]
+          : sectorRisks;
+        sectorCommitments = template.sectorCommitments.map((c: string) => `• ${c}`);
+        legalReferences = template.legalReferences;
+        recommendedResponsibilities = template.recommendedResponsibilities.map((r: string) => `• ${r}`);
+      }
+    } catch (e) {
+      // Fallback to hardcoded sector risks
+      console.error('Failed to load policy template from database, using defaults:', (e as Error).message);
+    }
+    
     record.documentName = record.documentName || 'Política de Seguridad y Salud en el Trabajo';
     record.content = [
-      `POLÍTICA DE SEGURIDAD Y SALUD EN EL TRABAJO`,
-      `Empresa: ${company?.name ?? 'Nombre empresa'} · NIT: ${company?.nit ?? 'NIT'}`,
-      `Representante legal: ${representative}`,
-      `Actividad económica: Actividad económica de la empresa`,
-      `Número de trabajadores: ${employeesCount}`,
+      '========================================================',
+      `POLÍTICA DE SEGURIDAD Y SALUD EN EL TRABAJO (SST)`,
+      '========================================================',
       '',
-      'La alta dirección se compromete con la protección de la seguridad y salud de todos los trabajadores, contratistas y partes interesadas, mediante la identificación de peligros, valoración y control de riesgos, prevención de accidentes y enfermedades laborales, cumplimiento de la normatividad aplicable y mejora continua del SG-SST.',
+      `EMPRESA: ${company?.name ?? 'Nombre empresa'}`,
+      `NIT: ${company?.nit ?? 'No registrado'}`,
+      `REPRESENTANTE LEGAL: ${representative}`,
+      `ACTIVIDAD ECONÓMICA: ${economicSector}`,
+      `Código CIIU: ${ciiuCode}`,
+      `NIVEL DE RIESGO ARL: ${riskLabel[arlRiskLevel] || arlRiskLevel} (${arlRiskLevel})`,
+      `TAMAÑO DE EMPRESA: ${companySize}`,
+      `NÚMERO DE TRABAJADORES: ${employeesCount}`,
       '',
-      'Esta política será comunicada, publicada, revisada como mínimo una vez al año y actualizada cuando cambien las condiciones de la organización o los requisitos legales aplicables.',
+      '--------------------------------------------------------',
+      '1. INTRODUCCIÓN',
+      '--------------------------------------------------------',
+      '',
+      `La empresa ${company?.name || 'Nombre empresa'}, identificada con NIT ${company?.nit || 'NIT'}, dedicada a ${economicSector}, se compromete a establecer, implementar, mantener y mejorar continuamente un Sistema de Gestión de Seguridad y Salud en el Trabajo (SG-SST), conforme a los requisitos legales aplicables y a la normatividad colombiana vigente (Ley 1562 de 2012, Decreto Único Reglamentario 1072 de 2015, Resolución 0312 de 2019 y demás disposiciones).`,
+      '',
+      '--------------------------------------------------------',
+      '2. ALCANCE',
+      '--------------------------------------------------------',
+      '',
+      'Esta política aplica a todos los centros de trabajo, procesos, actividades, trabajadores directos, contratistas, subcontratistas, practicantes, aprendices y cualquier persona que preste servicios en nombre de la organización, en todas las ubicaciones donde la empresa desarrolla sus operaciones.',
+      '',
+      '--------------------------------------------------------',
+      '3. COMPROMISO DE LA ALTA DIRECCIÓN',
+      '--------------------------------------------------------',
+      '',
+      'La alta dirección se compromete a:',
+      '• Proveer los recursos financieros, técnicos y humanos necesarios para la implementación y mantenimiento del SG-SST',
+      '• Liderar con el ejemplo en materia de seguridad y salud en el trabajo',
+      '• Garantizar la participación activa de todos los niveles de la organización',
+      '• Revisar periódicamente el desempeño del SG-SST',
+      '• Asignar responsabilidades claras en SST para todos los cargos',
+      '• Promover una cultura de prevención y autocuidado',
+      ...(sectorCommitments.length > 0
+        ? ['', 'Compromisos específicos del sector:', ...sectorCommitments]
+        : []),
+      '',
+      '--------------------------------------------------------',
+      '4. CUMPLIMIENTO LEGAL',
+      '--------------------------------------------------------',
+      '',
+      'La organización se compromete a cumplir con todas las disposiciones legales y reglamentarias en materia de seguridad y salud en el trabajo, así como con otros requisitos que la organización suscriba. Se mantendrá una matriz legal actualizada para identificar, evaluar y dar seguimiento al cumplimiento normativo.',
+      '',
+      ...(legalReferences.length > 0
+        ? ['Normatividad específica del sector:', ...legalReferences.map((r: string) => `• ${r}`)]
+        : []),
+      '',
+      '--------------------------------------------------------',
+      '5. IDENTIFICACIÓN DE PELIGROS Y RIESGOS ESPECÍFICOS DEL SECTOR',
+      '--------------------------------------------------------',
+      '',
+      `Considerando la actividad económica de ${economicSector} y el nivel de riesgo ARL ${arlRiskLevel}, la empresa identifica los siguientes peligros y riesgos prioritarios a gestionar:`,
+      '',
+      ...sectorRisks,
+      '',
+      '--------------------------------------------------------',
+      '6. PREVENCIÓN DE RIESGOS',
+      '--------------------------------------------------------',
+      '',
+      'La empresa implementará las siguientes estrategias de prevención:',
+      '• Jerarquía de controles: eliminación, sustitución, controles de ingeniería, señalización y EPP',
+      '• Programas de vigilancia epidemiológica según los riesgos prioritarios',
+      '• Inspecciones planeadas y observaciones de comportamiento seguro',
+      '• Investigación de incidentes, accidentes y enfermedades laborales',
+      '• Planes de emergencia y contingencia adaptados al sector',
+      '• Capacitación continua en identificación de peligros y control de riesgos',
+      '',
+      '--------------------------------------------------------',
+      '7. PARTICIPACIÓN DE LOS TRABAJADORES',
+      '--------------------------------------------------------',
+      '',
+      'La organización garantizará la participación efectiva de todos los trabajadores y sus representantes en:',
+      '• La consulta sobre cambios que afecten la seguridad y salud',
+      '• La elección de representantes ante el COPASST y Comité de Convivencia',
+      '• La identificación de peligros y reporte de condiciones inseguras',
+      '• Las investigaciones de incidentes y accidentes de trabajo',
+      '• Las actividades de promoción de la salud y prevención de la enfermedad',
+      '• La socialización de esta política y sus actualizaciones',
+      '',
+      '--------------------------------------------------------',
+      '8. MEJORA CONTINUA',
+      '--------------------------------------------------------',
+      '',
+      'La empresa se compromete a la mejora continua del SG-SST mediante:',
+      '• Revisión periódica de indicadores de gestión y resultados',
+      '• Auditorías internas y externas del sistema',
+      '• Análisis de tendencias de incidentes y enfermedades',
+      '• Evaluación de la efectividad de los controles implementados',
+      '• Actualización de la política y objetivos según cambios organizacionales',
+      '',
+      '--------------------------------------------------------',
+      '9. RESPONSABILIDADES',
+      '--------------------------------------------------------',
+      '',
+      'La responsabilidad del SG-SST se distribuye de la siguiente manera:',
+      '• GERENCIA: Aprobar política, asignar recursos y revisar resultados',
+      '• RESPONSABLE SST: Implementar, coordinar y hacer seguimiento al sistema',
+      '• MANDOS MEDIOS: Aplicar controles y velar por el cumplimiento en sus áreas',
+      '• TRABAJADORES: Cumplir normas, usar EPP y reportar condiciones inseguras',
+      '• COPASST: Vigilar y promover la seguridad y salud en la organización',
+      ...(recommendedResponsibilities.length > 0
+        ? ['', 'Responsabilidades recomendadas para el sector:', ...recommendedResponsibilities]
+        : []),
+      '',
+      '--------------------------------------------------------',
+      '10. REVISIÓN Y ACTUALIZACIÓN',
+      '--------------------------------------------------------',
+      '',
+      'Esta política será revisada como mínimo una vez al año (o antes si ocurren cambios significativos en la organización, la normatividad o los riesgos) y actualizada cuando sea necesario. Su vigencia es de 12 meses a partir de la fecha de aprobación.',
+      '',
+      'La presente política se comunica, publica y socializa a todos los niveles de la organización. Todo trabajador debe leer, comprender y firmar su conocimiento de esta política como parte del proceso de inducción y socialización.',
+      '',
+      '========================================================',
+      '',
+      `Fecha de emisión: ${new Date().toISOString().slice(0, 10)}`,
+      `Próxima revisión: ${new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10)}`,
+      '',
+      `_________________________`,
+      `${representative}`,
+      `Representante legal`,
+      `${company?.name ?? ''}`,
     ].join('\n');
-    if (!record.versions.some((version) => version.version === record.currentVersion)) {
-      record.versions.push({ version: record.currentVersion, content: record.content, status: record.status, issuedAt: new Date(), archived: false, createdBy: this.resolveUserId(user) } as never);
+    
+    // Set expiration to 1 year from now — set directly on the version instead of calling updateSstPolicy
+    // to avoid re-fetching the record and losing the content that was just built in memory
+    const expiresAtDate = new Date(Date.now() + 365 * 86400000);
+    const existingVersion = this.currentPolicyVersion(record);
+    if (existingVersion) {
+      existingVersion.expiresAt ??= expiresAtDate;
+    } else if (record.content) {
+      record.versions.push({
+        version: record.currentVersion,
+        content: record.content,
+        status: record.status,
+        issuedAt: new Date(),
+        expiresAt: expiresAtDate,
+        archived: false,
+        createdBy: this.resolveUserId(user),
+      } as never);
     }
     this.pushPolicyHistory(record, user, 'GENERATE_TEMPLATE', '', record.content);
     return this.saveSstPolicyWithCompliance(record);
@@ -974,7 +1528,25 @@ export class PhvaAdvancedService {
       } as never);
     }
     this.pushPolicyHistory(record, user, 'UPDATE', before, JSON.stringify({ documentCode: record.documentCode, documentName: record.documentName, version: record.currentVersion, status: record.status }));
-    return this.saveSstPolicyWithCompliance(record);
+    const saved = await this.saveSstPolicyWithCompliance(record);
+    // Auto-generate communication for policy update
+    if (saved.status === SstPolicyStatus.APPROVED) {
+      await this.autoCommService.generateCommunication({
+        companyId,
+        title: `Actualización de Política SST: ${saved.documentName}`,
+        body: `La política de seguridad y salud en el trabajo "${saved.documentName}" ha sido actualizada a la versión ${saved.currentVersion}. Por favor revisar los cambios y confirmar su conocimiento.`,
+        communicationType: 'POLICY_COMMUNICATION',
+        priority: 'IMPORTANT',
+        targetAudience: 'ALL_COMPANY',
+        requiresSignature: true,
+        sourceModule: 'POLICY_UPDATED',
+        sourceEntityId: saved._id.toString(),
+        linkedDocumentIds: [saved._id.toString()],
+      }).catch((err) => {
+        console.error('Auto-communication generation failed for policy update:', err.message);
+      });
+    }
+    return saved;
   }
 
   async createSstPolicyVersion(companyId: Types.ObjectId, user: UserDocument) {
@@ -1028,7 +1600,24 @@ export class PhvaAdvancedService {
     }
     await this.ensurePolicySocialization(record);
     this.pushPolicyHistory(record, user, 'APPROVE', '', record.currentVersion);
-    return this.saveSstPolicyWithCompliance(record);
+    const saved = await this.saveSstPolicyWithCompliance(record);
+    // Auto-generate communication for new/updated policy
+    await this.autoCommService.generateCommunication({
+      companyId: companyId,
+      title: `Política SST aprobada: ${saved.documentName}`,
+      body: `La política de seguridad y salud en el trabajo "${saved.documentName}" (${saved.documentCode}) ha sido aprobada y está vigente. Por favor leer y confirmar su conocimiento.`,
+      communicationType: 'POLICY_COMMUNICATION',
+      priority: 'IMPORTANT',
+      targetAudience: 'ALL_COMPANY',
+      requiresSignature: true,
+      sourceModule: 'POLICY_CREATED',
+      sourceEntityId: saved._id.toString(),
+      linkedDocumentIds: [saved._id.toString()],
+    }).catch((err) => {
+      // Log but don't fail the main operation
+      console.error('Auto-communication generation failed for policy:', err.message);
+    });
+    return saved;
   }
 
   async assignSstPolicySocialization(companyId: Types.ObjectId, user: UserDocument, dto: { mode?: 'all' | 'selected' | 'area'; employeeIds?: string[]; area?: string }) {
@@ -1109,12 +1698,15 @@ export class PhvaAdvancedService {
     const alerts = [] as Array<{ type: string; message: string; recipients: string[]; dueAt: Date; generated: boolean }>;
     const recipients = ['ADMIN', 'MANAGER', 'OWNER'];
     if (current?.expiresAt) {
-      alerts.push({ type: 'PROXIMA_REVISION_30', message: 'Política SST próxima a revisión en 30 días.', recipients, dueAt: this.addDays(current.expiresAt, -30), generated: false });
-      alerts.push({ type: 'PROXIMA_REVISION_15', message: 'Política SST próxima a revisión en 15 días.', recipients, dueAt: this.addDays(current.expiresAt, -15), generated: false });
-      if (current.expiresAt < this.startOfToday()) alerts.push({ type: 'POLITICA_VENCIDA', message: 'Política SST vencida.', recipients, dueAt: new Date(), generated: false });
+      // Scheduled alerts at 30, 15, 5, and 1 day(s) before review/expiration
+      alerts.push({ type: 'PROXIMA_REVISION_30', message: 'Política SST próxima a revisión en 30 días. Programe la revisión y actualización.', recipients, dueAt: this.addDays(current.expiresAt, -30), generated: false });
+      alerts.push({ type: 'PROXIMA_REVISION_15', message: 'Política SST próxima a revisión en 15 días. Prepare los cambios necesarios.', recipients, dueAt: this.addDays(current.expiresAt, -15), generated: false });
+      alerts.push({ type: 'PROXIMA_REVISION_5', message: 'Política SST próxima a revisión en 5 días. Acción requerida para evitar vencimiento.', recipients, dueAt: this.addDays(current.expiresAt, -5), generated: false });
+      alerts.push({ type: 'PROXIMA_REVISION_1', message: '¡Urgente! Política SST vence mañana. Debe ser revisada y actualizada.', recipients, dueAt: this.addDays(current.expiresAt, -1), generated: false });
+      if (current.expiresAt < this.startOfToday()) alerts.push({ type: 'POLITICA_VENCIDA', message: '¡Política SST vencida! Debe ser revisada y actualizada inmediatamente.', recipients, dueAt: new Date(), generated: false });
     }
-    if (record.signatures.some((signature) => signature.required && signature.status !== PolicySignatureStatus.SIGNED)) alerts.push({ type: 'FALTA_FIRMA', message: 'Falta firma obligatoria de Política SST.', recipients, dueAt: new Date(), generated: false });
-    if (record.status === SstPolicyStatus.APPROVED && record.socializations.some((entry) => entry.status !== PolicySocializationStatus.DIGITALLY_SIGNED)) alerts.push({ type: 'FALTA_SOCIALIZACION', message: 'Falta socialización completa de Política SST.', recipients, dueAt: new Date(), generated: false });
+    if (record.signatures.some((signature) => signature.required && signature.status !== PolicySignatureStatus.SIGNED)) alerts.push({ type: 'FALTA_FIRMA', message: 'Falta firma obligatoria de Política SST (Manager o Representante legal).', recipients, dueAt: new Date(), generated: false });
+    if (record.status === SstPolicyStatus.APPROVED && record.socializations.some((entry) => entry.status !== PolicySocializationStatus.DIGITALLY_SIGNED)) alerts.push({ type: 'FALTA_SOCIALIZACION', message: 'Falta socialización completa de Política SST. Los trabajadores deben leer y firmar.', recipients, dueAt: new Date(), generated: false });
     return alerts;
   }
 

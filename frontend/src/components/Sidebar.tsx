@@ -19,6 +19,8 @@ const links: SidebarLink[] = [
   { to: '/companies', label: 'Empresas', icon: Icons.companies },
   { to: '/users', label: 'Usuarios', icon: Icons.users },
   { to: '/employees', label: 'Empleados', icon: Icons.users },
+  { to: '/company-configuration', label: 'Empresa', icon: Icons.building },
+  { to: '/implementation-wizard', label: 'Implementación', icon: Icons.chart },
   { to: '/evaluations', label: 'Evaluaciones', icon: Icons.chart },
   { to: '/incidents', label: 'Incidentes', icon: Icons.alert },
   { to: '/alerts', label: 'Alertas', icon: Icons.bell },

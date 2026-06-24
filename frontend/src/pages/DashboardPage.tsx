@@ -4,14 +4,19 @@ import {
   DashboardEvaluationModel,
   InspectionActivityModel,
   InitialEvaluationExecutiveDashboardModel,
+  LicenseDashboardModel,
   SstObjectivesAdvancedModel,
   fetchAbsenteeismByCompany,
   fetchDashboardEvaluations,
   fetchInspectionActivities,
   fetchInspectionScheduleByCompany,
   fetchInitialEvaluationExecutiveDashboard,
+  fetchLicenseDashboard,
   fetchAnnualWorkPlanAdvanced,
+  fetchMyAcceptances,
 } from '../api';
+
+import { useNavigate } from 'react-router-dom';
 import { useCompanyContext } from '../context/CompanyContext';
 import { KpiCard } from '../components/KpiCard';
 import {
@@ -28,8 +33,11 @@ import {
   YAxis,
 } from 'recharts';
 
+import { ImplementationRecommendationCard } from '../components/ImplementationRecommendationCard';
+
 type DashboardPageProps = {
   token: string;
+  role?: 'owner' | 'admin' | 'member' | 'manager';
 };
 
 type PhaseKey = 'PLANEAR' | 'HACER' | 'VERIFICAR' | 'ACTUAR';
@@ -63,13 +71,16 @@ function getPhaseByCode(code?: string): PhaseKey | null {
   return null;
 }
 
-export function DashboardPage({ token }: DashboardPageProps) {
+export function DashboardPage({ token, role }: DashboardPageProps) {
   const { companyId } = useCompanyContext();
+  const navigate = useNavigate();
   const [evaluations, setEvaluations] = useState<DashboardEvaluationModel[]>([]);
   const [absenteeism, setAbsenteeism] = useState<AbsenteeismModel[]>([]);
   const [inspections, setInspections] = useState<InspectionActivityModel[]>([]);
   const [initialEvaluationDashboard, setInitialEvaluationDashboard] = useState<InitialEvaluationExecutiveDashboardModel | null>(null);
   const [annualWorkPlan, setAnnualWorkPlan] = useState<SstObjectivesAdvancedModel | null>(null);
+  const [licenseDashboard, setLicenseDashboard] = useState<LicenseDashboardModel | null>(null);
+  const [pendingAcceptancesCount, setPendingAcceptancesCount] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -85,13 +96,15 @@ export function DashboardPage({ token }: DashboardPageProps) {
       fetchInspectionScheduleByCompany(token, companyId).catch(() => fetchInspectionActivities(token)),
       fetchInitialEvaluationExecutiveDashboard(token).catch(() => null),
       fetchAnnualWorkPlanAdvanced(token).catch(() => null),
+      fetchLicenseDashboard(token).catch(() => null),
     ])
-      .then(([evaluationData, absenteeismData, inspectionData, initialEvaluationData, annualWorkPlanData]) => {
+      .then(([evaluationData, absenteeismData, inspectionData, initialEvaluationData, annualWorkPlanData, licenseData]) => {
         setEvaluations(evaluationData);
         setAbsenteeism(absenteeismData);
         setInspections(inspectionData);
         setInitialEvaluationDashboard(initialEvaluationData);
         setAnnualWorkPlan(annualWorkPlanData);
+        setLicenseDashboard(licenseData);
         setError('');
       })
       .catch((requestError) => {
@@ -101,6 +114,13 @@ export function DashboardPage({ token }: DashboardPageProps) {
       .finally(() => {
         setLoading(false);
       });
+
+    // Fetch pending acceptances for the dashboard banner
+    if (token) {
+      fetchMyAcceptances(token)
+        .then((accs) => setPendingAcceptancesCount(accs.filter((a: any) => a.acceptanceStatus === 'PENDING').length))
+        .catch(() => {});
+    }
   }, [token, companyId]);
 
   const metrics = useMemo(() => {
@@ -175,8 +195,57 @@ export function DashboardPage({ token }: DashboardPageProps) {
     [evaluations]
   );
 
+  const shouldShowRecCard = role === 'owner' || role === 'admin' || role === 'manager';
+
   return (
     <section className="grid dashboard">
+      {/* Pending responsibilities banner */}
+      {pendingAcceptancesCount > 0 && (
+        <div style={{
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: '1rem',
+          padding: '.85rem 1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap',
+        }}>
+          <div>
+            <strong>📋 Tienes {pendingAcceptancesCount} responsabilidad(es) pendiente(s) por revisar y firmar</strong>
+            <p style={{ margin: '.25rem 0 0', color: '#854d0e', fontSize: '.9rem' }}>
+              Revisa tus responsabilidades asignadas en el módulo de Gestión Avanzada.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/advanced-management/1.1.2')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '.5rem',
+              padding: '.6rem 1rem',
+              borderRadius: '.8rem',
+              background: '#2563eb',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 600,
+              fontSize: '.9rem',
+              cursor: 'pointer',
+            }}
+          >
+            ✍ Revisar responsabilidades
+          </button>
+        </div>
+      )}
+
+      {shouldShowRecCard && (
+        <ImplementationRecommendationCard
+          token={token}
+          role={role}
+        />
+      )}
+
       <div>
         <h2 style={{ marginBottom: '.3rem' }}>Dashboard Gerencial SST</h2>
         <p className="muted">Indicadores de ausentismo, inspecciones y cumplimiento PHVA.</p>
@@ -213,6 +282,24 @@ export function DashboardPage({ token }: DashboardPageProps) {
           <div><p><strong>Acciones pendientes:</strong> {initialEvaluationDashboard?.pendingActions ?? 0}</p></div>
           <div><p><strong>Nivel de riesgo:</strong> {initialEvaluationDashboard?.riskLevel ?? 'Sin diagnóstico'}</p></div>
           <div><p><strong>Estado ejecutivo:</strong> {initialEvaluationDashboard?.status ?? 'No iniciado'}</p></div>
+        </div>
+      </article>
+
+      <article className="card">
+        <h3 className="card-title">🪪 Licencia SST</h3>
+        <div className="grid grid-3">
+          <div><p><strong>Responsable:</strong> {licenseDashboard?.responsibleName ?? '—'}</p></div>
+          <div><p><strong>Número:</strong> {licenseDashboard?.licenseNumber ?? '—'}</p></div>
+          <div><p><strong>Tipo:</strong> {licenseDashboard?.licenseType ?? '—'}</p></div>
+          <div><p><strong>Estado:</strong> <span className={
+            licenseDashboard?.status === 'Vigente' ? 'badge badge--success' :
+            licenseDashboard?.status === 'Vencida' || licenseDashboard?.status === 'Vencido' ? 'badge badge--danger' :
+            'badge badge--warning'
+          }>{licenseDashboard?.status ?? 'Pendiente'}</span></p></div>
+          <div><p><strong>Vence:</strong> {licenseDashboard?.expirationDate ? new Date(licenseDashboard.expirationDate).toLocaleDateString() : '—'}</p></div>
+          <div><p><strong>Días restantes:</strong> {licenseDashboard?.remainingDays !== null && licenseDashboard?.remainingDays !== undefined
+            ? (licenseDashboard.remainingDays > 0 ? `${licenseDashboard.remainingDays} días` : 'Vencida')
+            : '—'}</p></div>
         </div>
       </article>
 
@@ -266,6 +353,72 @@ export function DashboardPage({ token }: DashboardPageProps) {
           </div>
         </article>
       </div>
+
+      {/* SST Policy Widget (2.1.1) */}
+      <article className="card" style={{ borderLeft: '4px solid #2563eb' }}>
+        <div className="actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 className="card-title">📄 Política SST</h3>
+          <button
+            onClick={() => navigate('/advanced-management/2.1.1')}
+            className="btn btn-primary"
+            style={{ fontSize: '.85rem', padding: '.5rem .85rem', whiteSpace: 'nowrap' }}
+          >
+            Ver gestión avanzada →
+          </button>
+        </div>
+        <div className="grid grid-3">
+          <div><p><strong>📌 Versión:</strong> —</p></div>
+          <div><p><strong>✅ Estado:</strong> —</p></div>
+          <div><p><strong>👥 Socialización:</strong> —%</p></div>
+        </div>
+        <p className="muted" style={{ fontSize: '.85rem', marginTop: '.5rem' }}>
+          Gestiona la Política SST con generación inteligente, aprobación, firmas digitales y socialización.
+        </p>
+      </article>
+
+      {/* Training Program Widget */}
+      <article className="card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+        <div className="actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 className="card-title">🎓 Programa de Capacitación SST</h3>
+          <button
+            onClick={() => navigate('/advanced-management/1.2.1')}
+            className="btn btn-primary"
+            style={{ fontSize: '.85rem', padding: '.5rem .85rem', whiteSpace: 'nowrap' }}
+          >
+            Entrar a Gestión Avanzada →
+          </button>
+        </div>
+        <div className="grid grid-3">
+          <div><p><strong>📅 Programadas:</strong> —</p></div>
+          <div><p><strong>✅ Ejecutadas:</strong> —</p></div>
+          <div><p><strong>⏳ Pendientes:</strong> —</p></div>
+        </div>
+        <p className="muted" style={{ fontSize: '.85rem', marginTop: '.5rem' }}>
+          Gestiona el programa anual de capacitación en promoción y prevención (PyP).
+        </p>
+      </article>
+
+      {/* Budget Execution Widget */}
+      <article className="card" style={{ borderLeft: '4px solid #10b981' }}>
+        <div className="actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 className="card-title">💰 Ejecución Presupuesto SG-SST</h3>
+          <button
+            onClick={() => navigate('/advanced-management/1.1.3')}
+            className="btn btn-primary"
+            style={{ fontSize: '.85rem', padding: '.5rem .85rem', whiteSpace: 'nowrap' }}
+          >
+            Ver gestión avanzada →
+          </button>
+        </div>
+        <div className="grid grid-3">
+          <div><p><strong>📊 Programado:</strong> —</p></div>
+          <div><p><strong>💸 Ejecutado:</strong> —</p></div>
+          <div><p><strong>💰 Disponible:</strong> —</p></div>
+        </div>
+        <p className="muted" style={{ fontSize: '.85rem', marginTop: '.5rem' }}>
+          Los indicadores detallados están disponibles en la <a href="/advanced-management/1.1.3" style={{ color: '#2563eb' }}>gestión avanzada de 1.1.3</a>.
+        </p>
+      </article>
 
       <article className="card">
         <h3 className="card-title">Alertas activas</h3>

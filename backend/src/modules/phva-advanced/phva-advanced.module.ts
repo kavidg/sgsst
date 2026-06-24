@@ -9,6 +9,7 @@ import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
+import { CommunicationModule } from '../communication/communication.module';
 import { PhvaAdvancedController } from './phva-advanced.controller';
 import { PhvaAdvancedService } from './phva-advanced.service';
 import { PhvaAdvancedResourceAssignment, PhvaAdvancedResourceAssignmentSchema } from './schemas/phva-advanced-resource-assignment.schema';
@@ -19,6 +20,9 @@ import { SpecialPensionConfiguration, SpecialPensionConfigurationSchema } from '
 import { TrainingManagement, TrainingManagementSchema } from './schemas/phva-advanced-training-management.schema';
 import { SstPolicy, SstPolicySchema } from './schemas/phva-advanced-sst-policy.schema';
 import { SstObjectives, SstObjectivesSchema } from './schemas/phva-advanced-sst-objective.schema';
+import { PolicyTemplate, PolicyTemplateSchema } from './schemas/policy-template.schema';
+import { PolicyTemplateService } from './policy-template.service';
+import { PolicyTemplateController } from './policy-template.controller';
 import { Training, TrainingSchema } from '../trainings/schemas/training.schema';
 import { InspectionActivity, InspectionActivitySchema } from '../inspections/schemas/inspection-activity.schema';
 import { Incident, IncidentSchema } from '../incidents/schemas/incident.schema';
@@ -28,6 +32,7 @@ import { Incident, IncidentSchema } from '../incidents/schemas/incident.schema';
     AuthModule,
     UsersModule,
     AlertsModule,
+    CommunicationModule,
     MongooseModule.forFeature([
       { name: PhvaAdvancedResponsableSst.name, schema: PhvaAdvancedResponsableSstSchema },
       { name: PhvaAdvancedResponsibilities.name, schema: PhvaAdvancedResponsibilitiesSchema },
@@ -44,9 +49,10 @@ import { Incident, IncidentSchema } from '../incidents/schemas/incident.schema';
       { name: Incident.name, schema: IncidentSchema },
       { name: Company.name, schema: CompanySchema },
       { name: Employee.name, schema: EmployeeSchema },
+      { name: PolicyTemplate.name, schema: PolicyTemplateSchema },
     ]),
   ],
-  controllers: [PhvaAdvancedController],
-  providers: [PhvaAdvancedService, RolesGuard, CompanyAccessGuard],
+  controllers: [PhvaAdvancedController, PolicyTemplateController],
+  providers: [PhvaAdvancedService, PolicyTemplateService, RolesGuard, CompanyAccessGuard],
 })
 export class PhvaAdvancedModule {}

@@ -27,7 +27,31 @@ export class UpdateResponsableSstDto {
 
   @IsOptional()
   @IsString()
+  licenseType?: string;
+
+  @IsOptional()
+  @IsString()
+  issuingAuthority?: string;
+
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @IsOptional()
+  @IsString()
+  observations?: string;
+
+  @IsOptional()
+  @IsString()
+  licenseIssueDate?: string;
+
+  @IsOptional()
+  @IsString()
   licenseExpiresAt?: string;
+
+  @IsOptional()
+  @IsString()
+  licenseStatus?: string;
 
   @IsOptional()
   @IsString()

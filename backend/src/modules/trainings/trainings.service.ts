@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { AutoCommunicationService } from '../communication/auto-communication.service';
 import { CreateTrainingAttendanceDto } from './dto/create-training-attendance.dto';
 import { CreateTrainingDto } from './dto/create-training.dto';
 import { UpdateTrainingDto } from './dto/update-training.dto';
@@ -14,11 +15,27 @@ export class TrainingsService {
     private readonly trainingModel: Model<TrainingDocument>,
     @InjectModel(TrainingAttendance.name)
     private readonly trainingAttendanceModel: Model<TrainingAttendanceDocument>,
+    private readonly autoCommService: AutoCommunicationService,
   ) {}
 
   async create(companyId: Types.ObjectId, dto: CreateTrainingDto): Promise<Training> {
     const created = new this.trainingModel({ ...dto, companyId });
-    return created.save();
+    const saved = await created.save();
+    // Auto-generate communication for training assignment
+    await this.autoCommService.generateCommunication({
+      companyId,
+      title: `Capacitación asignada: ${saved.topic}`,
+      body: `Se ha programado una nueva capacitación. Tema: "${saved.topic}". Fecha: ${saved.date ? new Date(saved.date).toISOString().slice(0, 10) : 'Por definir'}. Instructor: ${saved.instructor || 'Por asignar'}. Descripción: ${saved.description || ''}`,
+      communicationType: 'TRAINING_COMMUNICATION',
+      priority: 'INFORMATIVE',
+      targetAudience: 'ALL_COMPANY',
+      requiresSignature: false,
+      sourceModule: 'TRAINING_ASSIGNED',
+      sourceEntityId: saved._id.toString(),
+    }).catch((err) => {
+      console.error('Auto-communication generation failed for training:', err.message);
+    });
+    return saved;
   }
 
   async findAll(companyId: Types.ObjectId): Promise<Training[]> {

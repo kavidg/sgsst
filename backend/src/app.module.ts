@@ -27,6 +27,10 @@ import { DocumentManagementModule } from './modules/document-management/document
 import { AccountabilityModule } from './modules/accountability/accountability.module';
 import { LegalMatrixModule } from './modules/legal-matrix/legal-matrix.module';
 import { CommunicationModule } from './modules/communication/communication.module';
+import { CompanyProfileModule } from './modules/company-profile/company-profile.module';
+import { ImplementationWizardModule } from './modules/implementation-wizard/implementation-wizard.module';
+import { WorkerSignatureCampaignModule } from './modules/worker-signature-campaign/worker-signature-campaign.module';
+import { ResponsibilityMatrixModule } from './modules/responsibility-matrix/responsibility-matrix.module';
 
 @Module({
   imports: [
@@ -65,6 +69,10 @@ import { CommunicationModule } from './modules/communication/communication.modul
     AccountabilityModule,
     LegalMatrixModule,
     CommunicationModule,
+    CompanyProfileModule,
+    ImplementationWizardModule,
+    WorkerSignatureCampaignModule,
+    ResponsibilityMatrixModule,
   ],
 })
 export class AppModule {}

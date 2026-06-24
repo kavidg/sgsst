@@ -745,7 +745,7 @@ export function deleteAlert(token: string, id: string) {
 }
 
 export type ResponsableSstComplianceStatus = 'COMPLIES' | 'PENDING' | 'NON_COMPLIANT';
-export type ResponsableSstDocumentType = 'DIPLOMA' | 'FIFTY_HOUR_CERTIFICATE' | 'TWENTY_HOUR_UPDATE_CERTIFICATE';
+export type ResponsableSstDocumentType = 'DIPLOMA' | 'FIFTY_HOUR_CERTIFICATE' | 'TWENTY_HOUR_UPDATE_CERTIFICATE' | 'SST_LICENSE_PDF' | 'SST_LICENSE_SCANNED' | 'SST_LICENSE_RESOLUTION' | 'SST_LICENSE_SUPPORTING';
 
 export interface ResponsableSstStoredDocumentModel {
   type: ResponsableSstDocumentType;
@@ -783,7 +783,27 @@ export interface ResponsableSstAdvancedModel {
   profession: string;
   sstProfessionalType: string;
   sstLicenseNumber: string;
+  licenseType: string;
+  issuingAuthority: string;
+  department: string;
+  observations: string;
+  licenseIssueDate?: string;
   licenseExpiresAt?: string;
+  licenseStatus: string;
+  licenseOcrEntries?: Array<{
+    detectedLicenseNumber?: string;
+    detectedIssueDate?: string;
+    detectedExpirationDate?: string;
+    detectedIssuingAuthority?: string;
+    detectedLicenseHolder?: string;
+    modifiedLicenseNumber?: string;
+    modifiedIssueDate?: string;
+    modifiedExpirationDate?: string;
+    modifiedIssuingAuthority?: string;
+    hasManualModification: boolean;
+    sourceFileName?: string;
+    confidence: number;
+  }>;
   course50HoursDate?: string;
   course50HoursDetectedDate?: string;
   course20HoursDate?: string;
@@ -796,6 +816,16 @@ export interface ResponsableSstAdvancedModel {
   updatedAt: string;
 }
 
+export interface LicenseDashboardModel {
+  responsibleName: string;
+  licenseNumber: string;
+  licenseType: string;
+  status: string;
+  expirationDate: string | null;
+  remainingDays: number | null;
+  hasLicenseDocument: boolean;
+}
+
 export interface UpdateResponsableSstAdvancedPayload {
   fullName: string;
   documentNumber: string;
@@ -803,7 +833,13 @@ export interface UpdateResponsableSstAdvancedPayload {
   profession: string;
   sstProfessionalType: string;
   sstLicenseNumber: string;
+  licenseType: string;
+  issuingAuthority: string;
+  department: string;
+  observations: string;
+  licenseIssueDate: string;
   licenseExpiresAt: string;
+  licenseStatus?: string;
   course50HoursDate: string;
   course50HoursDetectedDate?: string;
   course20HoursDate?: string;
@@ -971,6 +1007,23 @@ export function uploadResponsableSstDocument(token: string, payload: UploadRespo
 
 export function fetchResponsableSstAudit(token: string) {
   return apiFetch<ResponsableSstAuditEntryModel[]>('/phva-advanced/responsable-sst/audit', token, { method: 'GET' });
+}
+
+export function fetchLicenseDashboard(token: string) {
+  return apiFetch<LicenseDashboardModel>('/phva-advanced/responsable-sst/license-dashboard', token, { method: 'GET' });
+}
+
+export function modifyLicenseOcr(token: string, payload: {
+  ocrIndex: number;
+  licenseNumber?: string;
+  issueDate?: string;
+  expirationDate?: string;
+  issuingAuthority?: string;
+}) {
+  return apiFetch<ResponsableSstAdvancedModel>('/phva-advanced/responsable-sst/license-ocr-modify', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 
@@ -1185,6 +1238,50 @@ export const approveSstPolicyAdvanced = (token: string) => apiFetch<SstPolicyAdv
 export const assignSstPolicySocializationAdvanced = (token: string, payload: { mode?: 'all' | 'selected' | 'area'; employeeIds?: string[]; area?: string }) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/socializations/assign', token, { method: 'POST', body: JSON.stringify(payload) });
 export const updateSstPolicySocializationAdvanced = (token: string, payload: { employeeId: string; status: PolicySocializationStatus; evidence?: string }) => apiFetch<SstPolicyAdvancedModel>('/phva-advanced/sst-policy/socializations', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const fetchSstPolicyMasterListAdvanced = (token: string) => apiFetch<PolicyMasterListRowModel[]>('/phva-advanced/sst-policy/master-list', token, { method: 'GET' });
+
+// ==================== POLICY TEMPLATES API (2.1.1 - Sector Administration) ====================
+
+export interface PolicyTemplateModel {
+  _id: string;
+  sector: string;
+  active: boolean;
+  sectorRisks: string[];
+  sectorCommitments: string[];
+  legalReferences: string[];
+  recommendedResponsibilities: string[];
+  suggestedAnnualObjectives: Array<{ name: string; indicator: string; targetValue: number; responsible: string; description?: string }>;
+  version: number;
+  updatedByName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePolicyTemplatePayload {
+  sector: string;
+  sectorRisks?: string[];
+  sectorCommitments?: string[];
+  legalReferences?: string[];
+  recommendedResponsibilities?: string[];
+  suggestedAnnualObjectives?: Array<{ name: string; indicator: string; targetValue: number; responsible: string; description?: string }>;
+  active?: boolean;
+}
+
+export interface UpdatePolicyTemplatePayload {
+  sector?: string;
+  sectorRisks?: string[];
+  sectorCommitments?: string[];
+  legalReferences?: string[];
+  recommendedResponsibilities?: string[];
+  suggestedAnnualObjectives?: Array<{ name: string; indicator: string; targetValue: number; responsible: string; description?: string }>;
+  active?: boolean;
+}
+
+export const fetchPolicyTemplates = (token: string) => apiFetch<PolicyTemplateModel[]>('/policy-templates', token, { method: 'GET' });
+export const fetchPolicyTemplateBySector = (token: string, sector: string) => apiFetch<PolicyTemplateModel>('/policy-templates/' + encodeURIComponent(sector), token, { method: 'GET' });
+export const createPolicyTemplate = (token: string, payload: CreatePolicyTemplatePayload) => apiFetch<PolicyTemplateModel>('/policy-templates', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updatePolicyTemplate = (token: string, id: string, payload: UpdatePolicyTemplatePayload) => apiFetch<PolicyTemplateModel>('/policy-templates/' + id, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const deletePolicyTemplate = (token: string, id: string) => apiFetch<void>('/policy-templates/' + id, token, { method: 'DELETE' });
+export const seedPolicyTemplates = (token: string) => apiFetch<{ message: string; count: number }>('/policy-templates/seed', token, { method: 'GET' });
 export type SstObjectiveMeasurementMethod = 'MANUAL' | 'AUTOMATIC' | 'ACTIVITY_BASED';
 export type SstObjectiveStatus = 'Not Started' | 'In Progress' | 'Completed' | 'Delayed' | 'Cancelled';
 export type SstObjectiveActivityStatus = 'Pending' | 'In Progress' | 'Completed' | 'Delayed' | 'Cancelled';
@@ -2749,4 +2846,729 @@ export function fetchLegalAutoCompliance(token: string) {
 
 export function triggerLegalAlerts(token: string) {
   return apiFetch<string[]>('/legal-matrix/check-alerts', token, { method: 'POST' });
+}
+
+// ==================== COMPANY PROFILE / CONFIGURATION CENTER API ====================
+
+export interface WorkCenterModel {
+  name: string;
+  address?: string;
+  city?: string;
+  riskLevel?: string;
+  employeeCount: number;
+  active: boolean;
+}
+
+export interface CompanyContactModel {
+  type: string;
+  name: string;
+  position?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface CompanyProfileDocumentModel {
+  type: string;
+  name: string;
+  fileUrl?: string;
+  isVerified: boolean;
+  uploadedAt?: string;
+}
+
+export interface CompanyProfileHistoryModel {
+  userId: string;
+  userEmail?: string;
+  action: string;
+  field: string;
+  previousValue?: string;
+  newValue?: string;
+  timestamp: string;
+}
+
+export interface CompanyProfileModel {
+  _id: string;
+  companyId: string;
+  // Tab 1: General
+  companyName?: string;
+  nit?: string;
+  economicSector?: string;
+  legalName?: string;
+  verificationDigit?: string;
+  companySize?: string;
+  riskLevel?: string;
+  companyType?: string;
+  address?: string;
+  city?: string;
+  department?: string;
+  country: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  logoUrl?: string;
+  // Tab 2: Labor
+  totalEmployees: number;
+  directEmployees: number;
+  contractors: number;
+  apprentices: number;
+  temporaryWorkers: number;
+  maleEmployees: number;
+  femaleEmployees: number;
+  otherGenderEmployees: number;
+  ageUnder18: number;
+  age18to25: number;
+  age26to35: number;
+  age36to45: number;
+  age46to60: number;
+  ageOver60: number;
+  workSchedules: string[];
+  // Tab 3: SG-SST
+  arlName?: string;
+  arlAffiliateNumber?: string;
+  responsibleSstUserId?: string;
+  sstStartDate?: string;
+  implementationStatus?: string;
+  // Tab 4: Work Centers
+  workCenters: WorkCenterModel[];
+  // Tab 5: Contacts
+  contacts: CompanyContactModel[];
+  // Tab 6: Documents
+  companyDocuments: CompanyProfileDocumentModel[];
+  // Tab 7: History
+  history: CompanyProfileHistoryModel[];
+  completionPercentage: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function fetchCompanyProfile(token: string) {
+  return apiFetch<CompanyProfileModel>('/company-profile', token, { method: 'GET' });
+}
+
+export function updateCompanyProfile(token: string, payload: Record<string, unknown>) {
+  return apiFetch<CompanyProfileModel>('/company-profile', token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function addWorkCenter(token: string, payload: { name: string; address?: string; city?: string; riskLevel?: string; employeeCount?: number }) {
+  return apiFetch<CompanyProfileModel>('/company-profile/work-centers', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateWorkCenter(token: string, index: number, payload: Record<string, unknown>) {
+  return apiFetch<CompanyProfileModel>(`/company-profile/work-centers/${index}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteWorkCenter(token: string, index: number) {
+  return apiFetch<CompanyProfileModel>(`/company-profile/work-centers/${index}`, token, { method: 'DELETE' });
+}
+
+export function upsertContact(token: string, payload: { type: string; name: string; position?: string; phone?: string; email?: string }) {
+  return apiFetch<CompanyProfileModel>('/company-profile/contacts', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function addCompanyDocument(token: string, payload: { type: string; name: string; fileUrl?: string }) {
+  return apiFetch<CompanyProfileModel>('/company-profile/documents', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function deleteCompanyDocument(token: string, index: number) {
+  return apiFetch<CompanyProfileModel>(`/company-profile/documents/${index}`, token, { method: 'DELETE' });
+}
+
+export function setSstResponsible(token: string, userId: string) {
+  return apiFetch<CompanyProfileModel>('/company-profile/sst-responsible', token, { method: 'POST', body: JSON.stringify({ userId }) });
+}
+
+export function fetchCompanyProfileCompletion(token: string) {
+  return apiFetch<{ completionPercentage: number }>('/company-profile/completion', token, { method: 'GET' });
+}
+
+// ==================== IMPLEMENTATION WIZARD API ====================
+
+export type WizardStepId =
+  | 'company_info' | 'users_roles' | 'responsible_sst' | 'course_50_hours'
+  | 'sst_policy' | 'sst_objectives' | 'initial_evaluation' | 'annual_plan'
+  | 'copasst' | 'convivencia_committee' | 'training' | 'communication'
+  | 'legal_matrix' | 'document_management';
+
+export type WizardStepStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
+
+export interface WizardStepModel {
+  stepId: WizardStepId;
+  status: WizardStepStatus;
+  score: number;
+  validatedAt?: string;
+  details?: string;
+  label: string;
+  description: string;
+}
+
+export interface WizardHistoryEntryModel {
+  userId: string;
+  userEmail?: string;
+  action: string;
+  stepId?: WizardStepId;
+  previousStatus?: WizardStepStatus;
+  newStatus?: WizardStepStatus;
+  description?: string;
+  timestamp: string;
+}
+
+export interface WizardDashboardModel {
+  overallScore: number;
+  completionPercentage: number;
+  completedSteps: number;
+  totalSteps: number;
+  pendingSteps: number;
+  inProgressSteps: number;
+  blockedSteps: number;
+  isOnboardingComplete: boolean;
+  isImplementationComplete: boolean;
+  certificateGenerated: boolean;
+  certificateVerificationCode?: string;
+  steps: WizardStepModel[];
+  history: WizardHistoryEntryModel[];
+}
+
+export function fetchWizard(token: string) {
+  return apiFetch<WizardDashboardModel>('/implementation-wizard', token, { method: 'GET' });
+}
+
+export function fetchWizardDashboard(token: string) {
+  return apiFetch<WizardDashboardModel>('/implementation-wizard/dashboard', token, { method: 'GET' });
+}
+
+export function updateWizardStep(token: string, stepId: WizardStepId, payload: { score: number; status: WizardStepStatus; details?: string }) {
+  return apiFetch<WizardDashboardModel>(`/implementation-wizard/step/${stepId}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function runWizardAutoValidation(token: string, payload: Record<string, { score: number; status: WizardStepStatus }>) {
+  return apiFetch<WizardDashboardModel>('/implementation-wizard/auto-validate', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function completeWizardOnboarding(token: string) {
+  return apiFetch<WizardDashboardModel>('/implementation-wizard/complete-onboarding', token, { method: 'POST' });
+}
+
+export function generateWizardCertificate(token: string) {
+  return apiFetch<WizardDashboardModel>('/implementation-wizard/generate-certificate', token, { method: 'POST' });
+}
+
+export function getWizardModuleRoute(token: string, stepId: WizardStepId) {
+  return apiFetch<{ route: string }>(`/implementation-wizard/module-route/${stepId}`, token, { method: 'GET' });
+}
+
+
+// ==================== RESPONSIBILITY MATRIX API ====================
+
+export interface ResponsibilityMatrixItemModel {
+  _id?: string;
+  title: string;
+  description?: string;
+  group: string;
+  order: number;
+  active: boolean;
+  mandatory: boolean;
+  status: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+}
+
+export interface MatrixVersionModel {
+  version: string;
+  createdAt: string;
+  createdByEmail?: string;
+  approvedByEmail?: string;
+  approvedAt?: string;
+  status: string;
+}
+
+export interface MatrixAuditEntryModel {
+  action: string;
+  userEmail?: string;
+  createdAt: string;
+  field?: string;
+  oldValue?: string;
+  newValue?: string;
+}
+
+export interface ResponsibilityMatrixModel {
+  _id: string;
+  companyId: string;
+  itemCode: string;
+  items: ResponsibilityMatrixItemModel[];
+  versions: MatrixVersionModel[];
+  approvalStatus: string;
+  approvedByEmail?: string;
+  approvedAt?: string;
+  auditHistory: MatrixAuditEntryModel[];
+  complianceStatus: ResponsableSstComplianceStatus;
+  complianceReason: string;
+  currentVersionNumber: number;
+  lockedAt?: string;
+}
+
+export const fetchResponsibilityMatrix = (token: string) =>
+  apiFetch<ResponsibilityMatrixModel>('/responsibility-matrix', token, { method: 'GET' });
+
+export const generateResponsibilityMatrix = (token: string, groups?: string[]) =>
+  apiFetch<ResponsibilityMatrixModel>('/responsibility-matrix/generate', token, { method: 'POST', body: JSON.stringify({ groups }) });
+
+export const addResponsibilityMatrixItem = (token: string, dto: Omit<ResponsibilityMatrixItemModel, '_id' | 'order'>) =>
+  apiFetch<ResponsibilityMatrixModel>('/responsibility-matrix/items', token, { method: 'POST', body: JSON.stringify(dto) });
+
+export const updateResponsibilityMatrixItem = (token: string, itemId: string, dto: Record<string, unknown>) =>
+  apiFetch<ResponsibilityMatrixModel>(`/responsibility-matrix/items/${itemId}`, token, { method: 'PATCH', body: JSON.stringify(dto) });
+
+export const deleteResponsibilityMatrixItem = (token: string, itemId: string) =>
+  apiFetch<ResponsibilityMatrixModel>(`/responsibility-matrix/items/${itemId}`, token, { method: 'DELETE' });
+
+export const duplicateResponsibilityMatrixItem = (token: string, itemId: string) =>
+  apiFetch<ResponsibilityMatrixModel>(`/responsibility-matrix/items/${itemId}/duplicate`, token, { method: 'POST' });
+
+export const reorderResponsibilityMatrixItems = (token: string, order: Array<{ _id: string; order: number }>) =>
+  apiFetch<ResponsibilityMatrixModel>('/responsibility-matrix/reorder', token, { method: 'POST', body: JSON.stringify({ order }) });
+
+export const submitResponsibilityMatrixApproval = (token: string) =>
+  apiFetch<ResponsibilityMatrixModel>('/responsibility-matrix/submit-approval', token, { method: 'POST' });
+
+export const approveResponsibilityMatrix = (token: string, dto: { approvedByEmail: string; comments?: string }) =>
+  apiFetch<ResponsibilityMatrixModel>('/responsibility-matrix/approve', token, { method: 'POST', body: JSON.stringify(dto) });
+
+export const archiveResponsibilityMatrix = (token: string) =>
+  apiFetch<ResponsibilityMatrixModel>('/responsibility-matrix/archive', token, { method: 'POST' });
+
+export const createResponsibilityMatrixVersion = (token: string, versionLabel?: string) =>
+  apiFetch<ResponsibilityMatrixModel>('/responsibility-matrix/versions', token, { method: 'POST', body: JSON.stringify({ versionLabel }) });
+
+export const fetchResponsibilityMatrixHistory = (token: string) =>
+  apiFetch<MatrixAuditEntryModel[]>('/responsibility-matrix/history', token, { method: 'GET' });
+
+
+export const fetchResponsibilityMatrixCampaignInfo = (token: string) =>
+  apiFetch<{ hasCampaign: boolean; campaign?: any; workers?: any[]; stats?: any; message?: string }>('/responsibility-matrix/campaign-info', token, { method: 'GET' });
+
+
+// ==================== RESPONSIBILITY ACCEPTANCE API ====================
+
+export interface AcceptanceSignatureModel {
+  signedBy: string;
+  signedByEmail: string;
+  signedAt: string;
+  ipAddress?: string;
+  device?: string;
+  signatureHash: string;
+  signatureUrl?: string;
+}
+
+export interface AcceptanceReviewRequestModel {
+  type: 'ACCEPTANCE' | 'CORRECTION';
+  comment?: string;
+  requestedAt: string;
+  requestedBy?: string;
+  requestedByEmail?: string;
+  status: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
+export interface AcceptanceHistoryEntryModel {
+  action: string;
+  userEmail?: string;
+  createdAt: string;
+  field?: string;
+  oldValue?: string;
+  newValue?: string;
+}
+
+export interface ResponsibilityAcceptanceModel {
+  _id: string;
+  companyId: string;
+  matrixItemCode: string;
+  matrixVersion: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  userRole?: string;
+  assignedItemIds: string[];
+  acceptanceStatus: string;
+  hasRead: boolean;
+  acceptedAt?: string;
+  rejectedAt?: string;
+  rejectedReason?: string;
+  signature?: AcceptanceSignatureModel;
+  reviewRequests: AcceptanceReviewRequestModel[];
+  renewalRequiredAt?: string;
+  lastRenewedAt?: string;
+  currentCycle: number;
+  auditHistory: AcceptanceHistoryEntryModel[];
+  matrixId?: string;
+  requiresRenewal: boolean;
+}
+
+export interface AcceptanceStatsModel {
+  total: number;
+  pending: number;
+  accepted: number;
+  rejected: number;
+  reviewed: number;
+  expired: number;
+}
+
+export interface UserAcceptanceResponse {
+  acceptance: ResponsibilityAcceptanceModel;
+  matrix: {
+    approvalStatus: string;
+    approvedByEmail?: string;
+    approvedAt?: string;
+    items: any[];
+  } | null;
+}
+
+export interface ComplianceWithAcceptanceModel {
+  status: ResponsableSstComplianceStatus;
+  reason: string;
+  stats: AcceptanceStatsModel;
+}
+
+export function fetchPendingAcceptances(token: string) {
+  return apiFetch<ResponsibilityAcceptanceModel[]>('/responsibility-matrix/acceptances/pending', token, { method: 'GET' });
+}
+
+export function fetchMyAcceptances(token: string) {
+  return apiFetch<ResponsibilityAcceptanceModel[]>('/responsibility-matrix/acceptances/my', token, { method: 'GET' });
+}
+
+export function fetchAcceptanceStats(token: string) {
+  return apiFetch<AcceptanceStatsModel>('/responsibility-matrix/acceptances/stats', token, { method: 'GET' });
+}
+
+export function fetchAcceptanceForUser(token: string, userId: string) {
+  return apiFetch<UserAcceptanceResponse>(`/responsibility-matrix/acceptances/user/${userId}`, token, { method: 'GET' });
+}
+
+export function assignResponsibilitiesBatch(token: string, assignments: Array<{
+  userId: string;
+  userEmail: string;
+  userName: string;
+  userRole?: string;
+  assignedItemIds: string[];
+}>, matrixVersion?: string) {
+  return apiFetch<ResponsibilityAcceptanceModel[]>('/responsibility-matrix/acceptances/assign', token, {
+    method: 'POST',
+    body: JSON.stringify({ assignments, matrixVersion }),
+  });
+}
+
+export function acceptResponsibilities(token: string, payload: {
+  userId: string;
+  userEmail: string;
+  userName: string;
+  userRole?: string;
+  assignedItemIds: string[];
+  hasRead: boolean;
+  signatureHash?: string;
+  signatureUrl?: string;
+  ipAddress?: string;
+  device?: string;
+  comments?: string;
+}) {
+  return apiFetch<ResponsibilityAcceptanceModel>('/responsibility-matrix/acceptances/accept', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function rejectResponsibilities(token: string, payload: { userId: string; userEmail: string; reason: string; comments?: string }) {
+  return apiFetch<ResponsibilityAcceptanceModel>('/responsibility-matrix/acceptances/reject', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function requestCorrection(token: string, payload: { userId: string; userEmail: string; comment: string }) {
+  return apiFetch<ResponsibilityAcceptanceModel>('/responsibility-matrix/acceptances/request-correction', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function resolveCorrection(token: string, userId: string, resolution?: string) {
+  return apiFetch<ResponsibilityAcceptanceModel>(`/responsibility-matrix/acceptances/resolve-correction/${userId}`, token, {
+    method: 'POST',
+    body: JSON.stringify({ resolution }),
+  });
+}
+
+export function createAcceptanceCycle(token: string, matrixVersion?: string) {
+  return apiFetch<{ version: string; cycleStarted: string; renewalDate: string }>('/responsibility-matrix/acceptances/create-cycle', token, {
+    method: 'POST',
+    body: JSON.stringify({ matrixVersion }),
+  });
+}
+
+export function fetchAcceptanceReminders(token: string) {
+  return apiFetch<Array<{ acceptance: ResponsibilityAcceptanceModel; daysOverdue: number }>>('/responsibility-matrix/acceptances/reminders', token, { method: 'GET' });
+}
+
+export function fetchComplianceWithAcceptance(token: string) {
+  return apiFetch<ComplianceWithAcceptanceModel>('/responsibility-matrix/compliance', token, { method: 'GET' });
+}
+
+export function processRenewals(token: string) {
+  return apiFetch<{ renewed: number }>('/responsibility-matrix/acceptances/process-renewals', token, { method: 'POST' });
+}
+
+export function fetchAcceptanceHistory(token: string) {
+  return apiFetch<ResponsibilityAcceptanceModel[]>('/responsibility-matrix/acceptances/history', token, { method: 'GET' });
+}
+
+
+// ==================== WORKER SIGNATURE CAMPAIGN API ====================
+
+export interface SignatureCampaignModel {
+  _id: string;
+  companyId: string;
+  name: string;
+  description?: string;
+  documentType: string;
+  documentVersion?: string;
+  documentUrl?: string;
+  documentContent?: string;
+  sourceModule?: string;
+  sourceEntityId?: string;
+  requireOtp: boolean;
+  requireSignature: boolean;
+  requirePdfAcceptance: boolean;
+  reminderDays: number[];
+  expiresAt?: string;
+  status: string;
+  createdByEmail?: string;
+  createdByName?: string;
+  workers: string[];
+  stats?: { totalWorkers: number; signed: number; pending: number; rejected: number; expired: number; completionPercent: number };
+}
+
+export interface CampaignWorkerModel {
+  _id: string;
+  campaignId: string;
+  companyId: string;
+  employeeId?: string;
+  name: string;
+  identification: string;
+  position?: string;
+  area?: string;
+  phone?: string;
+  email?: string;
+  status: string;
+  token?: string;
+  tokenExpiresAt?: string;
+  tokenUsedAt?: string;
+  otpCode?: string;
+  otpSentAt?: string;
+  otpValidatedAt?: string;
+  documentViewedAt?: string;
+  acceptedAt?: string;
+  signedAt?: string;
+  hasRead: boolean;
+  signatureMethod?: string;
+  signatureData?: string;
+  signatureHash?: string;
+  signatureUrl?: string;
+  deliveryMethod?: string;
+  linkSentAt?: string;
+  openedAt?: string;
+  ipAddress?: string;
+  browser?: string;
+  os?: string;
+  rejectionReason?: string;
+  evidencePdfUrl?: string;
+  verificationCode?: string;
+  lastReminderSentAt?: string;
+  reminderCount?: number;
+}
+
+export interface SignatureEvidenceModel {
+  _id: string;
+  companyId: string;
+  workerId: string;
+  campaignId: string;
+  workerName: string;
+  workerIdentification: string;
+  workerPhone?: string;
+  documentType: string;
+  documentVersion?: string;
+  signedAt: string;
+  signatureHash: string;
+  signatureMethod?: string;
+  ipAddress?: string;
+  browser?: string;
+  os?: string;
+  otpValidated: boolean;
+  verificationCode?: string;
+  evidencePdfUrl?: string;
+}
+
+export interface CampaignStatsModel {
+  total: number;
+  active: number;
+  completed: number;
+  draft: number;
+  totalWorkers: number;
+  totalSigned: number;
+}
+
+export interface CampaignListResponse {
+  campaigns: SignatureCampaignModel[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface PublicWorkerInfo {
+  worker: { name: string; identification: string; position?: string; area?: string };
+  token: any;
+}
+
+export interface PublicDocumentResponse {
+  company: { name: string };
+  document: { type: string; version?: string; name: string; description?: string; content?: string; url?: string };
+  requireOtp: boolean;
+  requireSignature: boolean;
+  requirePdfAcceptance: boolean;
+}
+
+export interface SignResult {
+  signed: boolean;
+  rejected?: boolean;
+  message: string;
+  evidence?: {
+    workerName: string;
+    workerIdentification: string;
+    documentType: string;
+    signedAt: string;
+    signatureHash: string;
+    verificationCode: string;
+  };
+}
+
+export const WORKER_SIGNATURE_CAMPAIGN_BASE = '/worker-signature-campaign';
+export const PUBLIC_SIGN_BASE = '/public/sign';
+
+// Admin endpoints
+export function createSignatureCampaign(token: string, payload: Partial<SignatureCampaignModel>) {
+  return apiFetch<SignatureCampaignModel>(WORKER_SIGNATURE_CAMPAIGN_BASE, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+export function fetchSignatureCampaigns(token: string, params?: Record<string, string>) {
+  const q = params ? '?' + new URLSearchParams(params).toString() : '';
+  return apiFetch<CampaignListResponse>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}${q}`, token, { method: 'GET' });
+}
+export function fetchSignatureCampaign(token: string, id: string) {
+  return apiFetch<SignatureCampaignModel>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${id}`, token, { method: 'GET' });
+}
+export function fetchSignatureCampaignStats(token: string) {
+  return apiFetch<CampaignStatsModel>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/stats`, token, { method: 'GET' });
+}
+export function updateSignatureCampaign(token: string, id: string, payload: Partial<SignatureCampaignModel>) {
+  return apiFetch<SignatureCampaignModel>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+export function updateSignatureCampaignStatus(token: string, id: string, status: string) {
+  return apiFetch<SignatureCampaignModel>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${id}/status`, token, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+export function fetchCampaignReport(token: string, id: string) {
+  return apiFetch<any>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${id}/report`, token, { method: 'GET' });
+}
+
+// Workers
+export function addCampaignWorkers(token: string, campaignId: string, workers: Array<{ name: string; identification: string; position?: string; area?: string; phone?: string; email?: string }>) {
+  return apiFetch<CampaignWorkerModel[]>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${campaignId}/workers`, token, { method: 'POST', body: JSON.stringify({ workers }) });
+}
+export function fetchCampaignWorkers(token: string, campaignId: string) {
+  return apiFetch<CampaignWorkerModel[]>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${campaignId}/workers`, token, { method: 'GET' });
+}
+export function removeCampaignWorker(token: string, campaignId: string, workerId: string) {
+  return apiFetch<void>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${campaignId}/workers/${workerId}`, token, { method: 'DELETE' });
+}
+export function generateWorkerLink(token: string, campaignId: string, workerId: string) {
+  return apiFetch<{ token: string; url: string }>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${campaignId}/workers/${workerId}/generate-link`, token, { method: 'POST' });
+}
+export function resendWorkerLink(token: string, payload: { workerId: string; deliveryMethod?: string }) {
+  return apiFetch<{ sent: boolean; token?: string }>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/workers/resend-link`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+// Reminders
+export function sendCampaignReminders(token: string, campaignId: string, payload?: { workerIds?: string[]; deliveryMethod?: string }) {
+  return apiFetch<{ sent: number; workers: Array<{ workerId: string; name: string; sent: boolean }> }>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${campaignId}/reminders`, token, { method: 'POST', body: JSON.stringify(payload ?? {}) });
+}
+export function fetchPendingReminders(token: string) {
+  return apiFetch<Array<{ campaign: SignatureCampaignModel; workers: CampaignWorkerModel[] }>>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/reminders/pending`, token, { method: 'GET' });
+}
+
+// Evidence
+export function fetchCampaignEvidence(token: string, campaignId: string) {
+  return apiFetch<SignatureEvidenceModel[]>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/${campaignId}/evidence`, token, { method: 'GET' });
+}
+export function fetchAllEvidence(token: string) {
+  return apiFetch<SignatureEvidenceModel[]>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/evidence/all`, token, { method: 'GET' });
+}
+
+// Audit
+export function fetchCampaignAudit(token: string, campaignId?: string) {
+  const q = campaignId ? `?campaignId=${campaignId}` : '';
+  return apiFetch<any[]>(`${WORKER_SIGNATURE_CAMPAIGN_BASE}/audit${q}`, token, { method: 'GET' });
+}
+
+// Public endpoints (no token)
+export function fetchPublicWorkerByToken(token: string) {
+  return fetchPublic<PublicWorkerInfo>(`${PUBLIC_SIGN_BASE}/${token}`);
+}
+export function validatePublicIdentity(token: string, identification: string, phone?: string) {
+  return fetchPublic<{ valid: boolean; worker: { name: string; identification: string; position?: string; area?: string } }>(
+    `${PUBLIC_SIGN_BASE}/${token}/validate-identity`,
+    { method: 'POST', body: JSON.stringify({ token, identification, phone }) },
+  );
+}
+export function sendPublicOtp(token: string, deliveryMethod?: string) {
+  return fetchPublic<{ required: boolean; sent: boolean; message: string }>(
+    `${PUBLIC_SIGN_BASE}/${token}/send-otp`,
+    { method: 'POST', body: JSON.stringify({ token, deliveryMethod }) },
+  );
+}
+export function validatePublicOtp(token: string, code: string) {
+  return fetchPublic<{ valid: boolean }>(
+    `${PUBLIC_SIGN_BASE}/${token}/validate-otp`,
+    { method: 'POST', body: JSON.stringify({ token, code }) },
+  );
+}
+export function fetchPublicDocument(token: string) {
+  return fetchPublic<PublicDocumentResponse>(`${PUBLIC_SIGN_BASE}/${token}/document`);
+}
+export function signPublicDocument(token: string, payload: {
+  hasRead: boolean;
+  signatureMethod?: string;
+  signatureData?: string;
+  rejectionReason?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  browser?: string;
+  os?: string;
+}) {
+  return fetchPublic<SignResult>(
+    `${PUBLIC_SIGN_BASE}/${token}/sign`,
+    { method: 'POST', body: JSON.stringify({ token, ...payload }) },
+  );
+}
+
+async function fetchPublic<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${BACKEND_URL}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.message ?? 'Error en la solicitud');
+  return data as T;
 }

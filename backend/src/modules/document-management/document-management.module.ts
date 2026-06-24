@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { AlertsModule } from '../alerts/alerts.module';
+import { CommunicationModule } from '../communication/communication.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { DocumentManagementController } from './document-management.controller';
@@ -24,6 +25,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
     AuthModule,
     UsersModule,
     AlertsModule,
+    CommunicationModule,
     MongooseModule.forFeature([
       { name: DocumentMaster.name, schema: DocumentMasterSchema },
       { name: DocumentVersion.name, schema: DocumentVersionSchema },

@@ -2,13 +2,18 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlertsService } from '../alerts/alerts.service';
+import { AutoCommunicationService } from '../communication/auto-communication.service';
 import { CopasstPeriod, CopasstPeriodDocument } from './schemas/copasst.schema';
 import { RegisterCandidateDto, SendOtpDto, UpsertCopasstMemberDto, UpsertCopasstPeriodDto, VoteDto } from './dto/copasst.dto';
 
 @Injectable()
 export class CopasstService {
   private readonly otpStore = new Map<string, string>();
-  constructor(@InjectModel(CopasstPeriod.name) private readonly periodModel: Model<CopasstPeriodDocument>, private readonly alertsService: AlertsService) {}
+  constructor(
+    @InjectModel(CopasstPeriod.name) private readonly periodModel: Model<CopasstPeriodDocument>,
+    private readonly alertsService: AlertsService,
+    private readonly autoCommService: AutoCommunicationService,
+  ) {}
 
   async getCurrent(companyId: Types.ObjectId) {
     const current = await this.periodModel.findOne({ companyId, status: { $ne: 'ARCHIVADO' } }).sort({ createdAt: -1 }).exec();
@@ -21,6 +26,20 @@ export class CopasstService {
     const start = new Date(dto.startDate);
     const end = new Date(start); end.setFullYear(end.getFullYear() + 2);
     const created = await this.periodModel.create({ companyId, periodName: dto.periodName, startDate: start, endDate: end, status: 'ACTIVO', auditHistory: [{ action: 'CREATE_PERIOD', createdBy: email, createdAt: new Date(), data: JSON.stringify(dto) }] });
+    // Auto-generate communication for COPASST election
+    await this.autoCommService.generateCommunication({
+      companyId,
+      title: `Elección COPASST: ${created.periodName}`,
+      body: `Se ha iniciado el proceso de elección del Comité Paritario de Seguridad y Salud en el Trabajo (COPASST) para el periodo "${created.periodName}". Fecha inicio: ${start.toISOString().slice(0, 10)}. Se invita a todos los trabajadores a participar en la elección de sus representantes.`,
+      communicationType: 'ANNOUNCEMENT',
+      priority: 'IMPORTANT',
+      targetAudience: 'ALL_COMPANY',
+      requiresSignature: false,
+      sourceModule: 'COPASST_ELECTION',
+      sourceEntityId: created._id.toString(),
+    }).catch((err) => {
+      console.error('Auto-communication generation failed for COPASST:', err.message);
+    });
     return created;
   }
 

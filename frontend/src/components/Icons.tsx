@@ -22,4 +22,5 @@ export const Icons = {
   chevronDown: () => <IconBase><polyline points="6 9 12 15 18 9"/></IconBase>,
   bell: () => <IconBase><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></IconBase>,
   user: () => <IconBase><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></IconBase>,
+  building: () => <IconBase><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M9 6h.01"/><path d="M15 6h.01"/><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M9 14h.01"/><path d="M15 14h.01"/></IconBase>,
 };
