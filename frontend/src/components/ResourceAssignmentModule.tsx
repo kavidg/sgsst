@@ -9,6 +9,11 @@ import {
   EmployeeModel,
 } from '../api';
 import { Button } from './ui/Button';
+import {
+  AdvancedPageLayout,
+  AdvancedHeader,
+  AdvancedKpiGrid,
+} from './advanced-layout';
 
 // ============================================================
 // CONSTANTS
@@ -435,7 +440,7 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
   const isApproved = Boolean(record?.approval?.approved);
 
   return (
-    <div className="resource-page">
+    <AdvancedPageLayout>
       {/* Unsaved changes modal */}
       {showUnsavedModal && (
         <div className="modal-overlay" onClick={cancelNavigation}>
@@ -452,52 +457,53 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
       )}
 
       {/* Header */}
-      <header className="resource-page__header">
-        <div className="resource-page__header-left">
-          <button className="resource-page__back" onClick={() => handleNavigate('/documents/plan')} title="Volver al plan">
-            ← Volver
-          </button>
-          <div>
-            <p className="muted">Estándar 1.1.3</p>
-            <h2>Asignación de Recursos SG-SST</h2>
-          </div>
-        </div>
-        <div className="resource-page__header-actions">
-          <span className={badge.className}>{badge.label}</span>
-          {record?.complianceReason && <span className="muted" style={{ fontSize: '0.85rem' }}>{record.complianceReason}</span>}
-          <span className="budget-page__status-badge">{isApproved ? '✅ Aprobado' : '⏳ Pendiente'}</span>
-          <Button type="button" disabled={loading || !dirty} onClick={() => void save()}>
-            {loading ? 'Guardando...' : '💾 Guardar'}
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => {
-            const reportLines = [
-              '=== ASIGNACIÓN DE RECURSOS SG-SST ===',
-              `Empresa: Documento REC-SST-001`,
-              `Versión: v${currentVersion}`,
-              `Estado: ${approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador'}`,
-              `Generado: ${new Date().toLocaleString()}`,
-              '',
-              `Recursos financieros: ${totalFinancial}`,
-              `Recursos humanos: ${totalHuman}`,
-              `Recursos técnicos: ${totalTechnical}`,
-              `Evidencias: ${totalEvidences}`,
-              '',
-              '=== FIN DEL REPORTE ===',
-            ];
-            const blob = new Blob([reportLines.join('\n')], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `asignacion-recursos-sst-v${currentVersion}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-            notify('📄 Reporte exportado.');
-          }}>
-            📄 Exportar
-          </Button>
-        </div>
-        {lastSaved && <div className="resource-page__last-saved">Último guardado: {lastSaved}</div>}
-      </header>
+      <AdvancedHeader
+        backPath="/documents/plan"
+        backLabel="← Volver a Implementación"
+        moduleCode="1.1.3"
+        moduleTitle="Asignación de Recursos SG-SST"
+        description="Asignación de recursos financieros, humanos y técnicos para el SG-SST"
+        statusBadge={
+          <>
+            <span className={badge.className}>{badge.label}</span>
+            {record?.complianceReason && <span className="text-xs text-gray-500 ml-2">{record.complianceReason}</span>}
+            <span className="budget-page__status-badge">{isApproved ? '✅ Aprobado' : '⏳ Pendiente'}</span>
+          </>
+        }
+        actions={[
+          {
+            label: '📄 Exportar PDF',
+            variant: 'secondary' as const,
+            onClick: () => {
+              const reportLines = [
+                '=== ASIGNACIÓN DE RECURSOS SG-SST ===',
+                `Empresa: Documento REC-SST-001`,
+                `Versión: v${currentVersion}`,
+                `Estado: ${approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador'}`,
+                `Generado: ${new Date().toLocaleString()}`,
+                '',
+                `Recursos financieros: ${totalFinancial}`,
+                `Recursos humanos: ${totalHuman}`,
+                `Recursos técnicos: ${totalTechnical}`,
+                `Evidencias: ${totalEvidences}`,
+                '',
+                '=== FIN DEL REPORTE ===',
+              ];
+              const blob = new Blob([reportLines.join('\n')], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `asignacion-recursos-sst-v${currentVersion}.txt`;
+              a.click();
+              URL.revokeObjectURL(url);
+              notify('📄 Reporte exportado.');
+            },
+          },
+          { label: '📊 Exportar Excel', variant: 'secondary' as const, onClick: () => notify('Función de exportación Excel próximamente.') },
+          { label: loading ? 'Guardando...' : '💾 Guardar cambios', onClick: () => void save(), disabled: loading || !dirty },
+        ]}
+        lastSaved={lastSaved}
+      />
 
       {/* Toast */}
       {toast && <div className="toast-alert" style={{ margin: '0 1rem' }}><p>{toast}</p></div>}
@@ -539,32 +545,17 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
               <p className="muted">
                 Gestiona la asignación de recursos financieros, humanos, físicos y tecnológicos para el SG-SST.
               </p>
-              <div className="resource-page__stats-grid">
-                <article className="resource-page__stat-card">
-                  <strong>💰 Recursos Financieros</strong>
-                  <span>{totalFinancial} conceptos</span>
-                </article>
-                <article className="resource-page__stat-card">
-                  <strong>👥 Recursos Humanos</strong>
-                  <span>{totalHuman} activos</span>
-                </article>
-                <article className="resource-page__stat-card">
-                  <strong>🏢 Recursos Técnicos</strong>
-                  <span>{totalTechnical} registros</span>
-                </article>
-                <article className="resource-page__stat-card">
-                  <strong>📎 Evidencias</strong>
-                  <span>{totalEvidences} archivos</span>
-                </article>
-                <article className="resource-page__stat-card">
-                  <strong>Versión actual</strong>
-                  <span>v{currentVersion}</span>
-                </article>
-                <article className="resource-page__stat-card">
-                  <strong>Cumplimiento PHVA</strong>
-                  <span className={badge.className} style={{ fontSize: '.8rem' }}>{badge.label}</span>
-                </article>
-              </div>
+              <AdvancedKpiGrid
+                items={[
+                  { label: '💰 Recursos Financieros', value: `${totalFinancial} conceptos`, icon: '💰' },
+                  { label: '👥 Recursos Humanos', value: `${totalHuman} activos`, icon: '👥' },
+                  { label: '🏢 Recursos Técnicos', value: `${totalTechnical} registros`, icon: '🏢' },
+                  { label: '📎 Evidencias', value: `${totalEvidences} archivos`, icon: '📎' },
+                  { label: 'Versión Actual', value: `v${currentVersion}` },
+                  { label: 'Cumplimiento PHVA', value: badge.label, variant: record.complianceStatus === 'COMPLIES' ? 'success' : record.complianceStatus === 'NON_COMPLIANT' ? 'danger' : 'warning' },
+                ]}
+                columns={6}
+              />
               <div className="resource-page__group-summary">
                 {SIDEBAR_ITEMS.filter((item) => item.id !== 'resumen').map((item) => (
                   <button
@@ -1619,6 +1610,6 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
           {lastSaved && <span style={{ marginLeft: '1rem', fontSize: '.85rem' }}>Último guardado: {lastSaved}</span>}
         </div>
       )}
-    </div>
+    </AdvancedPageLayout>
   );
 }

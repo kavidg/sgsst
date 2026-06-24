@@ -10,6 +10,11 @@ import {
   TrainingManagementAdvancedModel,
 } from '../api';
 import { Button } from './ui/Button';
+import {
+  AdvancedPageLayout,
+  AdvancedHeader,
+  AdvancedKpiGrid,
+} from './advanced-layout';
 
 // ============================================================
 // SIDEBAR ITEMS (12 tabs)
@@ -385,32 +390,17 @@ export default function TrainingProgramModule({ token }: { token: string }) {
   // ============================================================
 
   const renderKpiHeader = () => (
-    <div className="training-page__kpi-grid">
-      <article className="training-page__kpi-card training-page__kpi-card--info">
-        <span className="training-page__kpi-label">Programa Anual</span>
-        <span className="training-page__kpi-value">{totalProgrammed}</span>
-      </article>
-      <article className="training-page__kpi-card training-page__kpi-card--success">
-        <span className="training-page__kpi-label">Capacitaciones Programadas</span>
-        <span className="training-page__kpi-value">{totalPending}</span>
-      </article>
-      <article className="training-page__kpi-card training-page__kpi-card--executed">
-        <span className="training-page__kpi-label">Capacitaciones Ejecutadas</span>
-        <span className="training-page__kpi-value">{totalExecuted}</span>
-      </article>
-      <article className="training-page__kpi-card training-page__kpi-card--warning">
-        <span className="training-page__kpi-label">Cumplimiento %</span>
-        <span className="training-page__kpi-value">{compliancePct}%</span>
-      </article>
-      <article className={`training-page__kpi-card ${totalOverdue > 0 ? 'training-page__kpi-card--danger' : 'training-page__kpi-card--success'}`}>
-        <span className="training-page__kpi-label">Próximos Vencimientos</span>
-        <span className="training-page__kpi-value">{totalOverdue}</span>
-      </article>
-      <article className="training-page__kpi-card">
-        <span className="training-page__kpi-label">Última Actualización</span>
-        <span className="training-page__kpi-value" style={{ fontSize: '1rem' }}>{lastSaved || '—'}</span>
-      </article>
-    </div>
+    <AdvancedKpiGrid
+      items={[
+        { label: 'Programa Anual', value: totalProgrammed, variant: 'info' },
+        { label: 'Programadas', value: totalPending, variant: 'success' },
+        { label: 'Ejecutadas', value: totalExecuted },
+        { label: 'Cumplimiento', value: `${compliancePct}%`, variant: compliancePct >= 80 ? 'success' : compliancePct >= 50 ? 'warning' : 'danger' },
+        { label: 'Vencimientos', value: totalOverdue, variant: totalOverdue > 0 ? 'danger' : 'success' },
+        { label: 'Última Actualización', value: lastSaved || '—' },
+      ]}
+      columns={6}
+    />
   );
 
   const renderResumen = () => (
@@ -926,33 +916,17 @@ export default function TrainingProgramModule({ token }: { token: string }) {
 
     return (
       <div className="training-page__section">
-        <h3>📊 Indicadores</h3>
-        <div className="training-page__kpi-grid">
-          <article className="training-page__kpi-card">
-            <span className="training-page__kpi-label">Cumplimiento Capacitación</span>
-            <span className="training-page__kpi-value">{compliancePct}%</span>
-          </article>
-          <article className="training-page__kpi-card">
-            <span className="training-page__kpi-label">Asistencia %</span>
-            <span className="training-page__kpi-value">{attendancePct}%</span>
-          </article>
-          <article className="training-page__kpi-card">
-            <span className="training-page__kpi-label">Promedio Evaluación</span>
-            <span className="training-page__kpi-value">{avgScore}%</span>
-          </article>
-          <article className="training-page__kpi-card training-page__kpi-card--success">
-            <span className="training-page__kpi-label">Aprobados</span>
-            <span className="training-page__kpi-value">{approvedAttempts}</span>
-          </article>
-          <article className="training-page__kpi-card training-page__kpi-card--danger">
-            <span className="training-page__kpi-label">Reprobados</span>
-            <span className="training-page__kpi-value">{failedAttempts}</span>
-          </article>
-          <article className="training-page__kpi-card">
-            <span className="training-page__kpi-label">Certificados Emitidos</span>
-            <span className="training-page__kpi-value">{certificateRecords.length}</span>
-          </article>
-        </div>
+        <h3>📊 Indicadores</h3>              <AdvancedKpiGrid
+                items={[
+                  { label: 'Cumplimiento', value: `${compliancePct}%`, variant: compliancePct >= 80 ? 'success' : compliancePct >= 50 ? 'warning' : 'danger' },
+                  { label: 'Asistencia', value: `${attendancePct}%` },
+                  { label: 'Promedio Eval.', value: `${avgScore}%` },
+                  { label: 'Aprobados', value: approvedAttempts, variant: 'success' },
+                  { label: 'Reprobados', value: failedAttempts, variant: 'danger' },
+                  { label: 'Certificados', value: certificateRecords.length },
+                ]}
+                columns={6}
+              />
         {/* Charts section */}
         <h4>Dashboard Charts</h4>
         <div className="training-page__chart-grid">
@@ -1096,7 +1070,7 @@ export default function TrainingProgramModule({ token }: { token: string }) {
   // MAIN RENDER
   // ============================================================
   return (
-    <div className="training-page">
+    <AdvancedPageLayout>
       {showUnsavedModal && (
         <div className="modal-overlay" onClick={cancelNavigation}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1111,27 +1085,30 @@ export default function TrainingProgramModule({ token }: { token: string }) {
         </div>
       )}
 
-      <header className="training-page__header">
-        <div className="training-page__header-left">
-          <button className="training-page__back" onClick={() => handleNavigate('/documents/plan')} title="Volver al plan">← Volver</button>
-          <div>
-            <p className="muted">Estándar 1.2.1</p>
-            <h2>Programa de Capacitación PyP</h2>
-          </div>
-        </div>
-        <div className="training-page__header-actions">
-          <span className={badge.className}>{badge.label}</span>
-          <Button type="button" disabled={loading || !dirty} onClick={() => void save()}>{loading ? 'Guardando...' : '💾 Guardar'}</Button>
-          <Button type="button" variant="ghost" onClick={() => {
-            const lines = ['=== PROGRAMA DE CAPACITACIÓN PyP ===', `Versión: v${currentVersion}`, `Estado: ${approvalStatus}`, `Generado: ${new Date().toLocaleString()}`, '', `Programas: ${totalProgrammed}`, `Capacitaciones: ${trainingRecords.length}`, `Ejecutadas: ${totalExecuted}`, `Cumplimiento: ${compliancePct}%`, `Certificados: ${certificateRecords.length}`, '', '=== FIN ==='];
-            const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `capacitacion-pyp-v${currentVersion}.txt`; a.click(); URL.revokeObjectURL(url);
-            notify('📄 Reporte exportado.');
-          }}>📄 Exportar</Button>
-        </div>
-        {lastSaved && <div className="training-page__last-saved">Último guardado: {lastSaved}</div>}
-      </header>
+      <AdvancedHeader
+        backPath="/documents/plan"
+        backLabel="← Volver a Implementación"
+        moduleCode="1.2.1"
+        moduleTitle="Programa de Capacitación PyP"
+        description="Programa anual de capacitación en promoción y prevención para todos los niveles"
+        statusBadge={<span className={badge.className}>{badge.label}</span>}
+        actions={[
+          {
+            label: '📄 Exportar PDF',
+            variant: 'secondary' as const,
+            onClick: () => {
+              const lines = ['=== PROGRAMA DE CAPACITACIÓN PyP ===', `Versión: v${currentVersion}`, `Estado: ${approvalStatus}`, `Generado: ${new Date().toLocaleString()}`, '', `Programas: ${totalProgrammed}`, `Capacitaciones: ${trainingRecords.length}`, `Ejecutadas: ${totalExecuted}`, `Cumplimiento: ${compliancePct}%`, `Certificados: ${certificateRecords.length}`, '', '=== FIN ==='];
+              const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = `capacitacion-pyp-v${currentVersion}.txt`; a.click(); URL.revokeObjectURL(url);
+              notify('📄 Reporte exportado.');
+            },
+          },
+          { label: '📊 Exportar Excel', variant: 'secondary' as const, onClick: () => notify('Función de exportación Excel próximamente.') },
+          { label: loading ? 'Guardando...' : '💾 Guardar cambios', onClick: () => void save(), disabled: loading || !dirty },
+        ]}
+        lastSaved={lastSaved}
+      />
 
       {toast && <div className="toast-alert" style={{ margin: '0 1rem' }}><p>{toast}</p></div>}
 
@@ -1165,6 +1142,6 @@ export default function TrainingProgramModule({ token }: { token: string }) {
           {dirty && <div className="training-page__dirty-bar">⚠ Hay cambios sin guardar {lastSaved && <span style={{ marginLeft: '1rem', fontSize: '.85rem' }}>Último guardado: {lastSaved}</span>}</div>}
         </main>
       </div>
-    </div>
+    </AdvancedPageLayout>
   );
 }

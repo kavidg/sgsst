@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -26,6 +25,11 @@ import {
   addCampaignWorkers,
 } from '../api';
 import { Button } from './ui/Button';
+import {
+  AdvancedPageLayout,
+  AdvancedHeader,
+  AdvancedKpiGrid,
+} from './advanced-layout';
 import { Modal } from './ui/Modal';
 import TemplateAdminPanel from './TemplateAdminPanel';
 
@@ -453,7 +457,7 @@ export default function PolicyManagementModule({ token }: { token: string }) {
   const pendingSocialization = record.socializations.filter((s) => s.status !== 'Firmado digitalmente').length;
 
   return (
-    <div className="policy-page">
+    <AdvancedPageLayout>
       {/* Unsaved changes modal */}
       {showUnsavedModal && (
         <div className="modal-overlay" onClick={cancelNavigation}>
@@ -470,23 +474,20 @@ export default function PolicyManagementModule({ token }: { token: string }) {
       )}
 
       {/* Header */}
-      <header className="policy-page__header">
-        <div className="policy-page__header-left">
-          <button className="policy-page__back" onClick={() => handleNavigate('/documents/plan')}>← Volver</button>
-          <div>
-            <p className="muted">Módulo 2.1.1 · {record.documentCode}</p>
-            <h2>{record.documentName}</h2>
-          </div>
-        </div>
-        <div className="policy-page__header-actions">
-          <span className={badge.className}>{badge.label}</span>
-          <Button type="button" disabled={loading || !dirty} onClick={() => void save()}>
-            {loading ? 'Guardando...' : '💾 Guardar'}
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => exportDocument('pdf')}>📄 Exportar</Button>
-        </div>
-        {lastSaved && <div className="policy-page__last-saved">Último guardado: {lastSaved}</div>}
-      </header>
+      <AdvancedHeader
+        backPath="/documents/plan"
+        backLabel="← Volver a Implementación"
+        moduleCode={`2.1.1 · ${record.documentCode}`}
+        moduleTitle={record.documentName}
+        description="Gestión de la Política de Seguridad y Salud en el Trabajo"
+        statusBadge={<span className={badge.className}>{badge.label}</span>}
+        actions={[
+          { label: '📄 Exportar PDF', variant: 'secondary' as const, onClick: () => exportDocument('pdf') },
+          { label: '📊 Exportar Excel', variant: 'secondary' as const, onClick: () => exportDocument('word') },
+          { label: loading ? 'Guardando...' : '💾 Guardar cambios', onClick: () => void save(), disabled: loading || !dirty },
+        ]}
+        lastSaved={lastSaved}
+      />
 
       {/* Toast */}
       {toast && <div className="toast-alert" style={{ margin: '0 1rem' }}><p>{toast}</p></div>}
@@ -528,32 +529,17 @@ export default function PolicyManagementModule({ token }: { token: string }) {
                 Genera, edita, aprueba, firma y socializa la política con datos adaptados al sector económico de la empresa.
               </p>
 
-              <div className="policy-page__stats-grid">
-                <article className="policy-page__stat-card">
-                  <strong>Versión actual</strong>
-                  <span>v{record.currentVersion}</span>
-                </article>
-                <article className="policy-page__stat-card">
-                  <strong>Estado</strong>
-                  <span>{sstStatusBadge(record.status).label}</span>
-                </article>
-                <article className="policy-page__stat-card policy-page__stat-card--success">
-                  <strong>Firmas obligatorias</strong>
-                  <span>{pendingSignatures === 0 ? '✅' : `${pendingSignatures} pendiente(s)`}</span>
-                </article>
-                <article className="policy-page__stat-card policy-page__stat-card--warning">
-                  <strong>Socialización</strong>
-                  <span>{socialStats.pct}% ({socialStats.signed}/{socialStats.total})</span>
-                </article>
-                <article className="policy-page__stat-card">
-                  <strong>Documento</strong>
-                  <span>{record.documentCode}</span>
-                </article>
-                <article className="policy-page__stat-card">
-                  <strong>Cumplimiento PHVA</strong>
-                  <span className={badge.className} style={{ fontSize: '.8rem' }}>{badge.label}</span>
-                </article>
-              </div>
+              <AdvancedKpiGrid
+                items={[
+                  { label: 'Versión Actual', value: `v${record.currentVersion}` },
+                  { label: 'Estado', value: sstStatusBadge(record.status).label },
+                  { label: 'Firmas', value: pendingSignatures === 0 ? '✅ Completadas' : `${pendingSignatures} pendiente(s)`, variant: pendingSignatures === 0 ? 'success' : 'warning' },
+                  { label: 'Socialización', value: `${socialStats.pct}% (${socialStats.signed}/${socialStats.total})`, variant: socialStats.pct >= 80 ? 'success' : 'warning' },
+                  { label: 'Documento', value: record.documentCode },
+                  { label: 'Cumplimiento PHVA', value: badge.label, variant: record.complianceStatus === 'COMPLIES' ? 'success' : record.complianceStatus === 'NON_COMPLIANT' ? 'danger' : 'warning' },
+                ]}
+                columns={6}
+              />
 
               {/* Quick actions */}
               <div className="policy-page__quick-actions">
@@ -861,24 +847,15 @@ export default function PolicyManagementModule({ token }: { token: string }) {
               </p>
 
               {/* Socialization stats */}
-              <div className="policy-page__stats-grid">
-                <article className="policy-page__stat-card policy-page__stat-card--success">
-                  <strong>Firmados</strong>
-                  <span>{socialStats.signed}</span>
-                </article>
-                <article className="policy-page__stat-card policy-page__stat-card--info">
-                  <strong>Leídos</strong>
-                  <span>{socialStats.read}</span>
-                </article>
-                <article className="policy-page__stat-card policy-page__stat-card--warning">
-                  <strong>Pendientes</strong>
-                  <span>{socialStats.pending}</span>
-                </article>
-                <article className="policy-page__stat-card">
-                  <strong>Total</strong>
-                  <span>{socialStats.total}</span>
-                </article>
-              </div>
+              <AdvancedKpiGrid
+                items={[
+                  { label: 'Firmados', value: socialStats.signed, variant: 'success' },
+                  { label: 'Leídos', value: socialStats.read, variant: 'info' },
+                  { label: 'Pendientes', value: socialStats.pending, variant: 'warning' },
+                  { label: 'Total', value: socialStats.total },
+                ]}
+                columns={4}
+              />
 
               {/* Progress bar */}
               <div className="policy-page__progress-container">
@@ -1294,6 +1271,6 @@ export default function PolicyManagementModule({ token }: { token: string }) {
           )}
         </main>
       </div>
-    </div>
+    </AdvancedPageLayout>
   );
 }

@@ -30,6 +30,11 @@ import {
   ComplianceWithAcceptanceModel,
 } from '../api';
 import { Button } from '../components/ui/Button';
+import {
+  AdvancedPageLayout,
+  AdvancedHeader,
+  AdvancedKpiGrid,
+} from '../components/advanced-layout';
 
 // ============================================================
 // CONSTANTS & DEFAULT DATA
@@ -626,7 +631,7 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
   // ============================================================
 
   return (
-    <div className="advanced-page">
+    <AdvancedPageLayout>
       {/* Unsaved changes modal */}
       {showUnsavedModal && (
         <div className="modal-overlay" onClick={cancelNavigation}>
@@ -643,91 +648,91 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
       )}
 
       {/* Header */}
-      <header className="advanced-page__header">
-        <div className="advanced-page__header-left">
-          <button className="advanced-page__back" onClick={() => handleNavigate('/documents/plan')} title="Volver al plan">
-            ← Volver
-          </button>
-          <div>
-            <p className="muted">Módulo {standard.code}</p>
-            <h2>{standard.title}</h2>
-          </div>
-        </div>
-        <div className="advanced-page__header-actions">
-          <span className={badge.className}>{badge.label}</span>
-          {complianceReason && <span className="muted" style={{ fontSize: '0.85rem' }}>{complianceReason}</span>}
-          <Button type="button" disabled={loading || !dirty} onClick={() => void save()}>
-            {loading ? 'Guardando...' : '💾 Guardar'}
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => {
-            // Generate plain text report
-            const reportLines = [
-              '=== MATRIZ DE RESPONSABILIDADES SG-SST ===',
-              `Empresa: ${standard.title}`,
-              `Código: ${standard.code}`,
-              `Versión: v${currentVersion}`,
-              `Estado: ${approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador'}`,
-              `Generado: ${new Date().toLocaleString()}`,
-              '',
-              `Total responsabilidades: ${allActiveRows.length}`,
-              `Firmadas: ${totalSigned}`,
-              `Pendientes: ${totalPending}`,
-              '',
-              '--- RESPONSABILIDADES ---',
-              ...allActiveRows.map((r, i) =>
-                `${i + 1}. [${r.category}] ${r.title} | Rol: ${r.role} | Estado: ${r.status}${r.signature?.signedAt ? ` | Firmada: ${new Date(r.signature.signedAt).toLocaleDateString()}` : ''}`
-              ),
-              '',
-              '--- FIRMAS ---',
-              ...allActiveRows.filter((r) => r.status === 'FIRMADO').map((r) =>
-                `${r.title} - Firmado por: ${r.signature?.signedBy || 'Usuario'} el ${r.signature?.signedAt ? new Date(r.signature.signedAt).toLocaleString() : 'N/A'}`
-              ),
-              '',
-              '--- ACEPTACIONES ---',
-              `Total: ${acceptanceStats?.total || 0}`,
-              `Aceptadas: ${acceptanceStats?.accepted || 0}`,
-              `Pendientes: ${acceptanceStats?.pending || 0}`,
-              '',
-              '=== FIN DEL REPORTE ===',
-            ];
-            const blob = new Blob([reportLines.join('\n')], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `responsabilidades-sst-${standard.code}-v${currentVersion}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-            notify('📄 Reporte exportado correctamente.');
-          }}>
-            📄 Exportar PDF
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => {
-            // Generate CSV export
-            const headers = ['#','Categoría','Responsabilidad','Rol','Estado','Fecha Firma','Firmado Por'];
-            const csvRows = allActiveRows.map((r, i) => [
-              i + 1,
-              r.category,
-              `"${r.title}"`,
-              r.role,
-              r.status,
-              r.signature?.signedAt ? new Date(r.signature.signedAt).toLocaleDateString() : '',
-              r.signature?.signedBy || '',
-            ].join(','));
-            const csv = [headers.join(','), ...csvRows].join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `responsabilidades-sst-${standard.code}-v${currentVersion}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
-            notify('📊 CSV exportado correctamente.');
-          }}>
-            📊 Exportar Excel
-          </Button>
-        </div>
-        {lastSaved && <div className="advanced-page__last-saved">Último guardado: {lastSaved}</div>}
-      </header>
+      <AdvancedHeader
+        backPath="/documents/plan"
+        backLabel="← Volver a Implementación"
+        moduleCode={standard.code}
+        moduleTitle={standard.title}
+        description="Gestión de responsabilidades en SST para todos los niveles de la organización"
+        statusBadge={
+          <>
+            <span className={badge.className}>{badge.label}</span>
+            {complianceReason && <span className="text-xs text-gray-500 ml-2">{complianceReason}</span>}
+          </>
+        }
+        actions={[
+          {
+            label: '📄 Exportar PDF',
+            variant: 'secondary' as const,
+            onClick: () => {
+              const reportLines = [
+                '=== MATRIZ DE RESPONSABILIDADES SG-SST ===',
+                `Empresa: ${standard.title}`,
+                `Código: ${standard.code}`,
+                `Versión: v${currentVersion}`,
+                `Estado: ${approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador'}`,
+                `Generado: ${new Date().toLocaleString()}`,
+                '',
+                `Total responsabilidades: ${allActiveRows.length}`,
+                `Firmadas: ${totalSigned}`,
+                `Pendientes: ${totalPending}`,
+                '',
+                '--- RESPONSABILIDADES ---',
+                ...allActiveRows.map((r, i) =>
+                  `${i + 1}. [${r.category}] ${r.title} | Rol: ${r.role} | Estado: ${r.status}${r.signature?.signedAt ? ` | Firmada: ${new Date(r.signature.signedAt).toLocaleDateString()}` : ''}`
+                ),
+                '',
+                '--- FIRMAS ---',
+                ...allActiveRows.filter((r) => r.status === 'FIRMADO').map((r) =>
+                  `${r.title} - Firmado por: ${r.signature?.signedBy || 'Usuario'} el ${r.signature?.signedAt ? new Date(r.signature.signedAt).toLocaleString() : 'N/A'}`
+                ),
+                '',
+                '--- ACEPTACIONES ---',
+                `Total: ${acceptanceStats?.total || 0}`,
+                `Aceptadas: ${acceptanceStats?.accepted || 0}`,
+                `Pendientes: ${acceptanceStats?.pending || 0}`,
+                '',
+                '=== FIN DEL REPORTE ===',
+              ];
+              const blob = new Blob([reportLines.join('\n')], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `responsabilidades-sst-${standard.code}-v${currentVersion}.txt`;
+              a.click();
+              URL.revokeObjectURL(url);
+              notify('📄 Reporte exportado correctamente.');
+            },
+          },
+          {
+            label: '📊 Exportar Excel',
+            variant: 'secondary' as const,
+            onClick: () => {
+              const headers = ['#','Categoría','Responsabilidad','Rol','Estado','Fecha Firma','Firmado Por'];
+              const csvRows = allActiveRows.map((r, i) => [
+                i + 1,
+                r.category,
+                `"${r.title}"`,
+                r.role,
+                r.status,
+                r.signature?.signedAt ? new Date(r.signature.signedAt).toLocaleDateString() : '',
+                r.signature?.signedBy || '',
+              ].join(','));
+              const csv = [headers.join(','), ...csvRows].join('\n');
+              const blob = new Blob([csv], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `responsabilidades-sst-${standard.code}-v${currentVersion}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+              notify('📊 CSV exportado correctamente.');
+            },
+          },
+          { label: loading ? 'Guardando...' : '💾 Guardar cambios', onClick: () => void save(), disabled: loading || !dirty },
+        ]}
+        lastSaved={lastSaved}
+      />
 
       {/* Toast */}
       {toast && <div className="toast-alert" style={{ margin: '0 1rem' }}><p>{toast}</p></div>}
@@ -776,32 +781,17 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
                 Usa los botones de navegación lateral para ver y editar cada grupo.
               </p>
 
-              <div className="advanced-page__stats-grid">
-                <article className="advanced-page__stat-card">
-                  <strong>Total responsabilidades</strong>
-                  <span>{allActiveRows.length}</span>
-                </article>
-                <article className="advanced-page__stat-card advanced-page__stat-card--success">
-                  <strong>Firmadas</strong>
-                  <span>{totalSigned}</span>
-                </article>
-                <article className="advanced-page__stat-card advanced-page__stat-card--warning">
-                  <strong>Pendientes</strong>
-                  <span>{totalPending}</span>
-                </article>
-                <article className="advanced-page__stat-card">
-                  <strong>Versión actual</strong>
-                  <span>v{currentVersion}</span>
-                </article>
-                <article className="advanced-page__stat-card">
-                  <strong>Estado aprobación</strong>
-                  <span>{approvalStatus === 'DRAFT' ? 'Borrador' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'APPROVED' ? 'Aprobado' : 'Archivado'}</span>
-                </article>
-                <article className="advanced-page__stat-card">
-                  <strong>Cumplimiento PHVA</strong>
-                  <span className={badge.className} style={{ fontSize: '.8rem' }}>{badge.label}</span>
-                </article>
-              </div>
+              <AdvancedKpiGrid
+                items={[
+                  { label: 'Total Responsabilidades', value: allActiveRows.length },
+                  { label: 'Firmadas', value: totalSigned, variant: 'success' },
+                  { label: 'Pendientes', value: totalPending, variant: 'warning' },
+                  { label: 'Versión Actual', value: `v${currentVersion}` },
+                  { label: 'Estado', value: approvalStatus === 'DRAFT' ? 'Borrador' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'APPROVED' ? 'Aprobado' : 'Archivado' },
+                  { label: 'Cumplimiento PHVA', value: badge.label, variant: status === 'COMPLIES' ? 'success' : status === 'NON_COMPLIANT' ? 'danger' : 'warning' },
+                ]}
+                columns={6}
+              />
 
               {/* Group summary */}
               <div className="advanced-page__group-summary">
@@ -1053,24 +1043,15 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
               </div>
 
               {/* Stats grid */}
-              <div className="advanced-page__stats-grid">
-                <article className="advanced-page__stat-card">
-                  <strong>Total aceptaciones</strong>
-                  <span>{acceptanceStats?.total ?? 0}</span>
-                </article>
-                <article className="advanced-page__stat-card advanced-page__stat-card--success">
-                  <strong>Aceptadas</strong>
-                  <span>{acceptanceStats?.accepted ?? 0}</span>
-                </article>
-                <article className="advanced-page__stat-card advanced-page__stat-card--warning">
-                  <strong>Pendientes</strong>
-                  <span>{acceptanceStats?.pending ?? 0}</span>
-                </article>
-                <article className="advanced-page__stat-card">
-                  <strong>Rechazadas</strong>
-                  <span>{acceptanceStats?.rejected ?? 0}</span>
-                </article>
-              </div>
+              <AdvancedKpiGrid
+                items={[
+                  { label: 'Total Aceptaciones', value: acceptanceStats?.total ?? 0 },
+                  { label: 'Aceptadas', value: acceptanceStats?.accepted ?? 0, variant: 'success' },
+                  { label: 'Pendientes', value: acceptanceStats?.pending ?? 0, variant: 'warning' },
+                  { label: 'Rechazadas', value: acceptanceStats?.rejected ?? 0, variant: 'danger' },
+                ]}
+                columns={4}
+              />
 
               {/* Approval-dependent content */}
               {approvalStatus === 'APPROVED' && acceptanceStats && acceptanceStats.total === 0 && (
@@ -1603,24 +1584,15 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
                 El sistema puede procesar renovaciones automáticamente.
               </p>
 
-              <div className="advanced-page__stats-grid">
-                <article className="advanced-page__stat-card">
-                  <strong>Aceptaciones activas</strong>
-                  <span>{acceptanceStats?.accepted ?? 0}</span>
-                </article>
-                <article className="advanced-page__stat-card advanced-page__stat-card--warning">
-                  <strong>Requieren renovación</strong>
-                  <span>{acceptanceStats?.expired ?? 0}</span>
-                </article>
-                <article className="advanced-page__stat-card">
-                  <strong>Ciclo actual</strong>
-                  <span>{currentVersion}</span>
-                </article>
-                <article className="advanced-page__stat-card">
-                  <strong>Próxima renovación</strong>
-                  <span>{new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString()}</span>
-                </article>
-              </div>
+              <AdvancedKpiGrid
+                items={[
+                  { label: 'Aceptaciones Activas', value: acceptanceStats?.accepted ?? 0 },
+                  { label: 'Requieren Renovación', value: acceptanceStats?.expired ?? 0, variant: 'warning' },
+                  { label: 'Ciclo Actual', value: currentVersion },
+                  { label: 'Próxima Renovación', value: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString() },
+                ]}
+                columns={4}
+              />
 
               <div className="advanced-page__section">
                 <h4>⏰ Recordatorios programados</h4>
@@ -1714,6 +1686,6 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
           )}
         </main>
       </div>
-    </div>
+    </AdvancedPageLayout>
   );
 }
