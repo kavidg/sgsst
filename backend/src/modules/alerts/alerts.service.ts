@@ -19,6 +19,13 @@ export class AlertsService {
       type: dto.type,
       message: dto.message,
       severity: dto.severity,
+      targetUserId: dto.targetUserId ? new Types.ObjectId(dto.targetUserId) : undefined,
+      actionUrl: dto.actionUrl,
+      moduleCode: dto.moduleCode,
+      moduleName: dto.moduleName,
+      submittedBy: dto.submittedBy,
+      submittedAt: dto.submittedAt ? new Date(dto.submittedAt) : undefined,
+      documentId: dto.documentId,
     });
   }
 
@@ -27,6 +34,13 @@ export class AlertsService {
     type: string;
     message: string;
     severity: AlertSeverity;
+    targetUserId?: Types.ObjectId;
+    actionUrl?: string;
+    moduleCode?: string;
+    moduleName?: string;
+    submittedBy?: string;
+    submittedAt?: Date;
+    documentId?: string;
   }): Promise<Alert> {
     const existingAlert = await this.alertModel
       .findOne({
@@ -47,12 +61,21 @@ export class AlertsService {
         message: params.message,
         severity: params.severity,
         isRead: false,
+        targetUserId: params.targetUserId,
+        actionUrl: params.actionUrl,
+        moduleCode: params.moduleCode,
+        moduleName: params.moduleName,
+        submittedBy: params.submittedBy,
+        submittedAt: params.submittedAt,
+        documentId: params.documentId,
       });
 
       this.alertsGateway.emitNewAlert({
         companyId: createdAlert.companyId.toString(),
         message: createdAlert.message,
         severity: createdAlert.severity,
+        actionUrl: createdAlert.actionUrl,
+        targetUserId: createdAlert.targetUserId?.toString(),
       });
 
       return createdAlert;
@@ -71,6 +94,20 @@ export class AlertsService {
   async findByCompany(companyId: string): Promise<Alert[]> {
     return this.alertModel
       .find({ companyId: new Types.ObjectId(companyId) })
+      .sort({ isRead: 1, createdAt: -1 })
+      .exec();
+  }
+
+  async findByCompanyAndUser(companyId: string, userId: string): Promise<Alert[]> {
+    const companyObjectId = new Types.ObjectId(companyId);
+    return this.alertModel
+      .find({
+        companyId: companyObjectId,
+        $or: [
+          { targetUserId: new Types.ObjectId(userId) },
+          { targetUserId: { $exists: false } },
+        ],
+      })
       .sort({ isRead: 1, createdAt: -1 })
       .exec();
   }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MulterModule } from '@nestjs/platform-express';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { Company, CompanySchema } from '../companies/schemas/company.schema';
@@ -11,6 +12,7 @@ import { CompanyAccessGuard } from '../auth/company-access.guard';
 @Module({
   imports: [
     AuthModule,
+    MulterModule.register({ dest: './uploads' }),
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Company.name, schema: CompanySchema },

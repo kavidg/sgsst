@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { CreateAlertDto } from './dto/create-alert.dto';
 import { AlertsService } from './alerts.service';
@@ -14,7 +14,15 @@ export class AlertsController {
   }
 
   @Get('company/:companyId')
-  findByCompany(@Param('companyId') companyId: string) {
+  findByCompany(
+    @Param('companyId') companyId: string,
+    @Query('userId') userId?: string,
+  ) {
+    // If userId is provided, filter alerts by targetUserId (show only alerts targeted to that user)
+    // Otherwise return all alerts for the company
+    if (userId) {
+      return this.alertsService.findByCompanyAndUser(companyId, userId);
+    }
     return this.alertsService.findByCompany(companyId);
   }
 

@@ -116,23 +116,38 @@ export function AlertsPage({ token }: AlertsPageProps) {
         <div className="alerts-page__list">
           {filteredAlerts.map((alert) => (
             <article key={alert._id} className={`alerts-item ${alert.isRead ? 'alerts-item--read' : ''}`.trim()}>
-              <div className="alerts-item__content">
-                <div className="alerts-item__header">
-                  <span className={`alerts-severity alerts-severity--${alert.severity.toLowerCase()}`.trim()}>{severityLabels[alert.severity]}</span>
-                  {!alert.isRead ? <span className="alerts-item__new">Nueva</span> : null}
+              <div
+                className="alerts-item__clickable"
+                style={{ cursor: alert.actionUrl ? 'pointer' : 'default', display: 'flex', alignItems: 'flex-start', gap: '1rem', width: '100%' }}
+                onClick={() => {
+                  if (alert.actionUrl) {
+                    // Navigate to the review page
+                    window.location.href = alert.actionUrl;
+                  }
+                  if (!alert.isRead) void handleMarkAsRead(alert._id);
+                }}
+              >
+                <div className="alerts-item__content" style={{ flex: 1 }}>
+                  <div className="alerts-item__header">
+                    <span className={`alerts-severity alerts-severity--${alert.severity.toLowerCase()}`.trim()}>{severityLabels[alert.severity]}</span>
+                    {!alert.isRead ? <span className="alerts-item__new">Nueva</span> : null}
+                    {alert.actionUrl ? <span className="alerts-item__review-link" style={{ marginLeft: '.5rem', fontSize: '.78rem', color: '#2563eb' }}>🔗 Revisar</span> : null}
+                  </div>
+                  <p className="alerts-item__message">{alert.message}</p>
+                  {alert.moduleName && <p className="muted" style={{ fontSize: '.8rem' }}>Módulo: {alert.moduleName} ({alert.moduleCode})</p>}
+                  {alert.submittedBy && <p className="muted" style={{ fontSize: '.8rem' }}>Enviado por: {alert.submittedBy}</p>}
+                  <p className="muted">{new Date(alert.createdAt).toLocaleString('es-CO')}</p>
                 </div>
-                <p className="alerts-item__message">{alert.message}</p>
-                <p className="muted">{new Date(alert.createdAt).toLocaleString('es-CO')}</p>
-              </div>
-              <div className="actions">
-                {!alert.isRead ? (
-                  <Button type="button" variant="secondary" onClick={() => void handleMarkAsRead(alert._id)}>
-                    Marcar leída
+                <div className="actions" style={{ flexShrink: 0 }}>
+                  {!alert.isRead ? (
+                    <Button type="button" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleMarkAsRead(alert._id); }}>
+                      Marcar leída
+                    </Button>
+                  ) : null}
+                  <Button type="button" variant="danger" onClick={(e) => { e.stopPropagation(); void handleDelete(alert._id); }}>
+                    Eliminar
                   </Button>
-                ) : null}
-                <Button type="button" variant="danger" onClick={() => void handleDelete(alert._id)}>
-                  Eliminar
-                </Button>
+                </div>
               </div>
             </article>
           ))}

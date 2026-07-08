@@ -7,8 +7,15 @@ export interface UserModel {
   _id: string;
   firebaseUid: string;
   email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  jobTitle: string;
+  avatarUrl: string;
+  signatureUrl: string;
   companyId: string;
   role: UserRole;
+  isActive: boolean;
 }
 
 export interface CompanyModel {
@@ -89,6 +96,12 @@ export interface AlertModel {
   severity: AlertSeverity;
   isRead: boolean;
   createdAt: string;
+  targetUserId?: string;
+  actionUrl?: string;
+  moduleCode?: string;
+  moduleName?: string;
+  submittedBy?: string;
+  submittedAt?: string;
 }
 
 
@@ -455,6 +468,34 @@ export function fetchUserByFirebaseUid(uid: string, token: string) {
   return apiFetch<UserModel>(`/users/by-firebase/${uid}`, token, { method: 'GET' });
 }
 
+export function fetchMyProfile(token: string) {
+  return apiFetch<UserModel>('/users/me', token, { method: 'GET' });
+}
+
+export function updateMyProfile(token: string, payload: {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  jobTitle?: string;
+  avatarUrl?: string;
+  signatureUrl?: string;
+}) {
+  return apiFetch<UserModel>('/users/me', token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function uploadAvatar(token: string, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiFetchFormData<UserModel>('/users/me/avatar', token, formData, { method: 'POST' });
+}
+
+export function uploadSignature(token: string, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiFetchFormData<UserModel>('/users/me/signature', token, formData, { method: 'POST' });
+}
+
+
 export function fetchMyCompanies(token: string) {
   return apiFetch<MyCompanyModel[]>('/companies/my-companies', token, { method: 'GET' });
 }
@@ -732,8 +773,9 @@ export function fetchInspectionActivities(token: string) {
   return apiFetch<InspectionActivityModel[]>('/inspections/activities', token, { method: 'GET' });
 }
 
-export function fetchAlertsByCompany(token: string, companyId: string) {
-  return apiFetch<AlertModel[]>(`/alerts/company/${companyId}`, token, { method: 'GET' });
+export function fetchAlertsByCompany(token: string, companyId: string, userId?: string) {
+  const query = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+  return apiFetch<AlertModel[]>(`/alerts/company/${companyId}${query}`, token, { method: 'GET' });
 }
 
 export function markAlertAsRead(token: string, id: string) {
@@ -1067,6 +1109,20 @@ export function updateResponsibilitiesAdvanced(token: string, responsibilities: 
   return apiFetch<ResponsibilitiesAdvancedModel>('/phva-advanced/responsibilities', token, { method: 'PATCH', body: JSON.stringify({ responsibilities }) });
 }
 
+export function submitResponsibilitiesAdvanced(token: string) {
+  return apiFetch<ResponsibilitiesAdvancedModel>('/phva-advanced/responsibilities/submit', token, { method: 'POST' });
+}
+
+export function approveResponsibilitiesAdvanced(token: string) {
+  return apiFetch<ResponsibilitiesAdvancedModel>('/phva-advanced/responsibilities/approve', token, { method: 'POST' });
+}
+
+export function rejectResponsibilitiesAdvanced(token: string, reason: string) {
+  return apiFetch<ResponsibilitiesAdvancedModel>('/phva-advanced/responsibilities/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
+}
+
+export type ResourceAssignmentApprovalStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'APPROVED_AND_SIGNED' | 'REJECTED' | 'ARCHIVED';
+
 export interface ResourceAssignmentAdvancedModel {
   _id: string;
   itemCode: string;
@@ -1079,6 +1135,12 @@ export interface ResourceAssignmentAdvancedModel {
   alerts: string[];
   complianceStatus: ResponsableSstComplianceStatus;
   complianceReason: string;
+  // Approval workflow fields
+  approvalStatus?: ResourceAssignmentApprovalStatus;
+  locked?: boolean;
+  rejectionReason?: string;
+  currentVersion?: string;
+  assignedReviewer?: string;
 }
 
 export function fetchResourceAssignmentAdvanced(token: string) {
@@ -1087,6 +1149,18 @@ export function fetchResourceAssignmentAdvanced(token: string) {
 
 export function updateResourceAssignmentAdvanced(token: string, payload: Partial<ResourceAssignmentAdvancedModel>) {
   return apiFetch<ResourceAssignmentAdvancedModel>('/phva-advanced/resource-assignment', token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function submitResourceAssignmentAdvanced(token: string) {
+  return apiFetch<ResourceAssignmentAdvancedModel>('/phva-advanced/resource-assignment/submit', token, { method: 'POST' });
+}
+
+export function approveResourceAssignmentAdvanced(token: string) {
+  return apiFetch<ResourceAssignmentAdvancedModel>('/phva-advanced/resource-assignment/approve', token, { method: 'POST' });
+}
+
+export function rejectResourceAssignmentAdvanced(token: string, reason: string) {
+  return apiFetch<ResourceAssignmentAdvancedModel>('/phva-advanced/resource-assignment/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
 }
 
 export interface ArlAffiliationsAdvancedModel {
@@ -1133,14 +1207,82 @@ export interface TrainingManagementAdvancedModel {
 export const fetchTrainingManagementAdvanced = (token: string) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management', token, { method: 'GET' });
 export const updateTrainingManagementAdvanced = (token: string, payload: Partial<TrainingManagementAdvancedModel>) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const approveTrainingManagementAdvanced = (token: string, payload: { status: 'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; comments?: string }) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management/approval', token, { method: 'PATCH', body: JSON.stringify(payload) });
-export interface CopasstPeriodModel { _id: string; periodName: string; startDate: string; endDate: string; status: 'ACTIVO'|'PROXIMO_A_VENCER'|'VENCIDO'|'ARCHIVADO'; members: Array<{ userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string; endDate: string; status: string }>; candidates: Array<{ name: string; document: string; phone: string; area: string; position: string; motivation: string; accepted: boolean; votes: number }>; meetings: Array<{ meetingDate: string; status: string; attendees: string[]; commitments: string[] }>; documents: Array<{ type: string; title: string; version: number; generatedAt: string }>; auditHistory: Array<{ action: string; createdBy: string; createdAt: string; data: string }>; }
+export interface CopasstPeriodModel {
+  _id: string;
+  periodName: string;
+  startDate: string;
+  endDate: string;
+  status: 'ACTIVO'|'PROXIMO_A_VENCER'|'VENCIDO'|'ARCHIVADO';
+  approvalStatus?: string;
+  locked?: boolean;
+  rejectionReason?: string;
+  currentVersion?: string;
+  totalEmployees?: number;
+  requiresCopasst?: boolean;
+  constitutionMinutesPdfUrl?: string;
+  members: Array<{ userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string; endDate: string; status: string }>;
+  candidates: Array<{ name: string; document: string; phone: string; area: string; position: string; motivation: string; accepted: boolean; votes: number }>;
+  candidateExtended: Array<{
+    name: string; document: string; phone: string; area: string; position: string;
+    motivation: string; acceptedTerms: boolean; email?: string;
+    adminStatus: 'PENDIENTE'|'APROBADO'|'RECHAZADO'|'INFO_REQUESTED';
+    adminComment?: string; votes: number;
+    ipAddress?: string; device?: string; registeredAt?: string;
+  }>;
+  votesExtended: Array<{ document: string; candidateDocument: string; otpValidated: boolean; votedAt: string; ipAddress?: string; device?: string }>;
+  registrationCampaign?: {
+    openingDate: string; closingDate: string; includedDepartments: string[];
+    requirements: string[]; secureToken: string; isActive: boolean;
+  };
+  meetings: Array<{ meetingDate: string; status: string; attendees: string[]; agenda: string; development: string; topicList?: string[]; commitments?: string[] }>;
+  commitments: Array<{ _id: string; description: string; responsibleParty: string; deadline: string; priority: string; status: string; meetingId?: string; evidenceUrl?: string; createdAt: string }>;
+  evidence: Array<{ _id: string; type: string; title: string; fileName: string; fileUrl: string; uploadedBy: string; uploadedAt: string; meetingId?: string }>;
+  documents: Array<{ type: string; title: string; version: number; generatedAt: string }>;
+  auditHistory: Array<{ action: string; createdBy: string; createdAt: string; data: string }>;
+}
 export const fetchCopasstCurrent = (token: string) => apiFetch<CopasstPeriodModel>('/copasst/current', token, { method: 'GET' });
+export const fetchCopasstSummary = (token: string) => apiFetch<{ period: CopasstPeriodModel; totalEmployees: number; requiresCopasst: boolean }>('/copasst/summary', token, { method: 'GET' });
 export const createCopasstPeriod = (token: string, payload: { periodName: string; startDate: string }) => apiFetch<CopasstPeriodModel>('/copasst/periods', token, { method: 'POST', body: JSON.stringify(payload) });
 export const addCopasstMember = (token: string, periodId: string, payload: { userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string }) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/members`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const removeCopasstMember = (token: string, periodId: string, index: number) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/members/${index}`, token, { method: 'DELETE' });
 export const registerCopasstCandidate = (periodId: string, payload: { name: string; document: string; phone: string; area: string; position: string; motivation: string; accepted: boolean; photoUrl?: string }) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/candidates`, '', { method: 'POST', body: JSON.stringify(payload) });
+export const startCopasstCampaign = (token: string, periodId: string, payload: { openingDate: string; closingDate: string; includedDepartments?: string[]; requirements?: string[] }) => apiFetch<{ period: CopasstPeriodModel; secureToken: string; registrationUrl: string }>(`/copasst/periods/${periodId}/campaign`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const reviewCopasstCandidate = (token: string, periodId: string, index: number, payload: { adminStatus: 'APROBADO'|'RECHAZADO'|'INFO_REQUESTED'; adminComment?: string }) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/review-candidate/${index}`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const initCopasstVoting = (token: string, periodId: string) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/voting/init`, token, { method: 'POST' });
 export const sendCopasstOtp = (payload: { electionId: string; document: string; phone: string }) => apiFetch<{ sent: boolean }>('/copasst/elections/otp', '', { method: 'POST', body: JSON.stringify(payload) });
-export const voteCopasst = (payload: { electionId: string; document: string; phone: string; otpCode: string; candidateDocument: string }) => apiFetch('/copasst/elections/vote', '', { method: 'POST', body: JSON.stringify(payload) });
-export const fetchCopasstResults = (periodId: string) => apiFetch<{ totalVotes:number; participation:number; winners:any[]; alternates:any[] }>(`/copasst/periods/${periodId}/results`, '', { method: 'GET' });
+export const voteCopasst = (payload: { electionId: string; document: string; phone: string; otpCode: string; candidateDocument: string; ipAddress?: string; device?: string }) => apiFetch('/copasst/elections/vote', '', { method: 'POST', body: JSON.stringify(payload) });
+export const fetchCopasstResults = (periodId: string) => apiFetch<{ totalVotes:number; participation:number; winners:any[]; alternates:any[]; ranking?: any[] }>(`/copasst/periods/${periodId}/results`, '', { method: 'GET' });
+export const autoCreateCopasstCommittee = (token: string, periodId: string, numPositions: number) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/auto-committee`, token, { method: 'POST', body: JSON.stringify({ numPositions }) });
+export const scheduleCopasstMeeting = (token: string, periodId: string, payload: { meetingDate: string; agenda: string; topicList?: string[] }) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/meetings`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const autoScheduleCopasstMeetings = (token: string, periodId: string) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/meetings/auto-schedule`, token, { method: 'POST' });
+export const completeCopasstMeeting = (token: string, periodId: string, index: number, payload: { development: string; attendees: string[]; topicList?: string[] }) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/meetings/${index}/complete`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const addCopasstCommitment = (token: string, periodId: string, payload: { description: string; responsibleParty: string; deadline: string; priority: string; meetingId?: string }) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/commitments`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateCopasstCommitment = (token: string, periodId: string, commitmentId: string, payload: { status?: string; description?: string; priority?: string; evidenceUrl?: string }) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/commitments/${commitmentId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const addCopasstEvidence = (token: string, periodId: string, payload: { type: string; title: string; fileName: string; fileUrl: string; meetingId?: string }) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/evidence`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const removeCopasstEvidence = (token: string, periodId: string, index: number) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/evidence/${index}`, token, { method: 'DELETE' });
+export const submitCopasstApproval = (token: string, periodId: string) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/submit-approval`, token, { method: 'POST' });
+export const approveCopasst = (token: string, periodId: string) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/approve`, token, { method: 'POST' });
+export const rejectCopasst = (token: string, periodId: string, reason: string) => apiFetch<CopasstPeriodModel>(`/copasst/periods/${periodId}/reject`, token, { method: 'POST', body: JSON.stringify({ reason }) });
+export const registerCopasstCandidatePublic = (token: string, payload: {
+  name: string; document: string; phone: string; area: string;
+  position: string; motivation: string; acceptedTerms: boolean;
+  email?: string; ipAddress?: string; device?: string;
+}) => apiFetch<{ success: boolean; message: string }>('/copasst/campaign/' + token + '/register', '', { method: 'POST', body: JSON.stringify(payload) });
+
+export const fetchCopasstCampaignInfo = (token: string) => apiFetch<{
+  periodName: string; openingDate: string; closingDate: string;
+  includedDepartments: string[]; requirements: string[];
+}>('/copasst/campaign/' + token, '', { method: 'GET' });
+
+export const fetchCopasstAudit = (token: string, periodId: string) => apiFetch<Array<{ action: string; createdBy: string; createdAt: string; data: string }>>(`/copasst/periods/${periodId}/audit`, token, { method: 'GET' });
+export const fetchCopasstDashboard = (token: string) => apiFetch<{
+  committeeStatus: string; approvalStatus?: string;
+  meetingCompletion: number; pendingCommitments: number;
+  closedCommitments: number; totalCommitments: number;
+  participationRate: number;
+  nextMeeting: { date: string; agenda: string } | null;
+  totalMembers: number; periodName: string;
+}>('/copasst/dashboard', token, { method: 'GET' });
 
 export interface CommitteePeriodModel extends CopasstPeriodModel { committeeType?: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER'; regulations?: Array<Record<string, unknown>>; confidentiality?: Array<Record<string, unknown>>; commitments?: Array<Record<string, unknown>>; }
 export const fetchCommitteeCurrent = (token: string, committeeType: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER') => apiFetch<CommitteePeriodModel>(`/committee-engine/${committeeType}/current`, token, { method: 'GET' });
@@ -2927,7 +3069,7 @@ export interface CompanyProfileModel {
   responsibleSstUserId?: string;
   sstStartDate?: string;
   implementationStatus?: string;
-  // Tab 4: Work Centers
+  managerActsAsLegalRepresentative?: boolean;  // Tab 4: Work Centers
   workCenters: WorkCenterModel[];
   // Tab 5: Contacts
   contacts: CompanyContactModel[];
@@ -3572,3 +3714,385 @@ async function fetchPublic<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) throw new Error(data?.message ?? 'Error en la solicitud');
   return data as T;
 }
+
+// ==================== SOCIALIZATION / SOCIALIZACIÓN SG-SST API ====================
+
+export type SocializationStatus = 'SOCIALIZATION_PENDING' | 'SOCIALIZATION_IN_PROGRESS' | 'SOCIALIZED' | 'COMPLIANT';
+export type ParticipantStatus = 'PENDING' | 'LINK_SENT' | 'LINK_OPENED' | 'PRESENTATION_VIEWING' | 'PRESENTATION_COMPLETED' | 'ACKNOWLEDGED' | 'SIGNED' | 'EXPIRED';
+export type TargetAudienceType = 'ALL_EMPLOYEES' | 'BY_DEPARTMENT' | 'BY_POSITION' | 'SELECTED_EMPLOYEES';
+export type PresentationFileType = 'PDF' | 'PPTX' | 'IMAGE';
+export type SignatureMethod = 'TYPED' | 'DRAWN';
+
+export interface SocializationSessionModel {
+  _id: string;
+  companyId: string;
+  responsibilitiesDocId: string;
+  itemCode: string;
+  documentVersion: string;
+  status: SocializationStatus;
+  startDate?: string;
+  deadline?: string;
+  responsibleName?: string;
+  targetAudienceType: TargetAudienceType;
+  targetDepartments: string[];
+  targetPositions: string[];
+  selectedEmployees: string[];
+  currentPresentationId?: string;
+  presentationUploaded: boolean;
+  totalParticipants: number;
+  completedParticipants: number;
+  signedParticipants: number;
+  isCompliant: boolean;
+  completedAt?: string;
+  socializedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PresentationVersionModel {
+  version: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: PresentationFileType;
+  totalSlides?: number;
+  pageThumbnailUrls?: string[];
+  uploadedByEmail?: string;
+  uploadedByName?: string;
+  uploadedAt: string;
+}
+
+export interface SocializationPresentationModel {
+  _id: string;
+  companyId: string;
+  sessionId: string;
+  title: string;
+  description?: string;
+  versions: PresentationVersionModel[];
+  currentVersion: string;
+  createdAt: string;
+}
+
+export interface SessionStatsModel {
+  total: number;
+  completed: number;
+  signed: number;
+  pending: number;
+  expired: number;
+  completionPercent: number;
+  signingPercent: number;
+  sessionStatus: SocializationStatus;
+  presentationUploaded: boolean;
+  startDate?: string;
+  deadline?: string;
+  responsibleName?: string;
+  socializedAt?: string;
+}
+
+export interface SocializationParticipantModel {
+  _id: string;
+  sessionId: string;
+  companyId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeIdentification: string;
+  position?: string;
+  department?: string;
+  phone?: string;
+  email?: string;
+  status: ParticipantStatus;
+  token?: string;
+  tokenExpiresAt?: string;
+  tokenUsedAt?: string;
+  viewingProgress: {
+    currentSlide: number;
+    viewedSlides: number[];
+    viewingTimeSeconds: number;
+    completionPercent: number;
+    startedAt?: string;
+    completedAt?: string;
+  };
+  hasRead: boolean;
+  acknowledgedAt?: string;
+  signatureMethod?: SignatureMethod;
+  signatureData?: string;
+  signatureHash?: string;
+  signedAt?: string;
+  ipAddress?: string;
+  browser?: string;
+  os?: string;
+  lastReminderSentAt?: string;
+  reminderCount: number;
+  createdAt: string;
+}
+
+export interface SocializationEvidenceModel {
+  _id: string;
+  companyId: string;
+  sessionId: string;
+  participantId: string;
+  employeeName: string;
+  employeeIdentification: string;
+  employeePhone?: string;
+  documentVersion: string;
+  presentationTitle: string;
+  slideCompletionPercent: number;
+  totalViewingTimeSeconds: number;
+  hasRead: boolean;
+  acknowledgedAt?: string;
+  signedAt: string;
+  signatureHash: string;
+  signatureMethod?: string;
+  signatureData?: string;
+  ipAddress?: string;
+  browser?: string;
+  os?: string;
+  verificationCode?: string;
+  evidencePdfUrl?: string;
+  createdAt: string;
+}
+
+export interface SocializationAuditModel {
+  _id: string;
+  companyId: string;
+  sessionId?: string;
+  participantId?: string;
+  action: string;
+  userEmail?: string;
+  userName?: string;
+  employeeName?: string;
+  employeeIdentification?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  metadata?: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface SocializationPublicData {
+  participant: {
+    name: string;
+    identification: string;
+    position?: string;
+    department?: string;
+    status: ParticipantStatus;
+    viewingProgress: { currentSlide: number; viewedSlides: number[]; viewingTimeSeconds: number; completionPercent: number; };
+  };
+  session: {
+    documentVersion: string;
+    startDate?: string;
+    responsibleName?: string;
+  };
+  presentation: {
+    title: string;
+    description?: string;
+    currentVersion: string;
+    fileType?: PresentationFileType;
+    fileUrl?: string;
+    totalSlides: number;
+  } | null;
+}
+
+export interface SocializationTokenResult {
+  participantId: string;
+  token: string;
+  url: string;
+}
+
+// ==================== ADMIN SOCIALIZATION API ====================
+
+export const getSocializationSession = (token: string, responsibilitiesDocId: string) =>
+  apiFetch<SocializationSessionModel | null>(`/socialization/session/${responsibilitiesDocId}`, token, { method: 'GET' });
+
+export const startSocialization = (token: string, responsibilitiesDocId: string, payload: {
+  startDate: string;
+  deadline?: string;
+  responsibleName?: string;
+  targetAudienceType?: string;
+}) =>
+  apiFetch<SocializationSessionModel>(`/socialization/start/${responsibilitiesDocId}`, token, { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateSocialization = (token: string, sessionId: string, payload: {
+  startDate?: string;
+  deadline?: string;
+  responsibleName?: string;
+}) =>
+  apiFetch<SocializationSessionModel>(`/socialization/${sessionId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+
+export const completeSocialization = (token: string, sessionId: string) =>
+  apiFetch<SocializationSessionModel>(`/socialization/${sessionId}/complete`, token, { method: 'POST' });
+
+export const getSocializationStats = (token: string, sessionId: string) =>
+  apiFetch<SessionStatsModel>(`/socialization/${sessionId}/stats`, token, { method: 'GET' });
+
+export const uploadSocializationPresentation = (token: string, sessionId: string, file: File, title: string, description?: string) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', title);
+  if (description) formData.append('description', description);
+  return apiFetchFormData<SocializationPresentationModel>(`/socialization/${sessionId}/presentation`, token, formData, { method: 'POST' });
+};
+
+export const getSocializationPresentation = (token: string, sessionId: string) =>
+  apiFetch<SocializationPresentationModel>(`/socialization/${sessionId}/presentation`, token, { method: 'GET' });
+
+export const addSocializationParticipants = (token: string, sessionId: string, payload: {
+  participants: Array<{ employeeId: string; employeeName: string; employeeIdentification: string; position?: string; department?: string; phone?: string; email?: string; }>;
+}) =>
+  apiFetch<SocializationParticipantModel[]>(`/socialization/${sessionId}/participants`, token, { method: 'POST', body: JSON.stringify(payload) });
+
+export const getSocializationParticipants = (token: string, sessionId: string) =>
+  apiFetch<SocializationParticipantModel[]>(`/socialization/${sessionId}/participants`, token, { method: 'GET' });
+
+export const removeSocializationParticipant = (token: string, sessionId: string, participantId: string) =>
+  apiFetch<{ removed: boolean }>(`/socialization/${sessionId}/participants/${participantId}`, token, { method: 'DELETE' });
+
+export const generateSocializationTokens = (token: string, sessionId: string) =>
+  apiFetch<SocializationTokenResult[]>(`/socialization/${sessionId}/tokens`, token, { method: 'POST' });
+
+export const sendSocializationReminders = (token: string, sessionId: string, payload?: { participantIds?: string[]; deliveryMethod?: string }) =>
+  apiFetch<{ sent: number; participants: Array<{ participantId: string; name: string; sent: boolean }> }>(`/socialization/${sessionId}/reminders`, token, { method: 'POST', body: JSON.stringify(payload || {}) });
+
+export const getPendingSocializationReminders = (token: string) =>
+  apiFetch<Array<{ session: SocializationSessionModel; participants: SocializationParticipantModel[] }>>('/socialization/reminders/pending', token, { method: 'GET' });
+
+export const processAutoReminders = (token: string) =>
+  apiFetch<{ sent: number }>('/socialization/reminders/auto', token, { method: 'POST' });
+
+export const getSocializationEvidence = (token: string, sessionId: string) =>
+  apiFetch<SocializationEvidenceModel[]>(`/socialization/${sessionId}/evidence`, token, { method: 'GET' });
+
+export const getSocializationAudit = (token: string, sessionId: string) =>
+  apiFetch<SocializationAuditModel[]>(`/socialization/${sessionId}/audit`, token, { method: 'GET' });
+
+export const getSocializationReport = (token: string, sessionId: string) =>
+  apiFetch<{ session: SocializationSessionModel; participants: SocializationParticipantModel[]; evidence: SocializationEvidenceModel[]; audits: SocializationAuditModel[]; presentation: SocializationPresentationModel | null }>(`/socialization/${sessionId}/report`, token, { method: 'GET' });
+
+export const checkSocializationCompliance = (token: string, responsibilitiesDocId: string) =>
+  apiFetch<{ isCompliant: boolean; reason: string }>(`/socialization/${responsibilitiesDocId}/compliance`, token, { method: 'GET' });
+
+// ==================== PUBLIC SOCIALIZATION API (no auth) ====================
+
+export const getSocializationPublicData = (token: string) =>
+  apiFetch<SocializationPublicData>(`/socialize/${token}`, '', { method: 'GET' });
+
+export const openSocializationLink = (token: string) =>
+  apiFetch<{ success: boolean }>(`/socialize/${token}/open`, '', { method: 'POST' });
+
+export const trackSocializationSlideView = (token: string, payload: { currentSlide: number; viewingTimeSeconds?: number; viewedSlides?: number[] }) =>
+  apiFetch<{ completionPercent: number }>(`/socialize/${token}/slide`, '', { method: 'POST', body: JSON.stringify(payload) });
+
+export const completeSocializationPresentation = (token: string, payload?: { viewingTimeSeconds?: number }) =>
+  apiFetch<{ success: boolean }>(`/socialize/${token}/complete-presentation`, '', { method: 'POST', body: JSON.stringify(payload || {}) });
+
+export const signSocialization = (token: string, payload: {
+  hasRead: boolean;
+  signatureMethod?: string;
+  signatureData?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  browser?: string;
+  os?: string;
+}) =>
+  apiFetch<{ signed: boolean; message: string; evidence: {
+    employeeName: string;
+    employeeIdentification: string;
+    documentVersion: string;
+    signedAt: string;
+    signatureHash: string;
+    verificationCode: string;
+    slideCompletionPercent: number;
+    totalViewingTimeSeconds: number;
+  } }>(`/socialize/${token}/sign`, '', { method: 'POST', body: JSON.stringify(payload) });
+
+
+// ==================== CONVIVENCIA / COMITÉ DE CONVIVENCIA LABORAL API ====================
+
+export interface ConvivenciaPeriodModel {
+  _id: string;
+  periodName: string;
+  startDate: string;
+  endDate: string;
+  status: 'ACTIVO'|'PROXIMO_A_VENCER'|'VENCIDO'|'ARCHIVADO';
+  approvalStatus?: string;
+  locked?: boolean;
+  rejectionReason?: string;
+  currentVersion?: string;
+  totalEmployees?: number;
+  requiresConvivencia?: boolean;
+  constitutionMinutesPdfUrl?: string;
+  members: Array<{ userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string; endDate: string; status: string }>;
+  candidateExtended: Array<{
+    name: string; document: string; phone: string; area: string; position: string;
+    motivation: string; acceptedTerms: boolean; email?: string;
+    adminStatus: 'PENDIENTE'|'APROBADO'|'RECHAZADO'|'INFO_REQUESTED';
+    adminComment?: string; votes: number;
+    ipAddress?: string; device?: string; registeredAt?: string;
+  }>;
+  votesExtended: Array<{ document: string; candidateDocument: string; otpValidated: boolean; votedAt: string; ipAddress?: string; device?: string }>;
+  registrationCampaign?: {
+    openingDate: string; closingDate: string; includedDepartments: string[];
+    requirements: string[]; secureToken: string; isActive: boolean;
+  };
+  meetings: Array<{ meetingDate: string; status: string; attendees: string[]; agenda: string; development: string; topicList?: string[] }>;
+  commitments: Array<{ _id: string; description: string; responsibleParty: string; deadline: string; priority: string; status: string; meetingId?: string; evidenceUrl?: string; createdAt: string }>;
+  evidence: Array<{ _id: string; type: string; title: string; fileName: string; fileUrl: string; uploadedBy: string; uploadedAt: string; meetingId?: string }>;
+  cases: Array<{
+    caseNumber: string; isAnonymous: boolean; complainantName: string;
+    respondentName: string; description: string; status: string;
+    recommendations?: string; assignedCommitteeMember?: string;
+    closureDate?: string;
+  }>;
+  auditHistory: Array<{ action: string; createdBy: string; createdAt: string; data: string }>;
+}
+
+export const fetchConvivenciaCurrent = (token: string) => apiFetch<ConvivenciaPeriodModel>('/convivencia/current', token, { method: 'GET' });
+export const fetchConvivenciaSummary = (token: string) => apiFetch<{ period: ConvivenciaPeriodModel; totalEmployees: number; requiresConvivencia: boolean }>('/convivencia/summary', token, { method: 'GET' });
+export const createConvivenciaPeriod = (token: string, payload: { periodName: string; startDate: string }) => apiFetch<ConvivenciaPeriodModel>('/convivencia/periods', token, { method: 'POST', body: JSON.stringify(payload) });
+export const addConvivenciaMember = (token: string, periodId: string, payload: { userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/members`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const removeConvivenciaMember = (token: string, periodId: string, index: number) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/members/${index}`, token, { method: 'DELETE' });
+export const startConvivenciaCampaign = (token: string, periodId: string, payload: { openingDate: string; closingDate: string; includedDepartments?: string[]; requirements?: string[] }) => apiFetch<{ period: ConvivenciaPeriodModel; secureToken: string; registrationUrl: string }>(`/convivencia/periods/${periodId}/campaign`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const reviewConvivenciaCandidate = (token: string, periodId: string, index: number, payload: { adminStatus: 'APROBADO'|'RECHAZADO'|'INFO_REQUESTED'; adminComment?: string }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/review-candidate/${index}`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const initConvivenciaVoting = (token: string, periodId: string) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/voting/init`, token, { method: 'POST' });
+export const sendConvivenciaOtp = (payload: { electionId: string; document: string; phone: string }) => apiFetch<{ sent: boolean }>('/convivencia/elections/otp', '', { method: 'POST', body: JSON.stringify(payload) });
+export const voteConvivencia = (payload: { electionId: string; document: string; phone: string; otpCode: string; candidateDocument: string; ipAddress?: string; device?: string }) => apiFetch('/convivencia/elections/vote', '', { method: 'POST', body: JSON.stringify(payload) });
+export const fetchConvivenciaResults = (periodId: string) => apiFetch<{ totalVotes:number; participation:number; winners:any[]; alternates:any[]; ranking?: any[] }>(`/convivencia/periods/${periodId}/results`, '', { method: 'GET' });
+export const autoCreateConvivenciaCommittee = (token: string, periodId: string, numPositions: number) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/auto-committee`, token, { method: 'POST', body: JSON.stringify({ numPositions }) });
+export const scheduleConvivenciaMeeting = (token: string, periodId: string, payload: { meetingDate: string; agenda: string; topicList?: string[] }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/meetings`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const autoScheduleConvivenciaMeetings = (token: string, periodId: string) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/meetings/auto-schedule`, token, { method: 'POST' });
+export const completeConvivenciaMeeting = (token: string, periodId: string, index: number, payload: { development: string; attendees: string[]; topicList?: string[] }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/meetings/${index}/complete`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const addConvivenciaCommitment = (token: string, periodId: string, payload: { description: string; responsibleParty: string; deadline: string; priority: string; meetingId?: string }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/commitments`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateConvivenciaCommitment = (token: string, periodId: string, commitmentId: string, payload: { status?: string; description?: string; priority?: string; evidenceUrl?: string }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/commitments/${commitmentId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const addConvivenciaEvidence = (token: string, periodId: string, payload: { type: string; title: string; fileName: string; fileUrl: string; meetingId?: string }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/evidence`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const removeConvivenciaEvidence = (token: string, periodId: string, index: number) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/evidence/${index}`, token, { method: 'DELETE' });
+export const submitConvivenciaApproval = (token: string, periodId: string) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/submit-approval`, token, { method: 'POST' });
+export const approveConvivencia = (token: string, periodId: string) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/approve`, token, { method: 'POST' });
+export const rejectConvivencia = (token: string, periodId: string, reason: string) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/reject`, token, { method: 'POST', body: JSON.stringify({ reason }) });
+export const registerConvivenciaCandidatePublic = (token: string, payload: {
+  name: string; document: string; phone: string; area: string;
+  position: string; motivation: string; acceptedTerms: boolean;
+  email?: string; ipAddress?: string; device?: string;
+}) => apiFetch<{ success: boolean; message: string }>('/convivencia/campaign/' + token + '/register', '', { method: 'POST', body: JSON.stringify(payload) });
+
+export const fetchConvivenciaCampaignInfo = (token: string) => apiFetch<{
+  periodName: string; openingDate: string; closingDate: string;
+  includedDepartments: string[]; requirements: string[];
+}>('/convivencia/campaign/' + token, '', { method: 'GET' });
+
+export const fetchConvivenciaAudit = (token: string, periodId: string) => apiFetch<Array<{ action: string; createdBy: string; createdAt: string; data: string }>>(`/convivencia/periods/${periodId}/audit`, token, { method: 'GET' });
+export const fetchConvivenciaDashboard = (token: string) => apiFetch<{
+  committeeStatus: string; approvalStatus?: string;
+  meetingCompletion: number; pendingCommitments: number;
+  closedCommitments: number; totalCommitments: number;
+  participationRate: number;
+  nextMeeting: { date: string; agenda: string } | null;
+  totalMembers: number; periodName: string;
+  openCases: number; totalCases: number;
+}>('/convivencia/dashboard', token, { method: 'GET' });
+
+export const createConvivenciaCase = (token: string, periodId: string, payload: {
+  complainantName: string; respondentName: string; description: string;
+  isAnonymous?: boolean; evidence?: string[];
+}) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/cases`, token, { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateConvivenciaCase = (token: string, periodId: string, index: number, payload: {
+  status?: string; assignedCommitteeMember?: string; recommendations?: string; evidence?: string[];
+}) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/cases/${index}`, token, { method: 'PATCH', body: JSON.stringify(payload) });

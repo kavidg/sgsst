@@ -11,6 +11,7 @@ import { CompanyUser, CompanyUserDocument } from '../companies/schemas/company-u
 import { Company, CompanyDocument } from '../companies/schemas/company.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User, UserDocument } from './schemas/user.schema';
 
 type ManagedRole = 'admin' | 'member' | 'manager';
@@ -228,6 +229,34 @@ export class UsersService {
     }
 
     await this.userModel.findByIdAndDelete(userId).exec();
+  }
+
+  async updateMyProfile(firebaseUid: string, dto: UpdateProfileDto): Promise<User> {
+    const user = await this.userModel.findOne({ firebaseUid }).exec();
+
+    if (!user) {
+      throw new NotFoundException('Authenticated user not found in database');
+    }
+
+    const updatePayload: Partial<User> = {};
+
+    if (dto.firstName !== undefined) updatePayload.firstName = dto.firstName;
+    if (dto.lastName !== undefined) updatePayload.lastName = dto.lastName;
+    if (dto.phone !== undefined) updatePayload.phone = dto.phone;
+    if (dto.jobTitle !== undefined) updatePayload.jobTitle = dto.jobTitle;
+    if (dto.isActive !== undefined) updatePayload.isActive = dto.isActive;
+    if (dto.avatarUrl !== undefined) updatePayload.avatarUrl = dto.avatarUrl;
+    if (dto.signatureUrl !== undefined) updatePayload.signatureUrl = dto.signatureUrl;
+
+    const updated = await this.userModel
+      .findOneAndUpdate({ firebaseUid }, { $set: updatePayload }, { new: true })
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException('User not found after update');
+    }
+
+    return updated;
   }
 
   private async createFirebaseAndMongoUser(dto: CreateUserDto, companyId: Types.ObjectId): Promise<User> {

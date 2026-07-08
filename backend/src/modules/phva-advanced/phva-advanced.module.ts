@@ -26,6 +26,7 @@ import { PolicyTemplateController } from './policy-template.controller';
 import { Training, TrainingSchema } from '../trainings/schemas/training.schema';
 import { InspectionActivity, InspectionActivitySchema } from '../inspections/schemas/inspection-activity.schema';
 import { Incident, IncidentSchema } from '../incidents/schemas/incident.schema';
+import { CompanyProfile, CompanyProfileSchema } from '../company-profile/schemas/company-profile.schema';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { Incident, IncidentSchema } from '../incidents/schemas/incident.schema';
       { name: Company.name, schema: CompanySchema },
       { name: Employee.name, schema: EmployeeSchema },
       { name: PolicyTemplate.name, schema: PolicyTemplateSchema },
+      { name: CompanyProfile.name, schema: CompanyProfileSchema },
     ]),
   ],
   controllers: [PhvaAdvancedController, PolicyTemplateController],

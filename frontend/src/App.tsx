@@ -1,4 +1,5 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { ProfilePage } from './pages/ProfilePage';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import {
   CompanyModel,
@@ -48,8 +49,11 @@ import { ActPage } from './pages/documents/ActPage';
 import { DocumentsEvaluationProvider } from './pages/documents/evaluationState';
 import { useCompanyContext } from './context/CompanyContext';
 import { DocumentsPage } from './pages/DocumentsPage';
-import { ProfilePage } from './pages/ProfilePage';
+
 import WorkerSignPage from './pages/WorkerSignPage';
+import CopasstCandidateRegister from './pages/CopasstCandidateRegister';
+import ConvivenciaCandidateRegister from './pages/ConvivenciaCandidateRegister';
+import SocializationPage from './pages/SocializationPage';
 import AdvancedManagementPage from './pages/AdvancedManagementPage';
 
 const ECONOMIC_SECTORS = [
@@ -209,14 +213,12 @@ function App() {
   const [newMemberPassword, setNewMemberPassword] = useState('');
   const [newMemberConfirmPassword, setNewMemberConfirmPassword] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<CreatableRole | ''>('');
+  const [newMemberCompanyId, setNewMemberCompanyId] = useState('');
 
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
   const [newCompanyStandardsType, setNewCompanyStandardsType] = useState('');
   const [newCompanyEconomicSector, setNewCompanyEconomicSector] = useState('');
-  const [userFirstName, setUserFirstName] = useState('User');
-  const [userLastName, setUserLastName] = useState('');
-  const [userProfileImage, setUserProfileImage] = useState('');
   const companySelectorOptions: MyCompanyModel[] = profile?.role === 'owner'
     ? companies.map((company) => ({
       id: company._id,
@@ -224,16 +226,6 @@ function App() {
       nit: company.nit,
     }))
     : myCompanies;
-
-  useEffect(() => {
-    const savedFirstName = localStorage.getItem('profile:firstName');
-    const savedLastName = localStorage.getItem('profile:lastName');
-    const savedProfileImage = localStorage.getItem('profile:image');
-
-    if (savedFirstName) setUserFirstName(savedFirstName);
-    if (savedLastName) setUserLastName(savedLastName);
-    if (savedProfileImage) setUserProfileImage(savedProfileImage);
-  }, []);
 
   const handleSelectCompany = async (companyId: string) => {
     setCompanyId(companyId);
@@ -273,6 +265,9 @@ function App() {
 
     if (!newAdminCompanyId && companyData[0]) {
       setNewAdminCompanyId(companyData[0]._id);
+    }
+    if (!newMemberCompanyId && companyData[0]) {
+      setNewMemberCompanyId(companyData[0]._id);
     }
   };
 
@@ -437,6 +432,11 @@ function App() {
     setError('');
 
     try {
+      if (profile?.role === 'owner' && !newMemberCompanyId) {
+        setError('Seleccione una empresa.');
+        return;
+      }
+
       if (!newMemberRole) {
         setError('Debes seleccionar un rol para crear el usuario.');
         return;
@@ -456,6 +456,7 @@ function App() {
         email: newMemberEmail,
         password: newMemberPassword,
         role: newMemberRole,
+        companyId: newMemberCompanyId || undefined,
       });
       setNewMemberEmail('');
       setNewMemberPassword('');
@@ -463,7 +464,12 @@ function App() {
       setNewMemberRole('');
       await refreshOwnerData();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'No fue posible crear el usuario.');
+      const errorMessage = requestError instanceof Error ? requestError.message : '';
+      if (errorMessage.toLowerCase().includes('owners must provide company')) {
+        setError('Debe seleccionar la empresa a la que pertenecerá este usuario.');
+      } else {
+        setError(errorMessage || 'No fue posible crear el usuario.');
+      }
     } finally {
       setLoading(false);
     }
@@ -520,6 +526,24 @@ function App() {
         <Card>
           <h2>Creación de usuarios</h2>
           <form onSubmit={handleCreateMember} className="form-grid" autoComplete="off">
+            {profile?.role === 'owner' ? (
+              <>
+                <label htmlFor="member-company">Empresa</label>
+                <Select
+                  id="member-company"
+                  value={newMemberCompanyId}
+                  onChange={(event) => setNewMemberCompanyId(event.target.value)}
+                  required
+                >
+                  <option value="">Seleccione una empresa</option>
+                  {companies.map((company) => (
+                    <option key={company._id} value={company._id}>
+                      {company.name}{company.nit ? ` (${company.nit})` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </>
+            ) : null}
             <Input type="email" value={newMemberEmail} onChange={(event) => setNewMemberEmail(event.target.value)} placeholder="Digita el correo electrónico del usuario (ej: usuario@empresa.com)" autoComplete="off" required />
             <Input type="password" value={newMemberPassword} onChange={(event) => setNewMemberPassword(event.target.value)} placeholder="Digita la contraseña del usuario (mínimo 6 caracteres)" autoComplete="new-password" minLength={6} required />
             <Input type="password" value={newMemberConfirmPassword} onChange={(event) => setNewMemberConfirmPassword(event.target.value)} placeholder="Confirma la contraseña del usuario" autoComplete="new-password" minLength={6} required />
@@ -540,7 +564,7 @@ function App() {
                 Este usuario solo podrá ver indicadores y reportes, no podrá editar información.
               </p>
             ) : null}
-            <Button type="submit" disabled={loading}>Guardar Usuario</Button>
+            <Button type="submit" disabled={loading || (profile?.role === 'owner' && !newMemberCompanyId)}>Guardar Usuario</Button>
           </form>
           <h3>Listado usuarios</h3>
           {members.map((member) => (
@@ -713,8 +737,7 @@ function App() {
             onRefresh={() => void refreshOwnerData()}
             onLogout={() => void handleLogout()}
             loading={loading}
-            userName={userFirstName}
-            userProfileImage={userProfileImage}
+            profile={profile}
           />
         }
       >
@@ -923,19 +946,7 @@ function App() {
         <Route
           path="/profile"
           element={
-            <ProfilePage
-              firstName={userFirstName}
-              lastName={userLastName}
-              profileImage={userProfileImage}
-              onSave={(firstName, lastName, profileImage) => {
-                setUserFirstName(firstName);
-                setUserLastName(lastName);
-                setUserProfileImage(profileImage);
-                localStorage.setItem('profile:firstName', firstName);
-                localStorage.setItem('profile:lastName', lastName);
-                localStorage.setItem('profile:image', profileImage);
-              }}
-            />
+            <ProfilePage token={idToken} />
           }
         />
       </Route>
@@ -944,7 +955,7 @@ function App() {
           element={
             <>
               {activeCompanyId ? (
-                <AdvancedManagementPage token={idToken} />
+                <AdvancedManagementPage token={idToken} role={profile?.role} />
               ) : (
                 <div className="page">
                   <div className="card" style={{ margin: '2rem' }}>
@@ -955,7 +966,10 @@ function App() {
             </>
           }
         />
+      <Route path="/copasst/register/:token" element={<CopasstCandidateRegister />} />
+      <Route path="/convivencia/register/:token" element={<ConvivenciaCandidateRegister />} />
       <Route path="/sign/:token" element={<WorkerSignPage />} />
+      <Route path="/socialize/:token" element={<SocializationPage />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

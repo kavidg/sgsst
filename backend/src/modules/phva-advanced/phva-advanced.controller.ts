@@ -159,6 +159,31 @@ export class PhvaAdvancedController {
     return this.phvaAdvancedService.updateResponsibilities(this.resolveCompanyId(request), user, dto.responsibilities ?? []);
   }
 
+  @Post('responsibilities/submit')
+  @Roles('owner', 'admin')
+  async submitResponsibilities(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    return this.phvaAdvancedService.submitResponsibilities(companyId, user);
+  }
+
+  @Post('responsibilities/approve')
+  @Roles('owner', 'manager')
+  async approveResponsibilities(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    return this.phvaAdvancedService.approveResponsibilities(companyId, user);
+  }
+
+  @Post('responsibilities/reject')
+  @Roles('owner', 'manager')
+  async rejectResponsibilities(@Req() request: RequestWithUser, @Body() dto: { reason: string }) {
+    if (!dto.reason || !dto.reason.trim()) throw new BadRequestException('Rejection reason is required');
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    return this.phvaAdvancedService.rejectResponsibilities(companyId, user, dto.reason);
+  }
+
 
   @Get('arl-affiliations')
   @Roles('owner', 'admin', 'manager', 'member')
@@ -337,6 +362,31 @@ export class PhvaAdvancedController {
   async updateResourceAssignment(@Req() request: RequestWithUser, @Body() dto: UpdateResourceAssignmentDto) {
     const user = await this.resolveUserFromRequest(request);
     return this.phvaAdvancedService.updateResourceAssignment(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Post('resource-assignment/submit')
+  @Roles('owner', 'admin')
+  async submitResourceAssignment(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    return this.phvaAdvancedService.submitResourceAssignment(companyId, user);
+  }
+
+  @Post('resource-assignment/approve')
+  @Roles('owner', 'manager')
+  async approveResourceAssignment(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    return this.phvaAdvancedService.approveResourceAssignment(companyId, user);
+  }
+
+  @Post('resource-assignment/reject')
+  @Roles('owner', 'manager')
+  async rejectResourceAssignment(@Req() request: RequestWithUser, @Body() dto: { reason: string }) {
+    if (!dto.reason || !dto.reason.trim()) throw new BadRequestException('Rejection reason is required');
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    return this.phvaAdvancedService.rejectResourceAssignment(companyId, user, dto.reason);
   }
 
   private resolveCompanyId(request: RequestWithUser): Types.ObjectId {

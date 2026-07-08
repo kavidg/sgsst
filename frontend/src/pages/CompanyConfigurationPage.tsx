@@ -351,6 +351,24 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
                 {IMPLEMENTATION_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o === 'Not Started' ? 'No iniciado' : o === 'Initial Stage' ? 'Etapa inicial' : o === 'In Progress' ? 'En progreso' : o === 'Implemented' ? 'Implementado' : 'Maduro'}</option>)}
               </select>
             </label>
+
+            {/* Legal Representative Configuration */}
+            <div className="field" style={{ marginTop: '1rem', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
+              <label className="checkbox-label" style={{ display: 'flex', alignItems: 'flex-start', gap: '.75rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={profile.managerActsAsLegalRepresentative !== false}
+                  onChange={(e) => { updateField('managerActsAsLegalRepresentative', e.target.checked); void handleUpdate({ managerActsAsLegalRepresentative: e.target.checked }); }}
+                  style={{ marginTop: '.25rem', transform: 'scale(1.2)' }}
+                />
+                <div>
+                  <strong>☑ El usuario MANAGER actúa como Representante Legal</strong>
+                  <p className="muted" style={{ margin: '.25rem 0 0', fontSize: '.82rem' }}>
+                    Cuando esta opción está activa, la aprobación realizada por Gerencia también se considera la firma del Representante Legal.
+                  </p>
+                </div>
+              </label>
+            </div>
           </div>
         </section>
       )}

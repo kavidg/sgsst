@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import ResourceAssignmentModule from '../components/ResourceAssignmentModule';
 import TrainingProgramModule from '../components/TrainingProgramModule';
 import PolicyManagementModule from '../components/PolicyManagementModule';
+import CopasstManagementPage from './CopasstManagementPage';
+import ConvivenciaManagementPage from './ConvivenciaManagementPage';
 import {
   EmployeeModel,
   ResponsableSstComplianceStatus,
@@ -10,6 +12,9 @@ import {
   ResponsibilitiesAdvancedModel,
   fetchResponsibilitiesAdvanced,
   updateResponsibilitiesAdvanced,
+  submitResponsibilitiesAdvanced,
+  approveResponsibilitiesAdvanced,
+  rejectResponsibilitiesAdvanced,
   fetchEmployees,
   fetchPendingAcceptances,
   fetchMyAcceptances,
@@ -25,10 +30,12 @@ import {
   fetchComplianceWithAcceptance,
   processRenewals,
   fetchAcceptanceHistory,
+  fetchCompanyProfile,
   ResponsibilityAcceptanceModel,
   AcceptanceStatsModel,
   ComplianceWithAcceptanceModel,
 } from '../api';
+import SocializationDashboard from '../components/SocializationDashboard';
 import { Button } from '../components/ui/Button';
 import {
   AdvancedPageLayout,
@@ -52,7 +59,9 @@ const SIDEBAR_ITEMS = [
   { id: 'versiones', label: '📂 Versiones' },
   { id: 'historial', label: '🕓 Historial' },
   { id: 'aceptaciones', label: '✍ Aceptaciones' },
-  { id: 'pendientes', label: '⏳ Pendientes por firmar' },      { id: 'renovaciones', label: '🔄 Renovaciones' },
+  { id: 'pendientes', label: '⏳ Pendientes por firmar' },
+  { id: 'renovaciones', label: '🔄 Renovaciones' },
+  { id: 'socializacion', label: '📢 Socialización' },
 ] as const;
 
 const ACCEPTANCE_STEPS = [
@@ -170,7 +179,7 @@ interface AuditEntry {
   newValue?: string;
 }
 
-type ApprovalStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'ARCHIVED';
+type ApprovalStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'REJECTED' | 'APPROVED' | 'APPROVED_AND_SIGNED' | 'SOCIALIZED' | 'ARCHIVED';
 
 // ============================================================
 // AUTO-SAVE HOOK
@@ -190,12 +199,20 @@ function useAutoSave(callback: () => Promise<void>, intervalMs: number, active: 
 // MAIN PAGE COMPONENT
 // ============================================================
 
-export default function AdvancedManagementPage({ token }: { token: string }) {
+export default function AdvancedManagementPage({ token, role }: { token: string; role?: string }) {
   const { standardCode } = useParams<{ standardCode: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isReviewMode = searchParams.get('mode') === 'review';
   const standard = STANDARD_LABELS[standardCode ?? ''] ?? { title: `Estándar ${standardCode}`, code: standardCode ?? '' };
 
   // Route to dedicated full-page modules
+  if (standardCode === '1.1.6') {
+    return <CopasstManagementPage token={token} role={role} />;
+  }
+  if (standardCode === '1.1.8') {
+    return <ConvivenciaManagementPage token={token} role={role} />;
+  }
   if (standardCode === '1.1.3') {
     return <ResourceAssignmentModule token={token} />;
   }
@@ -231,6 +248,25 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
 
   // -- Locked state for approved --
   const [locked, setLocked] = useState(false);
+
+  // -- Approval workflow new state --
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
+  const [assignedReviewer, setAssignedReviewer] = useState('Manager');
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectCommentInput, setRejectCommentInput] = useState('');
+  const [socializedAt, setSocializedAt] = useState<string | null>(null);
+
+  // -- Legal Representative Configuration --
+  const [managerActsAsLegalRepresentative, setManagerActsAsLegalRepresentative] = useState(true);
+
+  // Fetch company profile setting
+  useEffect(() => {
+    if (!token) return;
+    fetchCompanyProfile(token).then((profile) => {
+      setManagerActsAsLegalRepresentative(profile.managerActsAsLegalRepresentative !== false);
+    }).catch(() => {});
+  }, [token]);
 
   // -- Acceptance state --
   const [pendingAcceptances, setPendingAcceptances] = useState<ResponsibilityAcceptanceModel[]>([]);
@@ -280,6 +316,13 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
 
   useEffect(() => { void loadAcceptanceData(); }, [loadAcceptanceData]);
 
+  // Review mode: auto-switch to approval tab
+  useEffect(() => {
+    if (isReviewMode) {
+      setSidebarTab('aprobaciones');
+    }
+  }, [isReviewMode]);
+
   // -- Data loading --
   const load = useCallback(async () => {
     if (!token) return;
@@ -299,7 +342,11 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
             if (meta.currentVersion) setCurrentVersion(meta.currentVersion);
             if (meta.versions) setVersions(meta.versions);
             if (meta.auditHistory) setAuditHistory(meta.auditHistory);
-            if (meta.locked) setLocked(meta.locked);
+            if (meta.locked !== undefined) setLocked(meta.locked);
+            if (meta.rejectionReason) setRejectionReason(meta.rejectionReason);
+            if (meta.submittedAt) setSubmittedAt(meta.submittedAt);
+            if (meta.assignedReviewer) setAssignedReviewer(meta.assignedReviewer);
+            if (meta.socializedAt) setSocializedAt(meta.socializedAt);
           } catch { /* ignore */ }
           setRows(data.responsibilities.filter((r) => r.title !== '__META__'));
         } else {
@@ -333,7 +380,7 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
 
   // -- Save to backend --
   const persistMetadata = (newRows: ResponsibilityRowModel[]) => {
-    const meta = { approvalStatus, currentVersion, versions, auditHistory: auditHistory.slice(0, 200), locked };
+    const meta = { approvalStatus, currentVersion, versions, auditHistory: auditHistory.slice(0, 200), locked, rejectionReason, submittedAt, assignedReviewer, socializedAt };
     const metaRow: ResponsibilityRowModel = {
       title: '__META__',
       category: JSON.stringify(meta),
@@ -415,40 +462,153 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
   const totalSigned = allActiveRows.filter((r) => r.status === 'FIRMADO').length;
   const totalPending = allActiveRows.length - totalSigned;
 
+  // -- Can current user approve/reject? --
+  const canApprove = role === 'owner' || role === 'manager';
+
   // -- Approval actions --
-  const submitForApproval = () => {
+  const submitForApproval = async () => {
     if (allActiveRows.length === 0) { notify('Agrega responsabilidades antes de solicitar aprobación.'); return; }
-    setApprovalStatus('PENDING_APPROVAL');
-    addAudit({ action: 'Enviado a aprobación', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'DRAFT', newValue: 'PENDING_APPROVAL' });
-    markDirty();
-    notify('Solicitud de aprobación enviada.');
+    if (!token) return;
+    setLoading(true);
+    try {
+      // 1. Persist current data first so backend has latest state
+      if (dirty) {
+        const payload = persistMetadata(rows);
+        await updateResponsibilitiesAdvanced(token, payload);
+      }
+      // 2. Call backend submit endpoint to create version snapshot, change status, and notify MANAGER
+      await submitResponsibilitiesAdvanced(token);
+      // 3. Reload to get fresh state from backend
+      const data = await fetchResponsibilitiesAdvanced(token);
+      const metaRow = data.responsibilities.find((r) => r.title === '__META__');
+      if (metaRow) {
+        try {
+          const meta = JSON.parse(metaRow.category);
+          setApprovalStatus(meta.approvalStatus || 'PENDING_APPROVAL');
+          setLocked(meta.locked || true);
+          setSubmittedAt(meta.submittedAt ? new Date(meta.submittedAt).toLocaleString() : new Date().toLocaleString());
+          if (meta.currentVersion) setCurrentVersion(meta.currentVersion);
+          if (meta.versions) setVersions(meta.versions);
+          if (meta.auditHistory) setAuditHistory(meta.auditHistory);
+          if (meta.assignedReviewer) setAssignedReviewer(meta.assignedReviewer);
+        } catch { /* ignore */ }
+        setRows(data.responsibilities.filter((r) => r.title !== '__META__'));
+      }
+      setStatus(data.complianceStatus);
+      setComplianceReason(data.complianceReason);
+      setAlerts(data.alerts);
+      setDirty(false);
+      setLastSaved(new Date().toLocaleString());
+      notify(`📤 Solicitud enviada a ${assignedReviewer}. Contenido bloqueado. Se ha notificado a Gerencia.`);
+    } catch (e: any) {
+      notify('Error al enviar: ' + (e.message || ''));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const approveModule = () => {
-    setApprovalStatus('APPROVED');
+  const approveModule = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      // 1. Save current data first so backend has the latest state
+      if (dirty) {
+        const payload = persistMetadata(rows);
+        await updateResponsibilitiesAdvanced(token, payload);
+      }
+      // 2. Call backend approval endpoint (validates MANAGER/OWNER role server-side)
+      const result = await approveResponsibilitiesAdvanced(token);
+      // 3. Read the updated status from the result
+      const metaRow = result.responsibilities.find((r) => r.title === '__META__');
+      let newApprovalStatus = 'APPROVED';
+      if (metaRow) {
+        try {
+          const meta = JSON.parse(metaRow.category);
+          newApprovalStatus = meta.approvalStatus || 'APPROVED';
+        } catch { /* ignore */ }
+      }
+      // 4. Update local state based on whether approval and signature were merged
+      const isMerged = newApprovalStatus === 'APPROVED_AND_SIGNED';
+      setApprovalStatus(isMerged ? 'APPROVED_AND_SIGNED' : 'APPROVED');
+      setLocked(true);
+      setSubmittedAt(null);
+      setDirty(false);
+
+      if (isMerged) {
+        addAudit({ action: 'Aprobado y firmado por Representante Legal', user: role === 'manager' ? 'Manager' : 'Owner', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: 'APPROVED_AND_SIGNED' });
+        notify('✅ Módulo aprobado y firmado. El MANAGER actúa como Representante Legal. Siguiente etapa: Socialización.');
+      } else {
+        setApprovalStatus('APPROVED');
+        addAudit({ action: 'Aprobado por MANAGER', user: role === 'manager' ? 'Manager' : 'Owner', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: 'APPROVED' });
+        notify('✅ Módulo aprobado. Contenido bloqueado. Siguiente etapa: firma representante legal y socialización.');
+      }
+      // 5. Reload fresh data
+      const data = await fetchResponsibilitiesAdvanced(token);
+      const loadedMeta = data.responsibilities.find((r) => r.title === '__META__');
+      if (loadedMeta) {
+        try {
+          const meta = JSON.parse(loadedMeta.category);
+          if (meta.versions) setVersions(meta.versions);
+          if (meta.auditHistory) setAuditHistory(meta.auditHistory);
+        } catch { /* ignore */ }
+      }
+      setRows(data.responsibilities.filter((r) => r.title !== '__META__'));
+      setStatus(data.complianceStatus);
+      setComplianceReason(data.complianceReason);
+    } catch (e: any) {
+      notify('Error al aprobar: ' + (e.message || 'Permiso denegado'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rejectModule = async (reason: string) => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      // 1. Save current data first
+      if (dirty) {
+        const payload = persistMetadata(rows);
+        await updateResponsibilitiesAdvanced(token, payload);
+      }
+      // 2. Call backend rejection endpoint (validates MANAGER/OWNER role server-side)
+      await rejectResponsibilitiesAdvanced(token, reason);
+      // 3. Update local state
+      setApprovalStatus('REJECTED');
+      setLocked(false);
+      setRejectionReason(reason);
+      setSubmittedAt(null);
+      setShowRejectModal(false);
+      setRejectCommentInput('');
+      setDirty(false);
+      addAudit({ action: 'Rechazado por MANAGER', user: 'Manager', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: 'REJECTED' });
+      addAudit({ action: 'Comentario de rechazo', user: 'Manager', date: new Date().toLocaleString(), field: 'rejectionReason', previousValue: '', newValue: reason });
+      notify('❌ Módulo rechazado. Edición habilitada nuevamente para ADMIN.');
+    } catch (e: any) {
+      notify('Error al rechazar: ' + (e.message || 'Permiso denegado'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const socializeModule = () => {
+    setApprovalStatus('SOCIALIZED');
     setLocked(true);
-    const newVer = (parseFloat(currentVersion) + 0.1).toFixed(1);
-    const verEntry: VersionEntry = {
-      version: newVer,
-      createdAt: new Date().toISOString(),
-      createdBy: 'Sistema',
-      approvedBy: 'Manager',
-      approvedAt: new Date().toISOString(),
-    };
-    setCurrentVersion(newVer);
-    setVersions((prev) => [verEntry, ...prev]);
-    addAudit({ action: 'Aprobado', user: 'Manager', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: 'APPROVED' });
-    addAudit({ action: 'Versión creada', user: 'Sistema', date: new Date().toLocaleString(), field: 'version', previousValue: (parseFloat(currentVersion)).toFixed(1), newValue: newVer });
+    setSocializedAt(new Date().toLocaleString());
+    addAudit({ action: 'Socializado', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: approvalStatus, newValue: 'SOCIALIZED' });
+    if (approvalStatus === 'APPROVED') {
+      addAudit({ action: 'Firma representante legal registrada', user: 'Representante legal', date: new Date().toLocaleString(), field: 'socialization', previousValue: '', newValue: 'Completado' });
+    }
     markDirty();
-    notify('Módulo aprobado. Contenido bloqueado y nueva versión creada.');
+    notify('✅ Módulo socializado. Ciclo de aprobación completado.');
   };
 
   const archiveModule = () => {
     setApprovalStatus('ARCHIVED');
     setLocked(true);
-    addAudit({ action: 'Archivado', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'APPROVED', newValue: 'ARCHIVED' });
+    addAudit({ action: 'Archivado', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: approvalStatus, newValue: 'ARCHIVED' });
     markDirty();
-    notify('Módulo archivado.');
+    notify('📦 Módulo archivado.');
   };
 
   // -- Generate default responsibilities --
@@ -545,7 +705,7 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
                 {groupRows.map((row, idx) => {
                   const realIdx = indices[idx];
                   return (
-                    <tr key={`${row.title}-${idx}`}>
+                    <tr key={realIdx}>
                       <td>{idx + 1}</td>
                       <td className="advanced-page__cell-title">
                         <textarea
@@ -670,7 +830,7 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
                 `Empresa: ${standard.title}`,
                 `Código: ${standard.code}`,
                 `Versión: v${currentVersion}`,
-                `Estado: ${approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador'}`,
+                `Estado: ${approvalStatus === 'APPROVED_AND_SIGNED' ? 'Aprobado y firmado' : approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador'}`,
                 `Generado: ${new Date().toLocaleString()}`,
                 '',
                 `Total responsabilidades: ${allActiveRows.length}`,
@@ -729,7 +889,10 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
               notify('📊 CSV exportado correctamente.');
             },
           },
-          { label: loading ? 'Guardando...' : '💾 Guardar cambios', onClick: () => void save(), disabled: loading || !dirty },
+          // Only show save button for users who can edit (not MANAGER when PENDING)
+          ...(approvalStatus === 'PENDING_APPROVAL' && !canApprove
+            ? []
+            : [{ label: loading ? 'Guardando...' : '💾 Guardar cambios', onClick: () => void save(), disabled: loading || !dirty }]),
         ]}
         lastSaved={lastSaved}
       />
@@ -737,10 +900,55 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
       {/* Toast */}
       {toast && <div className="toast-alert" style={{ margin: '0 1rem' }}><p>{toast}</p></div>}
 
+      {/* Review mode banner (shown from notification click) */}
+      {isReviewMode && (
+        <div className="advanced-page__banner advanced-page__banner--warning" style={{ border: '2px solid #d97706', padding: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.5rem' }}>
+            <div>
+              <strong style={{ fontSize: '1rem' }}>📋 Documento pendiente de aprobación</strong>
+              <div style={{ marginTop: '.35rem', fontSize: '.85rem', color: '#92400e' }}>
+                {submittedAt && <span><strong>📅 Enviado:</strong> {submittedAt} | </span>}
+                <span><strong>🔖 Módulo:</strong> {standardCode} — {standard.title} | </span>
+                <span><strong>🔢 Versión:</strong> v{currentVersion}</span>
+              </div>
+            </div>
+            {canApprove && approvalStatus === 'PENDING_APPROVAL' && (
+              <div style={{ display: 'flex', gap: '.5rem' }}>
+                <Button type="button" onClick={approveModule} disabled={loading}>
+                  ✅ Aprobar módulo
+                </Button>
+                <Button type="button" variant="danger" onClick={() => setShowRejectModal(true)} disabled={loading}>
+                  ❌ Rechazar
+                </Button>
+              </div>
+            )}
+            {!canApprove && (
+              <div style={{ fontSize: '.85rem', color: '#dc2626' }}>
+                ⚠️ Solo usuarios con rol Gerente pueden aprobar o rechazar.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Approval banner */}
-      {approvalStatus === 'APPROVED' && (
+      {(approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED') && (
         <div className="advanced-page__banner advanced-page__banner--success">
-          ✅ Módulo aprobado (v{currentVersion}). Contenido bloqueado para edición.
+          {approvalStatus === 'APPROVED_AND_SIGNED' ? (
+            <>🟢 Aprobado y firmado (v{currentVersion}). Contenido bloqueado. Siguiente etapa: Socialización.</>
+          ) : (
+            <>✅ Módulo aprobado (v{currentVersion}). Contenido bloqueado. Siguiente etapa: firma representante legal y socialización.</>
+          )}
+        </div>
+      )}
+      {approvalStatus === 'SOCIALIZED' && (
+        <div className="advanced-page__banner advanced-page__banner--success">
+          ✅ Módulo socializado. Ciclo de aprobación completado (v{currentVersion}).
+        </div>
+      )}
+      {approvalStatus === 'REJECTED' && (
+        <div className="advanced-page__banner advanced-page__banner--danger">
+          ❌ Módulo rechazado. Revisa el comentario del revisor y corrige antes de reenviar.
         </div>
       )}
       {approvalStatus === 'ARCHIVED' && (
@@ -748,9 +956,14 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
           📦 Módulo archivado. Solo lectura.
         </div>
       )}
-      {approvalStatus === 'PENDING_APPROVAL' && (
+      {approvalStatus === 'PENDING_APPROVAL' && canApprove && (
         <div className="advanced-page__banner advanced-page__banner--warning">
-          ⏳ Pendiente de aprobación por Manager. Las ediciones aún están permitidas.
+          📋 Documento pendiente de revisión por Gerencia. Revisa el contenido y decide aprobar o rechazar.
+        </div>
+      )}
+      {approvalStatus === 'PENDING_APPROVAL' && !canApprove && (
+        <div className="advanced-page__banner advanced-page__banner--warning">
+          ⏳ Pendiente de aprobación por {assignedReviewer}. Enviado el {submittedAt || '—'}. Contenido bloqueado hasta que Gerencia revise.
         </div>
       )}
 
@@ -787,7 +1000,7 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
                   { label: 'Firmadas', value: totalSigned, variant: 'success' },
                   { label: 'Pendientes', value: totalPending, variant: 'warning' },
                   { label: 'Versión Actual', value: `v${currentVersion}` },
-                  { label: 'Estado', value: approvalStatus === 'DRAFT' ? 'Borrador' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'APPROVED' ? 'Aprobado' : 'Archivado' },
+                  { label: 'Estado', value: approvalStatus === 'DRAFT' ? '📝 Borrador' : approvalStatus === 'PENDING_APPROVAL' ? '⏳ Pendiente' : approvalStatus === 'REJECTED' ? '❌ Rechazado' : approvalStatus === 'APPROVED_AND_SIGNED' ? '🟢 Aprobado y firmado' : approvalStatus === 'APPROVED' ? '✅ Aprobado' : approvalStatus === 'SOCIALIZED' ? '✅ Socializado' : '📦 Archivado' },
                   { label: 'Cumplimiento PHVA', value: badge.label, variant: status === 'COMPLIES' ? 'success' : status === 'NON_COMPLIANT' ? 'danger' : 'warning' },
                 ]}
                 columns={6}
@@ -848,28 +1061,51 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
             <div className="advanced-page__section">
               <h3>✍ Flujo de Aprobación</h3>
               <p className="muted">
-                El módulo de responsabilidades SG-SST sigue un flujo de aprobación.
-                Una vez aprobado, el contenido se bloquea y se genera un snapshot de versión.
-                Solo MANAGER puede aprobar el módulo.
+                El módulo de responsabilidades SG-SST sigue un flujo de aprobación en 5 etapas.
+                ADMIN prepara el borrador → Envía a MANAGER → MANAGER aprueba o rechaza → Firma representante legal → Socialización.
               </p>
 
-              {/* Status timeline */}
+              {/* Status timeline - 5 steps */}
               <div className="advanced-page__approval-steps">
-                <div className={`advanced-page__approval-step ${approvalStatus === 'DRAFT' ? 'advanced-page__approval-step--active' : approvalStatus === 'PENDING_APPROVAL' || approvalStatus === 'APPROVED' || approvalStatus === 'ARCHIVED' ? 'advanced-page__approval-step--done' : ''}`}>
+                {/* Step 1: DRAFT */}
+                <div className={`advanced-page__approval-step ${approvalStatus === 'DRAFT' ? 'advanced-page__approval-step--active' : 'advanced-page__approval-step--done'}`}>
                   <div className="advanced-page__approval-step-icon">{approvalStatus === 'DRAFT' ? '📝' : '✅'}</div>
                   <strong>Borrador</strong>
                 </div>
                 <div className="advanced-page__approval-connector" />
-                <div className={`advanced-page__approval-step ${approvalStatus === 'PENDING_APPROVAL' ? 'advanced-page__approval-step--active' : approvalStatus === 'APPROVED' || approvalStatus === 'ARCHIVED' ? 'advanced-page__approval-step--done' : ''}`}>
-                  <div className="advanced-page__approval-step-icon">{approvalStatus === 'PENDING_APPROVAL' ? '⏳' : approvalStatus === 'APPROVED' || approvalStatus === 'ARCHIVED' ? '✅' : '⏸️'}</div>
-                  <strong>Pendiente aprobación</strong>
+
+                {/* Step 2: PENDING_APPROVAL / REJECTED (fork) */}
+                <div className={`advanced-page__approval-step ${approvalStatus === 'PENDING_APPROVAL' ? 'advanced-page__approval-step--active' : approvalStatus === 'REJECTED' ? 'advanced-page__approval-step--danger' : approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED' || approvalStatus === 'SOCIALIZED' || approvalStatus === 'ARCHIVED' ? 'advanced-page__approval-step--done' : ''}`}>
+                  <div className="advanced-page__approval-step-icon">
+                    {approvalStatus === 'PENDING_APPROVAL' ? '⏳' : approvalStatus === 'REJECTED' ? '❌' : approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED' || approvalStatus === 'SOCIALIZED' ? '✅' : '⏸️'}
+                  </div>
+                  <strong>
+                    {approvalStatus === 'REJECTED' ? 'Rechazado' : 'Pendiente aprobación'}
+                  </strong>
+                  {approvalStatus === 'REJECTED' && <span style={{ fontSize: '.75rem', color: '#dc2626' }}>Devolver a edición</span>}
                 </div>
                 <div className="advanced-page__approval-connector" />
-                <div className={`advanced-page__approval-step ${approvalStatus === 'APPROVED' ? 'advanced-page__approval-step--active' : approvalStatus === 'ARCHIVED' ? 'advanced-page__approval-step--done' : ''}`}>
-                  <div className="advanced-page__approval-step-icon">{approvalStatus === 'APPROVED' ? '✅' : '✅'}</div>
-                  <strong>Aprobado</strong>
+
+                {/* Step 3: APPROVED / APPROVED_AND_SIGNED (merged) */}
+                <div className={`advanced-page__approval-step ${approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED' ? 'advanced-page__approval-step--active' : approvalStatus === 'SOCIALIZED' || approvalStatus === 'ARCHIVED' ? 'advanced-page__approval-step--done' : ''}`}>
+                  <div className="advanced-page__approval-step-icon">
+                    {approvalStatus === 'APPROVED_AND_SIGNED' ? '🟢' : approvalStatus === 'APPROVED' ? '✅' : approvalStatus === 'SOCIALIZED' ? '✅' : '⏸️'}
+                  </div>
+                  <strong>
+                    {approvalStatus === 'APPROVED_AND_SIGNED' ? 'Aprobado y firmado' : 'Aprobado'}
+                  </strong>
+                  {approvalStatus === 'APPROVED_AND_SIGNED' && <span style={{ fontSize: '.75rem', color: '#16a34a' }}>Incluye firma del Representante Legal</span>}
                 </div>
                 <div className="advanced-page__approval-connector" />
+
+                {/* Step 4: SOCIALIZED */}
+                <div className={`advanced-page__approval-step ${approvalStatus === 'SOCIALIZED' ? 'advanced-page__approval-step--active' : approvalStatus === 'ARCHIVED' ? 'advanced-page__approval-step--done' : ''}`}>
+                  <div className="advanced-page__approval-step-icon">{approvalStatus === 'SOCIALIZED' ? '✅' : '⏸️'}</div>
+                  <strong>Socializado</strong>
+                </div>
+                <div className="advanced-page__approval-connector" />
+
+                {/* Step 5: ARCHIVED */}
                 <div className={`advanced-page__approval-step ${approvalStatus === 'ARCHIVED' ? 'advanced-page__approval-step--active' : ''}`}>
                   <div className="advanced-page__approval-step-icon">📦</div>
                   <strong>Archivado</strong>
@@ -878,15 +1114,73 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
 
               {/* Current status */}
               <div className="advanced-page__section" style={{ marginTop: '1rem' }}>
-                <h4>Estado actual: {approvalStatus === 'DRAFT' ? '📝 Borrador' : approvalStatus === 'PENDING_APPROVAL' ? '⏳ Pendiente de aprobación' : approvalStatus === 'APPROVED' ? `✅ Aprobado (v${currentVersion})` : '📦 Archivado'}</h4>
+                <h4>
+                  Estado actual:{' '}
+                  {approvalStatus === 'DRAFT' && '📝 Borrador'}
+                  {approvalStatus === 'PENDING_APPROVAL' && `⏳ Pendiente de aprobación por ${assignedReviewer}`}
+                  {approvalStatus === 'REJECTED' && `❌ Rechazado por ${assignedReviewer}`}
+                  {approvalStatus === 'APPROVED' && `✅ Aprobado (v${currentVersion})`}
+                  {approvalStatus === 'SOCIALIZED' && `✅ Socializado (v${currentVersion})`}
+                  {approvalStatus === 'ARCHIVED' && '📦 Archivado'}
+                </h4>
+
+                {/* DRAFT info */}
                 {approvalStatus === 'DRAFT' && (
                   <p className="muted">El módulo está en edición. Envíalo a aprobación cuando esté listo.</p>
                 )}
+
+                {/* PENDING_APPROVAL info */}
                 {approvalStatus === 'PENDING_APPROVAL' && (
-                  <p className="muted">Pendiente de revisión por MANAGER. Una vez aprobado se creará un snapshot de versión.</p>
+                  <div>
+                    <p className="muted">Pendiente de revisión por {assignedReviewer}. El contenido está bloqueado.</p>
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '.5rem', fontSize: '.9rem' }}>
+                      <span><strong>📅 Enviado:</strong> {submittedAt || '—'}</span>
+                      <span><strong>👤 Revisor:</strong> {assignedReviewer}</span>
+                      <span><strong>🔖 Versión:</strong> v{currentVersion}</span>
+                    </div>
+                  </div>
                 )}
+
+                {/* REJECTED info */}
+                {approvalStatus === 'REJECTED' && (
+                  <div>
+                    <p className="muted">El módulo fue rechazado. Edición habilitada para correcciones.</p>
+                    {rejectionReason && (
+                      <div style={{ marginTop: '.5rem', padding: '.75rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px' }}>
+                        <strong>💬 Comentario del revisor:</strong>
+                        <p style={{ margin: '.25rem 0 0', fontSize: '.9rem', color: '#991b1b' }}>{rejectionReason}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* APPROVED info */}
                 {approvalStatus === 'APPROVED' && (
-                  <p className="muted">El contenido está aprobado y bloqueado. Cualquier cambio requerirá una nueva versión.</p>
+                  <p className="muted">El contenido está aprobado y bloqueado. Procede a firmar como representante legal y socializar.</p>
+                )}
+
+                {/* APPROVED_AND_SIGNED info */}
+                {approvalStatus === 'APPROVED_AND_SIGNED' && (
+                  <div>
+                    <p className="muted">El contenido está aprobado y firmado por el Representante Legal. Procede a socializar.</p>
+                    <div className="advanced-page__version-card" style={{ marginTop: '.5rem', padding: '1rem', background: '#f0fdf4', border: '1px solid #86efac' }}>
+                      <h4 style={{ margin: '0 0 .5rem' }}>📋 Próximo paso requerido</h4>
+                      <p style={{ margin: '0 0 .25rem', fontWeight: 600 }}>Socialización de responsabilidades SG-SST</p>
+                      <p className="muted" style={{ fontSize: '.85rem', margin: 0 }}>
+                        Programa la socialización con los trabajadores para completar el ciclo de aprobación.
+                      </p>
+                      <div className="actions" style={{ marginTop: '.75rem' }}>
+                        <Button type="button" onClick={() => setSidebarTab('socializacion')}>
+                          📢 Ir a Socialización
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SOCIALIZED info */}
+                {approvalStatus === 'SOCIALIZED' && (
+                  <p className="muted">Ciclo de aprobación completado. Módulo socializado exitosamente.</p>
                 )}
               </div>
 
@@ -897,19 +1191,60 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
                     📤 Enviar a aprobación
                   </Button>
                 )}
-                {(approvalStatus === 'PENDING_APPROVAL') && (
-                  <Button type="button" onClick={approveModule}>
-                    ✅ Aprobar módulo (solo MANAGER)
-                  </Button>
+                {approvalStatus === 'PENDING_APPROVAL' && (
+                  <>
+                    {/* MANAGER/OWNER: show Approve/Reject buttons */}
+                    {canApprove && (
+                      <>
+                        <Button type="button" onClick={approveModule} disabled={loading}>
+                          ✅ Aprobar módulo
+                        </Button>
+                        <Button type="button" variant="danger" onClick={() => setShowRejectModal(true)} disabled={loading}>
+                          ❌ Rechazar
+                        </Button>
+                      </>
+                    )}
+                    {/* ADMIN/MEMBER: show pending status badge */}
+                    {!canApprove && (
+                      <Button type="button" variant="secondary" disabled>
+                        ⏳ Pendiente de revisión por Gerencia
+                      </Button>
+                    )}
+                  </>
+                )}
+                {approvalStatus === 'REJECTED' && (
+                  <>
+                    <Button type="button" onClick={submitForApproval}>
+                      📤 Reenviar a aprobación
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => { setRejectionReason(''); notify('Comentario de rechazo limpiado.'); }}>
+                      🗑️ Limpiar comentario
+                    </Button>
+                  </>
                 )}
                 {approvalStatus === 'APPROVED' && (
+                  <>
+                    <Button type="button" onClick={() => setSidebarTab('socializacion')}>
+                      ✍ Firmar y socializar (representante legal)
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={archiveModule}>
+                      📦 Archivar módulo
+                    </Button>
+                  </>
+                )}
+                {approvalStatus === 'APPROVED_AND_SIGNED' && (
+                  <>
+                    <Button type="button" onClick={() => setSidebarTab('socializacion')}>
+                      📢 Ir a Socialización
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={archiveModule}>
+                      📦 Archivar módulo
+                    </Button>
+                  </>
+                )}
+                {approvalStatus === 'SOCIALIZED' && (
                   <Button type="button" variant="ghost" onClick={archiveModule}>
                     📦 Archivar módulo
-                  </Button>
-                )}
-                {approvalStatus === 'PENDING_APPROVAL' && (
-                  <Button type="button" variant="secondary" onClick={() => { setApprovalStatus('DRAFT'); addAudit({ action: 'Devuelto a borrador', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: 'DRAFT' }); markDirty(); notify('Devuelto a borrador.'); }}>
-                    ↩️ Devolver a borrador
                   </Button>
                 )}
                 {approvalStatus === 'ARCHIVED' && (
@@ -918,6 +1253,37 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
                   </Button>
                 )}
               </div>
+
+              {/* Rejection modal */}
+              {showRejectModal && (
+                <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+                  <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                    <h3>❌ Rechazar módulo</h3>
+                    <p>Indica el motivo del rechazo para que ADMIN pueda corregir:</p>
+                    <textarea
+                      className="input"
+                      rows={4}
+                      value={rejectCommentInput}
+                      onChange={(e) => setRejectCommentInput(e.target.value)}
+                      placeholder="Describe qué necesita corrección... (obligatorio)"
+                      style={{ width: '100%', minHeight: '80px', marginTop: '.5rem' }}
+                    />
+                    <div className="actions" style={{ marginTop: '1rem' }}>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        disabled={!rejectCommentInput.trim()}
+                        onClick={() => rejectModule(rejectCommentInput.trim())}
+                      >
+                        ❌ Rechazar y devolver a ADMIN
+                      </Button>
+                      <Button type="button" variant="ghost" onClick={() => { setShowRejectModal(false); setRejectCommentInput(''); }}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Auto compliance info */}
               <div className="advanced-page__section">
@@ -1054,7 +1420,7 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
               />
 
               {/* Approval-dependent content */}
-              {approvalStatus === 'APPROVED' && acceptanceStats && acceptanceStats.total === 0 && (
+              {(approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED') && acceptanceStats && acceptanceStats.total === 0 && (
                 <div className="advanced-page__section">
                   <h4>📋 Asignar responsabilidades</h4>
                   <p className="muted">
@@ -1106,7 +1472,7 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
                 </div>
               )}
 
-              {approvalStatus !== 'APPROVED' && (
+              {approvalStatus !== 'APPROVED' && approvalStatus !== 'APPROVED_AND_SIGNED' && (
                 <div className="advanced-page__banner advanced-page__banner--warning">
                   ⏳ La matriz debe estar aprobada para iniciar el flujo de aceptación y firma.
                   Ve a la sección &quot;✍ Aprobaciones&quot; para aprobarla.
@@ -1669,8 +2035,23 @@ export default function AdvancedManagementPage({ token }: { token: string }) {
             </div>
           )}
 
+          {/* ======== SOCIALIZACIÓN ======== */}
+          {sidebarTab === 'socializacion' && (
+            <SocializationDashboard
+              token={token}
+              responsibilitiesDocId={standardCode || '1.1.2'}
+              documentVersion={currentVersion}
+              onComplete={() => {
+                setApprovalStatus('SOCIALIZED');
+                setSocializedAt(new Date().toLocaleString());
+                addAudit({ action: 'Socialización completada', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: approvalStatus, newValue: 'SOCIALIZED' });
+                markDirty();
+              }}
+            />
+          )}
+
           {/* ======== DEFAULT FALLBACK ======== */}
-          {sidebarTab !== 'resumen' && sidebarTab !== 'gerencia' && sidebarTab !== 'responsable-sst' && sidebarTab !== 'trabajadores' && sidebarTab !== 'copasst' && sidebarTab !== 'convivencia' && sidebarTab !== 'brigada' && sidebarTab !== 'aprobaciones' && sidebarTab !== 'versiones' && sidebarTab !== 'historial' && sidebarTab !== 'aceptaciones' && sidebarTab !== 'pendientes' && sidebarTab !== 'renovaciones' && (
+          {sidebarTab !== 'resumen' && sidebarTab !== 'gerencia' && sidebarTab !== 'responsable-sst' && sidebarTab !== 'trabajadores' && sidebarTab !== 'copasst' && sidebarTab !== 'convivencia' && sidebarTab !== 'brigada' && sidebarTab !== 'aprobaciones' && sidebarTab !== 'versiones' && sidebarTab !== 'historial' && sidebarTab !== 'aceptaciones' && sidebarTab !== 'pendientes' && sidebarTab !== 'renovaciones' && sidebarTab !== 'socializacion' && (
             <div className="advanced-page__section">
               <h3>Sección en desarrollo</h3>
               <p className="muted">Contenido adicional próximamente.</p>

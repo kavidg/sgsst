@@ -8,6 +8,7 @@ import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-use
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
+import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
 import { CopasstController } from './copasst.controller';
 import { CopasstService } from './copasst.service';
 import { CopasstPeriod, CopasstPeriodSchema } from './schemas/copasst.schema';
@@ -22,6 +23,7 @@ import { CopasstPeriod, CopasstPeriodSchema } from './schemas/copasst.schema';
       { name: CopasstPeriod.name, schema: CopasstPeriodSchema },
       { name: User.name, schema: UserSchema },
       { name: CompanyUser.name, schema: CompanyUserSchema },
+      { name: Employee.name, schema: EmployeeSchema },
     ]),
   ],
   controllers: [CopasstController],

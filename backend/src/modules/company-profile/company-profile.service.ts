@@ -48,6 +48,7 @@ export class CompanyProfileService {
       'maleEmployees', 'femaleEmployees', 'otherGenderEmployees',
       'ageUnder18', 'age18to25', 'age26to35', 'age36to45', 'age46to60', 'ageOver60',
       'workSchedules', 'arlName', 'arlAffiliateNumber', 'sstStartDate', 'implementationStatus',
+      'managerActsAsLegalRepresentative',
     ]);
 
     for (const [key, value] of Object.entries(payload)) {

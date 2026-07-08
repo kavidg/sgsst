@@ -18,6 +18,9 @@ export type AutoCommunicationModule =
   | 'EMERGENCY_PLAN_UPDATED'
   | 'PROCEDURE_UPDATED'
   | 'AUDIT_RESULTS'
+  | 'CONVIVENCIA_ELECTION'
+  | 'CONVIVENCIA_CAMPAIGN'
+  | 'CONVIVENCIA_VOTING'
   | 'DOCUMENT_PUBLISHED';
 
 export interface AutoCommunicationPayload {

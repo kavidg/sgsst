@@ -13,6 +13,8 @@ export interface NewAlertEvent {
   companyId: string;
   message: string;
   severity: AlertSeverity;
+  actionUrl?: string;
+  targetUserId?: string;
 }
 
 @WebSocketGateway({

@@ -108,6 +108,29 @@ export class ResourceAuditEntry {
   timestamp!: Date;
 }
 
+export enum ResourceAssignmentApprovalStatus {
+  DRAFT = 'DRAFT',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  APPROVED = 'APPROVED',
+  APPROVED_AND_SIGNED = 'APPROVED_AND_SIGNED',
+  REJECTED = 'REJECTED',
+  ARCHIVED = 'ARCHIVED',
+}
+
+@Schema({ _id: false })
+export class ApprovalActor {
+  @Prop({ required: true })
+  userId!: string;
+  @Prop({ required: true })
+  email!: string;
+  @Prop()
+  role?: string;
+  @Prop()
+  companyId?: string;
+  @Prop({ required: true })
+  timestamp!: string;
+}
+
 @Schema({ timestamps: true, collection: 'phva_advanced_resource_assignment' })
 export class PhvaAdvancedResourceAssignment {
   @Prop({ type: Types.ObjectId, ref: 'Company', required: true, index: true })
@@ -136,6 +159,38 @@ export class PhvaAdvancedResourceAssignment {
   complianceStatus!: ResourceAssignmentComplianceStatus;
   @Prop({ default: 'Pendiente completar recursos y aprobación gerencial.' })
   complianceReason!: string;
+
+  // === Approval workflow fields ===
+  @Prop({ enum: ResourceAssignmentApprovalStatus, default: ResourceAssignmentApprovalStatus.DRAFT })
+  approvalStatus!: ResourceAssignmentApprovalStatus;
+
+  @Prop({ default: false })
+  locked!: boolean;
+
+  @Prop({ default: '' })
+  rejectionReason!: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  submittedBy?: Types.ObjectId;
+
+  @Prop()
+  submittedAt?: Date;
+
+  @Prop({ type: ApprovalActor })
+  approvedBy?: ApprovalActor;
+
+  @Prop({ type: ApprovalActor })
+  rejectedBy?: ApprovalActor;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  updatedBy?: Types.ObjectId;
+
+  @Prop({ default: '1.0' })
+  currentVersion!: string;
+
+  @Prop({ default: '' })
+  assignedReviewer!: string;
 }
 
 export const PhvaAdvancedResourceAssignmentSchema = SchemaFactory.createForClass(PhvaAdvancedResourceAssignment);
+PhvaAdvancedResourceAssignmentSchema.index({ companyId: 1, itemCode: 1 }, { unique: true });

@@ -11,12 +11,18 @@ import {
   Req,
   UnauthorizedException,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { AuthenticatedUser, RequestWithUser } from '../auth/auth.types';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UsersService } from './users.service';
 import { User } from './schemas/user.schema';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
@@ -167,5 +173,82 @@ export class UsersController {
     }
 
     return user;
+  }
+
+  @Get('me')
+  async getMyProfile(
+    @CurrentUser() authenticatedUser: AuthenticatedUser | undefined,
+  ): Promise<User> {
+    if (!authenticatedUser) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    const user = await this.usersService.findByFirebaseUid(authenticatedUser.uid);
+
+    if (!user) {
+      throw new NotFoundException('User profile not found');
+    }
+
+    return user;
+  }
+
+  @Patch('me')
+  async updateMyProfile(
+    @CurrentUser() authenticatedUser: AuthenticatedUser | undefined,
+    @Body() dto: UpdateProfileDto,
+  ): Promise<User> {
+    if (!authenticatedUser) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    return this.usersService.updateMyProfile(authenticatedUser.uid, dto);
+  }
+
+  @Post('me/avatar')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  async uploadMyAvatar(
+    @CurrentUser() authenticatedUser: AuthenticatedUser | undefined,
+    @UploadedFile() file: any,
+  ): Promise<User> {
+    if (!authenticatedUser) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    if (!file) {
+      throw new BadRequestException('Avatar file is required');
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Avatar must be an image file');
+    }
+
+    const base64 = file.buffer.toString('base64');
+    const dataUrl = `data:${file.mimetype};base64,${base64}`;
+
+    return this.usersService.updateMyProfile(authenticatedUser.uid, { avatarUrl: dataUrl });
+  }
+
+  @Post('me/signature')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  async uploadMySignature(
+    @CurrentUser() authenticatedUser: AuthenticatedUser | undefined,
+    @UploadedFile() file: any,
+  ): Promise<User> {
+    if (!authenticatedUser) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    if (!file) {
+      throw new BadRequestException('Signature file is required');
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Signature must be an image file');
+    }
+
+    const base64 = file.buffer.toString('base64');
+    const dataUrl = `data:${file.mimetype};base64,${base64}`;
+
+    return this.usersService.updateMyProfile(authenticatedUser.uid, { signatureUrl: dataUrl });
   }
 }

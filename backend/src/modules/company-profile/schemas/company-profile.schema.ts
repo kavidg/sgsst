@@ -219,6 +219,10 @@ export class CompanyProfile {
   @Prop({ enum: ['Not Started', 'Initial Stage', 'In Progress', 'Implemented', 'Mature'] })
   implementationStatus?: ImplementationStatus;
 
+  // ========== LEGAL REPRESENTATIVE CONFIGURATION ==========
+  @Prop({ default: true })
+  managerActsAsLegalRepresentative!: boolean;
+
   // ========== TAB 4: CENTROS DE TRABAJO ==========
   @Prop({ type: [WorkCenterSchema], default: [] })
   workCenters!: WorkCenter[];

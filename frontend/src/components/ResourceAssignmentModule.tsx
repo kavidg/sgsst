@@ -5,8 +5,13 @@ import {
   ResponsableSstComplianceStatus,
   fetchResourceAssignmentAdvanced,
   updateResourceAssignmentAdvanced,
+  submitResourceAssignmentAdvanced,
+  approveResourceAssignmentAdvanced,
+  rejectResourceAssignmentAdvanced,
   fetchEmployees,
   EmployeeModel,
+  fetchMyProfile,
+  UserModel,
 } from '../api';
 import { Button } from './ui/Button';
 import {
@@ -135,7 +140,7 @@ interface VersionEntry {
   approvedAt?: string;
 }
 
-type ApprovalStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'ARCHIVED';
+type ApprovalStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'APPROVED_AND_SIGNED' | 'REJECTED' | 'ARCHIVED';
 
 // ============================================================
 // AUTO-SAVE HOOK
@@ -178,6 +183,11 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const initialLoadDone = useRef(false);
 
+  // User / role
+  const [userProfile, setUserProfile] = useState<UserModel | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [showRejectModal, setShowRejectModal] = useState(false);
+
   // Approval / version state
   const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>('DRAFT');
   const [versions, setVersions] = useState<VersionEntry[]>([
@@ -198,17 +208,29 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
 
   const markDirty = () => setDirty(true);
 
+  const role = userProfile?.role ?? 'member';
+  const canApprove = role === 'owner' || role === 'manager';
+
   // Load data
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [data, employeeData] = await Promise.all([
+      const [data, employeeData, profile] = await Promise.all([
         fetchResourceAssignmentAdvanced(token),
         fetchEmployees(token).catch(() => [] as EmployeeModel[]),
+        fetchMyProfile(token).catch(() => null as UserModel | null),
       ]);
       setRecord(data);
       setEmployees(employeeData);
+      setUserProfile(profile);
+      // Sync approval state from backend
+      const recordStatus = (data as unknown as Record<string, string>).approvalStatus as string | undefined;
+      const recordLocked = (data as unknown as Record<string, boolean>).locked as boolean | undefined;
+      const recordVersion = (data as unknown as Record<string, string>).currentVersion as string | undefined;
+      if (recordStatus) setApprovalStatus(recordStatus as ApprovalStatus);
+      if (recordLocked) setLocked(recordLocked);
+      if (recordVersion) setCurrentVersion(recordVersion);
       setDirty(false);
       initialLoadDone.current = true;
     } catch {
@@ -403,25 +425,58 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
   };
 
   // Approval actions
-  const submitForApproval = () => {
-    setApprovalStatus('PENDING_APPROVAL');
-    addAudit({ action: 'Enviado a aprobación', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'DRAFT', newValue: 'PENDING_APPROVAL' });
-    markDirty();
-    notify('Solicitud de aprobación enviada.');
+  const submitForApproval = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const saved = await submitResourceAssignmentAdvanced(token);
+      setRecord(saved);
+      setApprovalStatus('PENDING_APPROVAL');
+      setLocked(true);
+      addAudit({ action: 'Enviado a aprobación', user: userProfile?.email ?? 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'DRAFT', newValue: 'PENDING_APPROVAL' });
+      notify('Solicitud de aprobación enviada.');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Error al enviar a aprobación.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const approveModule = () => {
-    setApprovalStatus('APPROVED');
-    setLocked(true);
-    updateRecord({ approval: { ...record?.approval, approved: true, signedBy: 'Manager', signedAt: new Date().toISOString() } });
-    if (!record) return;
-    const newVer = (parseFloat(currentVersion) + 0.1).toFixed(1);
-    const verEntry: VersionEntry = { version: newVer, createdAt: new Date().toISOString(), createdBy: 'Sistema', approvedBy: 'Manager', approvedAt: new Date().toISOString() };
-    setCurrentVersion(newVer);
-    setVersions((prev) => [verEntry, ...prev]);
-    addAudit({ action: 'Aprobado', user: 'Manager', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: 'APPROVED' });
-    markDirty();
-    notify('Módulo aprobado.');
+  const approveModule = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const saved = await approveResourceAssignmentAdvanced(token);
+      setRecord(saved);
+      const newStatus = (saved as unknown as Record<string, string>).approvalStatus as string ?? 'APPROVED';
+      setApprovalStatus(newStatus as ApprovalStatus);
+      setLocked(true);
+      addAudit({ action: newStatus === 'APPROVED_AND_SIGNED' ? 'Aprobado y firmado por Representante Legal' : 'Aprobado por MANAGER', user: userProfile?.email ?? 'Manager', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: newStatus });
+      notify('Módulo aprobado.');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Error al aprobar.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rejectModule = async (reason: string) => {
+    if (!token || !reason.trim()) return;
+    setLoading(true);
+    try {
+      const saved = await rejectResourceAssignmentAdvanced(token, reason);
+      setRecord(saved);
+      setApprovalStatus('REJECTED');
+      setLocked(false);
+      addAudit({ action: 'Rechazado por MANAGER', user: userProfile?.email ?? 'Manager', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: 'REJECTED' });
+      setShowRejectModal(false);
+      setRejectionReason('');
+      notify('Módulo rechazado.');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Error al rechazar.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const archiveModule = () => {
@@ -508,15 +563,54 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
       {/* Toast */}
       {toast && <div className="toast-alert" style={{ margin: '0 1rem' }}><p>{toast}</p></div>}
 
+      {/* Rejection reason modal */}
+      {showRejectModal && (
+        <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>❌ Rechazar solicitud</h3>
+            <p>Indica el motivo del rechazo:</p>
+            <textarea
+              className="input"
+              rows={3}
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Motivo del rechazo..."
+              style={{ width: '100%', marginBottom: '.5rem' }}
+            />
+            <div className="actions">
+              <Button type="button" disabled={!rejectionReason.trim() || loading} onClick={() => rejectModule(rejectionReason)}>
+                {loading ? 'Rechazando...' : '✅ Confirmar rechazo'}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => { setShowRejectModal(false); setRejectionReason(''); }}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Approval banners */}
-      {approvalStatus === 'APPROVED' && (
-        <div className="resource-page__banner resource-page__banner--success">✅ Módulo aprobado (v{currentVersion}). Contenido bloqueado.</div>
+      {(approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED') && (
+        <div className="resource-page__banner resource-page__banner--success">
+          ✅ Módulo {approvalStatus === 'APPROVED_AND_SIGNED' ? 'aprobado y firmado por Representante Legal' : 'aprobado'} (v{currentVersion}). Contenido bloqueado.
+        </div>
+      )}
+      {approvalStatus === 'REJECTED' && (
+        <div className="resource-page__banner resource-page__banner--danger">
+          ❌ Módulo rechazado. Edición reabierta para correcciones.
+        </div>
       )}
       {approvalStatus === 'ARCHIVED' && (
         <div className="resource-page__banner resource-page__banner--archived">📦 Módulo archivado. Solo lectura.</div>
       )}
       {approvalStatus === 'PENDING_APPROVAL' && (
-        <div className="resource-page__banner resource-page__banner--warning">⏳ Pendiente de aprobación por Manager.</div>
+        <>
+          {canApprove ? (
+            <div className="resource-page__banner resource-page__banner--warning">⏳ Este documento se encuentra en revisión por Gerencia.</div>
+          ) : (
+            <div className="resource-page__banner resource-page__banner--warning">⏳ Pendiente de aprobación por Manager.</div>
+          )}
+        </>
       )}
 
       <div className="resource-page__body">
@@ -1477,15 +1571,19 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
                 El módulo de Asignación de Recursos SG-SST sigue un flujo de aprobación. Una vez aprobado, el contenido se bloquea.
               </p>
               <div className="budget-page__approval-steps">
-                <div className={`budget-page__approval-step ${approvalStatus === 'DRAFT' ? 'budget-page__approval-step--active' : ''}`}>
+                <div className={`budget-page__approval-step ${approvalStatus === 'DRAFT' ? 'budget-page__approval-step--active' : approvalStatus === 'PENDING_APPROVAL' || approvalStatus === 'REJECTED' || approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED' || approvalStatus === 'ARCHIVED' ? 'budget-page__approval-step--done' : ''}`}>
                   <strong>📝 Borrador</strong>
                 </div>
                 <div className="budget-page__approval-connector" />
-                <div className={`budget-page__approval-step ${approvalStatus === 'PENDING_APPROVAL' ? 'budget-page__approval-step--active' : approvalStatus === 'APPROVED' ? 'budget-page__approval-step--done' : ''}`}>
+                <div className={`budget-page__approval-step ${approvalStatus === 'PENDING_APPROVAL' ? 'budget-page__approval-step--active' : approvalStatus === 'REJECTED' ? 'budget-page__approval-step--danger' : approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED' || approvalStatus === 'ARCHIVED' ? 'budget-page__approval-step--done' : ''}`}>
                   <strong>⏳ Pendiente aprobación</strong>
                 </div>
                 <div className="budget-page__approval-connector" />
-                <div className={`budget-page__approval-step ${approvalStatus === 'APPROVED' ? 'budget-page__approval-step--active' : ''}`}>
+                <div className={`budget-page__approval-step ${approvalStatus === 'REJECTED' ? 'budget-page__approval-step--active budget-page__approval-step--danger' : approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED' || approvalStatus === 'ARCHIVED' ? 'budget-page__approval-step--done' : ''}`}>
+                  <strong>❌ Rechazado</strong>
+                </div>
+                <div className="budget-page__approval-connector" />
+                <div className={`budget-page__approval-step ${approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED' ? 'budget-page__approval-step--active' : approvalStatus === 'ARCHIVED' ? 'budget-page__approval-step--done' : ''}`}>
                   <strong>✅ Aprobado</strong>
                 </div>
                 <div className="budget-page__approval-connector" />
@@ -1494,12 +1592,37 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
                 </div>
               </div>
               <div className="actions" style={{ marginTop: '1rem' }}>
-                {approvalStatus === 'DRAFT' && <Button type="button" onClick={submitForApproval}>📤 Enviar a aprobación</Button>}
-                {approvalStatus === 'PENDING_APPROVAL' && <Button type="button" onClick={approveModule}>✅ Aprobar módulo (Manager)</Button>}
-                {approvalStatus === 'APPROVED' && <Button type="button" variant="ghost" onClick={archiveModule}>📦 Archivar módulo</Button>}
-                {approvalStatus === 'PENDING_APPROVAL' && (
-                  <Button type="button" variant="secondary" onClick={() => { setApprovalStatus('DRAFT'); addAudit({ action: 'Devuelto a borrador', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: 'PENDING_APPROVAL', newValue: 'DRAFT' }); markDirty(); notify('Devuelto a borrador.'); }}>
-                    ↩️ Devolver a borrador
+                {approvalStatus === 'DRAFT' && !locked && (
+                  <Button type="button" onClick={submitForApproval} disabled={loading}>
+                    {loading ? 'Enviando...' : '📤 Enviar a aprobación'}
+                  </Button>
+                )}
+                {approvalStatus === 'PENDING_APPROVAL' && canApprove && (
+                  <>
+                    <Button type="button" onClick={approveModule} disabled={loading}>
+                      {loading ? 'Aprobando...' : '✅ Aprobar módulo'}
+                    </Button>
+                    <Button type="button" variant="danger" onClick={() => setShowRejectModal(true)} disabled={loading}>
+                      ❌ Rechazar
+                    </Button>
+                  </>
+                )}
+                {approvalStatus === 'PENDING_APPROVAL' && !canApprove && (
+                  <p className="muted">Este documento se encuentra en revisión por Gerencia.</p>
+                )}
+                {approvalStatus === 'REJECTED' && (
+                  <>
+                    <p className="muted" style={{ marginBottom: '.5rem' }}>
+                      Motivo del rechazo: <strong>{record.rejectionReason || 'No especificado'}</strong>
+                    </p>
+                    <Button type="button" onClick={submitForApproval} disabled={loading}>
+                      {loading ? 'Enviando...' : '📤 Reenviar a aprobación'}
+                    </Button>
+                  </>
+                )}
+                {(approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED') && (
+                  <Button type="button" variant="ghost" onClick={archiveModule}>
+                    📦 Archivar módulo
                   </Button>
                 )}
                 {approvalStatus === 'ARCHIVED' && (
@@ -1510,9 +1633,19 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
               </div>
               <div className="resource-page__section" style={{ marginTop: '1rem' }}>
                 <h4>Estado actual de aprobación</h4>
-                {record.approval?.approved ? (
+                {approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED' ? (
                   <div className="resource-page__banner resource-page__banner--success">
-                    ✅ Aprobado por {record.approval.signedBy || 'Manager'} el {record.approval.signedAt ? new Date(record.approval.signedAt).toLocaleString() : '—'}
+                    ✅ {approvalStatus === 'APPROVED_AND_SIGNED' ? 'Aprobado y firmado por Representante Legal' : 'Aprobado'} 
+                    {record.approval?.signedBy ? ` por ${record.approval.signedBy}` : ''}
+                    {record.approval?.signedAt ? ` el ${new Date(record.approval.signedAt).toLocaleString()}` : ''}
+                  </div>
+                ) : approvalStatus === 'REJECTED' ? (
+                  <div className="resource-page__banner resource-page__banner--danger">
+                    ❌ Rechazado. Motivo: {record.rejectionReason || 'No especificado'}
+                  </div>
+                ) : approvalStatus === 'PENDING_APPROVAL' ? (
+                  <div className="resource-page__banner resource-page__banner--warning">
+                    ⏳ Pendiente de aprobación gerencial.
                   </div>
                 ) : (
                   <p className="muted">Pendiente de aprobación gerencial.</p>

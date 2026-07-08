@@ -58,13 +58,56 @@ export class CopasstVote {
 }
 
 @Schema({ _id: false })
-export class CopasstMeeting {
+export class CopasstRegistrationCampaign {
+  @Prop({ required: true }) openingDate!: Date;
+  @Prop({ required: true }) closingDate!: Date;
+  @Prop({ type: [String], default: [] }) includedDepartments!: string[];
+  @Prop({ type: [String], default: [] }) requirements!: string[];
+  @Prop({ required: true }) secureToken!: string;
+  @Prop({ default: true }) isActive!: boolean;
+  @Prop({ default: '' }) adminNotes!: string;
+}
+
+@Schema({ _id: false })
+export class CopasstCandidateExtended {
+  @Prop({ required: true }) name!: string;
+  @Prop({ required: true }) document!: string;
+  @Prop({ required: true }) phone!: string;
+  @Prop({ required: true }) area!: string;
+  @Prop({ required: true }) position!: string;
+  @Prop({ required: true }) motivation!: string;
+  @Prop({ default: false }) acceptedTerms!: boolean;
+  @Prop({ default: '' }) email?: string;
+  @Prop({ enum: ['PENDIENTE', 'APROBADO', 'RECHAZADO', 'INFO_REQUESTED'], default: 'PENDIENTE' }) adminStatus!: string;
+  @Prop({ default: '' }) adminComment!: string;
+  @Prop({ default: 0 }) votes!: number;
+  @Prop() photoUrl?: string;
+  @Prop() ipAddress?: string;
+  @Prop() device?: string;
+  @Prop({ type: Date }) registeredAt?: Date;
+}
+
+@Schema({ _id: false })
+export class CopasstVoteExtended {
+  @Prop({ required: true }) document!: string;
+  @Prop({ required: true }) candidateDocument!: string;
+  @Prop({ required: true }) otpValidated!: boolean;
+  @Prop({ required: true }) votedAt!: Date;
+  @Prop() ipAddress?: string;
+  @Prop() device?: string;
+  @Prop() token?: string;
+}
+
+@Schema({ _id: false })
+export class CopasstMeetingExtended {
   @Prop({ required: true }) meetingDate!: Date;
   @Prop({ enum: ['PROGRAMADA', 'CANCELADA', 'CERRADA'], default: 'PROGRAMADA' }) status!: string;
   @Prop({ type: [String], default: [] }) attendees!: string[];
   @Prop({ default: '' }) agenda!: string;
   @Prop({ default: '' }) development!: string;
-  @Prop({ type: [String], default: [] }) commitments!: string[];
+  @Prop({ type: [String], default: [] }) topicList!: string[];
+  @Prop() minutesPdfUrl?: string;
+  @Prop() attendanceEvidence?: string;
 }
 
 @Schema({ _id: false })
@@ -85,10 +128,50 @@ export class CopasstPeriod {
   @Prop({ type: [CopasstMember], default: [] }) members!: CopasstMember[];
   @Prop({ type: [CopasstCandidate], default: [] }) candidates!: CopasstCandidate[];
   @Prop({ type: [CopasstVote], default: [] }) votes!: CopasstVote[];
-  @Prop({ type: [CopasstMeeting], default: [] }) meetings!: CopasstMeeting[];
+  @Prop({ type: [CopasstMeetingExtended], default: [] }) meetings!: CopasstMeetingExtended[];
   @Prop({ type: [CopasstDocument], default: [] }) documents!: CopasstDocument[];
   @Prop({ type: [CopasstSignature], default: [] }) signatures!: CopasstSignature[];
   @Prop({ type: [CopasstAuditHistory], default: [] }) auditHistory!: CopasstAuditHistory[];
+  @Prop({ type: [CopasstCandidateExtended], default: [] }) candidateExtended!: CopasstCandidateExtended[];
+  @Prop({ type: [CopasstVoteExtended], default: [] }) votesExtended!: CopasstVoteExtended[];
+  @Prop({ type: CopasstRegistrationCampaign }) registrationCampaign?: CopasstRegistrationCampaign;
+  @Prop({ type: [Object], default: [] }) commitments!: Array<{
+    _id?: Types.ObjectId;
+    description: string;
+    responsibleParty: string;
+    deadline: Date;
+    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'CANCELLED';
+    meetingId?: string;
+    evidenceUrl?: string;
+    createdAt: Date;
+    updatedAt?: Date;
+    completedAt?: Date;
+  }>;
+  @Prop({ type: [Object], default: [] }) evidence!: Array<{
+    _id?: Types.ObjectId;
+    type: 'MINUTES' | 'ATTENDANCE' | 'PHOTO' | 'DOCUMENT' | 'PDF';
+    title: string;
+    fileName: string;
+    fileUrl: string;
+    uploadedBy: string;
+    uploadedAt: Date;
+    meetingId?: string;
+  }>;
+  // Approval workflow
+  @Prop({ enum: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'APPROVED_AND_SIGNED', 'REJECTED', 'ARCHIVED'], default: 'DRAFT' }) approvalStatus!: string;
+  @Prop({ default: false }) locked!: boolean;
+  @Prop({ default: '' }) rejectionReason!: string;
+  @Prop({ default: '1.0' }) currentVersion!: string;
+  @Prop({ default: 'Manager' }) assignedReviewer!: string;
+  @Prop() submittedAt?: Date;
+  @Prop({ type: Object }) approvedBy?: { userId: string; email: string; role: string; timestamp: string };
+  @Prop({ type: Object }) rejectedBy?: { userId: string; email: string; role: string; reason: string; timestamp: string };
+  @Prop({ type: Types.ObjectId }) updatedBy?: Types.ObjectId;
+  @Prop({ default: 0 }) totalEmployees!: number;
+  @Prop({ default: true }) requiresCopasst!: boolean;
+  @Prop({ default: '' }) constitutionMinutesPdfUrl!: string;
+
 }
 
 export const CopasstPeriodSchema = SchemaFactory.createForClass(CopasstPeriod);

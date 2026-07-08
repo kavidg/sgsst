@@ -31,6 +31,8 @@ import { CompanyProfileModule } from './modules/company-profile/company-profile.
 import { ImplementationWizardModule } from './modules/implementation-wizard/implementation-wizard.module';
 import { WorkerSignatureCampaignModule } from './modules/worker-signature-campaign/worker-signature-campaign.module';
 import { ResponsibilityMatrixModule } from './modules/responsibility-matrix/responsibility-matrix.module';
+import { SocializationModule } from './modules/socialization/socialization.module';
+import { ConvivenciaModule } from './modules/convivencia/convivencia.module';
 
 @Module({
   imports: [
@@ -73,6 +75,8 @@ import { ResponsibilityMatrixModule } from './modules/responsibility-matrix/resp
     ImplementationWizardModule,
     WorkerSignatureCampaignModule,
     ResponsibilityMatrixModule,
+    SocializationModule,
+    ConvivenciaModule,
   ],
 })
 export class AppModule {}

@@ -4,9 +4,10 @@ import { Model, Types } from 'mongoose';
 import { AlertsService } from '../alerts/alerts.service';
 import { AutoCommunicationService } from '../communication/auto-communication.service';
 import { Company, CompanyDocument } from '../companies/schemas/company.schema';
+import { CompanyProfile, CompanyProfileDoc } from '../company-profile/schemas/company-profile.schema';
 import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
 import { AlertSeverity } from '../alerts/schemas/alert.schema';
-import { UserDocument } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
 import {
   PhvaAdvancedResponsableSst,
@@ -25,6 +26,7 @@ import {
   PhvaAdvancedResourceAssignment,
   PhvaAdvancedResourceAssignmentDocument,
   ResourceAssignmentComplianceStatus,
+  ResourceAssignmentApprovalStatus,
 } from './schemas/phva-advanced-resource-assignment.schema';
 import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dto';
 import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
@@ -87,6 +89,10 @@ export class PhvaAdvancedService {
     private readonly companyModel: Model<CompanyDocument>,
     @InjectModel(Employee.name)
     private readonly employeeModel: Model<EmployeeDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
+    @InjectModel(CompanyProfile.name)
+    private readonly companyProfileModel: Model<CompanyProfileDoc>,
     private readonly alertsService: AlertsService,
     private readonly autoCommService: AutoCommunicationService,
     private readonly policyTemplateService: PolicyTemplateService,
@@ -100,6 +106,11 @@ export class PhvaAdvancedService {
 
   async updateResourceAssignment(companyId: Types.ObjectId, user: UserDocument, dto: UpdateResourceAssignmentDto) {
     const record = await this.findOrCreateResourceAssignment(companyId);
+
+    if (record.locked) {
+      throw new BadRequestException('El módulo está bloqueado. No se puede editar.');
+    }
+
     const before = JSON.stringify({
       financial: record.financialResources.length,
       human: record.humanResources.length,
@@ -146,6 +157,187 @@ export class PhvaAdvancedService {
     return record;
   }
 
+  async submitResourceAssignment(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateResourceAssignment(companyId);
+
+    if (record.approvalStatus === 'PENDING_APPROVAL') {
+      throw new BadRequestException('El módulo ya está pendiente de aprobación.');
+    }
+    if (record.approvalStatus === 'APPROVED' || record.approvalStatus === 'APPROVED_AND_SIGNED') {
+      throw new BadRequestException('El módulo ya está aprobado.');
+    }
+
+    // Bump version
+    const currentVer = parseFloat(record.currentVersion || '1.0');
+    const newVer = (currentVer + 0.1).toFixed(1);
+
+    record.approvalStatus = ResourceAssignmentApprovalStatus.PENDING_APPROVAL;
+    record.locked = true;
+    record.currentVersion = newVer;
+    record.submittedBy = this.resolveUserId(user);
+    record.submittedAt = new Date();
+    record.assignedReviewer = 'Manager';
+
+    // Validate that at least one MANAGER exists before creating alerts
+    const managers = await this.userModel.find({ companyId, role: 'manager', isActive: true }).exec();
+    if (managers.length === 0) {
+      throw new BadRequestException('No existe un usuario MANAGER asignado a esta empresa.');
+    }
+
+    const actionUrl = '/advanced-management/1.1.3?mode=review';
+    const alertPromises = managers.map(async (mgr) => {
+      try {
+        await this.alertsService.create({
+          companyId: companyId.toString(),
+          type: 'APPROVAL_REQUEST',
+          message: `📋 Nueva solicitud de aprobación — Módulo: Asignación de Recursos SG-SST (1.1.3). Enviado por: ${user.email}. Fecha: ${new Date().toLocaleDateString()}.`,
+          severity: AlertSeverity.HIGH,
+          targetUserId: mgr._id.toString(),
+          actionUrl,
+          moduleCode: '1.1.3',
+          moduleName: 'Asignación de Recursos',
+          submittedBy: user.email,
+          submittedAt: new Date().toISOString(),
+          documentId: record._id.toString(),
+        });
+      } catch { /* alert failure should not block */ }
+    });
+    await Promise.all(alertPromises);
+
+    record.auditHistory.push({
+      field: 'approvalStatus',
+      oldValue: 'DRAFT',
+      newValue: 'PENDING_APPROVAL',
+      user: user.email,
+      timestamp: new Date(),
+    });
+
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
+  async approveResourceAssignment(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateResourceAssignment(companyId);
+
+    if (record.approvalStatus !== 'PENDING_APPROVAL') {
+      throw new BadRequestException('El módulo no está pendiente de aprobación.');
+    }
+
+    // Check if manager acts as legal representative
+    let managerActsAsLegalRepresentative = true;
+    try {
+      const profile = await this.companyProfileModel.findOne({ companyId }).lean().exec();
+      if (profile !== null) {
+        managerActsAsLegalRepresentative = (profile as unknown as Record<string, unknown>).managerActsAsLegalRepresentative !== false;
+      }
+    } catch { /* use default */ }
+
+    const newStatus = managerActsAsLegalRepresentative
+      ? ResourceAssignmentApprovalStatus.APPROVED_AND_SIGNED
+      : ResourceAssignmentApprovalStatus.APPROVED;
+
+    record.approvalStatus = newStatus;
+    record.locked = true;
+    record.approvedBy = {
+      userId: this.resolveUserId(user).toString(),
+      email: user.email,
+      role: user.role,
+      companyId: companyId.toString(),
+      timestamp: new Date().toISOString(),
+    };
+    record.submittedAt = undefined;
+
+    // Also update the legacy approval field for backward compatibility
+    if (managerActsAsLegalRepresentative) {
+      record.approval = {
+        ...record.approval,
+        approved: true,
+        signedBy: user.email,
+        signedAt: new Date(),
+        version: parseFloat(record.currentVersion || '1.0'),
+      };
+    }
+
+    const auditLabel = managerActsAsLegalRepresentative
+      ? 'Aprobado y firmado por Representante Legal'
+      : 'APPROVED';
+
+    record.auditHistory.push({
+      field: 'approvalStatus',
+      oldValue: 'PENDING_APPROVAL',
+      newValue: newStatus,
+      user: user.email,
+      timestamp: new Date(),
+    });
+
+    // Notify ADMIN users
+    const admins = await this.userModel.find({ companyId, role: { $in: ['admin', 'owner'] }, isActive: true }).exec();
+    const notificationMessage = managerActsAsLegalRepresentative
+      ? `✅ Solicitud aprobada y firmada — Módulo: Asignación de Recursos SG-SST (1.1.3). Aprobado por: ${user.email}. Fecha: ${new Date().toLocaleDateString()}. El MANAGER actúa como Representante Legal, por lo que la aprobación incluye la firma legal.`
+      : `✅ Solicitud aprobada — Módulo: Asignación de Recursos SG-SST (1.1.3). Aprobado por: ${user.email}. Fecha: ${new Date().toLocaleDateString()}.`;
+
+    await Promise.all(admins.map((adminUser) =>
+      this.alertsService.create({
+        companyId: companyId.toString(),
+        type: 'RESOURCE_ASSIGNMENT_APPROVED',
+        message: notificationMessage,
+        severity: AlertSeverity.HIGH,
+      }).catch(() => {}),
+    ));
+
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
+  async rejectResourceAssignment(companyId: Types.ObjectId, user: UserDocument, reason: string) {
+    const record = await this.findOrCreateResourceAssignment(companyId);
+
+    if (record.approvalStatus !== 'PENDING_APPROVAL') {
+      throw new BadRequestException('El módulo no está pendiente de aprobación.');
+    }
+
+    record.approvalStatus = ResourceAssignmentApprovalStatus.REJECTED;
+    record.locked = false;
+    record.rejectionReason = reason;
+    record.submittedAt = undefined;
+    record.rejectedBy = {
+      userId: this.resolveUserId(user).toString(),
+      email: user.email,
+      role: user.role,
+      companyId: companyId.toString(),
+      timestamp: new Date().toISOString(),
+    };
+
+    record.auditHistory.push({
+      field: 'approvalStatus',
+      oldValue: 'PENDING_APPROVAL',
+      newValue: 'REJECTED',
+      user: user.email,
+      timestamp: new Date(),
+    });
+    record.auditHistory.push({
+      field: 'rejectionReason',
+      oldValue: '',
+      newValue: reason,
+      user: user.email,
+      timestamp: new Date(),
+    });
+
+    // Notify ADMIN users
+    const admins = await this.userModel.find({ companyId, role: { $in: ['admin', 'owner'] }, isActive: true }).exec();
+    await Promise.all(admins.map((adminUser) =>
+      this.alertsService.create({
+        companyId: companyId.toString(),
+        type: 'RESOURCE_ASSIGNMENT_REJECTED',
+        message: `❌ Solicitud rechazada — Módulo: Asignación de Recursos SG-SST (1.1.3). Rechazado por: ${user.email}. Motivo: ${reason}. Fecha: ${new Date().toLocaleDateString()}.`,
+        severity: AlertSeverity.HIGH,
+      }).catch(() => {}),
+    ));
+
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
   async findOrCreateResponsibilities(companyId: Types.ObjectId) {
     const current = await this.responsibilitiesModel.findOne({ companyId, itemCode: '1.1.2' }).exec();
     if (current) return current;
@@ -178,6 +370,253 @@ export class PhvaAdvancedService {
       oldValue: `${record.responsibilities.length}`,
       newValue: `${responsibilities.length}`,
     });
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
+  async submitResponsibilities(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateResponsibilities(companyId);
+    // Find the __META__ row
+    const metaIndex = record.responsibilities.findIndex((entry) => entry.title === '__META__');
+    let newVer = '1.1';
+    let assignedReviewer = 'Manager';
+
+    if (metaIndex >= 0) {
+      try {
+        const meta = JSON.parse(record.responsibilities[metaIndex].category);
+        // Bump version
+        const currentVer = parseFloat(meta.currentVersion || '1.0');
+        newVer = (currentVer + 0.1).toFixed(1);
+        meta.approvalStatus = 'PENDING_APPROVAL';
+        meta.locked = true;
+        meta.submittedAt = new Date().toISOString();
+        meta.currentVersion = newVer;
+        meta.assignedReviewer = assignedReviewer;
+        // Add version entry
+        const versions = meta.versions || [];
+        versions.unshift({ version: newVer, createdAt: new Date().toISOString(), createdBy: user.email, approvedBy: undefined });
+        meta.versions = versions;
+        // Add audit trail
+        const auditHistory = meta.auditHistory || [];
+        auditHistory.unshift(
+          { action: 'Enviado a aprobación', user: user.email, date: new Date().toISOString(), field: 'approvalStatus', previousValue: 'DRAFT', newValue: 'PENDING_APPROVAL' },
+          { action: 'Versión creada (snapshot inmmutable)', user: 'Sistema', date: new Date().toISOString(), field: 'version', previousValue: (parseFloat(newVer) - 0.1).toFixed(1), newValue: newVer },
+          { action: 'Notificación enviada a MANAGER', user: 'Sistema', date: new Date().toISOString(), field: 'notification', previousValue: '', newValue: `${assignedReviewer} notificado` },
+        );
+        meta.auditHistory = auditHistory;
+        record.responsibilities[metaIndex].category = JSON.stringify(meta);
+      } catch { /* ignore meta parse error */ }
+    } else {
+      // Create __META__ row if it doesn't exist
+      const meta = {
+        approvalStatus: 'PENDING_APPROVAL',
+        locked: true,
+        submittedAt: new Date().toISOString(),
+        currentVersion: newVer,
+        assignedReviewer,
+        versions: [{ version: newVer, createdAt: new Date().toISOString(), createdBy: user.email }],
+        auditHistory: [
+          { action: 'Enviado a aprobación', user: user.email, date: new Date().toISOString(), field: 'approvalStatus', previousValue: 'DRAFT', newValue: 'PENDING_APPROVAL' },
+          { action: 'Versión creada (snapshot inmmutable)', user: 'Sistema', date: new Date().toISOString(), field: 'version', previousValue: '1.0', newValue: newVer },
+          { action: 'Notificación enviada a MANAGER', user: 'Sistema', date: new Date().toISOString(), field: 'notification', previousValue: '', newValue: `${assignedReviewer} notificado` },
+        ],
+        rejectionReason: '',
+        socializedAt: null,
+      };
+      const metaRow: ResponsibilityAssignmentEntry = {
+        title: '__META__',
+        category: JSON.stringify(meta),
+        role: 'SYSTEM',
+        active: false,
+        requiresSignature: false,
+        status: 'PENDIENTE',
+        signature: { accepted: false, version: 1 },
+      };
+      record.responsibilities.push(metaRow as never);
+    }
+
+    // Validate that at least one MANAGER exists before creating alerts
+    const managers = await this.userModel.find({ companyId, role: 'manager', isActive: true }).exec();
+    console.log(`[submitResponsibilities] companyId=${companyId.toString()}, managersFound=${managers.length}`);
+    for (const mgr of managers) {
+      console.log(`[submitResponsibilities] managerFound id=${mgr._id.toString()}, email=${mgr.email}`);
+    }
+
+    if (managers.length === 0) {
+      throw new BadRequestException('No existe un usuario MANAGER asignado a esta empresa.');
+    }
+
+    const alertPromises = managers.map(async (mgr) => {
+      const actionUrl = `/advanced-management/1.1.2?mode=review`;
+      const alertPayload = {
+        companyId: companyId.toString(),
+        type: 'APPROVAL_REQUEST',
+        message: `📋 Nueva solicitud de aprobación — Módulo: Responsabilidades SG-SST (1.1.2). Enviado por: ${user.email}. Fecha: ${new Date().toLocaleDateString()}.`,
+        severity: AlertSeverity.HIGH,
+        targetUserId: mgr._id.toString(),
+        actionUrl,
+        moduleCode: '1.1.2',
+        moduleName: 'Responsabilidades en SG-SST',
+        submittedBy: user.email,
+        submittedAt: new Date().toISOString(),
+      };
+      console.log(`[submitResponsibilities] creatingAlert for managerId=${mgr._id.toString()}, payload=${JSON.stringify(alertPayload)}`);
+      try {
+        const result = await this.alertsService.create(alertPayload);
+        console.log(`[submitResponsibilities] alertCreated managerId=${mgr._id.toString()}, type=${alertPayload.type}`);
+      } catch (alertError) {
+        console.error(`[submitResponsibilities] alertCreationFailed managerId=${mgr._id.toString()}, error=${alertError instanceof Error ? alertError.message : String(alertError)}`);
+        // Alert failure should not block submission
+      }
+    });
+    await Promise.all(alertPromises);
+
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'approvalStatus',
+      oldValue: 'DRAFT',
+      newValue: 'PENDING_APPROVAL',
+    });
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
+  async approveResponsibilities(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateResponsibilities(companyId);
+
+    // Check if legal representative signature is merged (manager acts as legal rep)
+    let managerActsAsLegalRepresentative = true; // default to true
+    try {
+      const profile = await this.companyProfileModel.findOne({ companyId }).lean().exec();
+      if (profile !== null) {
+        managerActsAsLegalRepresentative = (profile as unknown as Record<string, unknown>).managerActsAsLegalRepresentative !== false;
+      }
+    } catch { /* use default */ }
+
+    const approvalStatus = managerActsAsLegalRepresentative ? 'APPROVED_AND_SIGNED' : 'APPROVED';
+    const auditActionLabel = managerActsAsLegalRepresentative
+      ? 'Aprobado y firmado por Representante Legal'
+      : 'APPROVED';
+
+    // Update metadata embedded in responsibilities array
+    const responsibilities = record.responsibilities.map((entry) => {
+      if (entry.title === '__META__') {
+        try {
+          const meta = JSON.parse(entry.category);
+          meta.approvalStatus = approvalStatus;
+          meta.locked = true;
+          meta.submittedAt = null;
+          meta.approvedBy = { userId: this.resolveUserId(user).toString(), email: user.email, role: user.role, companyId: companyId.toString(), timestamp: new Date().toISOString() };
+
+          // When merged, also register legal representative signature
+          if (managerActsAsLegalRepresentative) {
+            meta.legalRepresentativeSigned = true;
+            meta.legalRepresentativeUserId = this.resolveUserId(user).toString();
+            meta.legalRepresentativeName = `${(user as unknown as Record<string, string>).firstName ?? ''} ${(user as unknown as Record<string, string>).lastName ?? ''}`.trim() || user.email;
+            meta.legalRepresentativeSignedAt = new Date().toISOString();
+            meta.socializedAt = null; // Move to socialization pending
+          }
+
+          entry.category = JSON.stringify(meta);
+        } catch { /* ignore meta parse error */ }
+      }
+      return entry;
+    });
+    record.responsibilities = responsibilities as never;
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'approvalStatus',
+      oldValue: 'PENDING_APPROVAL',
+      newValue: approvalStatus,
+    });
+
+    if (managerActsAsLegalRepresentative) {
+      record.auditHistory.push({
+        userId: this.resolveUserId(user),
+        userEmail: user.email,
+        changedAt: new Date(),
+        field: 'legalRepresentativeSigned',
+        oldValue: 'false',
+        newValue: 'true',
+      });
+      record.auditHistory.push({
+        userId: this.resolveUserId(user),
+        userEmail: user.email,
+        changedAt: new Date(),
+        field: 'legalRepresentativeName',
+        oldValue: '',
+        newValue: `${(user as unknown as Record<string, string>).firstName ?? ''} ${(user as unknown as Record<string, string>).lastName ?? ''}`.trim() || user.email,
+      });
+    }
+
+    // Notify ADMIN users
+    const admins = await this.userModel.find({ companyId, role: { $in: ['admin', 'owner'] }, isActive: true }).exec();
+    const notificationMessage = managerActsAsLegalRepresentative
+      ? `✅ Solicitud aprobada y firmada — Módulo: Responsabilidades SG-SST (1.1.2). Aprobado por: ${user.email}. Fecha: ${new Date().toLocaleDateString()}. El MANAGER actúa como Representante Legal, por lo que la aprobación incluye la firma legal. Próximo paso: Socialización.`
+      : `✅ Solicitud aprobada — Módulo: Responsabilidades SG-SST (1.1.2). Aprobado por: ${user.email}. Fecha: ${new Date().toLocaleDateString()}.`;
+
+    await Promise.all(admins.map((adminUser) =>
+      this.alertsService.create({
+        companyId: companyId.toString(),
+        type: 'RESPONSIBILITIES_APPROVED',
+        message: notificationMessage,
+        severity: AlertSeverity.HIGH,
+      }).catch(() => {}),
+    ));
+
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
+  async rejectResponsibilities(companyId: Types.ObjectId, user: UserDocument, reason: string) {
+    const record = await this.findOrCreateResponsibilities(companyId);
+    const responsibilities = record.responsibilities.map((entry) => {
+      if (entry.title === '__META__') {
+        try {
+          const meta = JSON.parse(entry.category);
+          meta.approvalStatus = 'REJECTED';
+          meta.locked = false;
+          meta.submittedAt = null;
+          meta.rejectionReason = reason;
+          meta.rejectedBy = { userId: this.resolveUserId(user).toString(), email: user.email, role: user.role, companyId: companyId.toString(), timestamp: new Date().toISOString() };
+          entry.category = JSON.stringify(meta);
+        } catch { /* ignore meta parse error */ }
+      }
+      return entry;
+    });
+    record.responsibilities = responsibilities as never;
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'approvalStatus',
+      oldValue: 'PENDING_APPROVAL',
+      newValue: 'REJECTED',
+    });
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'rejectionReason',
+      oldValue: '',
+      newValue: reason,
+    });
+
+    // Notify ADMIN users
+    const admins = await this.userModel.find({ companyId, role: { $in: ['admin', 'owner'] }, isActive: true }).exec();
+    await Promise.all(admins.map((adminUser) =>
+      this.alertsService.create({
+        companyId: companyId.toString(),
+        type: 'RESPONSIBILITIES_REJECTED',
+        message: `❌ Solicitud rechazada — Módulo: Responsabilidades SG-SST (1.1.2). Rechazado por: ${user.email}. Motivo: ${reason}. Fecha: ${new Date().toLocaleDateString()}.`, // eslint-disable-line max-len
+        severity: AlertSeverity.HIGH,
+      }).catch(() => {}),
+    ));
+
     record.updatedBy = this.resolveUserId(user);
     return record.save();
   }

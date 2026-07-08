@@ -806,10 +806,10 @@ function AdvancedManagementPanel({
     return <SpecialPensionAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
   if (item.code === '1.1.6') {
-    return <CommitteeAdvancedPanel token={token} committeeType='COPASST' title='COPASST' onComplianceChange={onComplianceChange} />;
+    return null;
   }
   if (item.code === '1.1.8') {
-    return <CommitteeAdvancedPanel token={token} committeeType='CONVIVENCIA' title='Comité de Convivencia Laboral' onComplianceChange={onComplianceChange} />;
+    return null;
   }
   if (item.code === '2.8.1') {
     return <CommunicationAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} onSaved={onSaved} />;
@@ -1268,6 +1268,10 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
               navigate('/advanced-management/1.1.2');
             } else if (item.code === '1.1.3') {
               navigate('/advanced-management/1.1.3');
+            } else if (item.code === '1.1.6') {
+              navigate('/advanced-management/1.1.6');
+            } else if (item.code === '1.1.8') {
+              navigate('/advanced-management/1.1.8');
             } else {
               setAdvancedManagementItem(item);
             }

@@ -26,9 +26,32 @@ export class Alert {
   @Prop({ default: false })
   isRead!: boolean;
 
+  // --- Approval notification fields ---
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  targetUserId?: Types.ObjectId;
+
+  @Prop()
+  actionUrl?: string;
+
+  @Prop()
+  moduleCode?: string;
+
+  @Prop()
+  moduleName?: string;
+
+  @Prop()
+  submittedBy?: string;
+
+  @Prop()
+  submittedAt?: Date;
+
+  @Prop()
+  documentId?: string;
+
   createdAt!: Date;
 }
 
 export const AlertSchema = SchemaFactory.createForClass(Alert);
 AlertSchema.index({ companyId: 1, createdAt: -1 });
+AlertSchema.index({ companyId: 1, targetUserId: 1 });
 AlertSchema.index({ companyId: 1, type: 1, message: 1 }, { unique: true });
