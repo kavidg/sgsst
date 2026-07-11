@@ -1,16 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ResponsibilityMatrixItemModel,
   ResponsibilityAcceptanceModel,
-  AcceptResponsibilityDto,
-  RejectResponsibilityDto,
-  RequestCorrectionDto,
   EmployeeModel,
   fetchEmployees,
   fetchMyAcceptances,
   fetchPendingAcceptances,
   fetchAcceptanceStats,
-  fetchAcceptanceForUser,
   assignResponsibilitiesBatch,
   acceptResponsibilities,
   rejectResponsibilities,
@@ -53,7 +49,6 @@ export function ResponsibilityAcceptancePanel({
   const [compliance, setCompliance] = useState<{ status: string; reason: string; stats: any } | null>(null);
   const [reminders, setReminders] = useState<Array<{ acceptance: ResponsibilityAcceptanceModel; daysOverdue: number }>>([]);
   const [toast, setToast] = useState('');
-  const [loading, setLoading] = useState(false);
 
   // Assignment state
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -67,6 +62,8 @@ export function ResponsibilityAcceptancePanel({
   const [currentAcceptance, setCurrentAcceptance] = useState<ResponsibilityAcceptanceModel | null>(null);
 
   const notify = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2800); };
+
+  const [_loading, setLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!token) return;
@@ -197,7 +194,7 @@ export function ResponsibilityAcceptancePanel({
     } catch { notify('Error al procesar.'); }
   };
 
-  const pendingCount = stats?.pending ?? 0;
+
   const myPendingCount = myAcceptances.filter((a) => a.acceptanceStatus === 'PENDING').length;
 
   // Dashboard Alert Banner
@@ -304,7 +301,7 @@ export function ResponsibilityAcceptancePanel({
                       <td>{r.acceptance.userName}</td>
                       <td>{r.daysOverdue} días</td>
                       <td><span className="badge badge--warning">Pendiente</span></td>
-                      <td>{new Date(r.acceptance.createdAt).toLocaleDateString()}</td>
+                      <td>{new Date((r.acceptance as any).createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -389,7 +386,7 @@ export function ResponsibilityAcceptancePanel({
                         <td><span className={statusBadge(acc.acceptanceStatus).className}>{statusBadge(acc.acceptanceStatus).label}</span></td>
                         <td>{acc.assignedItemIds.length}</td>
                         <td>{acc.matrixVersion}</td>
-                        <td>{new Date(acc.createdAt).toLocaleDateString()}</td>
+                        <td>{new Date((acc as any).createdAt).toLocaleDateString()}</td>
                         <td>
                           {acc.acceptanceStatus === 'REJECTED' && acc.rejectedReason?.startsWith('Solicita corrección') && (
                             <Button type="button" variant="ghost" onClick={() => handleResolveCorrection(acc.userId)}>

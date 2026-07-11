@@ -26,7 +26,6 @@ import {
   submitCommitmentJustification,
   approveCommitmentJustification,
   fetchAccountabilityHistory,
-  fetchAccountabilityEntityHistory,
   fetchMyCommitments,
   createIndividualReport,
   checkAccountabilityAlerts,
@@ -42,12 +41,7 @@ type AccountabilityPageProps = {
   token: string;
 };
 
-function dateInput(value?: string) {
-  if (!value) return '';
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return '';
-  return d.toISOString().slice(0, 10);
-}
+
 
 function formatDate(value?: string) {
   if (!value) return '—';
@@ -87,8 +81,8 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
   const [meetings, setMeetings] = useState<AccountabilityMeetingModel[]>([]);
   const [commitments, setCommitments] = useState<AccountabilityCommitmentModel[]>([]);
   const [commitmentStats, setCommitmentStats] = useState<{ total: number; open: number; overdue: number; completed: number } | null>(null);
-  const [myCommitments, setMyCommitments] = useState<AccountabilityCommitmentModel[]>([]);
-  const [history, setHistory] = useState<AccountabilityHistoryModel[]>([]);
+  const [_myCommitments, setMyCommitments] = useState<AccountabilityCommitmentModel[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -179,7 +173,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
         fetchAccountabilityMeetings(token),
         fetchAccountabilityCommitments(token),
         fetchCommitmentStats(token),
-        fetchMyCommitments(token),
+        fetchMyCommitments(token).catch(() => []),
         fetchAccountabilityHistory(token, 50, 0),
         fetchEmployees(token).catch(() => [] as EmployeeModel[]),
       ]);
@@ -713,7 +707,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
           {commitmentStats && (
             <div className="acc-mgmt__indicator">
               <span className="acc-mgmt__indicator-label">Near Miss / Accident Indicators</span>
-              <p className="muted">Open: {commitmentStats.open} · In Progress: {commitmentStats.inProgress ?? 0} · Completed: {commitmentStats.completed} · Overdue: {commitmentStats.overdue}</p>
+              <p className="muted">Open: {commitmentStats.open} · Completed: {commitmentStats.completed} · Overdue: {commitmentStats.overdue}</p>
             </div>
           )}
         </div>
@@ -748,7 +742,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
       {/* MODALS */}
 
       {/* Create Report Modal */}
-      <Modal open={showCreateReport} title="Generate Management Report" onOpenChange={setShowCreateReport}>
+      <Modal isOpen={showCreateReport} title="Generate Management Report" onClose={() => setShowCreateReport(false)}>
         <div className="form-grid">
           <label className="field">
             <span className="label">Report Type</span>
@@ -815,7 +809,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
       </Modal>
 
       {/* Create Meeting Modal */}
-      <Modal open={showCreateMeeting} title="Schedule Accountability Meeting" onOpenChange={setShowCreateMeeting}>
+      <Modal isOpen={showCreateMeeting} title="Schedule Accountability Meeting" onClose={() => setShowCreateMeeting(false)}>
         <div className="form-grid">
           <label className="field">
             <span className="label">Title</span>
@@ -853,7 +847,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
       </Modal>
 
       {/* Create Commitment Modal */}
-      <Modal open={showCreateCommitment} title="New Commitment" onOpenChange={setShowCreateCommitment}>
+      <Modal isOpen={showCreateCommitment} title="New Commitment" onClose={() => setShowCreateCommitment(false)}>
         <div className="form-grid">
           <label className="field">
             <span className="label">Title</span>
@@ -902,7 +896,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
       </Modal>
 
       {/* Individual Report Modal */}
-      <Modal open={showIndividualReport} title="Individual Accountability Report" onOpenChange={setShowIndividualReport}>
+      <Modal isOpen={showIndividualReport} title="Individual Accountability Report" onClose={() => setShowIndividualReport(false)}>
         <div className="form-grid">
           <label className="field">
             <span className="label">Activities Performed</span>
@@ -940,7 +934,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
       </Modal>
 
       {/* Justify Commitment Modal */}
-      <Modal open={!!showJustify} title="Submit Justification" onOpenChange={(open) => { if (!open) setShowJustify(null); }}>
+      <Modal isOpen={!!showJustify} title="Submit Justification" onClose={() => setShowJustify(null)}>
         <div className="form-grid">
           <label className="field">
             <span className="label">Reason for Delay</span>
@@ -962,7 +956,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
       </Modal>
 
       {/* Detail Report Modal */}
-      <Modal open={!!showDetailReport} title={showDetailReport ? `Report: ${showDetailReport.reportNumber}` : ''} onOpenChange={(open) => { if (!open) setShowDetailReport(null); }}>
+      <Modal isOpen={!!showDetailReport} title={showDetailReport ? `Report: ${showDetailReport.reportNumber}` : ''} onClose={() => setShowDetailReport(null)}>
         {showDetailReport && (
           <div className="acc-mgmt__detail">
             <div className="acc-mgmt__detail-grid">
@@ -994,7 +988,7 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
       </Modal>
 
       {/* Detail Commitment Modal */}
-      <Modal open={!!showDetailCommitment} title={showDetailCommitment ? `Commitment: ${showDetailCommitment.title}` : ''} onOpenChange={(open) => { if (!open) setShowDetailCommitment(null); }}>
+      <Modal isOpen={!!showDetailCommitment} title={showDetailCommitment ? `Commitment: ${showDetailCommitment.title}` : ''} onClose={() => setShowDetailCommitment(null)}>
         {showDetailCommitment && (
           <div className="acc-mgmt__detail">
             <div className="acc-mgmt__detail-grid">

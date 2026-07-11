@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import {
   CompanyProfileModel,
   fetchCompanyProfile,
   updateCompanyProfile,
   addWorkCenter,
-  updateWorkCenter,
+
   deleteWorkCenter,
   upsertContact,
   addCompanyDocument,
@@ -171,7 +171,7 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
     } catch (err) { showError(err instanceof Error ? err.message : 'Error'); }
   };
 
-  const sel = (field: string) => (profile as unknown as Record<string, unknown>)?.[field];
+  const sel = (field: string): string | undefined => (profile as unknown as Record<string, unknown>)?.[field] as string | undefined;
   const updateField = (field: string, value: unknown) => {
     setProfile((prev) => prev ? { ...prev, [field]: value } : prev);
   };

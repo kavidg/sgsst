@@ -867,7 +867,7 @@ function App() {
               <>
                 {renderSharedHeader()}
                 {activeCompanyId ? (
-                  <CommunicationWorkerPortal token={idToken} employeeId={profile?._id ?? ''} employeeName={userFirstName || profile?.email?.split('@')[0] || 'Trabajador'} />
+                  <CommunicationWorkerPortal token={idToken} employeeId={profile?._id ?? ''} employeeName={profile?.firstName || profile?.email?.split('@')[0] || 'Trabajador'} />
                 ) : (
                   <p>Selecciona una empresa para ver tus comunicaciones.</p>
                 )}

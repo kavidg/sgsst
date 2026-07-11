@@ -6,7 +6,7 @@ import {
   PlanSubtaskModel,
   TaskEvidenceModel,
   TaskJustificationModel,
-  ComplianceReportModel,
+
   PlanHistoryModel,
   fetchAnnualWorkPlanCurrent,
   fetchAnnualWorkPlans,
@@ -32,15 +32,15 @@ import {
   createTaskJustification,
   approveJustification,
   recalculateCompliance,
-  fetchComplianceReport,
+
   fetchPlanHistory,
   processAutoStatus,
 } from '../api';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Sheet } from '../components/ui/Sheet';
-import { useCompanyContext } from '../context/CompanyContext';
-import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+
+import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 type AnnualWorkPlanPageProps = {
   token: string;
@@ -96,7 +96,6 @@ function progressColor(pct: number): string {
 }
 
 export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
-  const { companyId } = useCompanyContext();
   const [plan, setPlan] = useState<AnnualWorkPlanModel | null>(null);
   const [plans, setPlans] = useState<AnnualWorkPlanModel[]>([]);
   const [activities, setActivities] = useState<PlanActivityModel[]>([]);
@@ -104,7 +103,6 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
   const [subtasks, setSubtasks] = useState<PlanSubtaskModel[]>([]);
   const [evidence, setEvidence] = useState<TaskEvidenceModel[]>([]);
   const [justifications, setJustifications] = useState<TaskJustificationModel[]>([]);
-  const [compliance, setCompliance] = useState<ComplianceReportModel | null>(null);
   const [history, setHistory] = useState<PlanHistoryModel[]>([]);
   const [tab, setTab] = useState('Plan General');
   const [loading, setLoading] = useState(false);
@@ -122,7 +120,6 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assignedTo: '', startDate: '', dueDate: '', progress: 0 });
 
   // Subtask form
-  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [subtaskTitle, setSubtaskTitle] = useState('');
 
   // Evidence form
@@ -141,8 +138,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
   // Detail drawer
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
-  // Year selector
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  // Year selector removed (unused)
 
   const notify = (msg: string) => { setSuccess(msg); window.setTimeout(() => setSuccess(''), 3000); };
   const showError = (msg: string) => { setError(msg); window.setTimeout(() => setError(''), 5000); };
@@ -158,7 +154,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
       ]);
       if (currentPlan) {
         setPlan(currentPlan);
-        setSelectedYear(currentPlan.year);
+        // setSelectedYear removed (unused)
       }
       setPlans(allPlans);
     } catch (e) {
@@ -174,7 +170,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
       const p = await ensureCurrentAnnualWorkPlan(token);
       setPlan(p);
       setPlans([p, ...plans]);
-      setSelectedYear(p.year);
+      // setSelectedYear removed (unused)
       notify('Plan anual creado/asegurado');
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : 'Error al crear plan');
@@ -222,11 +218,10 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
     } catch { setJustifications([]); }
   }, [token]);
 
-  const loadCompliance = useCallback(async (planId: string) => {
+  const loadCompliance = useCallback(async (_planId: string) => {
     try {
-      const data = await fetchComplianceReport(token, planId);
-      setCompliance(data);
-    } catch { setCompliance(null); }
+      // fetchComplianceReport removed (unused)
+    } catch { /* ignore */ }
   }, [token]);
 
   const loadHistory = useCallback(async (planId: string) => {

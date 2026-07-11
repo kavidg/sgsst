@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   CopasstPeriodModel,
-  fetchCopasstCurrent,
   fetchCopasstSummary,
-  createCopasstPeriod,
   addCopasstMember,
   removeCopasstMember,
   startCopasstCampaign,
@@ -44,7 +42,6 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export default function CopasstManagementPage({ token, role }: { token: string; role?: string }) {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isReviewMode = searchParams.get('mode') === 'review';
   const [activeTab, setActiveTab] = useState<TabId>('summary');
@@ -120,6 +117,7 @@ export default function CopasstManagementPage({ token, role }: { token: string; 
           backPath="/documents/plan" backLabel="← Volver a Implementación"
           moduleCode="1.1.6" moduleTitle="Gestión COPASST"
           description="Comité Paritario de Seguridad y Salud en el Trabajo"
+          statusBadge={<span className="advanced-management__badge">📦 No requerido</span>}
           actions={[]}
         />
         <div style={{ padding: '2rem', textAlign: 'center' }}>
@@ -398,28 +396,28 @@ export default function CopasstManagementPage({ token, role }: { token: string; 
             {period?.registrationCampaign ? (
               <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
                 <h4>📢 Convocatoria activa</h4>
-                <p className="muted">Apertura: {new Date(period.registrationCampaign.openingDate).toLocaleDateString()}</p>
-                <p className="muted">Cierre: {new Date(period.registrationCampaign.closingDate).toLocaleDateString()}</p>
-                {period.registrationCampaign.secureToken && (
+                <p className="muted">Apertura: {new Date(period.registrationCampaign!.openingDate).toLocaleDateString()}</p>
+                <p className="muted">Cierre: {new Date(period.registrationCampaign!.closingDate).toLocaleDateString()}</p>
+                {period.registrationCampaign?.secureToken && (
                   <div style={{ marginTop: '.5rem' }}>
                     <p><strong>Link de inscripción:</strong></p>
                     <code style={{ display: 'block', padding: '.5rem', background: '#f3f4f6', borderRadius: '4px', fontSize: '.85rem', wordBreak: 'break-all' }}>
-                      {`${window.location.origin}/copasst/register/${period.registrationCampaign.secureToken}`}
+                      {`${window.location.origin}/copasst/register/${period.registrationCampaign!.secureToken}`}
                     </code>
                     <div className="actions" style={{ marginTop: '.5rem', flexWrap: 'wrap' }}>
                       <Button type="button" variant="secondary" onClick={() => {
-                        const link = `${window.location.origin}/copasst/register/${period.registrationCampaign.secureToken}`;
+                        const link = `${window.location.origin}/copasst/register/${period.registrationCampaign!.secureToken}`;
                         navigator.clipboard.writeText(link);
                         notify('🔗 Link copiado');
                       }}>📋 Copiar link</Button>
                       <Button type="button" variant="secondary" onClick={() => {
-                        const link = `${window.location.origin}/copasst/register/${period.registrationCampaign.secureToken}`;
+                        const link = `${window.location.origin}/copasst/register/${period.registrationCampaign!.secureToken}`;
                         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`;
                         window.open(qrUrl, '_blank');
                         notify('📱 QR generado');
                       }}>📱 Generar QR</Button>
                       <Button type="button" variant="secondary" onClick={() => {
-                        const link = `${window.location.origin}/copasst/register/${period.registrationCampaign.secureToken}`;
+                        const link = `${window.location.origin}/copasst/register/${period.registrationCampaign!.secureToken}`;
                         if (navigator.share) {
                           navigator.share({ title: 'Postulación COPASST', url: link });
                         } else {
@@ -754,7 +752,7 @@ export default function CopasstManagementPage({ token, role }: { token: string; 
                       </tr>
                     </thead>
                     <tbody>
-                      {(period.commitments as any[]).filter((c: any) => {
+                      {(period?.commitments as any[])?.filter((c: any) => {
                         if (c.status === 'COMPLETED') return false;
                         if (!c.deadline) return false;
                         const daysLeft = Math.ceil((new Date(c.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));

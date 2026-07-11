@@ -3,11 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   EmployeeModel,
   SstPolicyAdvancedModel,
-  PolicyVersionModel,
-  PolicySignatureModel,
-  PolicySocializationModel,
-  PolicyAlertModel,
-  PolicyHistoryModel,
   PolicyMasterListRowModel,
   ResponsableSstComplianceStatus,
   fetchSstPolicyAdvanced,
@@ -137,7 +132,6 @@ export default function PolicyManagementModule({ token }: { token: string }) {
 
   // --- Campaign modal ---
   const [showCampaignModal, setShowCampaignModal] = useState(false);
-  const [campaignWorkers, setCampaignWorkers] = useState<string[]>([]);
 
   const notify = (msg: string) => {
     setToast(msg);
@@ -199,10 +193,7 @@ export default function PolicyManagementModule({ token }: { token: string }) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
-  const handleNavigate = (path: string) => {
-    if (dirty) { setPendingNavigation(path); setShowUnsavedModal(true); }
-    else navigate(path);
-  };
+
 
   const confirmNavigation = () => {
     setShowUnsavedModal(false);
@@ -454,8 +445,6 @@ export default function PolicyManagementModule({ token }: { token: string }) {
     (row) => `${row.code} ${row.document} ${row.status}`.toLowerCase().includes(filter.toLowerCase())
   );
   const pendingSignatures = record.signatures.filter((s) => s.required && s.status !== 'Firmado').length;
-  const pendingSocialization = record.socializations.filter((s) => s.status !== 'Firmado digitalmente').length;
-
   return (
     <AdvancedPageLayout>
       {/* Unsaved changes modal */}

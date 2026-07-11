@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   EmployeeModel,
   ResponsableSstAdvancedModel,
@@ -73,8 +73,7 @@ export function ResponsableSstPanel({
   const tabs = ['Responsable', 'Formación', 'Licencia SST', 'Designación', 'Alertas', 'Historial'];
   const [tab, setTab] = useState(tabs[0]);
   const [record, setRecord] = useState<ResponsableSstAdvancedModel | null>(null);
-  const [employees, setEmployees] = useState<EmployeeModel[]>([]);
-  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [_employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState('');
@@ -94,7 +93,6 @@ export function ResponsableSstPanel({
     if (!token) return;
     setLoading(true);
     setError('');
-    setEmployeesLoading(true);
     try {
       const [result, workerList] = await Promise.all([
         fetchResponsableSstAdvanced(token),
@@ -112,7 +110,6 @@ export function ResponsableSstPanel({
       setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar el responsable SST.');
     } finally {
       setLoading(false);
-      setEmployeesLoading(false);
     }
   }, [onComplianceChange, token]);
 

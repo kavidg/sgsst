@@ -47,7 +47,6 @@ export function SstLicenseTab({ token, readOnly }: { token: string; readOnly?: b
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
-  const [ocrIndex, setOcrIndex] = useState(0);
   const [ocrModifications, setOcrModifications] = useState<Record<string, string>>({});
 
   const notify = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };

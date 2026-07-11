@@ -190,7 +190,7 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
 
   // Approval / version state
   const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>('DRAFT');
-  const [versions, setVersions] = useState<VersionEntry[]>([
+  const [versions] = useState<VersionEntry[]>([
     { version: '1.0', createdAt: new Date().toISOString(), createdBy: 'Sistema' },
   ]);
   const [auditHistory, setAuditHistory] = useState<AuditEntry[]>([]);
@@ -277,11 +277,7 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
-  // Navigation guards
-  const handleNavigate = (path: string) => {
-    if (dirty) { setPendingNavigation(path); setShowUnsavedModal(true); }
-    else navigate(path);
-  };
+
 
   const confirmNavigation = () => {
     setShowUnsavedModal(false);

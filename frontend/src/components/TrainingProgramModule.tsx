@@ -219,11 +219,11 @@ export default function TrainingProgramModule({ token }: { token: string }) {
   // State for all 12 tabs
   const [programItems, setProgramItems] = useState<ProgramItem[]>([]);
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceRecords] = useState<AttendanceRecord[]>([]);
   const [evaluationRecords, setEvaluationRecords] = useState<EvaluationRecord[]>([]);
   const [certificateRecords, setCertificateRecords] = useState<CertificateRecord[]>([]);
   const [evidenceRecords, setEvidenceRecords] = useState<EvidenceRecord[]>([]);
-  const [alertRecords, setAlertRecords] = useState<AlertRecord[]>([]);
+  const [_alertRecords] = useState<AlertRecord[]>([]);
   const [alertLog, setAlertLog] = useState<AlertRecord[]>([]);
   const [auditHistory, setAuditHistory] = useState<AuditEntry[]>([]);
   const [versions, setVersions] = useState<VersionEntry[]>([
@@ -251,15 +251,10 @@ export default function TrainingProgramModule({ token }: { token: string }) {
     trainingId: '', questionType: 'MULTIPLE_CHOICE' as const, question: '',
     options: '', correctAnswer: '', passingScore: 70,
   });
-  const [evalAttemptForm, setEvalAttemptForm] = useState({
-    employeeId: '', employeeName: '', score: 0, passed: false, percentage: 0,
-  });
   const [justificationForm, setJustificationForm] = useState({
     trainingId: '', reason: '', newDate: '', responsible: '',
   });
   const [showJustification, setShowJustification] = useState(false);
-  const [pendingEvidences, setPendingEvidences] = useState<{ fileName: string; fileUrl: string }[]>([]);
-  const [selectedProgramTab, setSelectedProgramTab] = useState<'general' | 'kpis' | 'charts'>('general');
   const [customTrainingType, setCustomTrainingType] = useState('');
 
   const notify = (message: string) => {
@@ -331,10 +326,7 @@ export default function TrainingProgramModule({ token }: { token: string }) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
-  const handleNavigate = (path: string) => {
-    if (dirty) { setPendingNavigation(path); setShowUnsavedModal(true); }
-    else navigate(path);
-  };
+
 
   const confirmNavigation = () => {
     setShowUnsavedModal(false);
@@ -682,7 +674,7 @@ export default function TrainingProgramModule({ token }: { token: string }) {
           <h4>Registro de Asistencia</h4>
           <div className="grid grid-2">
             <label className="field"><span className="label">Capacitación</span>
-              <select className="input" onChange={(e) => {/* select training */}}>
+              <select className="input" onChange={(_e) => {/* select training */}}>
                 <option value="">Seleccionar...</option>
                 {trainingRecords.map((t) => <option key={t.id} value={t.id}>{t.title} - {t.date}</option>)}
               </select>
@@ -797,7 +789,7 @@ export default function TrainingProgramModule({ token }: { token: string }) {
           {!locked && (
             <div className="actions">
               <Button type="button" variant="ghost" onClick={() => {
-                setEvalAttemptForm({ employeeId: '', employeeName: '', score: 0, passed: false, percentage: 0 });
+                // setEvalAttemptForm placeholder removed
                 const emp = prompt('Nombre del empleado:');
                 const score = parseInt(prompt('Puntaje obtenido:') || '0', 10);
                 if (emp) {
@@ -907,7 +899,7 @@ export default function TrainingProgramModule({ token }: { token: string }) {
   );
 
   const renderIndicadores = () => {
-    const totalEvaluations = evaluationRecords.length;
+    const _totalEvaluations = evaluationRecords.length; void _totalEvaluations;
     const totalAttempts = evaluationRecords.reduce((s, e) => s + e.attempts.length, 0);
     const approvedAttempts = evaluationRecords.reduce((s, e) => s + e.attempts.filter((a) => a.passed).length, 0);
     const failedAttempts = totalAttempts - approvedAttempts;

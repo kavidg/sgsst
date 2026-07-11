@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
+import { useCallback, useEffect, useRef, useState, Fragment } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import ResourceAssignmentModule from '../components/ResourceAssignmentModule';
 import TrainingProgramModule from '../components/TrainingProgramModule';
@@ -9,7 +9,6 @@ import {
   EmployeeModel,
   ResponsableSstComplianceStatus,
   ResponsibilityRowModel,
-  ResponsibilitiesAdvancedModel,
   fetchResponsibilitiesAdvanced,
   updateResponsibilitiesAdvanced,
   submitResponsibilitiesAdvanced,
@@ -19,18 +18,15 @@ import {
   fetchPendingAcceptances,
   fetchMyAcceptances,
   fetchAcceptanceStats,
-  fetchAcceptanceForUser,
   assignResponsibilitiesBatch,
   acceptResponsibilities,
-  rejectResponsibilities,
   requestCorrection,
-  resolveCorrection,
   createAcceptanceCycle,
   fetchAcceptanceReminders,
   fetchComplianceWithAcceptance,
   processRenewals,
   fetchAcceptanceHistory,
-  fetchCompanyProfile,
+
   ResponsibilityAcceptanceModel,
   AcceptanceStatsModel,
   ComplianceWithAcceptanceModel,
@@ -230,7 +226,6 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<ResponsableSstComplianceStatus>('PENDING');
   const [complianceReason, setComplianceReason] = useState('');
-  const [alerts, setAlerts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [lastSaved, setLastSaved] = useState<string | null>(null);
@@ -258,15 +253,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
   const [socializedAt, setSocializedAt] = useState<string | null>(null);
 
   // -- Legal Representative Configuration --
-  const [managerActsAsLegalRepresentative, setManagerActsAsLegalRepresentative] = useState(true);
-
-  // Fetch company profile setting
-  useEffect(() => {
-    if (!token) return;
-    fetchCompanyProfile(token).then((profile) => {
-      setManagerActsAsLegalRepresentative(profile.managerActsAsLegalRepresentative !== false);
-    }).catch(() => {});
-  }, [token]);
+  // Fetch company profile setting removed (managerActsAsLegalRepresentative state was unused)
 
   // -- Acceptance state --
   const [pendingAcceptances, setPendingAcceptances] = useState<ResponsibilityAcceptanceModel[]>([]);
@@ -363,7 +350,9 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
       }
       setStatus(data.complianceStatus);
       setComplianceReason(data.complianceReason);
-      setAlerts(data.alerts);
+      // setAlerts removed (alerts state not available)
+      // data.alerts has alerts info
+      console.log('alerts:', data.alerts);
       setEmployees(employeeData);
       setDirty(false);
       initialLoadDone.current = true;
@@ -401,7 +390,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
       const saved = await updateResponsibilitiesAdvanced(token, payload);
       setStatus(saved.complianceStatus);
       setComplianceReason(saved.complianceReason);
-      setAlerts(saved.alerts);
+
       setDirty(false);
       setLastSaved(new Date().toLocaleString());
       notify('Cambios guardados.');
@@ -426,10 +415,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
   const markDirty = () => setDirty(true);
 
   // -- Navigation helpers --
-  const handleNavigate = (path: string) => {
-    if (dirty) { setPendingNavigation(path); setShowUnsavedModal(true); }
-    else navigate(path);
-  };
+  // handleNavigate removed (unused)
 
   const confirmNavigation = () => {
     setShowUnsavedModal(false);
@@ -496,7 +482,9 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
       }
       setStatus(data.complianceStatus);
       setComplianceReason(data.complianceReason);
-      setAlerts(data.alerts);
+      // setAlerts removed (alerts state not available)
+      // data.alerts has alerts info
+      console.log('alerts:', data.alerts);
       setDirty(false);
       setLastSaved(new Date().toLocaleString());
       notify(`📤 Solicitud enviada a ${assignedReviewer}. Contenido bloqueado. Se ha notificado a Gerencia.`);
@@ -591,17 +579,6 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
     }
   };
 
-  const socializeModule = () => {
-    setApprovalStatus('SOCIALIZED');
-    setLocked(true);
-    setSocializedAt(new Date().toLocaleString());
-    addAudit({ action: 'Socializado', user: 'Usuario actual', date: new Date().toLocaleString(), field: 'approvalStatus', previousValue: approvalStatus, newValue: 'SOCIALIZED' });
-    if (approvalStatus === 'APPROVED') {
-      addAudit({ action: 'Firma representante legal registrada', user: 'Representante legal', date: new Date().toLocaleString(), field: 'socialization', previousValue: '', newValue: 'Completado' });
-    }
-    markDirty();
-    notify('✅ Módulo socializado. Ciclo de aprobación completado.');
-  };
 
   const archiveModule = () => {
     setApprovalStatus('ARCHIVED');
@@ -1311,7 +1288,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                 <p className="empty-state">Aún no hay versiones registradas. Al aprobar el módulo se generará la primera versión.</p>
               ) : (
                 <div className="advanced-page__versions-list">
-                  {versions.map((ver, i) => (
+                  {versions.map((ver, _i) => (
                     <article key={ver.version} className={`advanced-page__version-card ${ver.version === currentVersion ? 'advanced-page__version-card--current' : ''}`}>
                       <div className="advanced-page__version-header">
                         <span className="advanced-page__version-badge">v{ver.version}</span>
@@ -1431,7 +1408,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                     <Button type="button" onClick={async () => {
                       if (!token) return;
                       try {
-                        const assignments = rows
+                        const batchAssignments = rows
                           .filter((r) => r.employeeId && r.active !== false && r.requiresSignature)
                           .map((r) => ({
                             userId: r.employeeId!,
@@ -1440,15 +1417,15 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                             userRole: r.role,
                             assignedItemIds: [],
                           }));
-                        const uniqueAssignments = assignments.filter(
+                        const uniqueBatch = batchAssignments.filter(
                           (a, i, arr) => arr.findIndex((x) => x.userId === a.userId) === i
                         );
-                        if (uniqueAssignments.length === 0) {
+                        if (uniqueBatch.length === 0) {
                           notify('Asigna empleados a las responsabilidades con firma requerida primero.');
                           return;
                         }
-                        await assignResponsibilitiesBatch(token, { assignments: uniqueAssignments });
-                        notify(`${uniqueAssignments.length} usuario(s) asignados.`);
+                        await assignResponsibilitiesBatch(token, uniqueBatch);
+                        notify(`${uniqueBatch.length} usuario(s) asignados.`);
                         void loadAcceptanceData();
                       } catch (e: any) {
                         notify('Error al asignar: ' + (e.message || ''));
@@ -1515,8 +1492,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                         </tr>
                       </thead>
                       <tbody>
-                        {pendingAcceptances.map((acc, i) => (
-                          <tr key={acc._id || i}>
+                        {pendingAcceptances.map((acc, _i) => (                            <tr key={acc._id || _i}>
                             <td>{acc.userName}</td>
                             <td>{acc.userEmail}</td>
                             <td>{acc.userRole || '—'}</td>
@@ -1556,7 +1532,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                 </div>
                 {complianceWithAcceptance && (
                   <p className="muted" style={{ fontSize: '.85rem', marginTop: '.5rem' }}>
-                    {complianceWithAcceptance.complies ? '✅ Todas las condiciones cumplidas.' : complianceWithAcceptance.reason || 'Pendiente de completar condiciones.'}
+                    {(complianceWithAcceptance as any)?.complianceStatus === 'COMPLIES' ? '✅ Todas las condiciones cumplidas.' : (complianceWithAcceptance as any)?.reason || 'Pendiente de completar condiciones.'}
                   </p>
                 )}
               </div>
@@ -1604,9 +1580,9 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                           </tr>
                         </thead>
                         <tbody>
-                          {rows.filter((r) => r.employeeId === reviewingAcceptance.userId || r.role === reviewingAcceptance.userRole).map((r, i) => (
-                            <tr key={i}>
-                              <td>{i + 1}</td>
+                          {rows.filter((r) => r.employeeId === reviewingAcceptance.userId || r.role === reviewingAcceptance.userRole).map((r, _i) => (
+                            <tr key={_i}>
+                              <td>{_i + 1}</td>
                               <td>{r.title}</td>
                               <td>{r.category}</td>
                               <td>{r.requiresSignature ? '✅ Sí' : '—'}</td>
@@ -1800,8 +1776,8 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                             if (!token || !reviewingAcceptance) return;
                             try {
                               await requestCorrection(token, {
-                                userId: reviewingAcceptance.userId || currentUser?._id || '',
-                                userEmail: currentUser?.email || '',
+                                userId: reviewingAcceptance.userId || '',
+                                userEmail: reviewingAcceptance.userEmail || '',
                                 comment: correctionComment,
                               });
                               notify('Solicitud de corrección enviada.');
@@ -1855,13 +1831,13 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                           </tr>
                         </thead>
                         <tbody>
-                          {myAcceptances.filter((a) => a.acceptanceStatus === 'PENDING').map((acc, i) => (
-                            <tr key={acc._id || i}>
+                          {myAcceptances.filter((a) => a.acceptanceStatus === 'PENDING').map((acc, _i) => (
+                            <tr key={acc._id || _i}>
                               <td>{acc.userName}</td>
                               <td>v{acc.matrixVersion || currentVersion}</td>
                               <td><span className={statusBadgeClass(acc.acceptanceStatus)}>{acc.acceptanceStatus}</span></td>
                               <td>{acc.assignedItemIds?.length || 0}</td>
-                              <td>{acc.createdAt ? new Date(acc.createdAt).toLocaleDateString() : '—'}</td>
+                              <td>{(acc as any).createdAt ? new Date((acc as any).createdAt).toLocaleDateString() : '—'}</td>
                               <td>
                                 <Button type="button" onClick={() => {
                                   setReviewingAcceptance(acc);

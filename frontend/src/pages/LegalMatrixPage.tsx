@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   CompanyLegalMatrixModel, LegalActionPlanModel, LegalDashboardModel, LegalEvidenceModel,
@@ -11,7 +11,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Sheet } from '../components/ui/Sheet';
-import { Icons } from '../components/Icons';
+
 
 type Props = { token: string };
 
@@ -28,11 +28,6 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'history', label: 'Historial' },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  CUMPLE: '#22c55e', PARCIAL: '#eab308', NO_CUMPLE: '#ef4444', PENDIENTE: '#6b7280',
-  VALID: '#22c55e', PENDING: '#eab308', EXPIRED: '#ef4444', REJECTED: '#6b7280',
-  HIGH: '#ef4444', MEDIUM: '#eab308', LOW: '#3b82f6',
-};
 
 export function LegalMatrixPage({ token }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
@@ -92,27 +87,7 @@ export function LegalMatrixPage({ token }: Props) {
 
   useEffect(() => { void loadAll(); }, [loadAll]);
 
-  const complianceChartData = useMemo(() => {
-    if (!compliance) return [];
-    return [
-      { name: 'Cumple', value: compliance.cumplen, color: '#22c55e' },
-      { name: 'No Cumple', value: compliance.noCumplen, color: '#ef4444' },
-      { name: 'No Aplica', value: compliance.noAplica, color: '#3b82f6' },
-      { name: 'Pendiente', value: compliance.pendiente, color: '#6b7280' },
-    ].filter((d) => d.value > 0);
-  }, [compliance]);
 
-  const requirementStatusChart = useMemo(() => {
-    if (!requirements.length) return [];
-    const cumplen = requirements.filter((r) => r.complianceStatus === 'CUMPLE').length;
-    const parcial = requirements.filter((r) => r.complianceStatus === 'PARCIAL').length;
-    const noCumplen = requirements.filter((r) => r.complianceStatus === 'NO_CUMPLE').length;
-    return [
-      { name: 'Cumple', value: cumplen, color: '#22c55e' },
-      { name: 'Parcial', value: parcial, color: '#eab308' },
-      { name: 'No Cumple', value: noCumplen, color: '#ef4444' },
-    ].filter((d) => d.value > 0);
-  }, [requirements]);
 
   if (loading && !matrix) {
     return <div className="legal-matrix"><Card><p className="muted">Cargando matriz legal...</p></Card></div>;

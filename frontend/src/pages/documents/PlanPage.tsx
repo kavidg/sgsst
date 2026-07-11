@@ -42,11 +42,7 @@ import {
   fetchCommitteeResults,
   SstObjectivesAdvancedModel,
   SstObjectiveItemModel,
-  SstObjectiveActivityModel,
   SstObjectiveTaskModel,
-  fetchSstObjectivesAdvanced,
-  updateSstObjectivesAdvanced,
-  updateSstObjectiveActivitiesAdvanced,
   fetchAnnualWorkPlanAdvanced,
   updateAnnualWorkPlanAdvanced,
   InitialEvaluationModel,
@@ -294,6 +290,11 @@ type AdvancedManagementForm = {
   profession: string;
   sstProfessionalType: string;
   sstLicenseNumber: string;
+  licenseType: string;
+  issuingAuthority: string;
+  department: string;
+  observations: string;
+  licenseIssueDate: string;
   licenseExpiresAt: string;
   course50HoursDate: string;
   course50HoursDetectedDate: string;
@@ -309,16 +310,25 @@ const initialAdvancedManagementForm: AdvancedManagementForm = {
   profession: '',
   sstProfessionalType: '',
   sstLicenseNumber: '',
+  licenseType: '',
+  issuingAuthority: '',
+  department: '',
+  observations: '',
+  licenseIssueDate: '',
   licenseExpiresAt: '',
   course50HoursDate: '',
   course50HoursDetectedDate: '',
   course20HoursDate: '',
 };
 
-const documentLabels: Record<ResponsableSstDocumentType, string> = {
+const documentLabels: Record<string, string> = {
   DIPLOMA: 'Diploma',
   FIFTY_HOUR_CERTIFICATE: 'Certificado curso 50 horas',
   TWENTY_HOUR_UPDATE_CERTIFICATE: 'Certificado actualización 20 horas',
+  SST_LICENSE_PDF: 'Licencia SST PDF',
+  SST_LICENSE_SCANNED: 'Licencia SST Escaneada',
+  SST_LICENSE_RESOLUTION: 'Resolución Licencia SST',
+  SST_LICENSE_SUPPORTING: 'Soporte Licencia SST',
 };
 
 function toDateInputValue(value?: string | Date) {
@@ -343,6 +353,31 @@ function detectDateFromFileName(fileName: string) {
   const latam = normalized.match(/(0?[1-9]|[12]\d|3[01])[-./](0?[1-9]|1[0-2])[-./](20\d{2}|19\d{2})/);
   if (latam) return `${latam[3]}-${latam[2].padStart(2, '0')}-${latam[1].padStart(2, '0')}`;
   return '';
+}
+
+type AnnualTaskLocation = {
+  objectiveIndex: number;
+  activityIndex: number;
+  taskIndex: number;
+  objective: SstObjectiveItemModel;
+  activity: SstObjectiveItemModel['activities'][number];
+  task: SstObjectiveTaskModel;
+};
+
+function objectiveProgressClass(progress: number): string {
+  if (progress >= 80) return 'objective-progress__bar--high';
+  if (progress >= 50) return 'objective-progress__bar--medium';
+  return 'objective-progress__bar--low';
+}
+
+function chapterCompliance(record: InitialEvaluationModel) {
+  const chapters: string[] = [];
+  record.standards.forEach((s) => { if (!chapters.includes(s.chapter)) chapters.push(s.chapter); });
+  return chapters.map((chapter) => {
+    const chapterStandards = record.standards.filter((s) => s.chapter === chapter);
+    const fulfilled = chapterStandards.filter((s) => s.status === 'Cumple').length;
+    return { chapter, percentage: chapterStandards.length > 0 ? Math.round((fulfilled / chapterStandards.length) * 100) : 0 };
+  });
 }
 
 function complianceBadge(status?: ResponsableSstComplianceStatus) {
@@ -782,7 +817,7 @@ function AdvancedManagementPanel({
     return <AnnualWorkPlanPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
   if (item.code === '2.2.1') {
-    return <SstObjectivesAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
+    return null;
   }
   if (item.code === '2.1.1') {
     return null;
@@ -805,10 +840,7 @@ function AdvancedManagementPanel({
   if (item.code === '1.1.5') {
     return <SpecialPensionAdvancedPanel token={token} readOnly={readOnly} onComplianceChange={onComplianceChange} onDirtyChange={onDirtyChange} saveRequest={saveRequest} discardRequest={discardRequest} onSaved={onSaved} />;
   }
-  if (item.code === '1.1.6') {
-    return null;
-  }
-  if (item.code === '1.1.8') {
+  if (item.code === '1.1.6' || item.code === '1.1.8') {
     return null;
   }
   if (item.code === '2.8.1') {
@@ -881,6 +913,11 @@ function AdvancedManagementPanel({
             profession: record.profession ?? '',
             sstProfessionalType: record.sstProfessionalType ?? '',
             sstLicenseNumber: record.sstLicenseNumber ?? '',
+            licenseType: record.licenseType ?? '',
+            issuingAuthority: record.issuingAuthority ?? '',
+            department: record.department ?? '',
+            observations: record.observations ?? '',
+            licenseIssueDate: toDateInputValue(record.licenseIssueDate),
             licenseExpiresAt: toDateInputValue(record.licenseExpiresAt),
             course50HoursDate: toDateInputValue(record.course50HoursDate),
             course50HoursDetectedDate: toDateInputValue(record.course50HoursDetectedDate),
@@ -947,7 +984,19 @@ function AdvancedManagementPanel({
     try {
       setLoading(true);
       let latestRecord = await updateResponsableSstAdvanced(token, {
-        ...form,
+        fullName: form.fullName,
+        documentNumber: form.documentNumber,
+        position: form.position,
+        profession: form.profession,
+        sstProfessionalType: form.sstProfessionalType,
+        sstLicenseNumber: form.sstLicenseNumber,
+        licenseType: form.licenseType || '',
+        issuingAuthority: form.issuingAuthority || '',
+        department: form.department || '',
+        observations: form.observations || '',
+        licenseIssueDate: form.licenseIssueDate || '',
+        licenseExpiresAt: form.licenseExpiresAt || '',
+        course50HoursDate: form.course50HoursDate || '',
         course20HoursDate: requires20HourUpdate ? form.course20HoursDate : '',
       });
 
@@ -986,6 +1035,11 @@ function AdvancedManagementPanel({
         profession: savedRecord.profession ?? '',
         sstProfessionalType: savedRecord.sstProfessionalType ?? '',
         sstLicenseNumber: savedRecord.sstLicenseNumber ?? '',
+        licenseType: savedRecord.licenseType ?? '',
+        issuingAuthority: savedRecord.issuingAuthority ?? '',
+        department: savedRecord.department ?? '',
+        observations: savedRecord.observations ?? '',
+        licenseIssueDate: toDateInputValue(savedRecord.licenseIssueDate),
         licenseExpiresAt: toDateInputValue(savedRecord.licenseExpiresAt),
         course50HoursDate: toDateInputValue(savedRecord.course50HoursDate),
         course50HoursDetectedDate: toDateInputValue(savedRecord.course50HoursDetectedDate),
@@ -1185,7 +1239,8 @@ function SpecialPensionAdvancedPanel({ token, readOnly, onComplianceChange, onDi
 }
 
 
-function CommitteeAdvancedPanel({ token, committeeType, title, onComplianceChange }: { token: string; committeeType: 'COPASST'|'CONVIVENCIA'; title: string; onComplianceChange: (status: ResponsableSstComplianceStatus) => void }) {
+// @ts-ignore
+function _CommitteeAdvancedPanel({ token, committeeType, title, onComplianceChange }: { token: string; committeeType: 'COPASST'|'CONVIVENCIA'; title: string; onComplianceChange: (status: ResponsableSstComplianceStatus) => void }) {
   const [tab, setTab] = useState<'CONFORMACION'|'ELECCIONES'|'REUNIONES'|'REGLAMENTO'|'CONFIDENCIALIDAD'|'DOCUMENTOS'|'ALERTAS'|'HISTORIAL'>('CONFORMACION');
   const [period, setPeriod] = useState<any>(null); const [results, setResults] = useState<any>(null);
   useEffect(() => { if (!token) return; fetchCommitteeCurrent(token, committeeType).then((p) => { setPeriod(p); onComplianceChange(p.status === 'ACTIVO' && (p.members?.length||0) >= 4 ? 'COMPLIES' : 'PENDING'); }); }, [token, committeeType, onComplianceChange]);

@@ -4,7 +4,6 @@ import {
   ResponsibilityMatrixModel,
   MatrixAuditEntryModel,
   MatrixVersionModel,
-  ResponsableSstComplianceStatus,
   fetchResponsibilityMatrix,
   generateResponsibilityMatrix,
   addResponsibilityMatrixItem,
@@ -93,11 +92,11 @@ export function ResponsibilityMatrixModule({ token }: { token?: string }) {
   }, [token]);
 
   const loadCampaignInfo = useCallback(async () => {
-    if (!token || !matrix?.campaignId) return;
+    if (!token) return;
     try {
       setCampaignInfo(await fetchResponsibilityMatrixCampaignInfo(token));
     } catch { /* ignore */ }
-  }, [token, matrix?.campaignId]);
+  }, [token]);
 
   const loadHistory = useCallback(async () => {
     if (!token) return;
@@ -159,7 +158,7 @@ export function ResponsibilityMatrixModule({ token }: { token?: string }) {
   const handleAdd = async () => {
     if (!token || !newItem.title) return;
     try {
-      const result = await addResponsibilityMatrixItem(token, newItem);
+      const result = await addResponsibilityMatrixItem(token, { ...newItem, status: 'PENDING' });
       setMatrix(result);
       setShowAddModal(false);
       setNewItem({ title: '', description: '', group: 'GERENCIA', mandatory: false, active: true });

@@ -10,11 +10,10 @@ import {
   fetchDocumentHistory, fetchAllHistory,
   fetchPendingApprovals, fetchApprovalHistory,
   submitDocumentForApproval, approveDocument, rejectDocument,
-  fetchDocumentSignatures, addDocumentSignature,
+  fetchDocumentSignatures,
   fetchExpiringDocuments, fetchExpiredDocuments, checkDocumentExpiration,
   triggerDocumentAlerts,
-  DocumentHistoryAction, fetchRetentionRules, createRetentionRule,
-  fetchEmployees,
+  DocumentHistoryAction,
 } from '../api';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -22,7 +21,7 @@ import { Select } from '../components/ui/Select';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { Sheet } from '../components/ui/Sheet';
-import { KpiCard } from '../components/KpiCard';
+
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   POLICY: 'Política', PROCEDURE: 'Procedimiento', MANUAL: 'Manual',
@@ -112,7 +111,6 @@ export function DocumentManagementPage({ token }: Props) {
   const [detailDoc, setDetailDoc] = useState<DocumentMasterModel | null>(null);
   const [docVersions, setDocVersions] = useState<DocumentVersionModel[]>([]);
   const [docHistory, setDocHistory] = useState<DocumentHistoryModel[]>([]);
-  const [docApprovals, setDocApprovals] = useState<DocumentApprovalModel[]>([]);
   const [docSignatures, setDocSignatures] = useState<DocumentSignatureModel[]>([]);
   const [expirationInfo, setExpirationInfo] = useState<{ isExpired: boolean; retentionDate: string | null; daysUntilExpiration: number | null } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -174,12 +172,12 @@ export function DocumentManagementPage({ token }: Props) {
     setLoading(true);
     setError('');
     try {
-      const [d, s] = await Promise.all([
+      const [d, stats] = await Promise.all([
         fetchDocumentsMaster(token),
         fetchDocumentStats(token),
       ]);
       setDocs(d);
-      setStats(s);
+      setStats(stats);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error loading documents');
     } finally {
@@ -192,11 +190,10 @@ export function DocumentManagementPage({ token }: Props) {
   const loadDetail = useCallback(async (id: string) => {
     setDetailLoading(true);
     try {
-      const [doc, versions, history, approvals, signatures] = await Promise.all([
+      const [doc, versions, history, signatures] = await Promise.all([
         fetchDocumentMaster(token, id),
         fetchDocumentVersions(token, id),
         fetchDocumentHistory(token, id),
-        searchDocuments(token, { status: 'PENDING_APPROVAL' }),
         fetchDocumentSignatures(token, id),
       ]);
       setDetailDoc(doc);

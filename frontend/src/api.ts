@@ -1284,7 +1284,7 @@ export const fetchCopasstDashboard = (token: string) => apiFetch<{
   totalMembers: number; periodName: string;
 }>('/copasst/dashboard', token, { method: 'GET' });
 
-export interface CommitteePeriodModel extends CopasstPeriodModel { committeeType?: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER'; regulations?: Array<Record<string, unknown>>; confidentiality?: Array<Record<string, unknown>>; commitments?: Array<Record<string, unknown>>; }
+export interface CommitteePeriodModel extends Omit<CopasstPeriodModel, 'commitments'> { committeeType?: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER'; regulations?: Array<Record<string, unknown>>; confidentiality?: Array<Record<string, unknown>>; commitments?: Array<Record<string, unknown>>; }
 export const fetchCommitteeCurrent = (token: string, committeeType: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER') => apiFetch<CommitteePeriodModel>(`/committee-engine/${committeeType}/current`, token, { method: 'GET' });
 export const createCommitteePeriod = (token: string, payload: { periodName: string; startDate: string; committeeType: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER' }) => apiFetch<CommitteePeriodModel>('/committee-engine/periods', token, { method: 'POST', body: JSON.stringify(payload) });
 export const addCommitteeMember = (token: string, periodId: string, payload: { userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string }) => apiFetch<CommitteePeriodModel>(`/committee-engine/periods/${periodId}/members`, token, { method: 'POST', body: JSON.stringify(payload) });
@@ -1785,10 +1785,6 @@ export type CommunicationType =
 
 export type CommunicationPriority = 'INFORMATIVE' | 'IMPORTANT' | 'URGENT' | 'CRITICAL';
 
-export type TargetAudienceType =
-  | 'ALL_COMPANY' | 'AREA' | 'POSITION' | 'INDIVIDUAL'
-  | 'COPASST' | 'COMMITTEE' | 'BRIGADE' | 'MANAGERS' | 'SST_TEAM';
-
 export type CommunicationStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
 export type CommunicationCampaignStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
@@ -1800,6 +1796,10 @@ export type SurveyStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED';
 export type MailboxType = 'SUGGESTION' | 'COMPLAINT' | 'UNSAFE_ACT' | 'UNSAFE_CONDITION' | 'IMPROVEMENT_IDEA' | 'REPORT';
 
 export type MailboxStatus = 'PENDING' | 'UNDER_REVIEW' | 'RESOLVED' | 'CLOSED';
+
+export type TargetAudienceType =
+  | 'ALL_COMPANY' | 'AREA' | 'POSITION' | 'INDIVIDUAL'
+  | 'COPASST' | 'COMMITTEE' | 'BRIGADE' | 'MANAGERS' | 'SST_TEAM';
 
 export interface CommunicationModel {
   _id: string;
@@ -3719,7 +3719,7 @@ async function fetchPublic<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type SocializationStatus = 'SOCIALIZATION_PENDING' | 'SOCIALIZATION_IN_PROGRESS' | 'SOCIALIZED' | 'COMPLIANT';
 export type ParticipantStatus = 'PENDING' | 'LINK_SENT' | 'LINK_OPENED' | 'PRESENTATION_VIEWING' | 'PRESENTATION_COMPLETED' | 'ACKNOWLEDGED' | 'SIGNED' | 'EXPIRED';
-export type TargetAudienceType = 'ALL_EMPLOYEES' | 'BY_DEPARTMENT' | 'BY_POSITION' | 'SELECTED_EMPLOYEES';
+export type SocializationTargetAudienceType = 'ALL_EMPLOYEES' | 'BY_DEPARTMENT' | 'BY_POSITION' | 'SELECTED_EMPLOYEES';
 export type PresentationFileType = 'PDF' | 'PPTX' | 'IMAGE';
 export type SignatureMethod = 'TYPED' | 'DRAWN';
 
@@ -3733,7 +3733,7 @@ export interface SocializationSessionModel {
   startDate?: string;
   deadline?: string;
   responsibleName?: string;
-  targetAudienceType: TargetAudienceType;
+  targetAudienceType: SocializationTargetAudienceType;
   targetDepartments: string[];
   targetPositions: string[];
   selectedEmployees: string[];

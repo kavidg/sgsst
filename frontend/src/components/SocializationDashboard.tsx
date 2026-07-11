@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from './ui/Button';
 import { AdvancedKpiGrid } from './advanced-layout';
 import {
@@ -8,13 +8,11 @@ import {
   SocializationParticipantModel,
   SocializationEvidenceModel,
   SocializationAuditModel,
-  SocializationTokenResult,
   EmployeeModel,
   fetchEmployees,
   getSocializationSession,
   getSocializationStats,
   startSocialization,
-  updateSocialization,
   completeSocialization,
   uploadSocializationPresentation,
   getSocializationPresentation,
@@ -50,13 +48,11 @@ export default function SocializationDashboard({
   const [audits, setAudits] = useState<SocializationAuditModel[]>([]);
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [toast, setToast] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const notify = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2800); };
 
   const loadAll = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
     try {
       const sessionData = await getSocializationSession(token, responsibilitiesDocId);
       setSession(sessionData);
@@ -76,7 +72,7 @@ export default function SocializationDashboard({
         setAudits(audData);
         setEmployees(empData);
       }
-    } catch { /* silent */ } finally { setLoading(false); }
+    } catch { /* silent */ }
   }, [token, responsibilitiesDocId]);
 
   useEffect(() => { void loadAll(); }, [loadAll]);
@@ -318,7 +314,7 @@ export default function SocializationDashboard({
                     </div>
                     <div className="advanced-page__version-details">
                       <p><strong>Versiones:</strong> {presentation.versions.length}</p>
-                      <p><strong>Última actualización:</strong> {new Date(presentation.updatedAt).toLocaleString()}</p>
+                      <p><strong>Última actualización:</strong> {(presentation as any).updatedAt ? new Date((presentation as any).updatedAt).toLocaleString() : '—'}</p>
                     </div>
                   </div>
 
@@ -421,7 +417,7 @@ export default function SocializationDashboard({
                           </td>
                           <td>
                             {p.status !== 'SIGNED' && (
-                              <Button type="button" variant="danger" size="small"
+                              <Button type="button" variant="danger"
                                 onClick={async () => {
                                   if (!confirm(`¿Eliminar a ${p.employeeName}?`)) return;
                                   try {

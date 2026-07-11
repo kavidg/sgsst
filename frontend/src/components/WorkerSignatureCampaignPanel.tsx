@@ -7,7 +7,6 @@ import {
   fetchSignatureCampaigns,
   fetchSignatureCampaignStats,
   createSignatureCampaign,
-  updateSignatureCampaign,
   updateSignatureCampaignStatus,
   fetchCampaignWorkers,
   addCampaignWorkers,
@@ -32,9 +31,7 @@ export function WorkerSignatureCampaignPanel({ token }: { token?: string }) {
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddWorkersModal, setShowAddWorkersModal] = useState(false);
-  const [showWorkersModal, setShowWorkersModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [form, setForm] = useState({
@@ -48,7 +45,6 @@ export function WorkerSignatureCampaignPanel({ token }: { token?: string }) {
 
   const loadCampaigns = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
     try {
       const [data, statsData, empData] = await Promise.all([
         fetchSignatureCampaigns(token),
@@ -58,7 +54,7 @@ export function WorkerSignatureCampaignPanel({ token }: { token?: string }) {
       setCampaigns(data.campaigns);
       setStats(statsData);
       setEmployees(empData);
-    } catch { notify('Error al cargar campañas.'); } finally { setLoading(false); }
+    } catch { notify('Error al cargar campañas.'); }
   }, [token]);
 
   useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);

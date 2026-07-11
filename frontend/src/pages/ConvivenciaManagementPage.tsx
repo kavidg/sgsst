@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   ConvivenciaPeriodModel,
   fetchConvivenciaSummary,
@@ -45,7 +45,6 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export default function ConvivenciaManagementPage({ token, role }: { token: string; role?: string }) {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isReviewMode = searchParams.get('mode') === 'review';
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -278,15 +277,15 @@ export default function ConvivenciaManagementPage({ token, role }: { token: stri
             {period?.registrationCampaign ? (
               <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
                 <h4>📢 Convocatoria activa</h4>
-                <p className="muted">Apertura: {new Date(period.registrationCampaign.openingDate).toLocaleDateString()} · Cierre: {new Date(period.registrationCampaign.closingDate).toLocaleDateString()}</p>
+                <p className="muted">Apertura: {new Date(period.registrationCampaign!.openingDate).toLocaleDateString()} · Cierre: {new Date(period.registrationCampaign!.closingDate).toLocaleDateString()}</p>
                 {period.registrationCampaign.secureToken && (
                   <div style={{ marginTop: '.5rem' }}>
                     <p><strong>Link de inscripción:</strong></p>
-                    <code style={{ display: 'block', padding: '.5rem', background: '#f3f4f6', borderRadius: '4px', fontSize: '.85rem', wordBreak: 'break-all' }}>{`${window.location.origin}/convivencia/register/${period.registrationCampaign.secureToken}`}</code>
+                    <code style={{ display: 'block', padding: '.5rem', background: '#f3f4f6', borderRadius: '4px', fontSize: '.85rem', wordBreak: 'break-all' }}>{`${window.location.origin}/convivencia/register/${period.registrationCampaign!.secureToken}`}</code>
                     <div className="actions" style={{ marginTop: '.5rem', flexWrap: 'wrap' }}>
-                      <Button type="button" variant="secondary" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/convivencia/register/${period.registrationCampaign.secureToken}`); notify('🔗 Link copiado'); }}>📋 Copiar link</Button>
-                      <Button type="button" variant="secondary" onClick={() => { window.open(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/convivencia/register/${period.registrationCampaign.secureToken}`)}`, '_blank'); notify('📱 QR generado'); }}>📱 Generar QR</Button>
-                      <Button type="button" variant="secondary" onClick={() => { const link = `${window.location.origin}/convivencia/register/${period.registrationCampaign.secureToken}`; if (navigator.share) { navigator.share({ title: 'Postulación Comité de Convivencia', url: link }); } else { navigator.clipboard.writeText(link); notify('🔗 Link copiado'); } }}>📤 Compartir</Button>
+                      <Button type="button" variant="secondary" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/convivencia/register/${period.registrationCampaign!.secureToken}`); notify('🔗 Link copiado'); }}>📋 Copiar link</Button>
+                      <Button type="button" variant="secondary" onClick={() => { window.open(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/convivencia/register/${period.registrationCampaign!.secureToken}`)}`, '_blank'); notify('📱 QR generado'); }}>📱 Generar QR</Button>
+                      <Button type="button" variant="secondary" onClick={() => { const link = `${window.location.origin}/convivencia/register/${period.registrationCampaign!.secureToken}`; if (navigator.share) { navigator.share({ title: 'Postulación Comité de Convivencia', url: link }); } else { navigator.clipboard.writeText(link); notify('🔗 Link copiado'); } }}>📤 Compartir</Button>
                     </div>
                   </div>
                 )}

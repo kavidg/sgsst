@@ -12,30 +12,25 @@ import {
   CommunicationSignatureModel,
   CommunicationCampaignModel,
   CommunicationSurveyModel,
-  CommunicationSurveyResponseModel,
   CommunicationMailboxModel,
   CommunicationType,
   CommunicationPriority,
-  CommunicationStatus,
   TargetAudienceType,
   CommunicationCampaignStatus,
   SurveyQuestionType,
   SurveyStatus,
   MailboxType,
-  MailboxStatus,
   ResponsableSstComplianceStatus,
   EmployeeModel,
   fetchCommunicationDashboard,
   fetchCommunicationAutoCompliance,
   fetchCommunications,
   createCommunication,
-  updateCommunication,
   publishCommunication,
   archiveCommunication,
   deleteCommunication,
   fetchCommunicationRecipients,
   addCommunicationRecipients,
-  registerCommunicationRead,
   fetchCommunicationReadReceipts,
   signCommunication,
   fetchCommunicationSignatures,
@@ -47,7 +42,6 @@ import {
   createSurvey,
   updateSurvey,
   deleteSurvey,
-  submitSurveyResponse,
   fetchSurveyResults,
   fetchMailbox,
   createMailboxEntry,
@@ -57,13 +51,6 @@ import {
   triggerCommunicationAlerts,
   fetchEmployees,
 } from '../api';
-
-function toDateInputValue(value?: string | Date) {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
-}
 
 function statusBadgeClass(status: string) {
   if (status === 'PUBLISHED' || status === 'ACTIVE' || status === 'RESOLVED') return 'advanced-management__badge advanced-management__badge--success';
