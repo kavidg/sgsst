@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
+import * as XLSX from 'xlsx';
 import {
   CompanyProfileModel,
   fetchCompanyProfile,
   updateCompanyProfile,
   addWorkCenter,
-
+  bulkCreateEmployees,
+  BulkEmployeesResponse,
+  CreateEmployeePayload,
   deleteWorkCenter,
   upsertContact,
   addCompanyDocument,
@@ -33,6 +36,7 @@ const CONTACT_TYPES = [
   { value: 'EMERGENCY', label: 'Contacto Emergencia' },
   { value: 'ARL', label: 'Contacto ARL' },
 ];
+const BULK_ALLOWED_STATUS = new Set(['Activo', 'No activo']);
 
 function toInputDate(value?: string) {
   if (!value) return '';
@@ -40,10 +44,11 @@ function toInputDate(value?: string) {
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
 
-type TabName = 'general' | 'labor' | 'sst' | 'workcenters' | 'contacts' | 'documents' | 'history';
+type TabName = 'general' | 'employees' | 'labor' | 'sst' | 'workcenters' | 'contacts' | 'documents' | 'history';
 
 const TABS: { key: TabName; label: string }[] = [
   { key: 'general', label: 'Información General' },
+  { key: 'employees', label: '👥 Cargue de Empleados' },
   { key: 'labor', label: 'Información Laboral' },
   { key: 'sst', label: 'Información SG-SST' },
   { key: 'workcenters', label: 'Centros de Trabajo' },
@@ -61,6 +66,70 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
   const [error, setError] = useState('');
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+  // Bulk employee upload state
+  const [bulkPreview, setBulkPreview] = useState<Array<{ row: number; data: CreateEmployeePayload; error?: string }>>([]);
+  const [bulkResult, setBulkResult] = useState<BulkEmployeesResponse | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const parseBulkEmployee = (value: unknown): string => {
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number') return String(value).trim();
+    return '';
+  };
+
+  const handleBulkFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBulkResult(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const fileBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(fileBuffer, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!worksheet) { setError('El archivo no contiene una hoja válida.'); setBulkPreview([]); return; }
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+      const preview = rows.map((row: Record<string, unknown>, index: number) => {
+        const data: CreateEmployeePayload = {
+          name: parseBulkEmployee(row['nombre']),
+          document: parseBulkEmployee(row['documento']),
+          position: parseBulkEmployee(row['cargo']),
+          area: parseBulkEmployee(row['area']),
+          contractType: parseBulkEmployee(row['tipo de contrato']),
+          status: parseBulkEmployee(row['estado']),
+        };
+        const missingRequired = Object.values(data).some((field) => !field);
+        if (missingRequired) return { row: index + 2, data, error: 'Todos los campos son obligatorios.' };
+        if (!BULK_ALLOWED_STATUS.has(data.status)) return { row: index + 2, data, error: 'El estado debe ser "Activo" o "No activo".' };
+        return { row: index + 2, data };
+      });
+      setBulkPreview(preview);
+    } catch { setError('No fue posible leer el archivo Excel. Verifica el formato.'); setBulkPreview([]); }
+    finally { e.target.value = ''; }
+  };
+
+  const handleBulkUpload = async () => {
+    const validEmployees = bulkPreview.filter((item) => !item.error).map((item) => item.data);
+    if (!validEmployees.length) { setError('No hay registros válidos para cargar.'); return; }
+    setBulkLoading(true); setError('');
+    try {
+      const response = await bulkCreateEmployees(token, { employees: validEmployees });
+      setBulkResult(response);
+      notify(`✅ ${response.inserted} empleados cargados exitosamente`);
+      // Reload employees count for the labor tab
+      const e = await fetchEmployees(token).catch(() => [] as EmployeeModel[]);
+      setEmployees(e);
+    } catch (err) { showError(err instanceof Error ? err.message : 'Error en carga masiva'); }
+    finally { setBulkLoading(false); }
+  };
+
+  const downloadTemplate = () => {
+    const worksheet = XLSX.utils.json_to_sheet([
+      { nombre: 'Juan Pérez', documento: '123456789', cargo: 'Analista SST', area: 'Talento humano', 'tipo de contrato': 'Indefinido', estado: 'Activo' },
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Empleados');
+    XLSX.writeFile(workbook, 'plantilla-empleados.xlsx');
+  };
 
   // New Work Center form
   const [newWc, setNewWc] = useState({ name: '', address: '', city: '', riskLevel: '', employeeCount: 0 });
@@ -215,9 +284,12 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
         </div>
       )}
 
-      {error ? <p className="error">{error}</p> : null}
-      {success ? <p className="advanced-management__success">{success}</p> : null}
-      {saving ? <p className="muted">Guardando...</p> : null}
+      {/* Fixed-height container for notifications — prevents layout shift */}
+      <div style={{ minHeight: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {error ? <p className="error" style={{ margin: 0 }}>{error}</p> : null}
+        {success ? <p className="advanced-management__success" style={{ margin: 0 }}>{success}</p> : null}
+        {saving ? <p className="muted" style={{ margin: 0 }}>Guardando...</p> : null}
+      </div>
 
       {/* Tabs */}
       <div className="advanced-tabs" role="tablist" style={{ flexWrap: 'wrap' }}>
@@ -267,7 +339,110 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
         </section>
       )}
 
-      {/* ============ TAB 2: LABOR ============ */}
+      {/* ============ TAB 2: EMPLOYEES (BULK UPLOAD) ============ */}
+      {tab === 'employees' && (
+        <section className="advanced-management__section">
+          <div className="actions" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Cargue Masivo de Empleados</h3>
+              <p className="muted" style={{ margin: '4px 0 0' }}>
+                Suba un archivo Excel con los datos de sus empleados para iniciar la configuración.
+                Actualmente tiene <strong>{employees.length} empleados</strong> registrados.
+              </p>
+            </div>
+          </div>
+
+          <div className="form-grid" style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16, background: '#fafafa' }}>
+            <div className="grid grid-2" style={{ gap: 12 }}>
+              <div>
+                <p style={{ margin: '0 0 8px', fontWeight: 500 }}>1. Descargue la plantilla Excel</p>
+                <p className="muted" style={{ fontSize: '0.85rem', marginBottom: 8 }}>
+                  La plantilla contiene las columnas: <strong>nombre, documento, cargo, area, tipo de contrato, estado</strong>
+                </p>
+                <Button type="button" variant="secondary" onClick={downloadTemplate}>
+                  📥 Descargar plantilla
+                </Button>
+              </div>
+              <div>
+                <p style={{ margin: '0 0 8px', fontWeight: 500 }}>2. Seleccione el archivo y cargue</p>
+                <p className="muted" style={{ fontSize: '0.85rem', marginBottom: 8 }}>
+                  Formatos aceptados: <strong>.xlsx</strong>
+                </p>
+                <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleBulkFile} style={{ marginBottom: 8, display: 'block' }} />
+                <Button type="button" onClick={handleBulkUpload} disabled={bulkLoading || !bulkPreview.length}>
+                  {bulkLoading ? '🚀 Cargando...' : '🚀 Enviar cargue masivo'}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Preview table */}
+          {bulkPreview.length ? (
+            <div className="responsive-table" style={{ marginBottom: 16 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Fila</th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Área</th><th>Contrato</th><th>Estado</th><th>Validación</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulkPreview.map((item) => (
+                    <tr key={`${item.row}-${item.data.document}`}>
+                      <td>{item.row}</td>
+                      <td>{item.data.name}</td>
+                      <td>{item.data.document}</td>
+                      <td>{item.data.position}</td>
+                      <td>{item.data.area}</td>
+                      <td>{item.data.contractType}</td>
+                      <td>{item.data.status}</td>
+                      <td><span style={{ color: item.error ? '#dc2626' : '#16a34a' }}>{item.error ?? '✅ Válido'}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {/* Result */}
+          {bulkResult ? (
+            <div className="advanced-management__section" style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+              <h4 style={{ margin: '0 0 8px', color: '#166534' }}>📊 Resultado de la carga</h4>
+              <p style={{ margin: '4px 0' }}>✅ Insertados: <strong>{bulkResult.inserted}</strong></p>
+              <p style={{ margin: '4px 0' }}>❌ Fallidos: <strong>{bulkResult.failed}</strong></p>
+              {bulkResult.errors.length ? (
+                <ul style={{ margin: '8px 0 0', fontSize: '0.85rem', color: '#991b1b' }}>
+                  {bulkResult.errors.map((bulkError) => (
+                    <li key={`${bulkError.row}-${bulkError.message}`}>
+                      Fila {bulkError.row}: {bulkError.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+
+          {employees.length > 0 && (
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 500 }}>📋 Ver empleados registrados ({employees.length})</summary>
+              <div className="responsive-table" style={{ marginTop: 8 }}>
+                <table className="table">
+                  <thead><tr><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Área</th><th>Estado</th></tr></thead>
+                  <tbody>
+                    {employees.slice(0, 50).map((emp) => (
+                      <tr key={emp._id}>
+                        <td>{emp.name}</td><td>{emp.document}</td><td>{emp.position}</td><td>{emp.area}</td><td>{emp.status}</td>
+                      </tr>
+                    ))}
+                    {employees.length > 50 && <tr><td colSpan={5} className="muted" style={{ textAlign: 'center' }}>... y {employees.length - 50} más</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
+        </section>
+      )}
+
+      {/* ============ TAB 3: LABOR ============ */}
       {tab === 'labor' && (
         <section className="advanced-management__section">
           <h3>Información Laboral</h3>
