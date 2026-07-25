@@ -26,7 +26,6 @@ const links: SidebarLink[] = [
   { to: '/alerts', label: 'Alertas', icon: Icons.bell },
   { to: '/absenteeism', label: 'Ausentismos', icon: Icons.chart },
   { to: '/risks', label: 'Riesgos', icon: Icons.shield },
-  { to: '/trainings', label: 'Capacitaciones', icon: Icons.chart },
   { to: '/inspections', label: 'Inspecciones', icon: Icons.shield },
   { to: '/document-management', label: 'Conservación Doc.', icon: Icons.file },
   { to: '/accountability', label: 'Rend. Cuentas', icon: Icons.chart },

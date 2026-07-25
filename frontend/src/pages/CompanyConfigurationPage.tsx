@@ -305,30 +305,41 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
           <div className="form-grid">
             <div className="grid grid-3">
               <label className="field"><span className="label">Nombre Comercial *</span><input className="input" value={profile.companyName || ''} disabled placeholder="Sincronizado de la empresa" title="Se sincroniza automáticamente desde los datos de la empresa" /></label>
-              <label className="field"><span className="label">Razón Social</span><input className="input" value={sel('legalName') as string || ''} onChange={(e) => { updateField('legalName', e.target.value); void handleUpdate({ legalName: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Razón Social</span><input className="input" value={sel('legalName') as string || ''} onChange={(e) => { updateField('legalName', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ legalName: e.target.value }); }} /></label>
               <label className="field"><span className="label">NIT *</span><input className="input" value={profile.nit || ''} disabled title="Se sincroniza automáticamente desde los datos de la empresa" /></label>
             </div>
             <div className="grid grid-3">
-              <label className="field"><span className="label">Digito Verificación</span><input className="input" value={sel('verificationDigit') as string || ''} onChange={(e) => { updateField('verificationDigit', e.target.value); void handleUpdate({ verificationDigit: e.target.value }); }} placeholder="Ej: 5" /></label>
+              <label className="field"><span className="label">Digito Verificación</span><input className="input" value={sel('verificationDigit') as string || ''} onChange={(e) => { updateField('verificationDigit', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ verificationDigit: e.target.value }); }} placeholder="Ej: 5" /></label>
               <label className="field"><span className="label">Sector Económico *</span><input className="input" value={profile.economicSector || ''} disabled title="Se sincroniza automáticamente desde los datos de la empresa" /></label>
-              <label className="field"><span className="label">Actividad Económica</span><input className="input" value={sel('companyType') as string || ''} onChange={(e) => { updateField('companyType', e.target.value); void handleUpdate({ companyType: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Actividad Económica</span><input className="input" value={sel('companyType') as string || ''} onChange={(e) => { updateField('companyType', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ companyType: e.target.value }); }} /></label>
             </div>
             <div className="grid grid-3">
-              <label className="field"><span className="label">Código CIIU</span><input className="input" value={sel('companyType') as string || ''} onChange={(e) => { updateField('companyType', e.target.value); void handleUpdate({ companyType: e.target.value }); }} placeholder="Ej: 0111" /></label>
+              <label className="field"><span className="label">Código CIIU</span><input className="input" value={sel('companyType') as string || ''} onChange={(e) => { updateField('companyType', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ companyType: e.target.value }); }} placeholder="Ej: 0111" /></label>
               <label className="field"><span className="label">Tamaño Empresa</span><select className="input" value={sel('companySize') as string || ''} onChange={(e) => { updateField('companySize', e.target.value); void handleUpdate({ companySize: e.target.value }); }}><option value="">Seleccionar</option>{COMPANY_SIZE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}</select></label>
               <label className="field"><span className="label">Nivel de Riesgo *</span><select className="input" value={sel('riskLevel') as string || ''} onChange={(e) => { updateField('riskLevel', e.target.value); void handleUpdate({ riskLevel: e.target.value }); }}><option value="">Seleccionar</option>{RISK_LEVEL_OPTIONS.map((o) => <option key={o} value={o}>Clase {o}</option>)}</select></label>
             </div>
             <div className="grid grid-3">
-              <label className="field"><span className="label">Dirección</span><input className="input" value={sel('address') as string || ''} onChange={(e) => { updateField('address', e.target.value); void handleUpdate({ address: e.target.value }); }} /></label>
-              <label className="field"><span className="label">Ciudad</span><input className="input" value={sel('city') as string || ''} onChange={(e) => { updateField('city', e.target.value); void handleUpdate({ city: e.target.value }); }} /></label>
-              <label className="field"><span className="label">Departamento</span><input className="input" value={sel('department') as string || ''} onChange={(e) => { updateField('department', e.target.value); void handleUpdate({ department: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Dirección</span><input className="input" value={sel('address') as string || ''} onChange={(e) => { updateField('address', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ address: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Ciudad</span><input className="input" value={sel('city') as string || ''} onChange={(e) => { updateField('city', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ city: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Departamento</span><input className="input" value={sel('department') as string || ''} onChange={(e) => { updateField('department', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ department: e.target.value }); }} /></label>
             </div>
             <div className="grid grid-3">
-              <label className="field"><span className="label">País</span><input className="input" value={sel('country') as string || 'Colombia'} onChange={(e) => { updateField('country', e.target.value); void handleUpdate({ country: e.target.value }); }} /></label>
-              <label className="field"><span className="label">Teléfono</span><input className="input" value={sel('phone') as string || ''} onChange={(e) => { updateField('phone', e.target.value); void handleUpdate({ phone: e.target.value }); }} /></label>
-              <label className="field"><span className="label">Email</span><input className="input" type="email" value={sel('email') as string || ''} onChange={(e) => { updateField('email', e.target.value); void handleUpdate({ email: e.target.value }); }} /></label>
+              <label className="field"><span className="label">País</span><input className="input" value={sel('country') as string || 'Colombia'} onChange={(e) => { updateField('country', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ country: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Teléfono</span><input className="input" value={sel('phone') as string || ''} onChange={(e) => { updateField('phone', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ phone: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Email</span><input className="input" type="email" value={sel('email') as string || ''} onChange={(e) => { updateField('email', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ email: e.target.value }); }} /></label>
             </div>
-            <label className="field"><span className="label">Sitio Web</span><input className="input" value={sel('website') as string || ''} onChange={(e) => { updateField('website', e.target.value); void handleUpdate({ website: e.target.value }); }} placeholder="https://" /></label>
+            <label className="field"><span className="label">Sitio Web</span><input className="input" value={sel('website') as string || ''} onChange={(e) => { updateField('website', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ website: e.target.value }); }} placeholder="https://" /></label>
             <label className="field"><span className="label">Logo Empresa</span>
               <div className="actions" style={{ gap: 8 }}>
                 <input type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={handleLogoUpload} />
@@ -448,30 +459,44 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
           <h3>Información Laboral</h3>
           <div className="form-grid">
             <div className="grid grid-3">
-              <label className="field"><span className="label">Total Empleados *</span><input className="input" type="number" min={0} value={profile.totalEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('totalEmployees', v); void handleUpdate({ totalEmployees: v }); }} /></label>
-              <label className="field"><span className="label">Directos</span><input className="input" type="number" min={0} value={profile.directEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('directEmployees', v); void handleUpdate({ directEmployees: v }); }} /></label>
-              <label className="field"><span className="label">Contratistas</span><input className="input" type="number" min={0} value={profile.contractors || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('contractors', v); void handleUpdate({ contractors: v }); }} /></label>
+              <label className="field"><span className="label">Total Empleados *</span><input className="input" type="number" min={0} value={profile.totalEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('totalEmployees', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ totalEmployees: v }); }} /></label>
+              <label className="field"><span className="label">Directos</span><input className="input" type="number" min={0} value={profile.directEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('directEmployees', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ directEmployees: v }); }} /></label>
+              <label className="field"><span className="label">Contratistas</span><input className="input" type="number" min={0} value={profile.contractors || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('contractors', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ contractors: v }); }} /></label>
             </div>
             <div className="grid grid-3">
-              <label className="field"><span className="label">Aprendices</span><input className="input" type="number" min={0} value={profile.apprentices || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('apprentices', v); void handleUpdate({ apprentices: v }); }} /></label>
-              <label className="field"><span className="label">Temporales</span><input className="input" type="number" min={0} value={profile.temporaryWorkers || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('temporaryWorkers', v); void handleUpdate({ temporaryWorkers: v }); }} /></label>
+              <label className="field"><span className="label">Aprendices</span><input className="input" type="number" min={0} value={profile.apprentices || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('apprentices', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ apprentices: v }); }} /></label>
+              <label className="field"><span className="label">Temporales</span><input className="input" type="number" min={0} value={profile.temporaryWorkers || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('temporaryWorkers', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ temporaryWorkers: v }); }} /></label>
             </div>
             <h4>Distribución por Género</h4>
             <div className="grid grid-3">
-              <label className="field"><span className="label">Hombres</span><input className="input" type="number" min={0} value={profile.maleEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('maleEmployees', v); void handleUpdate({ maleEmployees: v }); }} /></label>
-              <label className="field"><span className="label">Mujeres</span><input className="input" type="number" min={0} value={profile.femaleEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('femaleEmployees', v); void handleUpdate({ femaleEmployees: v }); }} /></label>
-              <label className="field"><span className="label">Otro</span><input className="input" type="number" min={0} value={profile.otherGenderEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('otherGenderEmployees', v); void handleUpdate({ otherGenderEmployees: v }); }} /></label>
+              <label className="field"><span className="label">Hombres</span><input className="input" type="number" min={0} value={profile.maleEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('maleEmployees', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ maleEmployees: v }); }} /></label>
+              <label className="field"><span className="label">Mujeres</span><input className="input" type="number" min={0} value={profile.femaleEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('femaleEmployees', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ femaleEmployees: v }); }} /></label>
+              <label className="field"><span className="label">Otro</span><input className="input" type="number" min={0} value={profile.otherGenderEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('otherGenderEmployees', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ otherGenderEmployees: v }); }} /></label>
             </div>
             <h4>Distribución por Edad</h4>
             <div className="grid grid-3">
-              <label className="field"><span className="label">Menores 18</span><input className="input" type="number" min={0} value={profile.ageUnder18 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('ageUnder18', v); void handleUpdate({ ageUnder18: v }); }} /></label>
-              <label className="field"><span className="label">18-25</span><input className="input" type="number" min={0} value={profile.age18to25 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('age18to25', v); void handleUpdate({ age18to25: v }); }} /></label>
-              <label className="field"><span className="label">26-35</span><input className="input" type="number" min={0} value={profile.age26to35 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('age26to35', v); void handleUpdate({ age26to35: v }); }} /></label>
+              <label className="field"><span className="label">Menores 18</span><input className="input" type="number" min={0} value={profile.ageUnder18 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('ageUnder18', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ ageUnder18: v }); }} /></label>
+              <label className="field"><span className="label">18-25</span><input className="input" type="number" min={0} value={profile.age18to25 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('age18to25', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ age18to25: v }); }} /></label>
+              <label className="field"><span className="label">26-35</span><input className="input" type="number" min={0} value={profile.age26to35 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('age26to35', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ age26to35: v }); }} /></label>
             </div>
             <div className="grid grid-3">
-              <label className="field"><span className="label">36-45</span><input className="input" type="number" min={0} value={profile.age36to45 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('age36to45', v); void handleUpdate({ age36to45: v }); }} /></label>
-              <label className="field"><span className="label">46-60</span><input className="input" type="number" min={0} value={profile.age46to60 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('age46to60', v); void handleUpdate({ age46to60: v }); }} /></label>
-              <label className="field"><span className="label">60+</span><input className="input" type="number" min={0} value={profile.ageOver60 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('ageOver60', v); void handleUpdate({ ageOver60: v }); }} /></label>
+              <label className="field"><span className="label">36-45</span><input className="input" type="number" min={0} value={profile.age36to45 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('age36to45', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ age36to45: v }); }} /></label>
+              <label className="field"><span className="label">46-60</span><input className="input" type="number" min={0} value={profile.age46to60 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('age46to60', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ age46to60: v }); }} /></label>
+              <label className="field"><span className="label">60+</span><input className="input" type="number" min={0} value={profile.ageOver60 || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('ageOver60', v); }}
+            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ ageOver60: v }); }} /></label>
             </div>
             <h4>Jornadas Laborales</h4>
             <div className="actions" style={{ flexWrap: 'wrap' }}>
@@ -509,7 +534,8 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
                   <option value="Otro">Otra ARL</option>
                 </select>
               </label>
-              <label className="field"><span className="label">Número Afiliación ARL</span><input className="input" value={profile.arlAffiliateNumber || ''} onChange={(e) => { updateField('arlAffiliateNumber', e.target.value); void handleUpdate({ arlAffiliateNumber: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Número Afiliación ARL</span><input className="input" value={profile.arlAffiliateNumber || ''} onChange={(e) => { updateField('arlAffiliateNumber', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ arlAffiliateNumber: e.target.value }); }} /></label>
             </div>
             <div className="grid grid-2">
               <label className="field"><span className="label">Responsable SST *</span>
@@ -518,7 +544,8 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
                   {employees.map((emp) => <option key={emp._id} value={emp._id}>{emp.name} · {emp.position}</option>)}
                 </select>
               </label>
-              <label className="field"><span className="label">Fecha Inicio SST</span><input className="input" type="date" value={toInputDate(profile.sstStartDate)} onChange={(e) => { updateField('sstStartDate', e.target.value); void handleUpdate({ sstStartDate: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Fecha Inicio SST</span><input className="input" type="date" value={toInputDate(profile.sstStartDate)} onChange={(e) => { updateField('sstStartDate', e.target.value); }}
+            onBlur={(e) => { void handleUpdate({ sstStartDate: e.target.value }); }} /></label>
             </div>
             <label className="field"><span className="label">Estado de Implementación</span>
               <select className="input" value={profile.implementationStatus || ''} onChange={(e) => { updateField('implementationStatus', e.target.value); void handleUpdate({ implementationStatus: e.target.value }); }}>

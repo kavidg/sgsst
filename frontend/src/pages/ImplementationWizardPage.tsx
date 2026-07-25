@@ -56,7 +56,7 @@ const STEP_MODULES: Record<WizardStepId, string> = {
   annual_plan: '/annual-work-plan',
   copasst: '/documents/do',
   convivencia_committee: '/documents/do',
-  training: '/trainings',
+  training: '/advanced-management/1.2.1',
   communication: '/documents/do',
   legal_matrix: '/legal-matrix',
   document_management: '/document-management',
