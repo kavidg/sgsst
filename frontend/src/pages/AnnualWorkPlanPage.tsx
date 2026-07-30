@@ -8,6 +8,7 @@ import {
   TaskJustificationModel,
 
   PlanHistoryModel,
+  WorkCenterModel,
   fetchAnnualWorkPlanCurrent,
   fetchAnnualWorkPlans,
   ensureCurrentAnnualWorkPlan,
@@ -35,10 +36,16 @@ import {
 
   fetchPlanHistory,
   processAutoStatus,
+  fetchCompanyProfile,
 } from '../api';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Sheet } from '../components/ui/Sheet';
+import {
+  AdvancedPageLayout,
+  AdvancedHeader,
+  AdvancedKpiGrid,
+} from '../components/advanced-layout';
 
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -112,7 +119,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
   // Activity form
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [editingActivity, setEditingActivity] = useState<PlanActivityModel | null>(null);
-  const [activityForm, setActivityForm] = useState({ title: '', description: '', startDate: '', endDate: '', responsibleUser: '', priority: 'Medium', estimatedCost: 0 });
+  const [activityForm, setActivityForm] = useState({ title: '', description: '', startDate: '', endDate: '', responsibleUser: '', priority: 'Medium', estimatedCost: 0, workCenter: '' });
 
   // Task form
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -138,6 +145,17 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
   // Detail drawer
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
+  // Work centers
+  const [workCenters, setWorkCenters] = useState<WorkCenterModel[]>([]);
+
+  // Work center filter
+  const [workCenterFilter, setWorkCenterFilter] = useState('');
+
+  const filteredActivities = useMemo(() => {
+    if (!workCenterFilter) return activities;
+    return activities.filter((a) => (a.workCenter || 'Sede Principal') === workCenterFilter);
+  }, [activities, workCenterFilter]);
+
   // Year selector removed (unused)
 
   const notify = (msg: string) => { setSuccess(msg); window.setTimeout(() => setSuccess(''), 3000); };
@@ -148,10 +166,14 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
     setLoading(true);
     setError('');
     try {
-      const [currentPlan, allPlans] = await Promise.all([
+      const [currentPlan, allPlans, profile] = await Promise.all([
         fetchAnnualWorkPlanCurrent(token),
         fetchAnnualWorkPlans(token),
+        fetchCompanyProfile(token).catch(() => null),
       ]);
+      if (profile?.workCenters) {
+        setWorkCenters(profile.workCenters.filter((wc) => wc.active));
+      }
       if (currentPlan) {
         setPlan(currentPlan);
         // setSelectedYear removed (unused)
@@ -267,10 +289,11 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
         responsibleUser: activityForm.responsibleUser,
         priority: activityForm.priority,
         estimatedCost: activityForm.estimatedCost,
+        workCenter: activityForm.workCenter || undefined,
       });
       setActivities([...activities, created]);
       setShowActivityForm(false);
-      setActivityForm({ title: '', description: '', startDate: '', endDate: '', responsibleUser: '', priority: 'Medium', estimatedCost: 0 });
+      setActivityForm({ title: '', description: '', startDate: '', endDate: '', responsibleUser: '', priority: 'Medium', estimatedCost: 0, workCenter: '' });
       notify('Actividad creada');
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : 'Error al crear actividad');
@@ -280,7 +303,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
   const handleUpdateActivity = async () => {
     if (!plan || !editingActivity) return;
     try {
-      const updated = await updatePlanActivity(token, plan._id, editingActivity._id, activityForm as unknown as Record<string, unknown>);
+      const updated = await updatePlanActivity(token, plan._id, editingActivity._id, { ...activityForm, workCenter: activityForm.workCenter || undefined } as unknown as Record<string, unknown>);
       setActivities(activities.map((a) => (a._id === updated._id ? updated : a)));
       setEditingActivity(null);
       setShowActivityForm(false);
@@ -548,43 +571,44 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
 
   if (!plan && !loading) {
     return (
-      <section className="dashboard">
+      <AdvancedPageLayout>
         <Card>
           <h2>Plan Anual de Trabajo SG-SST 2.4.1</h2>
           <p className="muted">No hay un plan anual de trabajo para el año actual. Crea uno para comenzar.</p>
           <Button type="button" onClick={() => void ensurePlan()}>Crear Plan Anual {new Date().getFullYear()}</Button>
         </Card>
-      </section>
+      </AdvancedPageLayout>
     );
   }
 
+  const statusActions: import('../components/advanced-layout').HeaderAction[] = [
+    ...(plan?.status === 'Draft' ? [{ label: 'Activar Plan', onClick: () => void handleUpdateStatus('Active'), variant: 'primary' as const }] : []),
+    ...(plan?.status === 'Active' ? [{ label: 'Completar Plan', onClick: () => void handleUpdateStatus('Completed'), variant: 'secondary' as const }] : []),
+    { label: 'Recalcular Cumplimiento', onClick: () => void handleRecalculate(), variant: 'secondary' as const },
+    { label: 'Procesar Alertas', onClick: () => void handleProcessAutoStatus(), variant: 'ghost' as const },
+  ];
+
   return (
-    <section className="dashboard" style={{ maxWidth: 1400 }}>
+    <AdvancedPageLayout>
       {error ? <p className="error">{error}</p> : null}
       {success ? <div className="toast-alert" style={{ position: 'static', marginBottom: '0.5rem' }}><p>{success}</p></div> : null}
       {loading ? <p className="muted">Cargando...</p> : null}
 
       {/* Header */}
-      <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Plan Anual de Trabajo SG-SST 2.4.1</h2>
-          {plan ? (
-            <p className="muted" style={{ marginTop: '0.25rem' }}>
-              Año {plan.year} · {STATUS_LABELS[plan.status] || plan.status} · Cumplimiento: {plan.compliancePercentage}%
-            </p>
-          ) : null}
-        </div>
-        <div className="actions">
-          {plan?.status === 'Draft' ? (
-            <Button type="button" onClick={() => handleUpdateStatus('Active')}>Activar Plan</Button>
-          ) : null}
-          {plan?.status === 'Active' ? (
-            <Button type="button" variant="secondary" onClick={() => handleUpdateStatus('Completed')}>Completar Plan</Button>
-          ) : null}
-          <Button type="button" variant="secondary" onClick={() => void handleRecalculate()}>Recalcular Cumplimiento</Button>
-          <Button type="button" variant="ghost" onClick={() => void handleProcessAutoStatus()}>Procesar Alertas</Button>
-        </div>
-      </div>
+      <AdvancedHeader
+        backPath="/documents/plan"
+        backLabel="← Volver a Implementación"
+        moduleCode="2.4.1"
+        moduleTitle="Plan Anual de Trabajo SG-SST"
+        description={`Año ${plan?.year ?? '—'} · ${plan ? STATUS_LABELS[plan.status] || plan.status : '—'} · Cumplimiento: ${plan?.compliancePercentage ?? 0}%`}
+        statusBadge={
+          <span className={plan ? `badge ${plan.compliancePercentage >= 70 ? 'badge--success' : plan.compliancePercentage >= 40 ? 'badge--warning' : 'badge--danger'}` : 'badge'}>
+            {plan ? `${plan.compliancePercentage}% Cumplimiento` : 'Cargando...'}
+          </span>
+        }
+        actions={statusActions}
+        lastSaved={undefined}
+      />
 
       {/* Tabs */}
       <div className="advanced-tabs" style={{ overflowX: 'auto', paddingBottom: '0.25rem' }}>
@@ -597,24 +621,19 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
 
       {/* TAB 1: Plan General */}
       {tab === 'Plan General' && plan ? (
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-          <Card><h3 className="card-title">Año</h3><p style={{ fontSize: '2rem', fontWeight: 800, margin: 0 }}>{plan.year}</p></Card>
-          <Card><h3 className="card-title">Estado</h3><p style={{ fontSize: '2rem', fontWeight: 800, margin: 0, color: STATUS_COLORS[plan.status] || '#000' }}>{STATUS_LABELS[plan.status] || plan.status}</p></Card>
-          <Card><h3 className="card-title">Cumplimiento</h3><p style={{ fontSize: '2rem', fontWeight: 800, margin: 0, color: progressColor(plan.compliancePercentage) }}>{plan.compliancePercentage}%</p></Card>
-          <Card><h3 className="card-title">Actividades</h3><p style={{ fontSize: '2rem', fontWeight: 800, margin: 0 }}>{activities.length}</p></Card>
-          <Card><h3 className="card-title">Tareas</h3><p style={{ fontSize: '2rem', fontWeight: 800, margin: 0 }}>{kpis.totalTasks}</p></Card>
-          <Card>
-            <h3 className="card-title">Progreso Global</h3>
-            <div className="objective-progress">
-              <div className="objective-progress__track">
-                <span className={`objective-progress__bar ${plan.compliancePercentage >= 70 ? 'objective-progress__bar--high' : plan.compliancePercentage >= 40 ? 'objective-progress__bar--medium' : 'objective-progress__bar--low'}`}
-                  style={{ width: `${plan.compliancePercentage}%` }} />
-              </div>
-              <strong>{plan.compliancePercentage}%</strong>
-            </div>
-          </Card>
+        <>
+          <AdvancedKpiGrid
+            items={[
+              { label: 'Año', value: plan.year, variant: 'info' },
+              { label: 'Estado', value: STATUS_LABELS[plan.status] || plan.status, variant: plan.status === 'Completed' ? 'success' : plan.status === 'Active' ? 'info' : 'warning' },
+              { label: 'Cumplimiento', value: `${plan.compliancePercentage}%`, variant: plan.compliancePercentage >= 70 ? 'success' : plan.compliancePercentage >= 40 ? 'warning' : 'danger' },
+              { label: 'Actividades', value: activities.length },
+              { label: 'Tareas', value: kpis.totalTasks, variant: 'info' },
+            ]}
+            columns={5}
+          />
           {plan.approval ? (
-            <Card>
+            <Card style={{ marginTop: '1rem' }}>
               <h3 className="card-title">Aprobación</h3>
               <p className="muted">Aprobado por: {plan.approval.approvedByName}</p>
               <p className="muted">Fecha: {formatDate(plan.approval.approvalDate)}</p>
@@ -622,16 +641,26 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
               {plan.approval.signatureHash ? <p className="muted">✓ Firma digital registrada</p> : null}
             </Card>
           ) : null}
-        </div>
+        </>
       ) : null}
 
       {/* TAB 2: Actividades */}
       {tab === 'Actividades' ? (
         <div className="grid" style={{ gap: '1rem' }}>
           <div className="actions">
-            <Button type="button" onClick={() => { setEditingActivity(null); setActivityForm({ title: '', description: '', startDate: '', endDate: '', responsibleUser: '', priority: 'Medium', estimatedCost: 0 }); setShowActivityForm(true); }}>
+            <Button type="button" onClick={() => { setEditingActivity(null); setActivityForm({ title: '', description: '', startDate: '', endDate: '', responsibleUser: '', priority: 'Medium', estimatedCost: 0, workCenter: '' }); setShowActivityForm(true); }}>
               + Nueva Actividad
             </Button>
+            <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem' }}>
+              <span className="label">Centro de Trabajo:</span>
+              <select className="input" value={workCenterFilter} onChange={(e) => setWorkCenterFilter(e.target.value)} style={{ minWidth: 180 }}>
+                <option value="">Todas</option>
+                {workCenters.length > 0
+                  ? workCenters.map((wc) => <option key={wc.name} value={wc.name}>{wc.name}</option>)
+                  : <option value="Sede Principal">Sede Principal</option>
+                }
+              </select>
+            </label>
           </div>
 
           {showActivityForm ? (
@@ -651,7 +680,20 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
                     </select>
                   </label>
                 </div>
-                <label className="field"><span className="label">Costo estimado</span><input className="input" type="number" value={activityForm.estimatedCost} onChange={(e) => setActivityForm({ ...activityForm, estimatedCost: Number(e.target.value) })} /></label>
+                <label className="field"><span className="label">Centro de Trabajo</span>
+                  <select className="input" value={workCenters.length > 0 ? activityForm.workCenter : 'Sede Principal'} onChange={(e) => setActivityForm({ ...activityForm, workCenter: e.target.value })}>
+                    {workCenters.length > 0 ? (
+                      workCenters.map((wc) => (
+                        <option key={wc.name} value={wc.name}>{wc.name}</option>
+                      ))
+                    ) : (
+                      <option value="Sede Principal">Sede Principal</option>
+                    )}
+                  </select>
+                  {workCenters.length === 0 ? (
+                    <small className="muted" style={{ display: 'block', marginTop: 4 }}>No existen Centros de Trabajo configurados. Se utilizará 'Sede Principal' por defecto.</small>
+                  ) : null}
+                </label>
                 <div className="actions">
                   <Button type="button" disabled={!activityForm.title || !activityForm.startDate || !activityForm.endDate || !activityForm.responsibleUser}
                     onClick={editingActivity ? () => void handleUpdateActivity() : () => void handleCreateActivity()}>
@@ -668,6 +710,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
               <thead>
                 <tr>
                   <th>Actividad</th>
+                  <th>Centro de Trabajo</th>
                   <th>Inicio</th>
                   <th>Fin</th>
                   <th>Responsable</th>
@@ -678,11 +721,12 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
                 </tr>
               </thead>
               <tbody>
-                {activities.length === 0 ? (
-                  <tr><td colSpan={8}><p className="muted" style={{ textAlign: 'center', padding: '1rem' }}>Sin actividades registradas</p></td></tr>
-                ) : activities.map((a) => (
+                {filteredActivities.length === 0 ? (
+                  <tr><td colSpan={9}><p className="muted" style={{ textAlign: 'center', padding: '1rem' }}>Sin actividades registradas</p></td></tr>
+                ) : filteredActivities.map((a) => (
                   <tr key={a._id}>
                     <td><strong>{a.title}</strong>{a.description ? <br /> : null}<small className="muted">{a.description}</small></td>
+                    <td><span className="badge badge--info">{a.workCenter || 'Sede Principal'}</span></td>
                     <td>{formatDate(a.startDate)}</td>
                     <td>{formatDate(a.endDate)}</td>
                     <td>{a.responsibleUser ? a.responsibleUser.slice(-8) : '—'}</td>
@@ -698,7 +742,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
                     <td><span style={{ color: ACTIVITY_STATUS_COLORS[a.status], fontWeight: 600 }}>{a.status}</span></td>
                     <td>
                       <div className="actions">
-                        <Button type="button" variant="secondary" onClick={() => { setEditingActivity(a); setActivityForm({ title: a.title, description: a.description || '', startDate: toDateInput(a.startDate), endDate: toDateInput(a.endDate), responsibleUser: a.responsibleUser, priority: a.priority, estimatedCost: a.estimatedCost }); setShowActivityForm(true); }}>
+                        <Button type="button" variant="secondary" onClick={() => { setEditingActivity(a); setActivityForm({ title: a.title, description: a.description || '', startDate: toDateInput(a.startDate), endDate: toDateInput(a.endDate), responsibleUser: a.responsibleUser, priority: a.priority, estimatedCost: a.estimatedCost, workCenter: a.workCenter || '' }); setShowActivityForm(true); }}>
                           Editar
                         </Button>
                         <Button type="button" variant="danger" onClick={() => void handleDeleteActivity(a._id)}>Eliminar</Button>
@@ -1149,7 +1193,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
           </div>
         </Card>
       ) : null}
-    </section>
+    </AdvancedPageLayout>
   );
 }
 

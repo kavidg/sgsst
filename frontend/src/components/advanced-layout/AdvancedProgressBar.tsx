@@ -11,16 +11,16 @@ interface AdvancedProgressBarProps {
 }
 
 const sizeStyles = {
-  sm: 'h-1.5',
-  md: 'h-2.5',
-  lg: 'h-4',
+  sm: 'al-progress__track--sm',
+  md: 'al-progress__track--md',
+  lg: 'al-progress__track--lg',
 };
 
 const variantStyles: Record<string, string> = {
-  default: 'bg-blue-500',
-  success: 'bg-emerald-500',
-  warning: 'bg-amber-500',
-  danger: 'bg-red-500',
+  default: 'al-progress__fill--default',
+  success: 'al-progress__fill--success',
+  warning: 'al-progress__fill--warning',
+  danger: 'al-progress__fill--danger',
 };
 
 export function AdvancedProgressBar({
@@ -35,20 +35,19 @@ export function AdvancedProgressBar({
   const pct = Math.min(100, Math.round((value / max) * 100));
 
   return (
-    <div className={cn('space-y-1', className)}>
+    <div className={cn('al-progress', className)}>
       {label && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">{label}</span>
+        <div className="al-progress__header">
+          <span className="al-progress__label">{label}</span>
           {showPercentage && (
-            <span className="text-sm font-medium text-gray-900">{pct}%</span>
+            <span className="al-progress__pct">{pct}%</span>
           )}
         </div>
       )}
-      <div className={cn('w-full bg-gray-100 rounded-full overflow-hidden', sizeStyles[size])}>
+      <div className={cn('al-progress__track', sizeStyles[size])}>
         <div
           className={cn(
-            'rounded-full transition-all duration-500 ease-out',
-            sizeStyles[size],
+            'al-progress__fill',
             variantStyles[variant],
           )}
           style={{ width: `${pct}%` }}

@@ -5,6 +5,7 @@ import TrainingProgramModule from '../components/TrainingProgramModule';
 import PolicyManagementModule from '../components/PolicyManagementModule';
 import CopasstManagementPage from './CopasstManagementPage';
 import ConvivenciaManagementPage from './ConvivenciaManagementPage';
+import { AnnualWorkPlanPage } from './AnnualWorkPlanPage';
 import {
   EmployeeModel,
   ResponsableSstComplianceStatus,
@@ -217,6 +218,9 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
   }
   if (standardCode === '2.1.1') {
     return <PolicyManagementModule token={token} />;
+  }
+  if (standardCode === '2.4.1') {
+    return <AnnualWorkPlanPage token={token} />;
   }
 
   // -- Core state --
@@ -794,7 +798,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
         statusBadge={
           <>
             <span className={badge.className}>{badge.label}</span>
-            {complianceReason && <span className="text-xs text-gray-500 ml-2">{complianceReason}</span>}
+            {complianceReason && <span className="text-muted-small">{complianceReason}</span>}
           </>
         }
         actions={[

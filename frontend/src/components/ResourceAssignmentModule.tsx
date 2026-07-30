@@ -517,7 +517,7 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
         statusBadge={
           <>
             <span className={badge.className}>{badge.label}</span>
-            {record?.complianceReason && <span className="text-xs text-gray-500 ml-2">{record.complianceReason}</span>}
+            {record?.complianceReason && <span className="text-muted-small">{record.complianceReason}</span>}
             <span className="budget-page__status-badge">{isApproved ? '✅ Aprobado' : '⏳ Pendiente'}</span>
           </>
         }

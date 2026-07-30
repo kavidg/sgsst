@@ -7,7 +7,7 @@ type TableProps = {
 export function Table({ children }: TableProps) {
   return (
     <div className="table-wrap">
-      <table className="table w-full border-2 border-black border-collapse">{children}</table>
+      <table className="table">{children}</table>
     </div>
   );
 }

@@ -416,7 +416,7 @@ export function DocumentsPage({ token }: DocumentsPageProps) {
 
           {selectedTemplateId && !templateVariables.length ? (
             <div className="form-grid">
-              <p className="text-sm text-gray-600">No variables detected in document</p>
+              <p className="text-muted-base">No variables detected in document</p>
               <div className="actions">
                 <Button type="button" variant="secondary" onClick={() => setIsConfiguringVariables((previous) => !previous)}>
                   Configure variables

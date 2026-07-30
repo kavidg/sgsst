@@ -8,7 +8,7 @@ interface AdvancedPageLayoutProps {
 
 export function AdvancedPageLayout({ children, className }: AdvancedPageLayoutProps) {
   return (
-    <div className={cn('mx-auto w-full max-w-[1400px] px-6 py-6 space-y-6', className)}>
+    <div className={cn('al-page', className)}>
       {children}
     </div>
   );

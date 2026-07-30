@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import type { InspectionActivityModel } from '../api';
+import { AdvancedSection } from './advanced-layout/AdvancedSection';
 
 const PHVA_STAGES = ['Planear', 'Hacer', 'Verificar', 'Actuar'] as const;
 type PHVAStage = (typeof PHVA_STAGES)[number];
@@ -29,6 +31,10 @@ const emptyScheduleValues = (): ScheduleItem['cronograma'] =>
   Object.fromEntries(scheduleHeaders.flatMap((item) => item.claves.map((clave) => [clave, '']))) as ScheduleItem['cronograma'];
 
 const initialSchedule: ScheduleItem[] = [];
+
+export interface InspectionsHeaderProps {
+  initialData?: InspectionActivityModel[];
+}
 
 function InspectionsHeaderTable() {
   return (
@@ -83,7 +89,8 @@ function InspectionsHeaderTable() {
   );
 }
 
-export function InspectionsHeader() {
+export function InspectionsHeader({ initialData }: InspectionsHeaderProps) {
+  void initialData;
   const [schedule, setSchedule] = useState<ScheduleItem[]>(initialSchedule);
   const [selectedStage, setSelectedStage] = useState<PHVAStage>('Planear');
   const [activityDescription, setActivityDescription] = useState('');
@@ -229,9 +236,16 @@ export function InspectionsHeader() {
   );
 
   return (
-    <section className="inspections-section">
-      <InspectionsHeaderTable />
-      <div className="inspections-table-wrapper">
+    <>
+      <AdvancedSection title="Información del programa de inspecciones">
+        <InspectionsHeaderTable />
+      </AdvancedSection>
+
+      <AdvancedSection title="Cronograma anual PHVA">
+        <InspectionsSchedule />
+      </AdvancedSection>
+
+      <AdvancedSection title="Configuración del cronograma">
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <select
             value={selectedStage}
@@ -257,15 +271,14 @@ export function InspectionsHeader() {
             Agregar fila
           </button>
         </div>
-      </div>
-      <InspectionsSchedule />
-      <button
-        type="button"
-        onClick={() => console.log('Cronograma actual:', schedule)}
-        className="inspections-section__save-button"
-      >
-        Guardar cronograma
-      </button>
-    </section>
+        <button
+          type="button"
+          onClick={() => console.log('Cronograma actual:', schedule)}
+          className="inspections-section__save-button"
+        >
+          Guardar cronograma
+        </button>
+      </AdvancedSection>
+    </>
   );
 }

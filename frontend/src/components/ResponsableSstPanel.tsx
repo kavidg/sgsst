@@ -9,6 +9,8 @@ import {
   uploadResponsableSstDocument,
   modifyLicenseOcr,
   fetchEmployees,
+  fetchCompanyProfile,
+  WorkCenterModel,
 } from '../api';
 import { Button } from './ui/Button';
 
@@ -74,6 +76,7 @@ export function ResponsableSstPanel({
   const [tab, setTab] = useState(tabs[0]);
   const [record, setRecord] = useState<ResponsableSstAdvancedModel | null>(null);
   const [_employees, setEmployees] = useState<EmployeeModel[]>([]);
+  const [workCenters, setWorkCenters] = useState<WorkCenterModel[]>([]);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState('');
@@ -94,10 +97,14 @@ export function ResponsableSstPanel({
     setLoading(true);
     setError('');
     try {
-      const [result, workerList] = await Promise.all([
+      const [result, workerList, profile] = await Promise.all([
         fetchResponsableSstAdvanced(token),
         fetchEmployees(token).catch(() => [] as EmployeeModel[]),
+        fetchCompanyProfile(token).catch(() => null),
       ]);
+      if (profile?.workCenters) {
+        setWorkCenters(profile.workCenters.filter((wc) => wc.active));
+      }
       setRecord(result);
       setEmployees(workerList);
       // Auto-detect OCR index
@@ -275,8 +282,19 @@ export function ResponsableSstPanel({
                 {SST_PROFESSIONAL_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
             </label>
-            <label className="field"><span className="label">Departamento / Sede</span>
-              <input className="input" disabled={readOnly} value={record.department} onChange={(e) => updateField('department', e.target.value)} placeholder="Departamento o sede" />
+            <label className="field"><span className="label">Centro de trabajo / Sede</span>
+              <select className="input" disabled={readOnly} value={workCenters.length > 0 ? record.department : 'Sede Principal'} onChange={(e) => updateField('department', e.target.value)}>
+                {workCenters.length > 0 ? (
+                  workCenters.map((wc) => (
+                    <option key={wc.name} value={wc.name}>{wc.name}</option>
+                  ))
+                ) : (
+                  <option value="Sede Principal">Sede Principal</option>
+                )}
+              </select>
+              {workCenters.length === 0 ? (
+                <small className="muted" style={{ display: 'block', marginTop: 4 }}>No existen Centros de Trabajo configurados. Se utilizará 'Sede Principal' por defecto.</small>
+              ) : null}
             </label>
             <label className="field"><span className="label">Observaciones</span>
               <textarea className="input" disabled={readOnly} value={record.observations} onChange={(e) => updateField('observations', e.target.value)} rows={3} placeholder="Observaciones adicionales" />

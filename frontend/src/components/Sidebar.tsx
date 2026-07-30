@@ -22,7 +22,7 @@ const links: SidebarLink[] = [
   { to: '/company-configuration', label: 'Empresa', icon: Icons.building },
   { to: '/implementation-wizard', label: 'Implementación', icon: Icons.chart },
   { to: '/evaluations', label: 'Evaluaciones', icon: Icons.chart },
-  { to: '/incidents', label: 'Incidentes', icon: Icons.alert },
+  { to: '/incidents', label: 'Accidentalidad', icon: Icons.alert },
   { to: '/alerts', label: 'Alertas', icon: Icons.bell },
   { to: '/absenteeism', label: 'Ausentismos', icon: Icons.chart },
   { to: '/risks', label: 'Riesgos', icon: Icons.shield },

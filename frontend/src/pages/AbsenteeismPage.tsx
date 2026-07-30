@@ -8,7 +8,6 @@ import {
   fetchAbsenteeismByCompany,
   fetchEmployees,
 } from '../api';
-import { KpiCard } from '../components/KpiCard';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -31,6 +30,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { AdvancedPageLayout } from '../components/advanced-layout/AdvancedPageLayout';
+import { AdvancedHeader } from '../components/advanced-layout/AdvancedHeader';
+import { AdvancedKpiGrid } from '../components/advanced-layout/AdvancedKpiGrid';
 
 interface AbsenteeismPageProps {
   token: string;
@@ -93,6 +95,7 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<AbsenteeismFormState>(emptyForm);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [lastSync, setLastSync] = useState('');
 
   const employeeNames = useMemo(() => new Map(employees.map((employee) => [employee._id, employee.name])), [employees]);
 
@@ -205,6 +208,7 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
       setRecords(absenteeismData);
       setEmployees(employeeData);
       setForm((prev) => ({ ...prev, userId: prev.userId || employeeData[0]?._id || '' }));
+      setLastSync(new Date().toLocaleString('es-CO'));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible cargar los ausentismos.');
     } finally {
@@ -273,9 +277,18 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
   };
 
   return (
-    <section className="grid">
-      <h2 style={{ margin: 0 }}>Ausentismos</h2>
+    <AdvancedPageLayout>
+      <AdvancedHeader
+        moduleCode="SST-AUS-001"
+        moduleTitle="Ausentismo Laboral"
+        description="Control, seguimiento y análisis de ausencias laborales"
+        statusBadge={<span className="badge badge--success">🟢 Activo</span>}
+        actions={[
+          { label: '➕ Nuevo ausentismo', onClick: openModal, variant: 'primary' },
+        ]}
+      />
 
+      {/* Filtros */}
       <Card>
         <div className="grid grid-3">
           <label className="field">
@@ -311,13 +324,18 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
         </div>
       </Card>
 
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-        <KpiCard title="Total casos" value={totalCasos} />
-        <KpiCard title="Total días perdidos" value={totalDiasPerdidos} />
-        <KpiCard title="Promedio días por caso" value={Number(promedioDiasPorCaso.toFixed(2))} />
-        <KpiCard title="Tasa de ausentismo (%)" value={`${tasaAusentismo.toFixed(2)}%`} />
-      </div>
+      {/* KPIs */}
+      <AdvancedKpiGrid
+        items={[
+          { label: 'Total casos', value: totalCasos },
+          { label: 'Total días perdidos', value: totalDiasPerdidos },
+          { label: 'Promedio días por caso', value: Number(promedioDiasPorCaso.toFixed(2)) },
+          { label: 'Tasa de ausentismo (%)', value: `${tasaAusentismo.toFixed(2)}%` },
+        ]}
+        columns={4}
+      />
 
+      {/* Gráficos */}
       <div className="grid grid-2">
         <Card title="Días perdidos por mes">
           <div className="absenteeism-chart">
@@ -366,10 +384,7 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
         </div>
       </Card>
 
-      <div className="actions" style={{ justifyContent: 'flex-end' }}>
-        <Button type="button" onClick={openModal} disabled={loading || !employees.length}>Nuevo ausentismo</Button>
-      </div>
-
+      {/* Tabla */}
       <Table>
         <thead>
           <tr>
@@ -408,6 +423,29 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
 
       {error ? <pre className="error">{error}</pre> : null}
       {loading ? <p className="muted">Cargando...</p> : null}
+
+      {/* Auditoría */}
+      <Card title="Auditoría del módulo">
+        <div className="grid grid-3">
+          <div>
+            <p className="label" style={{ margin: 0, fontSize: '0.82rem' }}>Total registros</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.25rem 0 0' }}>{records.length}</p>
+          </div>
+          <div>
+            <p className="label" style={{ margin: 0, fontSize: '0.82rem' }}>Última sincronización</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.25rem 0 0' }}>{lastSync || '—'}</p>
+          </div>
+          <div>
+            <p className="label" style={{ margin: 0, fontSize: '0.82rem' }}>Estado del módulo</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.25rem 0 0' }}>🟢 Activo</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Última actualización */}
+      <p className="muted" style={{ fontSize: '0.82rem', textAlign: 'right' }}>
+        Última actualización: {lastSync || '—'}
+      </p>
 
       <Modal isOpen={isModalOpen} title="Nuevo ausentismo" onClose={closeModal}>
         <form onSubmit={handleSubmit} className="form-grid">
@@ -469,6 +507,6 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
           </div>
         </form>
       </Modal>
-    </section>
+    </AdvancedPageLayout>
   );
 }

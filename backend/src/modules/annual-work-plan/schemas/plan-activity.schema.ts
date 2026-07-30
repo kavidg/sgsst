@@ -35,6 +35,9 @@ export class PlanActivity {
   @Prop()
   sourceModule?: string;
 
+  @Prop()
+  workCenter?: string;
+
   @Prop({ required: true })
   startDate!: Date;
 

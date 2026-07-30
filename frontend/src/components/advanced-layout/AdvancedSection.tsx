@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { Card } from '../ui/Card';
 
 interface AdvancedSectionProps {
   title?: string;
@@ -11,11 +12,11 @@ interface AdvancedSectionProps {
 }
 
 const accentBorder: Record<string, string> = {
-  default: 'border-gray-200',
-  success: 'border-emerald-200',
-  warning: 'border-amber-200',
-  danger: 'border-red-200',
-  info: 'border-blue-200',
+  default: '',
+  success: 'kpi-card--success',
+  warning: 'kpi-card--warning',
+  danger: 'kpi-card--danger',
+  info: 'kpi-card--info',
 };
 
 export function AdvancedSection({
@@ -27,30 +28,29 @@ export function AdvancedSection({
   accent = 'default',
 }: AdvancedSectionProps) {
   return (
-    <section
+    <Card
       className={cn(
-        'bg-white rounded-xl border p-5 space-y-4',
-        'shadow-[0_1px_3px_0_rgba(0,0,0,0.06)]',
+        'al-section',
         accentBorder[accent],
         className,
       )}
     >
       {(title || headerRight) && (
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+        <div className="al-section__header">
+          <div className="al-section__left">
             {title && (
-              <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+              <h3 className="al-section__title">{title}</h3>
             )}
             {description && (
-              <p className="text-sm text-gray-500 mt-0.5">{description}</p>
+              <p className="al-section__desc">{description}</p>
             )}
           </div>
           {headerRight && (
-            <div className="shrink-0">{headerRight}</div>
+            <div className="al-section__right">{headerRight}</div>
           )}
         </div>
       )}
       {children}
-    </section>
+    </Card>
   );
 }

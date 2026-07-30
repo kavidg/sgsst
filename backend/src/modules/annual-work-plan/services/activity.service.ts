@@ -35,6 +35,7 @@ export class ActivityService {
     description?: string;
     objectiveId?: Types.ObjectId;
     sourceModule?: string;
+    workCenter?: string;
     startDate: Date;
     endDate: Date;
     responsibleUser: Types.ObjectId;
@@ -49,6 +50,7 @@ export class ActivityService {
       description: dto.description,
       objectiveId: dto.objectiveId,
       sourceModule: dto.sourceModule,
+      workCenter: dto.workCenter,
       startDate: dto.startDate,
       endDate: dto.endDate,
       responsibleUser: dto.responsibleUser,
@@ -95,6 +97,7 @@ export class ActivityService {
     dto: Partial<{
       title: string;
       description: string;
+      workCenter: string;
       startDate: Date;
       endDate: Date;
       responsibleUser: Types.ObjectId;
@@ -117,6 +120,7 @@ export class ActivityService {
 
     if (dto.title !== undefined) activity.title = dto.title;
     if (dto.description !== undefined) activity.description = dto.description;
+    if (dto.workCenter !== undefined) activity.workCenter = dto.workCenter;
     if (dto.startDate !== undefined) activity.startDate = dto.startDate;
     if (dto.endDate !== undefined) activity.endDate = dto.endDate;
     if (dto.responsibleUser !== undefined)

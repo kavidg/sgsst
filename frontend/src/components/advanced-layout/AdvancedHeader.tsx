@@ -25,7 +25,7 @@ interface AdvancedHeaderProps {
 
 export function AdvancedHeader({
   backPath,
-  backLabel = 'Volver a Implementación',
+  backLabel = '← Volver a Implementación',
   moduleCode,
   moduleTitle,
   description,
@@ -37,49 +37,49 @@ export function AdvancedHeader({
   const navigate = useNavigate();
 
   return (
-    <header className={cn('w-full', className)}>
+    <header className={cn('al-header', className)}>
       {/* Back link */}
       {backPath && (
         <button
           onClick={() => navigate(backPath)}
-          className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors mb-2"
+          className="al-header__back"
         >
           {backLabel}
         </button>
       )}
 
       {/* Main row: content left, actions right */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="al-header__row">
         {/* Left: badge + title + description */}
-        <div className="min-w-0 flex-1">
+        <div className="al-header__left">
           {/* Module code badge */}
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 leading-none" style={{ height: 22 }}>
+          <span className="al-header__badge">
             Módulo {moduleCode}
           </span>
 
           {/* Title */}
-          <h1 className="text-2xl font-bold text-gray-900 mt-1.5 leading-tight">
+          <h1 className="al-header__title">
             {moduleTitle}
           </h1>
 
           {/* Description - 1 line */}
           {description && (
-            <p className="text-sm text-gray-400 truncate mt-0.5">
+            <p className="al-header__desc">
               {description}
             </p>
           )}
         </div>
 
         {/* Right: status + actions */}
-        <div className="flex items-center gap-3 shrink-0 mt-1 sm:mt-0">
+        <div className="al-header__right">
           {/* Status badge */}
-          <div className="flex items-center gap-1.5">
+          <div className="al-header__actions">
             {statusBadge}
           </div>
 
           {/* Action buttons */}
           {actions && actions.length > 0 && (
-            <div className="flex items-center gap-1.5">
+            <div className="al-header__actions">
               {actions.map((action, i) => (
                 <Button
                   key={i}
@@ -87,11 +87,7 @@ export function AdvancedHeader({
                   variant={action.variant || 'primary'}
                   disabled={action.disabled}
                   onClick={action.onClick}
-                  className={cn(
-                    'text-xs leading-none',
-                    action.variant !== 'primary' ? 'px-3' : 'px-4'
-                  )}
-                  style={{ height: 36 }}
+                  style={{ height: 36, fontSize: '.8rem' }}
                 >
                   {action.label}
                 </Button>
@@ -103,7 +99,7 @@ export function AdvancedHeader({
 
       {/* Last saved */}
       {lastSaved && (
-        <p className="text-xs text-gray-300 mt-2">
+        <p className="al-header__saved">
           Último guardado: {lastSaved}
         </p>
       )}

@@ -1345,7 +1345,7 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
             }
           }}
       />
-      <EvaluationSection title="Gestión Integral del SG-SST (15%)" items={integralManagementItems} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={(item) => { if (item.code === '2.6.1') { navigate('/accountability'); } else if (item.code === '2.1.1') { navigate('/advanced-management/2.1.1'); } else { setAdvancedManagementItem(item); } }}>
+      <EvaluationSection title="Gestión Integral del SG-SST (15%)" items={integralManagementItems} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={(item) => { if (item.code === '2.6.1') { navigate('/accountability'); } else if (item.code === '2.1.1') { navigate('/advanced-management/2.1.1'); } else if (item.code === '2.4.1') { navigate('/advanced-management/2.4.1'); } else { setAdvancedManagementItem(item); } }}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/do')}>
             Siguiente → Hacer

@@ -692,7 +692,7 @@ function App() {
     <>
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-        <InspectionsPage />
+        <InspectionsPage token={idToken} />
       ) : (
         <p>Este módulo está disponible para owner o admin con empresa activa.</p>
       )}

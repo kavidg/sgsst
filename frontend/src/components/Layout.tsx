@@ -256,7 +256,7 @@ export function Layout({ token, profile, role, companies, activeCompanyId, onSel
                       {roleLabel[role || ''] || role?.toUpperCase() || ''}{companyName ? ` • ${companyName}` : ''}
                     </span>
                   </div>
-                  <svg className="w-3 h-3" style={{ width: 12, height: 12, opacity: 0.5, flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="layout-icon" style={{ width: 12, height: 12, opacity: 0.5, flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>

@@ -2369,6 +2369,7 @@ export interface PlanActivityModel {
   description?: string;
   objectiveId?: string;
   sourceModule?: string;
+  workCenter?: string;
   startDate: string;
   endDate: string;
   responsibleUser: string;
@@ -2510,6 +2511,7 @@ export function createPlanActivity(token: string, planId: string, payload: {
   title: string;
   description?: string;
   sourceModule?: string;
+  workCenter?: string;
   startDate: string;
   endDate: string;
   responsibleUser: string;
