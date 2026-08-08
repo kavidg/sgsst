@@ -17,6 +17,10 @@ export interface StepValidation {
   score: number; // 0-100
   validatedAt?: string;
   details?: string;
+  /** Criterios que se validaron para otorgar el porcentaje (del provider). */
+  criteria?: string[];
+  /** Criterios pendientes de cumplir para completar el paso (del provider). */
+  pendingCriteria?: string[];
 }
 
 export interface WizardHistoryEntry {

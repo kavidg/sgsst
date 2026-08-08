@@ -49,6 +49,30 @@ export class CopasstService {
   // ─────────────────────────────────────────────
   // PERIOD MANAGEMENT
   // ─────────────────────────────────────────────
+  /**
+   * Getter de lectura por identificador (sin crear registros ni refrescar
+   * estado). Usado por el CopasstAdapter del Approval Workflow Core.
+   */
+  async findById(id: Types.ObjectId): Promise<CopasstPeriodDocument> {
+    const period = await this.periodModel.findById(id).exec();
+    if (!period) throw new NotFoundException('Periodo no encontrado');
+    return period;
+  }
+
+  /**
+   * Getter de lectura del periodo activo vigente de la empresa (sin crear un
+   * periodo por defecto como hace getCurrent). Usado por el adapter cuando
+   * getEntity llega sin periodId.
+   */
+  async findCurrent(companyId: Types.ObjectId): Promise<CopasstPeriodDocument> {
+    const period = await this.periodModel
+      .findOne({ companyId, status: { $ne: 'ARCHIVADO' } })
+      .sort({ createdAt: -1 })
+      .exec();
+    if (!period) throw new NotFoundException('No existe un periodo activo para esta empresa');
+    return period;
+  }
+
   async getCurrent(companyId: Types.ObjectId) {
     const current = await this.periodModel.findOne({ companyId, status: { $ne: 'ARCHIVADO' } }).sort({ createdAt: -1 }).exec();
     if (current) return this.refreshStatus(current);

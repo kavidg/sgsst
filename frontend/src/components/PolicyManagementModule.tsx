@@ -27,6 +27,8 @@ import {
 } from './advanced-layout';
 import { Modal } from './ui/Modal';
 import TemplateAdminPanel from './TemplateAdminPanel';
+import { AdvancedModuleReportTemplate } from '../pdf/templates/AdvancedModuleReportTemplate';
+import { exportAdvancedPdf } from '../pdf/utils/exportAdvancedPdf';
 
 // ============================================================
 // HELPERS
@@ -374,6 +376,34 @@ export default function PolicyManagementModule({ token }: { token: string }) {
   // --- Export ---
   const exportDocument = (type: 'pdf' | 'word') => {
     if (!record) return;
+
+    if (type === 'pdf') {
+      // Exportación PDF real vía @react-pdf/renderer (AdvancedModuleReportTemplate).
+      void exportAdvancedPdf({
+        filename: `${record.documentCode || 'POL-SST'}.pdf`,
+        document: (
+          <AdvancedModuleReportTemplate
+            data={{
+              title: `${record.documentCode} · ${record.documentName}`,
+              version: `v${record.currentVersion}`,
+              status: record.status,
+              generatedAt: new Date().toLocaleString(),
+              sections: [
+                {
+                  title: 'Contenido de la política',
+                  rows: [{ label: 'Documento', value: record.content ?? '' }],
+                },
+              ],
+            }}
+          />
+        ),
+      });
+      return;
+    }
+
+    // PENDIENTE: exportación Word real no existe aún. Se conserva el
+    // comportamiento anterior de texto plano (.txt) hasta que haya
+    // infraestructura de generación Word en una fase posterior.
     const body = [
       `${record.documentCode} · ${record.documentName}`,
       `Versión ${record.currentVersion}`,
@@ -385,7 +415,7 @@ export default function PolicyManagementModule({ token }: { token: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${record.documentCode || 'POL-SST'}.${type === 'pdf' ? 'txt' : 'txt'}`;
+    a.download = `${record.documentCode || 'POL-SST'}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1087,7 +1117,7 @@ export default function PolicyManagementModule({ token }: { token: string }) {
             <div className="policy-page__section">
               <h3>📊 Dashboard de Política SST</h3>
 
-              <div className="policy-page__stats-grid">
+              <AdvancedKpiGrid>
                 <article className="policy-page__stat-card">
                   <strong>Estado</strong>
                   <span>{sstStatusBadge(record.status).label}</span>
@@ -1112,7 +1142,7 @@ export default function PolicyManagementModule({ token }: { token: string }) {
                   <strong>Cumplimiento PHVA</strong>
                   <span className={badge.className} style={{ fontSize: '.8rem' }}>{badge.label}</span>
                 </article>
-              </div>
+              </AdvancedKpiGrid>
 
               {/* Progress bars */}
               <h4>Indicadores Clave</h4>

@@ -1,6 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { calculateWeightedImplementation } from '../implementation-validator/implementation-calculator';
+import { ImplementationValidatorService } from '../implementation-validator/implementation-validator.service';
+import { getImplementationWeights } from '../implementation-validator/implementation-weights';
+import { ProviderValidationResult } from '../implementation-validator/interfaces/wizard-validation-provider.interface';
+import { WizardOverviewDto } from './dto/wizard-overview.dto';
+import {
+  ALL_STEPS,
+  STEP_DESCRIPTIONS,
+  STEP_LABELS,
+  STEP_MODULE_ROUTES,
+} from './implementation-wizard.constants';
 import {
   ImplementationWizard,
   ImplementationWizardDoc,
@@ -8,53 +19,17 @@ import {
   StepStatus,
   StepValidation,
 } from './schemas/implementation-wizard.schema';
-
-const ALL_STEPS: StepId[] = [
-  'company_info', 'users_roles', 'responsible_sst', 'course_50_hours',
-  'sst_policy', 'sst_objectives', 'initial_evaluation', 'annual_plan',
-  'copasst', 'convivencia_committee', 'training', 'communication',
-  'legal_matrix', 'document_management',
-];
-
-const STEP_LABELS: Record<StepId, string> = {
-  company_info: 'Información Empresa',
-  users_roles: 'Usuarios y Roles',
-  responsible_sst: 'Responsable SG-SST',
-  course_50_hours: 'Curso 50 Horas',
-  sst_policy: 'Política SST',
-  sst_objectives: 'Objetivos SST',
-  initial_evaluation: 'Evaluación Inicial',
-  annual_plan: 'Plan Anual',
-  copasst: 'COPASST',
-  convivencia_committee: 'Comité de Convivencia',
-  training: 'Capacitación',
-  communication: 'Comunicación',
-  legal_matrix: 'Matriz Legal',
-  document_management: 'Gestión Documental',
-};
-
-const STEP_DESCRIPTIONS: Record<StepId, string> = {
-  company_info: 'Complete los datos generales de la empresa: nombre, NIT, sector económico, nivel de riesgo, ARL y total de empleados.',
-  users_roles: 'Configure al menos un administrador y un miembro en el sistema para la gestión del SG-SST.',
-  responsible_sst: 'Asigne un responsable del SG-SST con su cargo y datos de contacto.',
-  course_50_hours: 'Valide que el responsable SST cuenta con el certificado del curso de 50 horas vigente.',
-  sst_policy: 'Cree, apruebe y firme la Política de Seguridad y Salud en el Trabajo.',
-  sst_objectives: 'Defina al menos un objetivo SST medible con indicadores.',
-  initial_evaluation: 'Complete la evaluación inicial del SG-SST según la normativa aplicable.',
-  annual_plan: 'Cree el Plan Anual de Trabajo con al menos una actividad asignada.',
-  copasst: 'Configure el COPASST o registre una justificación de exención.',
-  convivencia_committee: 'Configure el Comité de Convivencia o registre una justificación de exención.',
-  training: 'Defina el plan anual de capacitaciones en SST.',
-  communication: 'Genere al menos una comunicación interna sobre temas SST.',
-  legal_matrix: 'Genere la Matriz Legal de requisitos aplicables a la empresa.',
-  document_management: 'Active el repositorio maestro de documentos del SG-SST.',
-};
+import {
+  buildWizardOverview,
+  shouldRunAutoValidation,
+} from './wizard-overview.utils';
 
 @Injectable()
 export class ImplementationWizardService {
   constructor(
     @InjectModel(ImplementationWizard.name)
     private readonly wizardModel: Model<ImplementationWizardDoc>,
+    private readonly implementationValidatorService: ImplementationValidatorService,
   ) {}
 
   async findOrCreate(companyId: Types.ObjectId): Promise<ImplementationWizardDoc> {
@@ -76,8 +51,24 @@ export class ImplementationWizardService {
     return wizard;
   }
 
+  /**
+   * Devuelve el wizard de implementación de la empresa.
+   *
+   * Integra la validación automática real: si la última ejecución supera el
+   * TTL de 5 minutos (o nunca se ejecutó), corre el Implementation Validator
+   * Engine y devuelve el wizard actualizado. Si la validación falla, es
+   * tolerante y devuelve los datos almacenados sin romper el endpoint.
+   */
   async getWizard(companyId: Types.ObjectId) {
-    return this.findOrCreate(companyId);
+    const wizard = await this.findOrCreate(companyId);
+    if (shouldRunAutoValidation(wizard.lastAutoValidationAt)) {
+      try {
+        return await this.validateImplementation(companyId);
+      } catch {
+        return wizard;
+      }
+    }
+    return wizard;
   }
 
   /** Core validation logic for each step */
@@ -162,29 +153,85 @@ export class ImplementationWizardService {
     wizard.isImplementationComplete = wizard.steps.every((s) => s.status === 'COMPLETED');
   }
 
-  /** Auto-validation — called by cron or on-demand */
-  async runAutoValidation(companyId: Types.ObjectId, payload: Record<StepId, { score: number; status: StepStatus }>): Promise<ImplementationWizardDoc> {
+  /**
+   * Auto-validación real — ejecuta el Implementation Validator Engine
+   * (providers con datos reales de los módulos) y actualiza el wizard.
+   *
+   * Los pasos cubiertos por un provider se sobreescriben con el porcentaje
+   * real y sus criterios (cumplidos / pendientes); los pasos restantes
+   * conservan su estado previo. El progreso ponderado se calcula con los
+   * pesos de implementation-weights.ts.
+   */
+  async validateImplementation(companyId: Types.ObjectId): Promise<ImplementationWizardDoc> {
     const wizard = await this.findOrCreate(companyId);
+    const summary = await this.implementationValidatorService.validate(companyId.toString());
 
-    for (const [stepId, data] of Object.entries(payload)) {
-      const idx = wizard.steps.findIndex((s) => s.stepId === stepId);
+    // Aplicar resultados reales de los providers a los pasos del wizard.
+    for (const result of summary.results) {
+      const idx = wizard.steps.findIndex((s) => s.stepId === result.stepId);
       if (idx >= 0) {
-        wizard.steps[idx].status = data.status;
-        wizard.steps[idx].score = data.score;
-        wizard.steps[idx].validatedAt = new Date().toISOString();
+        wizard.steps[idx] = {
+          stepId: result.stepId,
+          status: result.status,
+          score: result.percentage,
+          validatedAt: new Date().toISOString(),
+          details: result.details,
+          criteria: result.criteria ?? [],
+          pendingCriteria: result.pendingCriteria ?? [],
+        };
       }
     }
+
+    // Progreso ponderado real: combina los resultados validados con los pasos
+    // restantes (conservan su score previo) usando los pesos del motor.
+    const weights = getImplementationWeights();
+    const stepResults: ProviderValidationResult[] = wizard.steps.map((step) => ({
+      stepId: step.stepId,
+      percentage: step.score ?? 0,
+      status: step.status,
+      details: step.details ?? '',
+    }));
+    const weightedPercentage = calculateWeightedImplementation(stepResults, weights);
+
+    // KPI 1 — completionPercentage: progreso ponderado por la importancia
+    // de cada paso (pesos de implementation-weights.ts).
+    wizard.completionPercentage = weightedPercentage;
+    // KPI 2 — overallScore: promedio simple de los porcentajes de los 14
+    // pasos (sin pesos). Distinto propósito: mide el avance promedio real.
+    wizard.overallScore = Math.round(
+      wizard.steps.reduce((sum, step) => sum + (step.score ?? 0), 0) /
+        Math.max(1, wizard.steps.length),
+    );
+    wizard.isImplementationComplete = wizard.steps.every((s) => s.status === 'COMPLETED');
 
     wizard.history.push({
       userId: 'system',
       action: 'AUTO_VALIDATION_RUN',
-      description: 'Scheduled auto-validation completed',
+      description: `Auto-validación real ejecutada: ${summary.weightedPercentage}% en pasos validados, ${weightedPercentage}% ponderado · ${wizard.overallScore}% promedio (${summary.results.length} providers)`,
       timestamp: new Date().toISOString(),
     } as never);
 
     wizard.lastAutoValidationAt = new Date().toISOString();
-    await this.recalculateScores(wizard);
     return wizard.save();
+  }
+
+  /**
+   * Overview del Centro de Implementación (DTO propio).
+   *
+   * Ejecuta la auto-validación real si supera el TTL de 5 minutos y responde
+   * siempre con el overview construido del wizard actualizado. Tolerante:
+   * nunca lanza por fallos internos de validación.
+   */
+  async getOverview(companyId: Types.ObjectId): Promise<WizardOverviewDto> {
+    const wizard = await this.findOrCreate(companyId);
+    if (shouldRunAutoValidation(wizard.lastAutoValidationAt)) {
+      try {
+        return buildWizardOverview(await this.validateImplementation(companyId));
+      } catch {
+        return buildWizardOverview(wizard);
+      }
+    }
+    return buildWizardOverview(wizard);
   }
 
   /** Generate implementation certificate */
@@ -222,9 +269,27 @@ export class ImplementationWizardService {
     return wizard.save();
   }
 
-  /** Get implementation metrics for dashboard */
+  /**
+   * Métricas del wizard para el dashboard.
+   *
+   * Igual que getWizard: refresca con la auto-validación real si supera el
+   * TTL, de modo que el porcentaje mostrado en el dashboard proviene siempre
+   * de completionPercentage del wizard validado (una sola fuente de verdad).
+   */
   async getDashboardMetrics(companyId: Types.ObjectId) {
     const wizard = await this.findOrCreate(companyId);
+    if (shouldRunAutoValidation(wizard.lastAutoValidationAt)) {
+      try {
+        return this.toDashboardMetrics(await this.validateImplementation(companyId));
+      } catch {
+        return this.toDashboardMetrics(wizard);
+      }
+    }
+    return this.toDashboardMetrics(wizard);
+  }
+
+  /** Construye las métricas del dashboard a partir de un wizard persistido. */
+  private toDashboardMetrics(wizard: ImplementationWizardDoc) {
     return {
       overallScore: wizard.overallScore,
       completionPercentage: wizard.completionPercentage,
@@ -237,10 +302,16 @@ export class ImplementationWizardService {
       isImplementationComplete: wizard.isImplementationComplete,
       certificateGenerated: !!wizard.certificateGeneratedAt,
       certificateVerificationCode: wizard.certificateVerificationCode,
+      lastValidatedAt: wizard.lastAutoValidationAt ?? null,
       steps: wizard.steps.map((s) => ({
         ...s,
         label: STEP_LABELS[s.stepId],
         description: STEP_DESCRIPTIONS[s.stepId],
+        title: STEP_LABELS[s.stepId],
+        moduleRoute: STEP_MODULE_ROUTES[s.stepId] ?? '',
+        percentage: s.score ?? 0,
+        status: s.status,
+        pendingCriteria: s.pendingCriteria ?? [],
       })),
       history: wizard.history.slice(-20).reverse(),
     };
@@ -248,22 +319,6 @@ export class ImplementationWizardService {
 
   /** Helper to get module route for quick access */
   getStepModuleRoute(stepId: StepId): string {
-    const routes: Record<StepId, string> = {
-      company_info: '/company-configuration',
-      users_roles: '/users',
-      responsible_sst: '/company-configuration',
-      course_50_hours: '/company-configuration',
-      sst_policy: '/documents/plan',
-      sst_objectives: '/documents/plan',
-      initial_evaluation: '/evaluations',
-      annual_plan: '/annual-work-plan',
-      copasst: '/documents/do',
-      convivencia_committee: '/documents/do',
-      training: '/trainings',
-      communication: '/documents/do',
-      legal_matrix: '/legal-matrix',
-      document_management: '/document-management',
-    };
-    return routes[stepId];
+    return STEP_MODULE_ROUTES[stepId] ?? '';
   }
 }

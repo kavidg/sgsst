@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ApprovalWorkflowModule } from '../approval-workflow/approval-workflow.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { AuthModule } from '../auth/auth.module';
 import { CommunicationModule } from '../communication/communication.module';
@@ -17,6 +18,7 @@ import { ConvivenciaPeriod, ConvivenciaPeriodSchema } from './schemas/convivenci
     AuthModule,
     AlertsModule,
     CommunicationModule,
+    forwardRef(() => ApprovalWorkflowModule),
     MongooseModule.forFeature([
       { name: ConvivenciaPeriod.name, schema: ConvivenciaPeriodSchema },
       { name: User.name, schema: UserSchema },
@@ -26,5 +28,6 @@ import { ConvivenciaPeriod, ConvivenciaPeriodSchema } from './schemas/convivenci
   ],
   controllers: [ConvivenciaController],
   providers: [ConvivenciaService, RolesGuard, CompanyAccessGuard],
+  exports: [ConvivenciaService],
 })
 export class ConvivenciaModule {}

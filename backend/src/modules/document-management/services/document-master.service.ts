@@ -54,6 +54,12 @@ export class DocumentMasterService {
       approvalUser?: Types.ObjectId;
       approvalDate?: Date;
       expirationDate?: Date;
+      /**
+       * Fase 8.2.A — publicación automática: omite la comunicación automática
+       * de creación (el módulo origen, p. ej. Política SST, ya gestiona las
+       * suyas). Los llamadores existentes no lo usan y conservan el comportamiento.
+       */
+      skipCommunication?: boolean;
     },
     user: UserRef,
   ): Promise<DocumentMasterDocument> {
@@ -104,7 +110,7 @@ export class DocumentMasterService {
     });
 
     // Auto-generate communication for new emergency plans, policies, or procedures
-    if (dto.documentType === 'EMERGENCY_PLAN' || dto.documentType === 'POLICY' || dto.documentType === 'PROCEDURE') {
+    if (!dto.skipCommunication && (dto.documentType === 'EMERGENCY_PLAN' || dto.documentType === 'POLICY' || dto.documentType === 'PROCEDURE')) {
       const typeLabels: Record<string, string> = {
         EMERGENCY_PLAN: 'Plan de Emergencia',
         POLICY: 'Política',
@@ -215,6 +221,14 @@ export class DocumentMasterService {
     status: DocumentStatus,
     reason: string | undefined,
     user: UserRef,
+    meta?: {
+      /** Fase 8.2.A — aprobador ya resuelto por el Approval Workflow. */
+      approvalUser?: Types.ObjectId;
+      /** Fase 8.2.A — fecha de la aprobación ya aplicada. */
+      approvalDate?: Date;
+      /** Fase 8.2.A — omite la comunicación automática de estado. */
+      skipCommunication?: boolean;
+    },
   ): Promise<DocumentMaster> {
     const document = await this.documentModel.findById(id).exec();
     if (!document) {
@@ -223,8 +237,18 @@ export class DocumentMasterService {
 
     const previousStatus = document.status;
 
+    // Fase 8.2.A — publicación automática: fija aprobador/fecha de la
+    // aprobación ya aplicada por el Approval Workflow (sin re-aprobar).
+    const set: Record<string, unknown> = { status };
+    if (meta?.approvalUser) {
+      set.approvalUser = meta.approvalUser;
+    }
+    if (meta?.approvalDate) {
+      set.approvalDate = meta.approvalDate;
+    }
+
     const updated = await this.documentModel
-      .findByIdAndUpdate(id, { $set: { status } }, { new: true })
+      .findByIdAndUpdate(id, { $set: set }, { new: true })
       .populate('ownerUser', 'name email')
       .populate('approvalUser', 'name email')
       .exec();
@@ -250,7 +274,7 @@ export class DocumentMasterService {
     });
 
     // Auto-generate communication when a policy/procedure/emergency plan becomes ACTIVE
-    if (status === 'ACTIVE' && (document.documentType === 'POLICY' || document.documentType === 'PROCEDURE' || document.documentType === 'EMERGENCY_PLAN')) {
+    if (!meta?.skipCommunication && status === 'ACTIVE' && (document.documentType === 'POLICY' || document.documentType === 'PROCEDURE' || document.documentType === 'EMERGENCY_PLAN')) {
       const typeLabels: Record<string, string> = { EMERGENCY_PLAN: 'Plan de Emergencia', POLICY: 'Política', PROCEDURE: 'Procedimiento' };
       const sourceModule = document.documentType === 'EMERGENCY_PLAN' ? 'EMERGENCY_PLAN_UPDATED' as const
         : document.documentType === 'PROCEDURE' ? 'PROCEDURE_UPDATED' as const
@@ -592,6 +616,34 @@ export class DocumentMasterService {
       .exec();
   }
 
+  /**
+   * Devuelve la aprobación documental PENDIENTE más reciente de un documento.
+   * Reutilizado por el DocumentAdapter del Approval Workflow Core para
+   * localizar la solicitud documental vigente al aplicar una decisión.
+   */
+  async findPendingApprovalByDocument(
+    companyId: Types.ObjectId,
+    documentId: Types.ObjectId,
+  ): Promise<DocumentApprovalDocument | null> {
+    return this.approvalModel
+      .findOne({ companyId, documentId, status: ApprovalStatus.PENDING })
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  /**
+   * Devuelve una aprobación documental por su identificador.
+   * Reutilizado por el controlador para mapear approvalId → documentId al
+   * delegar la decisión al Approval Workflow Core.
+   */
+  async findApprovalById(approvalId: Types.ObjectId): Promise<DocumentApprovalDocument> {
+    const approval = await this.approvalModel.findById(approvalId).exec();
+    if (!approval) {
+      throw new NotFoundException(`Approval request with id ${approvalId} not found`);
+    }
+    return approval;
+  }
+
   // ==================== DIGITAL SIGNATURES ====================
 
   async addSignature(params: {
@@ -638,8 +690,13 @@ export class DocumentMasterService {
     fileUrl?: string;
     ownerUser?: Types.ObjectId;
     approvalUser?: Types.ObjectId;
+    approvalDate?: Date;
     expirationDate?: Date;
     sourceModule?: string;
+    /** Fase 8.2.A — estado de publicación (p. ej. ACTIVE tras aprobación). */
+    status?: DocumentStatus;
+    /** Fase 8.2.A — omite la comunicación automática de creación. */
+    skipCommunication?: boolean;
   }): Promise<DocumentMaster> {
     const doc = await this.create(
       params.companyId,
@@ -651,7 +708,10 @@ export class DocumentMasterService {
         process: params.process || params.sourceModule,
         ownerUser: params.ownerUser,
         approvalUser: params.approvalUser,
+        approvalDate: params.approvalDate,
         expirationDate: params.expirationDate,
+        status: params.status,
+        skipCommunication: params.skipCommunication,
       },
       { _id: params.ownerUser || new Types.ObjectId(), email: 'system' },
     );

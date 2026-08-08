@@ -190,7 +190,7 @@ function CompaniesPage({
 
 function App() {
   type CreatableRole = 'admin' | 'member' | 'manager';
-  const { companyId: activeCompanyId, setCompanyId } = useCompanyContext();
+  const { companyId: activeCompanyId, setCompanyId, setStandardsType } = useCompanyContext();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -392,6 +392,21 @@ function App() {
       })
       .catch(() => undefined);
   }, [activeCompanyId, idToken]);
+
+  // FASE 7.2 — Sincroniza el standardsType de la empresa activa cuando los
+  // datos de la empresa (que incluyen standardsType) están disponibles.
+  // Si no hay empresa activa o no se conoce el valor, CompanyContext expone
+  // el fallback '60'.
+  useEffect(() => {
+    if (!activeCompanyId) {
+      return;
+    }
+
+    const activeCompany = companies.find((company) => company._id === activeCompanyId);
+    if (activeCompany?.standardsType) {
+      setStandardsType(activeCompany.standardsType);
+    }
+  }, [activeCompanyId, companies, setStandardsType]);
 
   const handleCreateAdmin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -636,7 +651,7 @@ function App() {
     <>
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
-        <DocumentsEvaluationProvider>{page}</DocumentsEvaluationProvider>
+        <DocumentsEvaluationProvider token={idToken} userId={profile?._id ?? ''}>{page}</DocumentsEvaluationProvider>
       ) : (
         <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
       )}

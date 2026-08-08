@@ -16,12 +16,13 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { getStorage } from 'firebase-admin/storage';
-import Docxtemplater from 'docxtemplater';
-import PizZip from 'pizzip';
 import { Types } from 'mongoose';
 import { RequestWithUser } from '../auth/auth.types';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { DocumentGenerationService } from '../document-generation/services/document-generation.service';
+import { StorageService } from '../document-generation/services/storage.service';
+import { DocumentSourceModule } from '../document-generation/types/renderer.types';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
 import { UsersService } from '../users/users.service';
@@ -36,6 +37,8 @@ export class TemplatesController {
     private readonly templatesService: TemplatesService,
     private readonly usersService: UsersService,
     private readonly firebaseAdminService: FirebaseAdminService,
+    private readonly documentGenerationService: DocumentGenerationService,
+    private readonly storageService: StorageService,
   ) {}
 
   @Post('upload')
@@ -88,32 +91,21 @@ export class TemplatesController {
     @Res() response: HttpResponse,
   ) {
     const user = await this.resolveUserFromRequest(request);
-    const template = await this.templatesService.findByIdForCompany(templateId, user.companyId);
 
-    const app = this.firebaseAdminService.getApp();
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-
-    if (!bucketName) {
-      throw new InternalServerErrorException('Missing FIREBASE_STORAGE_BUCKET configuration');
-    }
-
-    const bucket = getStorage(app).bucket(bucketName);
-    const [templateBuffer] = await bucket.file(template.storagePath).download();
-
-    const zip = new PizZip(templateBuffer);
-    const document = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
+    // Fase 1: la generación DOCX delega en el Document Generation Engine, que
+    // resuelve la plantilla (TemplateSourceService), renderiza (RendererService),
+    // guarda el archivo (StorageService) y registra la trazabilidad (DocumentInstance).
+    const generated = await this.documentGenerationService.generateDocument({
+      companyId: user.companyId,
+      templateId,
+      sourceModule: DocumentSourceModule.TEMPLATES,
+      generatedBy: (user as unknown as { _id: Types.ObjectId })._id,
+      context: generateTemplateDto.data,
     });
 
-    document.render(generateTemplateDto.data);
-
-    const generatedBuffer = document.getZip().generate({
-      type: 'nodebuffer',
-      compression: 'DEFLATE',
-    });
-
-    const fileName = this.buildGeneratedFileName(template.name);
+    // Se descarga el archivo generado para mantener la respuesta HTTP previa.
+    const generatedBuffer = await this.storageService.download(generated.storagePath);
+    const fileName = this.buildGeneratedFileName(generated.storagePath);
 
     response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -141,9 +133,9 @@ export class TemplatesController {
     return list.map((variable) => variable.trim()).filter((variable) => variable.length > 0);
   }
 
-  private buildGeneratedFileName(templateName: string) {
-    const sanitizedTemplateName = templateName.replace(/[^a-zA-Z0-9-_]/g, '_');
-    return `${sanitizedTemplateName}-${Date.now()}.docx`;
+  private buildGeneratedFileName(storagePath: string) {
+    const baseName = storagePath.split('/').pop() ?? `documento-${Date.now()}.docx`;
+    return baseName;
   }
 
   private assertDocxFile(file: UploadedBinaryFile) {

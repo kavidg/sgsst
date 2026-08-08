@@ -1,11 +1,17 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useDocumentsEvaluation } from './evaluationState';
+import { usePhvaCatalog } from '../../hooks/usePhvaCatalog';
+import { mergeCatalogItems } from './utils/mergeCatalogItems';
+import { groupCatalogItems } from './utils/groupCatalogItems';
+import { shouldUseCatalogSet, hasCatalogSectionItems, catalogItemToEvaluationItem } from './utils/shouldUseCatalogSet';
+import type { StandardSection } from '../../models/standard-catalog';
+import type { PhvaCatalogItem } from '../../services/phva-catalog.service';
 
 type EvaluationEntry = {
   code: string;
@@ -13,6 +19,8 @@ type EvaluationEntry = {
   weight: number;
   modeReview: string;
   criteria: string;
+  /** Sección del PHVA desde el StandardCatalog (opcional — FASE 7.4). */
+  section?: StandardSection;
 };
 
 const condicionesSalud: EvaluationEntry[] = [
@@ -245,6 +253,105 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
   const { totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
+  // ────────────────────────────────────────────────────────────────────────
+  // FASE 7.4 — Migración piloto: StandardCatalog como fuente de datos.
+  //
+  // Se consume usePhvaCatalog() y se filtran únicamente los estándares de la
+  // fase HACER (fuente única de verdad: cada página consume SOLO su fase).
+  // Los arrays legacy (condicionesSalud, registroInvestigacion, etc.) NO se
+  // eliminan: permanecen como respaldo cuando el catálogo falla o está vacío
+  // (la pantalla nunca queda vacía) y como referencia del orden actual.
+  //
+  // Para cada estándar, si el catálogo HACER contiene criteria/modeReview/
+  // section se usan esos valores; si no existen (o el estándar no pertenece a
+  // la fase HACER), se mantienen los textos legacy. Sin excepciones
+  // cross-phase.
+  // ────────────────────────────────────────────────────────────────────────
+  const { catalog, error } = usePhvaCatalog();
+
+  const hacerCatalogByCode = useMemo(() => {
+    const byCode = new Map<string, PhvaCatalogItem>();
+    for (const item of catalog) {
+      if (item.phva === 'HACER') byCode.set(item.code, item);
+    }
+    return byCode;
+  }, [catalog]);
+
+  const useCatalog = !error && catalog.length > 0;
+
+  // FASE 7.7.F — Metadata de secciones desde el StandardCatalog. groupCatalogItems
+  // agrupa los estándares del catálogo por section.id (título y porcentaje). Los
+  // títulos del catálogo son byte-idénticos a los hardcodeados de la página
+  // (copiados en 7.7.B.1), por lo que el cambio visual es nulo. Si el catálogo
+  // falla o está vacío, se usan exactamente los títulos legacy actuales.
+  const catalogSections = useMemo(() => (useCatalog ? groupCatalogItems(catalog) : {}), [catalog, useCatalog]);
+
+  // FASE 7.7.G — Migración controlada del set PHVA. shouldUseCatalogSet valida
+  // la completitud del catálogo del nivel para la fase HACER (sin conteos
+  // fijos). Si la fase tiene todos sus estándares con metadata completa, las
+  // secciones renderizan los ítems del catálogo agrupados por section.id (misma
+  // interfaz {code, title, weight, criteria, modeReview, section}). Si no, se
+  // usan los arrays legacy con el merge de metadata (fallback — la pantalla
+  // nunca queda vacía).
+  const catalogGroups = useMemo(() => groupCatalogItems(catalog), [catalog]);
+  const useCatalogSet =
+    shouldUseCatalogSet('HACER', catalog) &&
+    hasCatalogSectionItems(catalogGroups, [
+      'do-condiciones-salud',
+      'do-registro-investigacion',
+      'do-vigilancia-salud',
+      'do-identificacion-peligros',
+      'do-medidas-control',
+      'do-gestion-amenazas',
+    ]);
+
+  // Arrays memoizados (referencias estables) para que registerSection no se
+  // vuelva a registrar en cada render. Si el catálogo no está disponible se
+  // usan los arrays legacy tal cual (FASE 7.7.B.2 — merge consolidado en
+  // mergeCatalogItems).
+  const condicionesSaludItems = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['do-condiciones-salud']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(condicionesSalud, hacerCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, hacerCatalogByCode, useCatalog],
+  );
+  const registroInvestigacionItems = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['do-registro-investigacion']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(registroInvestigacion, hacerCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, hacerCatalogByCode, useCatalog],
+  );
+  const vigilanciaSaludItems = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['do-vigilancia-salud']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(vigilanciaSalud, hacerCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, hacerCatalogByCode, useCatalog],
+  );
+  const identificacionPeligrosItems = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['do-identificacion-peligros']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(identificacionPeligros, hacerCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, hacerCatalogByCode, useCatalog],
+  );
+  const medidasControlItems = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['do-medidas-control']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(medidasControl, hacerCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, hacerCatalogByCode, useCatalog],
+  );
+  const gestionAmenazasItems = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['do-gestion-amenazas']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(gestionAmenazas, hacerCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, hacerCatalogByCode, useCatalog],
+  );
+
   return (
     <div className="grid">
       <ComplianceProgress
@@ -256,20 +363,20 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
         <p className="muted">Gestión de la Salud (20%)</p>
       </Card>
 
-      <EvaluationSection title="Condiciones de salud en el trabajo (9%)" items={condicionesSalud} sectionId="do-condiciones-salud" readOnly={readOnly} />
-      <EvaluationSection title="Registro e investigación (5%)" items={registroInvestigacion} sectionId="do-registro-investigacion" readOnly={readOnly} />
-      <EvaluationSection title="Vigilancia de la salud (6%)" items={vigilanciaSalud} sectionId="do-vigilancia-salud" readOnly={readOnly} />
+      <EvaluationSection title={catalogSections['do-condiciones-salud']?.title ?? 'Condiciones de salud en el trabajo (9%)'} items={condicionesSaludItems} sectionId="do-condiciones-salud" readOnly={readOnly} />
+      <EvaluationSection title={catalogSections['do-registro-investigacion']?.title ?? 'Registro e investigación (5%)'} items={registroInvestigacionItems} sectionId="do-registro-investigacion" readOnly={readOnly} />
+      <EvaluationSection title={catalogSections['do-vigilancia-salud']?.title ?? 'Vigilancia de la salud (6%)'} items={vigilanciaSaludItems} sectionId="do-vigilancia-salud" readOnly={readOnly} />
 
       <Card title="Gestión de Peligros y Riesgos (30%)">
         <p className="muted">Control de peligros y riesgos prioritarios</p>
       </Card>
-      <EvaluationSection title="Identificación de peligros (15%)" items={identificacionPeligros} sectionId="do-identificacion-peligros" readOnly={readOnly} />
-      <EvaluationSection title="Medidas de prevención y control (15%)" items={medidasControl} sectionId="do-medidas-control" readOnly={readOnly} />
+      <EvaluationSection title={catalogSections['do-identificacion-peligros']?.title ?? 'Identificación de peligros (15%)'} items={identificacionPeligrosItems} sectionId="do-identificacion-peligros" readOnly={readOnly} />
+      <EvaluationSection title={catalogSections['do-medidas-control']?.title ?? 'Medidas de prevención y control (15%)'} items={medidasControlItems} sectionId="do-medidas-control" readOnly={readOnly} />
 
       <Card title="Gestión de Amenazas (10%)">
         <p className="muted">Prevención, preparación y respuesta ante emergencias</p>
       </Card>
-      <EvaluationSection title="Plan de Prevención, Preparación y Respuesta ante Emergencias (10%)" items={gestionAmenazas} sectionId="do-gestion-amenazas" readOnly={readOnly}>
+      <EvaluationSection title={catalogSections['do-gestion-amenazas']?.title ?? 'Plan de Prevención, Preparación y Respuesta ante Emergencias (10%)'} items={gestionAmenazasItems} sectionId="do-gestion-amenazas" readOnly={readOnly}>
         <div className="plan-next-action plan-next-action--between">
           <Button type="button" className="plan-next-action__button" variant="secondary" onClick={() => navigate('/documents/plan')}>
             ← Regresar (Planear)

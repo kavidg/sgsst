@@ -5,6 +5,10 @@ import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
+import { ApprovalDecision } from '../approval-workflow/enums/approval-decision.enum';
+import { ApprovalEntity } from '../approval-workflow/enums/approval-entity.enum';
+import { buildApprovalActor } from '../approval-workflow/helpers/approval-actor.helper';
+import { ApprovalWorkflowService } from '../approval-workflow/approval-workflow.service';
 import { ApproveMatrixDto, GenerateMatrixDto, ReorderItemsDto, ResponsibilityItemDto, UpdateItemDto, VersionSnapshotDto } from './dto/responsibility-matrix.dto';
 import { AcceptResponsibilityDto, AssignResponsibilityBatchDto, CreateAcceptanceCycleDto, RejectResponsibilityDto, RequestCorrectionDto, ResolveCorrectionDto, SendReminderDto } from './dto/responsibility-acceptance.dto';
 import { ResponsibilityMatrixService } from './responsibility-matrix.service';
@@ -14,7 +18,10 @@ interface RequestWithUser extends Request { user?: { _id: string; email: string;
 @Controller('responsibility-matrix')
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class ResponsibilityMatrixController {
-  constructor(private readonly service: ResponsibilityMatrixService) {}
+  constructor(
+    private readonly service: ResponsibilityMatrixService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
+  ) {}
 
   private resolveCompanyId(request: RequestWithUser): Types.ObjectId {
     const companyId = (request as any).companyId || (request.headers as any)['x-company-id'];
@@ -67,14 +74,56 @@ export class ResponsibilityMatrixController {
   @Post('submit-approval')
   async submitForApproval(@Req() request: RequestWithUser) {
     const userEmail = request.user?.email ?? 'system';
-    return this.service.submitForApproval(this.resolveCompanyId(request), userEmail);
+    const companyId = this.resolveCompanyId(request);
+    const matrix = await this.service.submitForApproval(companyId, userEmail);
+
+    // Crear la solicitud de aprobación en el Approval Workflow Core.
+    await this.approvalWorkflowService.createRequest(
+      companyId.toString(),
+      {
+        module: ApprovalEntity.RESPONSIBILITY_MATRIX,
+        entityType: 'ResponsibilityMatrix',
+        entityId: matrix._id.toString(),
+        assignedRoles: ['owner', 'admin', 'manager'],
+        comments: 'Aprobación de la matriz de responsabilidades',
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return matrix;
   }
 
   @Post('approve')
   @Roles('owner', 'admin')
   async approve(@Req() request: RequestWithUser, @Body() dto: ApproveMatrixDto) {
-    const userEmail = request.user?.email ?? 'system';
-    return this.service.approve(this.resolveCompanyId(request), dto, userEmail);
+    const companyId = this.resolveCompanyId(request);
+    const matrix = await this.service.getOrCreate(companyId);
+
+    // Delegar la aprobación al Approval Workflow Core, que reutiliza
+    // ResponsibilityMatrixService.approve a través del adapter (conserva
+    // versiones, historial y campaña de firmas). La respuesta conserva la
+    // compatibilidad con el frontend actual.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.RESPONSIBILITY_MATRIX,
+      matrix._id.toString(),
+      {
+        decision: ApprovalDecision.APPROVED,
+        comments: dto.comments,
+        metadata: { approvedByEmail: dto.approvedByEmail },
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return result.applied;
   }
 
   @Post('archive')

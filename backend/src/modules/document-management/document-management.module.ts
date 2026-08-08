@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { CommunicationModule } from '../communication/communication.module';
+import { ApprovalWorkflowModule } from '../approval-workflow/approval-workflow.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { DocumentManagementController } from './document-management.controller';
@@ -19,6 +20,10 @@ import { RetentionRule, RetentionRuleSchema } from './schemas/retention-rule.sch
 import { DocumentApproval, DocumentApprovalSchema } from './schemas/document-approval.schema';
 import { DocumentSignature, DocumentSignatureSchema } from './schemas/document-signature.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+// Fase 8.2.A — publicación automática Approval → DocumentMaster: el servicio
+// vincula la DocumentInstance publicada (documentMasterId / standardCode).
+import { DocumentInstance, DocumentInstanceSchema } from '../document-generation/schemas/document-instance.schema';
+import { DocumentPublicationService } from './services/document-publication.service';
 
 @Module({
   imports: [
@@ -26,6 +31,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
     UsersModule,
     AlertsModule,
     CommunicationModule,
+    forwardRef(() => ApprovalWorkflowModule),
     MongooseModule.forFeature([
       { name: DocumentMaster.name, schema: DocumentMasterSchema },
       { name: DocumentVersion.name, schema: DocumentVersionSchema },
@@ -34,6 +40,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
       { name: DocumentApproval.name, schema: DocumentApprovalSchema },
       { name: DocumentSignature.name, schema: DocumentSignatureSchema },
       { name: User.name, schema: UserSchema },
+      { name: DocumentInstance.name, schema: DocumentInstanceSchema },
     ]),
   ],
   controllers: [DocumentManagementController],
@@ -43,6 +50,9 @@ import { User, UserSchema } from '../users/schemas/user.schema';
     DocumentRetentionService,
     DocumentSearchService,
     DocumentAlertService,
+    // Fase 8.2.A — publicación automática de documentos aprobados en
+    // DocumentMaster (consumido por el DocumentGenerationService).
+    DocumentPublicationService,
     RolesGuard,
     CompanyAccessGuard,
   ],
@@ -52,6 +62,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
     DocumentRetentionService,
     DocumentSearchService,
     DocumentAlertService,
+    DocumentPublicationService,
   ],
 })
 export class DocumentManagementModule {}

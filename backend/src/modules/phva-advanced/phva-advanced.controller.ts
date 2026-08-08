@@ -20,6 +20,12 @@ import { RequestWithUser } from '../auth/auth.types';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { ApprovalDecision } from '../approval-workflow/enums/approval-decision.enum';
+import { ApprovalEntity } from '../approval-workflow/enums/approval-entity.enum';
+import { ApprovalStatus } from '../approval-workflow/enums/approval-status.enum';
+import { buildApprovalActor } from '../approval-workflow/helpers/approval-actor.helper';
+import { ApprovalActor } from '../approval-workflow/interfaces/approval-actor.interface';
+import { ApprovalWorkflowService } from '../approval-workflow/approval-workflow.service';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
 import { UsersService } from '../users/users.service';
@@ -30,6 +36,7 @@ import { PhvaAdvancedService } from './phva-advanced.service';
 import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ResponsibilityAssignmentEntry } from './schemas/phva-advanced-responsibilities.schema';
 import { UpdateSpecialPensionDto } from './dto/update-special-pension.dto';
+import { PHVA_SOURCE_ENTITY_RESPONSIBLE_SG_SST } from '../document-generation/types/document-generation.types';
 
 @Controller('phva-advanced')
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
@@ -38,6 +45,7 @@ export class PhvaAdvancedController {
     private readonly phvaAdvancedService: PhvaAdvancedService,
     private readonly usersService: UsersService,
     private readonly firebaseAdminService: FirebaseAdminService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
   ) {}
 
   @Get('responsable-sst')
@@ -146,6 +154,103 @@ export class PhvaAdvancedController {
     return this.phvaAdvancedService.auditHistory(companyId);
   }
 
+  @Post('responsable-sst/submit-approval')
+  @Roles('owner', 'admin')
+  async submitResponsableSstApproval(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.submitResponsableSst(companyId, user);
+
+    // Crear la solicitud de aprobación en el Approval Workflow Core.
+    await this.approvalWorkflowService.createRequest(
+      companyId.toString(),
+      {
+        module: ApprovalEntity.PHVA_ADVANCED,
+        entityType: PHVA_SOURCE_ENTITY_RESPONSIBLE_SG_SST,
+        entityId: record._id.toString(),
+        assignedRoles: ['owner', 'manager'],
+        comments: 'Aprobación del Responsable del SG-SST (1.1.1)',
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        firebaseUid: request.user?.uid,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return record;
+  }
+
+  @Post('responsable-sst/approve')
+  @Roles('owner', 'manager')
+  async approveResponsableSst(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    // El endpoint no recibe entityId (resuelve el registro por empresa); se
+    // obtiene el registro vigente para delegar la decisión al motor.
+    const record = await this.phvaAdvancedService.findResponsableSstByCompany(companyId);
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    // Delegar la aprobación al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedService.approveResponsableSst a través del
+    // ResponsibleSgsstHandler (conserva APPROVED/APPROVED_AND_SIGNED,
+    // approvedBy, auditHistory y alertas). La respuesta conserva
+    // compatibilidad con el frontend actual.
+    // Fase 2.1 — la generación del documento formal del Responsable del SG-SST
+    // se dispara desde el Approval Workflow Core (ApprovalDocumentGeneration-
+    // Listener + ResponsibleSgsstDocumentGenerator) tras el ApprovalEvent
+    // APPROVED. Esto centraliza la generación en el Core y cubre también el
+    // endpoint genérico POST /approval-workflow/.../decide. El controller solo
+    // delega la decisión al motor.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      {
+        decision: ApprovalDecision.APPROVED,
+        metadata: {
+          approvedByEmail: request.user?.email,
+        },
+      },
+      actor,
+    );
+
+    return result.applied;
+  }
+
+  @Post('responsable-sst/reject')
+  @Roles('owner', 'manager')
+  async rejectResponsableSst(@Req() request: RequestWithUser, @Body() dto: { reason: string }) {
+    if (!dto.reason || !dto.reason.trim()) throw new BadRequestException('Rejection reason is required');
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findResponsableSstByCompany(companyId);
+
+    // Delegar el rechazo al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedService.rejectResponsableSst a través del handler.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      {
+        decision: ApprovalDecision.REJECTED,
+        reason: dto.reason,
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        firebaseUid: request.user?.uid,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return result.applied;
+  }
+
   @Get('responsibilities')
   @Roles('owner', 'admin', 'manager', 'member')
   async getResponsibilities(@Req() request: RequestWithUser) {
@@ -170,18 +275,79 @@ export class PhvaAdvancedController {
   @Post('responsibilities/approve')
   @Roles('owner', 'manager')
   async approveResponsibilities(@Req() request: RequestWithUser) {
-    const user = await this.resolveUserFromRequest(request);
     const companyId = this.resolveCompanyId(request);
-    return this.phvaAdvancedService.approveResponsibilities(companyId, user);
+    // El endpoint no recibe entityId (resuelve el registro por empresa); se
+    // obtiene el registro vigente para delegar la decisión al motor.
+    const record = await this.phvaAdvancedService.findResponsibilitiesByCompany(companyId);
+    const entityId = record._id.toString();
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    // El endpoint de aprobación puede llegar sin ApprovalRequest PENDING
+    // previa (flujos legacy o ciclos rechazo → corrección → re-aprobación).
+    // La mitigación de ciclo se garantiza en el helper centralizado.
+    await this.ensurePendingResponsibilitiesRequest(companyId, entityId, actor);
+
+    // Delegar la aprobación al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedService.approveResponsibilities a través del handler
+    // (conserva __META__, auditHistory, versions, locked, representante
+    // legal, firmas, notificaciones y compliance). La respuesta conserva
+    // compatibilidad con el frontend actual.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+      {
+        decision: ApprovalDecision.APPROVED,
+        metadata: {
+          approvedByEmail: request.user?.email,
+        },
+      },
+      actor,
+    );
+
+    return result.applied;
   }
 
   @Post('responsibilities/reject')
   @Roles('owner', 'manager')
   async rejectResponsibilities(@Req() request: RequestWithUser, @Body() dto: { reason: string }) {
     if (!dto.reason || !dto.reason.trim()) throw new BadRequestException('Rejection reason is required');
-    const user = await this.resolveUserFromRequest(request);
     const companyId = this.resolveCompanyId(request);
-    return this.phvaAdvancedService.rejectResponsibilities(companyId, user, dto.reason);
+    const record = await this.phvaAdvancedService.findResponsibilitiesByCompany(companyId);
+    const entityId = record._id.toString();
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    // Misma mitigación de ciclo que approve (helper centralizado): garantiza
+    // una solicitud PENDING antes de decidir para conservar rechazo →
+    // corrección → re-aprobación.
+    await this.ensurePendingResponsibilitiesRequest(companyId, entityId, actor);
+
+    // Delegar el rechazo al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedService.rejectResponsibilities a través del handler
+    // (conserva REJECTED, rejectionReason y auditHistory). La respuesta
+    // conserva compatibilidad con el frontend actual.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+      {
+        decision: ApprovalDecision.REJECTED,
+        reason: dto.reason,
+      },
+      actor,
+    );
+
+    return result.applied;
   }
 
 
@@ -229,8 +395,62 @@ export class PhvaAdvancedController {
   @Patch('training-management/approval')
   @Roles('owner', 'manager')
   async approveTrainingManagement(@Req() request: RequestWithUser, @Body() dto: { status: 'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; comments?: string; }) {
-    const user = await this.resolveUserFromRequest(request);
-    return this.phvaAdvancedService.approveTrainingManagement(this.resolveCompanyId(request), user, dto);
+    const companyId = this.resolveCompanyId(request);
+    // El endpoint no recibe entityId (resuelve el registro por empresa); se
+    // obtiene el registro vigente para delegar la decisión al motor.
+    const record = await this.phvaAdvancedService.findTrainingManagementByCompany(companyId);
+    const entityId = record._id.toString();
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    // Training Management no posee paso de submit: cada decisión directa
+    // requiere una solicitud PENDING. Si no existe (o la anterior ya está
+    // resuelta, p.ej. tras un rechazo), se crea una nueva para conservar el
+    // ciclo rechazo → corrección → re-aprobación que funciona hoy.
+    const existing = await this.approvalWorkflowService.findRequestByEntity(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+    );
+    if (!existing || existing.status !== ApprovalStatus.PENDING_APPROVAL) {
+      await this.approvalWorkflowService.createRequest(
+        companyId.toString(),
+        {
+          module: ApprovalEntity.PHVA_ADVANCED,
+          entityType: 'PhvaAdvancedTrainingManagement',
+          entityId,
+          assignedRoles: ['owner', 'manager'],
+          comments: 'Aprobación del programa de capacitaciones (1.2.1)',
+        },
+        actor,
+      );
+    }
+
+    // Delegar al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedService.approveTrainingManagement a través del
+    // TrainingManagementHandler (conserva approval, history, approvedBy/At,
+    // comments, version y TrainingSignature). La respuesta conserva
+    // compatibilidad con el frontend actual.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+      {
+        decision: this.mapTrainingStatusToDecision(dto.status),
+        comments: dto.comments,
+        metadata: {
+          approvedByEmail: request.user?.email,
+          comments: dto.comments,
+        },
+      },
+      actor,
+    );
+
+    return result.applied;
   }
 
 
@@ -278,8 +498,61 @@ export class PhvaAdvancedController {
   @Post('sst-policy/approve')
   @Roles('owner', 'manager')
   async approveSstPolicy(@Req() request: RequestWithUser) {
-    const user = await this.resolveUserFromRequest(request);
-    return this.phvaAdvancedService.approveSstPolicy(this.resolveCompanyId(request), user);
+    const companyId = this.resolveCompanyId(request);
+    // El endpoint no recibe entityId (resuelve el registro por empresa); se
+    // obtiene la política vigente para delegar la decisión al motor.
+    const record = await this.phvaAdvancedService.findSstPolicyByCompany(companyId);
+    const entityId = record._id.toString();
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    // SST Policy no posee paso de submit: cada aprobación directa requiere una
+    // solicitud PENDING. Si no existe (o la anterior ya está resuelta, p.ej.
+    // tras una política vencida), se crea una nueva para conservar el ciclo de
+    // re-aprobación que funciona hoy.
+    const existing = await this.approvalWorkflowService.findRequestByEntity(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+    );
+    if (!existing || existing.status !== ApprovalStatus.PENDING_APPROVAL) {
+      await this.approvalWorkflowService.createRequest(
+        companyId.toString(),
+        {
+          module: ApprovalEntity.PHVA_ADVANCED,
+          entityType: 'PhvaAdvancedSstPolicy',
+          entityId,
+          assignedRoles: ['owner', 'manager'],
+          comments: 'Aprobación de la Política de Seguridad y Salud en el Trabajo (2.1.1)',
+        },
+        actor,
+      );
+    }
+
+    // Delegar la aprobación al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedService.approveSstPolicy a través del SstPolicyHandler
+    // (conserva la validación de firmas obligatorias, PolicySignature,
+    // PolicyHistory, PolicyVersion, PolicySocialization, las comunicaciones
+    // automáticas, el approvalDocument, el auditHistory y las versiones). La
+    // respuesta conserva compatibilidad con el frontend actual.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+      {
+        decision: ApprovalDecision.APPROVED,
+        metadata: {
+          approvedByEmail: request.user?.email,
+        },
+      },
+      actor,
+    );
+
+    return result.applied;
   }
 
   @Post('sst-policy/socializations/assign')
@@ -369,24 +642,133 @@ export class PhvaAdvancedController {
   async submitResourceAssignment(@Req() request: RequestWithUser) {
     const user = await this.resolveUserFromRequest(request);
     const companyId = this.resolveCompanyId(request);
-    return this.phvaAdvancedService.submitResourceAssignment(companyId, user);
+    const record = await this.phvaAdvancedService.submitResourceAssignment(companyId, user);
+
+    // Crear la solicitud de aprobación en el Approval Workflow Core.
+    await this.approvalWorkflowService.createRequest(
+      companyId.toString(),
+      {
+        module: ApprovalEntity.PHVA_ADVANCED,
+        entityType: 'PhvaAdvancedResourceAssignment',
+        entityId: record._id.toString(),
+        assignedRoles: ['owner', 'manager'],
+        comments: 'Aprobación del módulo Asignación de Recursos SG-SST (1.1.3)',
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        firebaseUid: request.user?.uid,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return record;
   }
 
   @Post('resource-assignment/approve')
   @Roles('owner', 'manager')
   async approveResourceAssignment(@Req() request: RequestWithUser) {
-    const user = await this.resolveUserFromRequest(request);
     const companyId = this.resolveCompanyId(request);
-    return this.phvaAdvancedService.approveResourceAssignment(companyId, user);
+    // El endpoint no recibe entityId (resuelve el registro por empresa); se
+    // obtiene el registro vigente para delegar la decisión al motor.
+    const record = await this.phvaAdvancedService.findResourceAssignmentByCompany(companyId);
+
+    // Delegar la aprobación al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedService.approveResourceAssignment a través del handler
+    // (conserva APPROVED/APPROVED_AND_SIGNED, auditHistory, approvedBy y
+    // alertas). La respuesta conserva compatibilidad con el frontend actual.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      {
+        decision: ApprovalDecision.APPROVED,
+        metadata: {
+          signerEmail: request.user?.email,
+          signerRole: request.user?.role,
+        },
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        firebaseUid: request.user?.uid,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return result.applied;
   }
 
   @Post('resource-assignment/reject')
   @Roles('owner', 'manager')
   async rejectResourceAssignment(@Req() request: RequestWithUser, @Body() dto: { reason: string }) {
     if (!dto.reason || !dto.reason.trim()) throw new BadRequestException('Rejection reason is required');
-    const user = await this.resolveUserFromRequest(request);
     const companyId = this.resolveCompanyId(request);
-    return this.phvaAdvancedService.rejectResourceAssignment(companyId, user, dto.reason);
+    const record = await this.phvaAdvancedService.findResourceAssignmentByCompany(companyId);
+
+    // Delegar el rechazo al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedService.rejectResourceAssignment a través del handler.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      {
+        decision: ApprovalDecision.REJECTED,
+        reason: dto.reason,
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        firebaseUid: request.user?.uid,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return result.applied;
+  }
+
+  /**
+   * Garantiza que exista una solicitud PENDING_APPROVAL para Responsibilities
+   * antes de delegar la decisión al motor (mitigación de ciclo rechazo →
+   * corrección → re-aprobación). Evita duplicar la creación de la solicitud
+   * entre approve y reject.
+   */
+  private async ensurePendingResponsibilitiesRequest(
+    companyId: Types.ObjectId,
+    entityId: string,
+    actor: ApprovalActor,
+  ): Promise<void> {
+    const existing = await this.approvalWorkflowService.findRequestByEntity(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+    );
+    if (!existing || existing.status !== ApprovalStatus.PENDING_APPROVAL) {
+      await this.approvalWorkflowService.createRequest(
+        companyId.toString(),
+        {
+          module: ApprovalEntity.PHVA_ADVANCED,
+          entityType: 'PhvaAdvancedResponsibilities',
+          entityId,
+          assignedRoles: ['owner', 'manager'],
+          comments: 'Aprobación de la matriz de responsabilidades (1.1.2)',
+        },
+        actor,
+      );
+    }
+  }
+
+  private mapTrainingStatusToDecision(
+    status: 'APPROVED' | 'REJECTED' | 'ADJUSTMENTS_REQUESTED',
+  ): ApprovalDecision {
+    switch (status) {
+      case 'APPROVED':
+        return ApprovalDecision.APPROVED;
+      case 'REJECTED':
+        return ApprovalDecision.REJECTED;
+      case 'ADJUSTMENTS_REQUESTED':
+        return ApprovalDecision.ADJUSTMENTS_REQUESTED;
+    }
   }
 
   private resolveCompanyId(request: RequestWithUser): Types.ObjectId {

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWizardDashboard, WizardDashboardModel, WizardStepId } from '../api';
+import {
+  fetchImplementationPriorities,
+  fetchWizardDashboard,
+  PriorityItemModel,
+  WizardDashboardModel,
+  WizardStepId,
+} from '../api';
 
 type UserRole = 'owner' | 'admin' | 'member' | 'manager';
 
@@ -27,14 +33,6 @@ function setDismissed(companyId: string) {
   localStorage.setItem(`${DISMISS_STORAGE_PREFIX}${companyId}`, String(expiry));
 }
 
-const CRITICAL_STEPS: WizardStepId[] = [
-  'responsible_sst',
-  'course_50_hours',
-  'sst_policy',
-  'company_info',
-  'copasst',
-];
-
 const STEP_LABELS: Record<WizardStepId, string> = {
   company_info: 'Información Empresa',
   users_roles: 'Usuarios y Roles',
@@ -55,20 +53,21 @@ const STEP_LABELS: Record<WizardStepId, string> = {
 export function ImplementationRecommendationCard({ token, role }: ImplRecCardProps) {
   const navigate = useNavigate();
   const [wizard, setWizard] = useState<WizardDashboardModel | null>(null);
+  // Prioridades reales del ImplementationPriorityEngine (null = no disponibles).
+  const [priorities, setPriorities] = useState<PriorityItemModel[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [dismissed, setDismissedState] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const data = await fetchWizardDashboard(token);
-      setWizard(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar progreso');
-    } finally {
-      setLoading(false);
-    }
+    // El dashboard y las prioridades del motor degradan de forma independiente.
+    const [dashResult, prioResult] = await Promise.allSettled([
+      fetchWizardDashboard(token),
+      fetchImplementationPriorities(token),
+    ]);
+    if (dashResult.status === 'fulfilled') setWizard(dashResult.value);
+    if (prioResult.status === 'fulfilled') setPriorities(prioResult.value.priorities);
+    setLoading(false);
   }, [token]);
 
   useEffect(() => {
@@ -104,8 +103,7 @@ export function ImplementationRecommendationCard({ token, role }: ImplRecCardPro
   };
 
   // If loading or no data, show nothing (loading handled by parent)
-  if (loading || !wizard || dismissed) return null;
-  if (error) return null; // Silently fail — don't pollute dashboard
+  if (loading || !wizard || dismissed) return null; // Silently fail — don't pollute dashboard
   if (wizard.isImplementationComplete || wizard.completionPercentage >= 100) return null;
 
   const pct = wizard.completionPercentage;
@@ -125,14 +123,6 @@ export function ImplementationRecommendationCard({ token, role }: ImplRecCardPro
   const pendingSteps = wizard.steps.filter((s) => s.status !== 'COMPLETED');
   const completedSteps = wizard.completedSteps;
   const totalSteps = wizard.totalSteps;
-
-  // Critical missing modules
-  const criticalMissing = wizard.steps.filter(
-    (s) => s.status !== 'COMPLETED' && CRITICAL_STEPS.includes(s.stepId),
-  );
-
-  // Top 5 pending steps to show
-  const topPending = pendingSteps.slice(0, 5);
 
   // Manager view: simplified
   const isManager = role === 'manager';
@@ -211,44 +201,21 @@ export function ImplementationRecommendationCard({ token, role }: ImplRecCardPro
         </span>
       </div>
 
-      {/* Critical missing modules warning (Admin/Owner only) */}
-      {!isManager && criticalMissing.length > 0 && (
-        <div
-          style={{
-            background: isRed ? '#fef2f2' : '#fffbeb',
-            border: `1px solid ${isRed ? '#fecaca' : '#fde68a'}`,
-            borderRadius: '0.75rem',
-            padding: '0.65rem 0.85rem',
-            display: 'grid',
-            gap: '0.35rem',
-          }}
-        >
-          <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: themeColors.text }}>
-            ⚠ Módulos críticos pendientes:
-          </p>
-          <ul style={{ margin: 0, paddingLeft: '1.25rem', display: 'grid', gap: '0.2rem' }}>
-            {criticalMissing.slice(0, 3).map((s) => (
-              <li key={s.stepId} style={{ fontSize: '0.85rem', color: themeColors.text }}>
-                {STEP_LABELS[s.stepId] || s.label}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Next pending steps (Admin/Owner only) */}
-      {!isManager && topPending.length > 0 && (
+      {/* Prioridades del motor (top 5) — fallback seguro si no hay endpoint */}
+      {!isManager && priorities && priorities.length > 0 && (
         <div style={{ display: 'grid', gap: '0.4rem' }}>
           <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>
-            Próximos pasos:
+            🎯 Prioridades del motor:
           </p>
-          <ul style={{ margin: 0, paddingLeft: '1.25rem', display: 'grid', gap: '0.3rem' }}>
-            {topPending.map((s) => (
-              <li key={s.stepId} style={{ fontSize: '0.88rem', color: '#334155' }}>
-                {STEP_LABELS[s.stepId] || s.label}
+          <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'grid', gap: '0.3rem' }}>
+            {priorities.slice(0, 5).map((p) => (
+              <li key={p.stepId} style={{ fontSize: '0.88rem', color: '#334155' }}>
+                {STEP_LABELS[p.stepId] || p.title}
+                <span style={{ color: themeColors.accent, fontWeight: 700 }}> · {p.priorityScore}/100</span>
+                {p.estimatedImpact ? ` · ${p.estimatedImpact}` : ''}
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       )}
 

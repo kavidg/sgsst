@@ -18,5 +18,6 @@ import { Incident, IncidentSchema } from './schemas/incident.schema';
   ],
   controllers: [IncidentsController],
   providers: [IncidentsService, RolesGuard],
+  exports: [IncidentsService],
 })
 export class IncidentsModule {}

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import ResourceAssignmentModule from '../components/ResourceAssignmentModule';
 import TrainingProgramModule from '../components/TrainingProgramModule';
 import PolicyManagementModule from '../components/PolicyManagementModule';
+import ResponsableSstPanel from '../components/ResponsableSstPanel';
 import CopasstManagementPage from './CopasstManagementPage';
 import ConvivenciaManagementPage from './ConvivenciaManagementPage';
 import { AnnualWorkPlanPage } from './AnnualWorkPlanPage';
@@ -39,6 +40,8 @@ import {
   AdvancedHeader,
   AdvancedKpiGrid,
 } from '../components/advanced-layout';
+import { AdvancedModuleReportTemplate } from '../pdf/templates/AdvancedModuleReportTemplate';
+import { exportAdvancedPdf } from '../pdf/utils/exportAdvancedPdf';
 
 // ============================================================
 // CONSTANTS & DEFAULT DATA
@@ -72,6 +75,7 @@ const ACCEPTANCE_STEPS = [
 type SidebarId = (typeof SIDEBAR_ITEMS)[number]['id'];
 
 const STANDARD_LABELS: Record<string, { title: string; code: string }> = {
+  '1.1.1': { title: 'Responsable SG-SST', code: '1.1.1' },
   '1.1.2': { title: 'Responsabilidades en SG-SST', code: '1.1.2' },
   '1.1.3': { title: 'Asignación de Recursos SG-SST', code: '1.1.3' },
   '1.2.1': { title: 'Programa de Capacitación PyP', code: '1.2.1' },
@@ -193,6 +197,47 @@ function useAutoSave(callback: () => Promise<void>, intervalMs: number, active: 
 }
 
 // ============================================================
+// RESPONSABLE SG-SST (PHVA 1.1.1)
+// ============================================================
+
+/**
+ * Página dedicada al módulo PHVA 1.1.1 (Responsable del SG-SST).
+ *
+ * Reutiliza el layout estándar del Advanced Management (AdvancedPageLayout +
+ * AdvancedHeader) y delega al panel ResponsableSstPanel todo el ciclo de
+ * aprobación (submit/approve/reject), los banners de estado y el bloqueo de
+ * edición cuando el documento está aprobado. Soporta modo normal y modo
+ * review (/advanced-management/1.1.1?mode=review).
+ */
+function ResponsableSstAdvancedPage({ token, role }: { token: string; role?: string }) {
+  const [searchParams] = useSearchParams();
+  const isReviewMode = searchParams.get('mode') === 'review';
+
+  return (
+    <AdvancedPageLayout>
+      <AdvancedHeader
+        backPath="/documents/plan"
+        backLabel="← Volver a Implementación"
+        moduleCode="1.1.1"
+        moduleTitle="Responsable SG-SST"
+        description="Gestión del responsable del SG-SST: información, formación, licencia y designación"
+        statusBadge={<span className="badge badge--warning">🦺 Responsable SG-SST</span>}
+      />
+      <ResponsableSstPanel
+        token={token}
+        canApprove={role === 'owner' || role === 'manager'}
+        reviewMode={isReviewMode}
+        onComplianceChange={() => undefined}
+        onDirtyChange={() => undefined}
+        saveRequest={0}
+        discardRequest={0}
+        onSaved={() => undefined}
+      />
+    </AdvancedPageLayout>
+  );
+}
+
+// ============================================================
 // MAIN PAGE COMPONENT
 // ============================================================
 
@@ -204,6 +249,9 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
   const standard = STANDARD_LABELS[standardCode ?? ''] ?? { title: `Estándar ${standardCode}`, code: standardCode ?? '' };
 
   // Route to dedicated full-page modules
+  if (standardCode === '1.1.1') {
+    return <ResponsableSstAdvancedPage token={token} role={role} />;
+  }
   if (standardCode === '1.1.6') {
     return <CopasstManagementPage token={token} role={role} />;
   }
@@ -806,42 +854,55 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
             label: '📄 Exportar PDF',
             variant: 'secondary' as const,
             onClick: () => {
-              const reportLines = [
-                '=== MATRIZ DE RESPONSABILIDADES SG-SST ===',
-                `Empresa: ${standard.title}`,
-                `Código: ${standard.code}`,
-                `Versión: v${currentVersion}`,
-                `Estado: ${approvalStatus === 'APPROVED_AND_SIGNED' ? 'Aprobado y firmado' : approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador'}`,
-                `Generado: ${new Date().toLocaleString()}`,
-                '',
-                `Total responsabilidades: ${allActiveRows.length}`,
-                `Firmadas: ${totalSigned}`,
-                `Pendientes: ${totalPending}`,
-                '',
-                '--- RESPONSABILIDADES ---',
-                ...allActiveRows.map((r, i) =>
-                  `${i + 1}. [${r.category}] ${r.title} | Rol: ${r.role} | Estado: ${r.status}${r.signature?.signedAt ? ` | Firmada: ${new Date(r.signature.signedAt).toLocaleDateString()}` : ''}`
+              void exportAdvancedPdf({
+                filename: `responsabilidades-sst-v${currentVersion}.pdf`,
+                document: (
+                  <AdvancedModuleReportTemplate
+                    data={{
+                      title: 'Matriz de Responsabilidades SG-SST',
+                      companyName: standard.title,
+                      version: `v${currentVersion}`,
+                      status: approvalStatus === 'APPROVED_AND_SIGNED' ? 'Aprobado y firmado' : approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador',
+                      generatedAt: new Date().toLocaleString(),
+                      sections: [
+                        {
+                          title: 'Resumen',
+                          rows: [
+                            { label: 'Código', value: standard.code },
+                            { label: 'Total responsabilidades', value: String(allActiveRows.length) },
+                            { label: 'Firmadas', value: String(totalSigned) },
+                            { label: 'Pendientes', value: String(totalPending) },
+                          ],
+                        },
+                        {
+                          title: 'Responsabilidades',
+                          rows: allActiveRows.map((r, i) => ({
+                            label: `${i + 1}. [${r.category}] ${r.title}`,
+                            value: `Rol: ${r.role} | Estado: ${r.status}${r.signature?.signedAt ? ` | Firmada: ${new Date(r.signature.signedAt).toLocaleDateString()}` : ''}`,
+                          })),
+                        },
+                        {
+                          title: 'Firmas',
+                          rows: allActiveRows
+                            .filter((r) => r.status === 'FIRMADO')
+                            .map((r) => ({
+                              label: r.title,
+                              value: `Firmado por: ${r.signature?.signedBy || 'Usuario'} el ${r.signature?.signedAt ? new Date(r.signature.signedAt).toLocaleString() : 'N/A'}`,
+                            })),
+                        },
+                        {
+                          title: 'Aceptaciones',
+                          rows: [
+                            { label: 'Total', value: String(acceptanceStats?.total || 0) },
+                            { label: 'Aceptadas', value: String(acceptanceStats?.accepted || 0) },
+                            { label: 'Pendientes', value: String(acceptanceStats?.pending || 0) },
+                          ],
+                        },
+                      ],
+                    }}
+                  />
                 ),
-                '',
-                '--- FIRMAS ---',
-                ...allActiveRows.filter((r) => r.status === 'FIRMADO').map((r) =>
-                  `${r.title} - Firmado por: ${r.signature?.signedBy || 'Usuario'} el ${r.signature?.signedAt ? new Date(r.signature.signedAt).toLocaleString() : 'N/A'}`
-                ),
-                '',
-                '--- ACEPTACIONES ---',
-                `Total: ${acceptanceStats?.total || 0}`,
-                `Aceptadas: ${acceptanceStats?.accepted || 0}`,
-                `Pendientes: ${acceptanceStats?.pending || 0}`,
-                '',
-                '=== FIN DEL REPORTE ===',
-              ];
-              const blob = new Blob([reportLines.join('\n')], { type: 'text/plain' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `responsabilidades-sst-${standard.code}-v${currentVersion}.txt`;
-              a.click();
-              URL.revokeObjectURL(url);
+              });
               notify('📄 Reporte exportado correctamente.');
             },
           },

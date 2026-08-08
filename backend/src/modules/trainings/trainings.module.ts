@@ -23,5 +23,6 @@ import { Training, TrainingSchema } from './schemas/training.schema';
   ],
   controllers: [TrainingsController],
   providers: [TrainingsService, RolesGuard],
+  exports: [TrainingsService],
 })
 export class TrainingsModule {}

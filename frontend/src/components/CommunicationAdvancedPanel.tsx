@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/Button';
+import { AdvancedKpiGrid } from './advanced-layout';
 import {
   Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
@@ -168,13 +169,13 @@ function CommunicationReadSheet({ token, comm, onClose }: { token: string; comm:
     {comm.attachmentUrls?.length ? <section className="advanced-management__section"><h3>Adjuntos</h3><div className="actions">{comm.attachmentUrls.map((url, i) => <a key={i} className="btn btn-ghost" href={url} target="_blank" rel="noreferrer">Adjunto {i + 1}</a>)}</div></section> : null}
 
     <section className="advanced-management__section"><h3>Analíticas de Lectura</h3>
-      <div className="advanced-doc-grid">
+      <AdvancedKpiGrid>
         <article className="doc-stat-card doc-stat-card--info"><span className="doc-stat-card__label">Total Destinatarios</span><span className="doc-stat-card__value">{totalCount}</span></article>
         <article className="doc-stat-card doc-stat-card--good"><span className="doc-stat-card__label">Leído</span><span className="doc-stat-card__value">{readCount}</span></article>
         <article className={`doc-stat-card ${readCount < totalCount ? 'doc-stat-card--danger' : 'doc-stat-card--info'}`}><span className="doc-stat-card__label">Sin Leer</span><span className="doc-stat-card__value">{totalCount - readCount}</span></article>
         <article className="doc-stat-card doc-stat-card--info"><span className="doc-stat-card__label">% Lectura</span><span className="doc-stat-card__value">{totalCount > 0 ? Math.round((readCount / totalCount) * 100) : 0}%</span></article>
         <article className="doc-stat-card doc-stat-card--good"><span className="doc-stat-card__label">Firmas</span><span className="doc-stat-card__value">{signedCount}</span></article>
-      </div>
+      </AdvancedKpiGrid>
     </section>
 
     {recipients.length ? <section className="advanced-management__section"><h3>Destinatarios ({recipients.length})</h3>
@@ -485,7 +486,7 @@ export default function CommunicationAdvancedPanel({ token, readOnly, onComplian
         <section className="advanced-management__section">
           <div className="actions"><Button type="button" variant="secondary" onClick={() => void loadAll()}>Recargar</Button><Button type="button" variant="ghost" onClick={() => void handleTriggerAlerts()}>Generar alertas</Button></div>
 
-          <div className="advanced-doc-grid">
+          <AdvancedKpiGrid>
             <article className="doc-stat-card doc-stat-card--info"><span className="doc-stat-card__label">Enviadas</span><span className="doc-stat-card__value">{dashboard?.published ?? 0}</span></article>
             <article className="doc-stat-card doc-stat-card--good"><span className="doc-stat-card__label">Leídas</span><span className="doc-stat-card__value">{dashboard?.totalRead ?? 0}</span></article>
             <article className="doc-stat-card doc-stat-card--danger"><span className="doc-stat-card__label">Sin Leer</span><span className="doc-stat-card__value">{dashboard?.unread ?? 0}</span></article>
@@ -494,7 +495,7 @@ export default function CommunicationAdvancedPanel({ token, readOnly, onComplian
             <article className="doc-stat-card doc-stat-card--info"><span className="doc-stat-card__label">% Lectura</span><span className="doc-stat-card__value">{dashboard?.readRate ?? 0}%</span></article>
             <article className={`doc-stat-card ${(dashboard?.mailboxPending ?? 0) > 0 ? 'doc-stat-card--warning' : 'doc-stat-card--good'}`}><span className="doc-stat-card__label">Buzón Pend.</span><span className="doc-stat-card__value">{dashboard?.mailboxPending ?? 0}</span></article>
             <article className="doc-stat-card doc-stat-card--info"><span className="doc-stat-card__label">Borradores</span><span className="doc-stat-card__value">{dashboard?.drafts ?? 0}</span></article>
-          </div>
+          </AdvancedKpiGrid>
 
           {/* Charts row */}
           {dashboard && (

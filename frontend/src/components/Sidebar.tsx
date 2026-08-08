@@ -21,7 +21,11 @@ const links: SidebarLink[] = [
   { to: '/employees', label: 'Empleados', icon: Icons.users },
   { to: '/company-configuration', label: 'Empresa', icon: Icons.building },
   { to: '/implementation-wizard', label: 'Implementación', icon: Icons.chart },
-  { to: '/evaluations', label: 'Evaluaciones', icon: Icons.chart },
+  // LEGACY (FASE 3.4.1): la ruta /evaluations apunta a una página legacy rota
+  // (EvaluationsPage usa contratos que ya no existen en el backend). Se oculta
+  // temporalmente del menú sin borrar código; la migración posterior decidirá
+  // si se elimina o se reconecta al módulo InitialEvaluation.
+  // { to: '/evaluations', label: 'Evaluaciones', icon: Icons.chart },
   { to: '/incidents', label: 'Accidentalidad', icon: Icons.alert },
   { to: '/alerts', label: 'Alertas', icon: Icons.bell },
   { to: '/absenteeism', label: 'Ausentismos', icon: Icons.chart },

@@ -11,21 +11,12 @@ import { SstObjectives, SstObjectivesDocument } from '../phva-advanced/schemas/p
 import { SstPolicy, SstPolicyDocument, SstPolicyStatus } from '../phva-advanced/schemas/phva-advanced-sst-policy.schema';
 import { TrainingManagement, TrainingManagementDocument } from '../phva-advanced/schemas/phva-advanced-training-management.schema';
 import { UserDocument } from '../users/schemas/user.schema';
+import { InitialEvaluationCatalogAdapter } from './initial-evaluation-catalog.adapter';
 import { SignApprovalDto, SubmitApprovalDto, UpdateStandardDto, UpsertActionDto, UpsertFindingDto } from './dto/initial-evaluation.dto';
 import { EvaluationActionPlan, EvaluationFinding, EvaluationGap, EvaluationStandard, FindingSeverity, InitialEvaluation, InitialEvaluationDocument, InitialEvaluationStatus, StandardEvaluationStatus, WorkStatus } from './schemas/initial-evaluation.schema';
 
-const CATALOG: Array<Omit<EvaluationStandard, 'status' | 'observations' | 'evidence' | 'attachments' | 'autoEvaluated' | 'evaluatedAt' | 'evaluatedBy'>> = [
-  { code: '1.1.1', chapter: '1. Recursos', title: 'Responsable del SG-SST', description: 'Asignación del responsable SST con perfil y soportes.', weight: 0.5, autoSource: 'Responsable SST' },
-  { code: '1.1.2', chapter: '1. Recursos', title: 'Responsabilidades en SG-SST', description: 'Matriz de responsabilidades para todos los niveles.', weight: 0.5 },
-  { code: '1.1.3', chapter: '1. Recursos', title: 'Asignación de recursos', description: 'Recursos financieros, técnicos y humanos.', weight: 0.5 },
-  { code: '1.1.4', chapter: '1. Recursos', title: 'Afiliación a riesgos laborales', description: 'Cobertura en riesgos laborales del personal.', weight: 0.5 },
-  { code: '1.1.5', chapter: '1. Recursos', title: 'Trabajadores alto riesgo', description: 'Identificación y control de tareas de alto riesgo.', weight: 0.5 },
-  { code: '1.1.6', chapter: '1. Recursos', title: 'Conformación COPASST', description: 'COPASST vigente y operativo.', weight: 0.5, autoSource: 'COPASST' },
-  { code: '1.1.8', chapter: '1. Recursos', title: 'Comité de convivencia', description: 'Comité de convivencia laboral conformado.', weight: 0.5 },
-  { code: '1.2.1', chapter: '1. Capacitación', title: 'Programa de capacitación SST', description: 'Programa anual de capacitación, inducción y reinducción.', weight: 6, autoSource: 'Capacitaciones' },
-  { code: '2.1.1', chapter: '2. Gestión integral', title: 'Política SST', description: 'Política SST vigente, aprobada y divulgada.', weight: 1, autoSource: 'Política SST' },
-  { code: '2.2.1', chapter: '2. Gestión integral', title: 'Objetivos SST', description: 'Objetivos SST medibles y alineados con la política.', weight: 1, autoSource: 'Objetivos SST' },
-];
+// FASE 6A: el catálogo hardcodeado fue migrado al InitialEvaluationCatalogAdapter
+// (legacy como fallback temporal + StandardCatalog como fuente oficial).
 
 @Injectable()
 export class InitialEvaluationService {
@@ -38,18 +29,45 @@ export class InitialEvaluationService {
     @InjectModel(CopasstPeriod.name) private readonly copasstModel: Model<CopasstPeriodDocument>,
     @InjectModel(TrainingManagement.name) private readonly trainingManagementModel: Model<TrainingManagementDocument>,
     private readonly alertsService: AlertsService,
+    private readonly catalogAdapter: InitialEvaluationCatalogAdapter,
   ) {}
 
   async findOrCreate(companyId: Types.ObjectId) {
     let evaluation = await this.evaluationModel.findOne({ companyId, archived: false }).exec();
     if (!evaluation) {
+      // FASE 6A: los estándares iniciales se resuelven desde el StandardCatalog
+      // (nivel según company.standardsType). Si no hay equivalencia, error o
+      // datos incompletos, el adapter devuelve el catálogo legacy (fallback)
+      // sin lanzar excepciones ni romper la creación.
+      const company = await this.companyModel.findById(companyId).lean().exec().catch(() => null);
       evaluation = await this.evaluationModel.create({
         companyId,
-        standards: this.createDefaultStandards(),
+        standards: this.catalogAdapter.resolveStandards(company),
         nextReassessmentAt: this.addMonths(new Date(), 12),
         history: [{ date: new Date(), entity: 'InitialEvaluation', field: 'created', newValue: 'Evaluación Inicial SG-SST generada automáticamente' }],
       });
     }
+    return this.recalculate(evaluation);
+  }
+
+  /**
+   * Devuelve la evaluación inicial de la empresa (no archivada). Usado por el
+   * InitialEvaluationAdapter del Approval Workflow Core para cargar la entidad
+   * cuando no se provee entityId (la evaluación inicial es UNA por empresa).
+   */
+  async findCurrent(companyId: Types.ObjectId) {
+    const evaluation = await this.evaluationModel.findOne({ companyId, archived: false }).exec();
+    if (!evaluation) throw new NotFoundException('Initial evaluation not found');
+    return this.recalculate(evaluation);
+  }
+
+  /**
+   * Devuelve una evaluación por identificador. Usado por el InitialEvaluationAdapter
+   * del Approval Workflow Core para validar pertenencia por companyId.
+   */
+  async findById(id: Types.ObjectId) {
+    const evaluation = await this.evaluationModel.findById(id).exec();
+    if (!evaluation) throw new NotFoundException('Initial evaluation not found');
     return this.recalculate(evaluation);
   }
 
@@ -191,10 +209,6 @@ export class InitialEvaluationService {
     const pendingActions = evaluation.actionPlan.filter((action) => action.status !== WorkStatus.CLOSED).length;
     const riskLevel = criticalFindings > 0 || evaluation.overallCompliance < 60 ? 'Alto' : evaluation.overallCompliance < 85 ? 'Medio' : 'Bajo';
     return { overallCompliance: evaluation.overallCompliance, criticalFindings, pendingActions, riskLevel, status: evaluation.status };
-  }
-
-  private createDefaultStandards(): EvaluationStandard[] {
-    return CATALOG.map((item) => ({ ...item, status: StandardEvaluationStatus.DOES_NOT_COMPLY, observations: '', evidence: [], attachments: [], autoEvaluated: false }));
   }
 
   private applyAutomaticStandard(evaluation: InitialEvaluationDocument, code: string, complies: boolean, source: string) {

@@ -18,6 +18,18 @@ export class ImplementationWizardController {
     return this.wizardService.getWizard(this.parseCompanyId(headers));
   }
 
+  /**
+   * Overview del Centro de Implementación construido por el
+   * Implementation Validator Engine (DTO propio, sin schemas Mongo).
+   *
+   * Ejecuta la auto-validación real si la última ejecución supera el TTL
+   * de 5 minutos y siempre responde con datos actualizados.
+   */
+  @Get('overview')
+  async getOverview(@Headers() headers: Record<string, string>) {
+    return this.wizardService.getOverview(this.parseCompanyId(headers));
+  }
+
   @Get('dashboard')
   async getDashboard(@Headers() headers: Record<string, string>) {
     return this.wizardService.getDashboardMetrics(this.parseCompanyId(headers));
@@ -39,14 +51,8 @@ export class ImplementationWizardController {
   }
 
   @Post('auto-validate')
-  async autoValidate(
-    @Body() body: Record<string, { score: number; status: string }>,
-    @Headers() headers: Record<string, string>,
-  ) {
-    return this.wizardService.runAutoValidation(
-      this.parseCompanyId(headers),
-      body as any,
-    );
+  async autoValidate(@Headers() headers: Record<string, string>) {
+    return this.wizardService.validateImplementation(this.parseCompanyId(headers));
   }
 
   @Post('complete-onboarding')

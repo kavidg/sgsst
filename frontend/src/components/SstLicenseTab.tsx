@@ -25,9 +25,11 @@ function toDate(value?: string | Date): string {
 }
 
 function statusBadge(status?: string) {
+  // NOTA normativa (1.1.1): estado DOCUMENTAL de la licencia. La ausencia de
+  // fecha se expone como 'Pendiente' y NO como vencimiento. Este componente
+  // no genera alertas de vencimiento por paso del tiempo.
   if (status === 'Vigente') return { label: '✅ Vigente', className: 'advanced-management__badge advanced-management__badge--success' };
-  if (status === 'Próxima a vencer' || status === 'Próximo a vencer') return { label: '⚠ Próxima a vencer', className: 'advanced-management__badge advanced-management__badge--warning' };
-  if (status === 'Vencida' || status === 'Vencido') return { label: '❌ Vencida', className: 'advanced-management__badge advanced-management__badge--danger' };
+  if (status === 'Vencida' || status === 'Vencido') return { label: 'Estado: vencida (documento indica vigencia pasada)', className: 'advanced-management__badge advanced-management__badge--danger' };
   return { label: '⏳ Pendiente', className: 'advanced-management__badge advanced-management__badge--warning' };
 }
 
@@ -172,13 +174,9 @@ export function SstLicenseTab({ token, readOnly }: { token: string; readOnly?: b
     });
   };
 
-  const remainingDays = useMemo(() => {
-    if (!licenseForm.licenseExpiresAt) return null;
-    const expDate = new Date(`${licenseForm.licenseExpiresAt}T00:00:00`);
-    const now = new Date();
-    return Math.ceil((expDate.getTime() - now.getTime()) / 86_400_000);
-  }, [licenseForm.licenseExpiresAt]);
-
+  // NOTA normativa (1.1.1): se elimina el cálculo de "días restantes" y la
+  // interpretación automática de vencimiento. La fecha documental opcional se
+  // muestra solo como dato, sin convertirse en alerta ni en incumplimiento.
   const badge = statusBadge(record?.licenseStatus);
 
   const tabs = ['Licencia SST', 'Documentos', 'Alertas', 'Historial'];
@@ -200,11 +198,11 @@ export function SstLicenseTab({ token, readOnly }: { token: string; readOnly?: b
         </div>
         <div className="actions" style={{ gap: 8 }}>
           <span className={badge.className}>{badge.label}</span>
-          {remainingDays !== null && (
-            <span className={`advanced-management__badge ${remainingDays <= 0 ? 'advanced-management__badge--danger' : remainingDays <= 30 ? 'advanced-management__badge--warning' : 'advanced-management__badge--success'}`}>
-              {remainingDays <= 0 ? 'Vencida' : `${remainingDays} días restantes`}
+          {licenseForm.licenseExpiresAt ? (
+            <span className="advanced-management__badge advanced-management__badge--info">
+              Vigencia documental: {licenseForm.licenseExpiresAt}
             </span>
-          )}
+          ) : null}
         </div>
       </section>
 
@@ -259,9 +257,10 @@ export function SstLicenseTab({ token, readOnly }: { token: string; readOnly?: b
                   onChange={(e) => handleFormChange('licenseIssueDate', e.target.value)} />
               </label>
               <label className="field">
-                <span className="label">Fecha de Vencimiento</span>
+                <span className="label">Fecha de vigencia indicada en el documento (opcional)</span>
                 <input type="date" className="input" disabled={readOnly} value={licenseForm.licenseExpiresAt}
                   onChange={(e) => handleFormChange('licenseExpiresAt', e.target.value)} />
+                <small className="muted">Solo si el documento/acto indica una vigencia concreta. No es requisito normativo.</small>
               </label>
             </div>
             <label className="field">
@@ -278,17 +277,11 @@ export function SstLicenseTab({ token, readOnly }: { token: string; readOnly?: b
             </div>
           )}
 
-          {remainingDays !== null && remainingDays <= 90 && remainingDays > 0 && (
-            <div className="advanced-management__audit-warning" style={{ marginTop: 8, padding: 10 }}>
-              ⚠ La licencia SST vence en {remainingDays} días. Gestione la renovación con anticipación.
-            </div>
-          )}
-
-          {remainingDays !== null && remainingDays <= 0 && (
+          {licenseForm.licenseExpiresAt && record?.licenseStatus === 'Vencida' ? (
             <div className="advanced-management__audit-warning" style={{ marginTop: 8, padding: 10, background: '#fef2f2', borderColor: '#fca5a5' }}>
-              ❌ La licencia SST ha vencido. Es necesario renovarla inmediatamente para mantener el cumplimiento normativo.
+              ⚠ El documento indica una vigencia que ya transcurrió. Verifique el estado documental de la licencia.
             </div>
-          )}
+          ) : null}
 
           <div className="actions" style={{ marginTop: 16 }}>
             <Button type="button" disabled={readOnly || loading} onClick={() => void handleSave()}>
@@ -426,31 +419,14 @@ export function SstLicenseTab({ token, readOnly }: { token: string; readOnly?: b
             )}
           </div>
 
-          {/* Expiration Timeline */}
+          {/* Vigencia documental (informativa, sin alertas por paso del tiempo) */}
           {licenseForm.licenseExpiresAt && (
             <section className="advanced-management__section" style={{ marginTop: 16 }}>
-              <h3>Línea de tiempo de vencimientos</h3>
+              <h3>Vigencia indicada en el documento</h3>
               <div className="advanced-list">
-                {[90, 60, 30, 15, 5, 1].map((days) => {
-                  const dueDate = new Date(`${licenseForm.licenseExpiresAt}T00:00:00`);
-                  dueDate.setDate(dueDate.getDate() - days);
-                  const isPast = dueDate < new Date();
-                  return (
-                    <article key={days} className={`advanced-list__item ${isPast ? '' : ''}`}>
-                      <span className={`advanced-management__badge ${days <= 5 ? 'advanced-management__badge--danger' : days <= 30 ? 'advanced-management__badge--warning' : 'advanced-management__badge--success'}`}>
-                        {days} día(s)
-                      </span>
-                      <p>
-                        Alerta a los <strong>{days} días</strong> antes del vencimiento
-                        {isPast ? ' · (ya generada)' : ''}
-                      </p>
-                      <small>Fecha programada: {dueDate.toLocaleDateString()}</small>
-                    </article>
-                  );
-                })}
                 <article className="advanced-list__item">
-                  <span className="advanced-management__badge advanced-management__badge--danger">Vencimiento</span>
-                  <p>Día de vencimiento de la licencia</p>
+                  <span className="advanced-management__badge advanced-management__badge--info">Documental</span>
+                  <p>Fecha de vigencia señalada por el documento/acto de la licencia.</p>
                   <small>Fecha: {new Date(`${licenseForm.licenseExpiresAt}T00:00:00`).toLocaleDateString()}</small>
                 </article>
               </div>

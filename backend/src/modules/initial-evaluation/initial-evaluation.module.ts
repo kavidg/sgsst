@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ApprovalWorkflowModule } from '../approval-workflow/approval-workflow.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { AuthModule } from '../auth/auth.module';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
@@ -10,9 +11,11 @@ import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from '..
 import { SstObjectives, SstObjectivesSchema } from '../phva-advanced/schemas/phva-advanced-sst-objective.schema';
 import { SstPolicy, SstPolicySchema } from '../phva-advanced/schemas/phva-advanced-sst-policy.schema';
 import { TrainingManagement, TrainingManagementSchema } from '../phva-advanced/schemas/phva-advanced-training-management.schema';
+import { StandardCatalogModule } from '../standard-catalog/standard-catalog.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
+import { InitialEvaluationCatalogAdapter } from './initial-evaluation-catalog.adapter';
 import { InitialEvaluationController } from './initial-evaluation.controller';
 import { InitialEvaluationService } from './initial-evaluation.service';
 import { InitialEvaluation, InitialEvaluationSchema } from './schemas/initial-evaluation.schema';
@@ -22,6 +25,8 @@ import { InitialEvaluation, InitialEvaluationSchema } from './schemas/initial-ev
     AuthModule,
     UsersModule,
     AlertsModule,
+    forwardRef(() => ApprovalWorkflowModule),
+    StandardCatalogModule,
     MongooseModule.forFeature([
       { name: InitialEvaluation.name, schema: InitialEvaluationSchema },
       { name: Company.name, schema: CompanySchema },
@@ -35,7 +40,7 @@ import { InitialEvaluation, InitialEvaluationSchema } from './schemas/initial-ev
     ]),
   ],
   controllers: [InitialEvaluationController],
-  providers: [InitialEvaluationService, RolesGuard, CompanyAccessGuard],
+  providers: [InitialEvaluationService, InitialEvaluationCatalogAdapter, RolesGuard, CompanyAccessGuard],
   exports: [InitialEvaluationService],
 })
 export class InitialEvaluationModule {}

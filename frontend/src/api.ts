@@ -1,5 +1,13 @@
+import type {
+  DocumentCatalogDetail,
+  DocumentCatalogPage,
+  DocumentCatalogQuery,
+} from './types/document-catalog';
+import type { StandardCatalogItem, StandardSection } from './models/standard-catalog';
+
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
 const ACTIVE_COMPANY_STORAGE_KEY = 'activeCompanyId';
+const ACTIVE_COMPANY_STANDARDS_TYPE_STORAGE_KEY = 'activeCompanyStandardsType';
 
 export type UserRole = 'owner' | 'admin' | 'member' | 'manager';
 
@@ -47,7 +55,6 @@ export interface ComplianceResponse {
   complies: number;
   percentage: number;
 }
-
 
 export interface DashboardResponse {
   employees: number;
@@ -103,7 +110,6 @@ export interface AlertModel {
   submittedBy?: string;
   submittedAt?: string;
 }
-
 
 export interface RiskModel {
   _id: string;
@@ -196,7 +202,6 @@ export interface UpdateIncidentPayload {
   severity?: string;
   status?: string;
 }
-
 
 export interface TrainingModel {
   _id: string;
@@ -344,8 +349,6 @@ export interface CreateEmployeePayload {
   status: string;
 }
 
-
-
 export interface BulkEmployeesResponse {
   inserted: number;
   failed: number;
@@ -431,7 +434,6 @@ async function apiFetch<T>(path: string, token: string, init?: RequestInit): Pro
   return data as T;
 }
 
-
 async function apiFetchFormData<T>(path: string, token: string, body: FormData, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BACKEND_URL}${path}`, {
     ...init,
@@ -464,6 +466,105 @@ export function clearActiveCompanyId() {
   localStorage.removeItem(ACTIVE_COMPANY_STORAGE_KEY);
 }
 
+export function getActiveCompanyStandardsType(): string | null {
+  return localStorage.getItem(ACTIVE_COMPANY_STANDARDS_TYPE_STORAGE_KEY);
+}
+
+export function setActiveCompanyStandardsType(standardsType: string) {
+  localStorage.setItem(ACTIVE_COMPANY_STANDARDS_TYPE_STORAGE_KEY, standardsType);
+}
+
+export function clearActiveCompanyStandardsType() {
+  localStorage.removeItem(ACTIVE_COMPANY_STANDARDS_TYPE_STORAGE_KEY);
+}
+
+/**
+ * Respuesta de GET /standard-catalog/:level.
+ *
+ * FASE 7.1 — preparación de arquitectura del PHVA dinámico.
+ */
+export interface StandardCatalogResponse {
+  /** Nivel de estándares solicitado ('7' | '21' | '60'). */
+  level: string;
+  /** Cantidad de estándares del catálogo. */
+  count: number;
+  /** Estándares del catálogo (orden canónico del catálogo maestro). */
+  standards: StandardCatalogItem[];
+}
+
+/**
+ * DTO crudo tal como lo devuelve GET /standard-catalog/:level.
+ *
+ * El backend expone el peso como `weight` (alias de `normativeWeight`). El
+ * frontend NO consume este DTO directamente: pasa por `toStandardCatalogItem`
+ * (FASE 7.2) para trabajar siempre con `normativeWeight`.
+ */
+interface StandardDtoRaw {
+  code: string;
+  title: string;
+  description: string;
+  chapter: string;
+  phva: string;
+  weight: number;
+  applicableLevels: string[];
+  moduleRoute: string;
+  implementationStatus?: string;
+  validationProvider?: string;
+  criteria?: string;
+  modeReview?: string;
+  section?: StandardSection;
+}
+
+/** Respuesta cruda del backend antes de la normalización interna. */
+interface StandardCatalogRawResponse {
+  level: string;
+  count: number;
+  standards: StandardDtoRaw[];
+}
+
+/**
+ * Mapper interno (FASE 7.2): normaliza el DTO del backend para que el frontend
+ * trabaje SIEMPRE con `normativeWeight`, independientemente del campo que
+ * exponga el endpoint (`weight` en la actualidad). No modifica el backend.
+ */
+function toStandardCatalogItem(raw: StandardDtoRaw): StandardCatalogItem {
+  return {
+    code: raw.code,
+    title: raw.title,
+    description: raw.description,
+    chapter: raw.chapter,
+    phva: raw.phva,
+    normativeWeight: raw.weight,
+    applicableLevels: raw.applicableLevels,
+    moduleRoute: raw.moduleRoute,
+    implementationStatus: raw.implementationStatus,
+    validationProvider: raw.validationProvider,
+    criteria: raw.criteria,
+    modeReview: raw.modeReview,
+    section: raw.section,
+  };
+}
+
+/**
+ * FASE 7.1/7.2 — Consume GET /standard-catalog/:level (catálogo de estándares
+ * mínimos del SG-SST, Resolución 0312 de 2019).
+ *
+ * La respuesta expone SIEMPRE `normativeWeight` (normalizado por el mapper
+ * interno). NO se utiliza todavía desde ninguna pantalla: el PHVA dinámico lo
+ * consumirá en una fase posterior.
+ */
+export async function fetchStandardCatalog(level: string, token: string): Promise<StandardCatalogResponse> {
+  const response = await apiFetch<StandardCatalogRawResponse>(`/standard-catalog/${level}`, token, {
+    method: 'GET',
+  });
+
+  return {
+    level: response.level,
+    count: response.count,
+    standards: response.standards.map((standard) => toStandardCatalogItem(standard)),
+  };
+}
+
 export function fetchUserByFirebaseUid(uid: string, token: string) {
   return apiFetch<UserModel>(`/users/by-firebase/${uid}`, token, { method: 'GET' });
 }
@@ -494,7 +595,6 @@ export function uploadSignature(token: string, file: File) {
   formData.append('file', file);
   return apiFetchFormData<UserModel>('/users/me/signature', token, formData, { method: 'POST' });
 }
-
 
 export function fetchMyCompanies(token: string) {
   return apiFetch<MyCompanyModel[]>('/companies/my-companies', token, { method: 'GET' });
@@ -568,7 +668,6 @@ export function fetchComplianceByCompany(token: string, companyId: string) {
   return apiFetch<ComplianceResponse>(`/evaluations/company/${companyId}/compliance`, token, { method: 'GET' });
 }
 
-
 export function fetchEmployees(token: string) {
   return apiFetch<EmployeeModel[]>('/employees', token, { method: 'GET' });
 }
@@ -580,7 +679,6 @@ export function createEmployee(token: string, payload: CreateEmployeePayload) {
 export function updateEmployee(token: string, id: string, payload: UpdateEmployeePayload) {
   return apiFetch<EmployeeModel>(`/employees/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
 }
-
 
 export function bulkCreateEmployees(token: string, payload: { employees: CreateEmployeePayload[] }) {
   return apiFetch<BulkEmployeesResponse>('/employees/bulk', token, {
@@ -608,7 +706,6 @@ export function updateRisk(token: string, id: string, payload: UpdateRiskPayload
 export function deleteRisk(token: string, id: string) {
   return apiFetch<void>(`/risks/${id}`, token, { method: 'DELETE' });
 }
-
 
 export function fetchIncidents(token: string) {
   return apiFetch<IncidentModel[]>('/incidents', token, { method: 'GET' });
@@ -642,7 +739,6 @@ export function deleteAbsenteeism(token: string, id: string) {
   return apiFetch<void>(`/absenteeism/${id}`, token, { method: 'DELETE' });
 }
 
-
 export function fetchDocuments(token: string) {
   return apiFetch<DocumentModel[]>('/documents', token, { method: 'GET' });
 }
@@ -667,8 +763,6 @@ export function fetchDocument(token: string, id: string) {
 export function deleteDocument(token: string, id: string) {
   return apiFetch<void>(`/documents/${id}`, token, { method: 'DELETE' });
 }
-
-
 
 export function uploadTemplate(token: string, payload: UploadTemplatePayload) {
   const formData = new FormData();
@@ -755,7 +849,6 @@ export function createTrainingAttendance(token: string, trainingId: string, payl
   });
 }
 
-
 export function fetchDashboard(token: string) {
   return apiFetch<DashboardResponse>('/dashboard', token, { method: 'GET' });
 }
@@ -763,6 +856,20 @@ export function fetchDashboard(token: string) {
 export function fetchDashboardEvaluations(token: string, companyId: string) {
   const query = new URLSearchParams({ companyId });
   return apiFetch<DashboardEvaluationModel[]>(`/evaluations?${query.toString()}`, token, { method: 'GET' });
+}
+
+export interface SaveEvaluationAnswerPayload {
+  companyId: string;
+  userId: string;
+  code: string;
+  status: EvaluationStatus;
+}
+
+export function saveEvaluationAnswer(token: string, payload: SaveEvaluationAnswerPayload) {
+  return apiFetch<DashboardEvaluationModel>('/evaluations', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export function fetchInspectionScheduleByCompany(token: string, companyId: string) {
@@ -787,7 +894,7 @@ export function deleteAlert(token: string, id: string) {
 }
 
 export type ResponsableSstComplianceStatus = 'COMPLIES' | 'PENDING' | 'NON_COMPLIANT';
-export type ResponsableSstDocumentType = 'DIPLOMA' | 'FIFTY_HOUR_CERTIFICATE' | 'TWENTY_HOUR_UPDATE_CERTIFICATE' | 'SST_LICENSE_PDF' | 'SST_LICENSE_SCANNED' | 'SST_LICENSE_RESOLUTION' | 'SST_LICENSE_SUPPORTING';
+export type ResponsableSstDocumentType = 'DIPLOMA' | 'FIFTY_HOUR_CERTIFICATE' | 'TWENTY_HOUR_UPDATE_CERTIFICATE' | 'SST_LICENSE_PDF' | 'SST_LICENSE_SCANNED' | 'SST_LICENSE_RESOLUTION' | 'SST_LICENSE_SUPPORTING' | 'DESIGNATION';
 
 export interface ResponsableSstStoredDocumentModel {
   type: ResponsableSstDocumentType;
@@ -850,12 +957,24 @@ export interface ResponsableSstAdvancedModel {
   course50HoursDetectedDate?: string;
   course20HoursDate?: string;
   requires20HourUpdate: boolean;
+  // Fase 8.3.C — Designación del Responsable SG-SST
+  designationDate?: string;
+  designationNumber?: string;
+  designationIssuerName?: string;
+  designationIssuerPosition?: string;
   documents: ResponsableSstStoredDocumentModel[];
   alerts: ResponsableSstAlertEntryModel[];
   auditHistory: ResponsableSstAuditEntryModel[];
   complianceStatus: ResponsableSstComplianceStatus;
   complianceReason: string;
   updatedAt: string;
+  // Approval workflow fields (Fase 2 — flujo de aprobación 1.1.1)
+  approvalStatus?: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  currentVersion?: string;
+  locked?: boolean;
+  submittedAt?: string;
+  rejectionReason?: string;
+  approvedBy?: { userId?: string; email?: string; role?: string; timestamp?: string };
 }
 
 export interface LicenseDashboardModel {
@@ -885,6 +1004,11 @@ export interface UpdateResponsableSstAdvancedPayload {
   course50HoursDate: string;
   course50HoursDetectedDate?: string;
   course20HoursDate?: string;
+  // Fase 8.3.C — Designación del Responsable SG-SST
+  designationDate?: string;
+  designationNumber?: string;
+  designationIssuerName?: string;
+  designationIssuerPosition?: string;
 }
 
 export interface UploadResponsableSstDocumentPayload {
@@ -892,7 +1016,6 @@ export interface UploadResponsableSstDocumentPayload {
   file: File;
   finalUserDate?: string;
 }
-
 
 export type ComplianceCredentialCourseType = 'COURSE_50_HOURS' | 'COURSE_20_HOURS';
 export type ComplianceCredentialStatus = 'Vigente' | 'Próximo a vencer' | 'Vencido';
@@ -1068,6 +1191,17 @@ export function modifyLicenseOcr(token: string, payload: {
   });
 }
 
+export function submitResponsableSstAdvanced(token: string) {
+  return apiFetch<ResponsableSstAdvancedModel>('/phva-advanced/responsable-sst/submit-approval', token, { method: 'POST' });
+}
+
+export function approveResponsableSstAdvanced(token: string) {
+  return apiFetch<ResponsableSstAdvancedModel>('/phva-advanced/responsable-sst/approve', token, { method: 'POST' });
+}
+
+export function rejectResponsableSstAdvanced(token: string, reason: string) {
+  return apiFetch<ResponsableSstAdvancedModel>('/phva-advanced/responsable-sst/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
+}
 
 export const fetchComplianceCredentials = (token: string) => apiFetch<ComplianceCredentialModel[]>('/compliance-credentials', token, { method: 'GET' });
 export const fetchComplianceCredential = (token: string, id: string) => apiFetch<ComplianceCredentialDetailModel>(`/compliance-credentials/${id}`, token, { method: 'GET' });
@@ -1199,7 +1333,6 @@ export function fetchSpecialPensionAdvanced(token: string) {
 export function updateSpecialPensionAdvanced(token: string, payload: Partial<SpecialPensionAdvancedModel>) {
   return apiFetch<SpecialPensionAdvancedModel>('/phva-advanced/special-pension', token, { method: 'PATCH', body: JSON.stringify(payload) });
 }
-
 
 export interface TrainingManagementAdvancedModel {
   _id: string; itemCode: string; annualProgram: any[]; inductions: any[]; reinductions: any[]; trainings: any[]; attendanceEvidence: string[]; signatureEvidence: string[]; alerts: string[]; history: any[]; approval: { status: 'PENDING'|'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; approvedBy?: string; approvedAt?: string; comments?: string; version: number; }; complianceStatus: ResponsableSstComplianceStatus;
@@ -1505,276 +1638,58 @@ export const fetchAnnualWorkPlanAdvanced = (token: string) => apiFetch<SstObject
 export const updateAnnualWorkPlanAdvanced = (token: string, payload: Partial<SstObjectivesAdvancedModel>) => apiFetch<SstObjectivesAdvancedModel>('/phva-advanced/annual-work-plan', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const updateAnnualWorkPlanActivitiesAdvanced = (token: string, objectiveId: string, activities: SstObjectiveActivityModel[]) => apiFetch<SstObjectivesAdvancedModel>(`/phva-advanced/annual-work-plan/${encodeURIComponent(objectiveId)}/activities`, token, { method: 'PATCH', body: JSON.stringify({ activities }) });
 
-// ==================== DOCUMENT MANAGEMENT SYSTEM API ====================
+// ==================== DOCUMENT CATALOG API (SPRINT FRONT-1) ====================
+// Catálogo único del DocumentGenerationEngine. Consulta EXCLUSIVAMENTE
+// DocumentInstance (única fuente de verdad documental). Los endpoints
+// consumidos están implementados en el backend (Fase 6.5).
 
-export type DocumentType =
-  | 'POLICY' | 'PROCEDURE' | 'MANUAL' | 'FORMAT' | 'RECORD'
-  | 'MEETING_MINUTES' | 'TRAINING_RECORD' | 'AUDIT' | 'INSPECTION'
-  | 'EMERGENCY_PLAN' | 'COPASST' | 'COMMITTEE' | 'LEGAL_DOCUMENT'
-  | 'MEDICAL_RECORD' | 'CONTRACTOR_RECORD' | 'OTHER';
+/** Convierte el DTO de consulta del catálogo en query params. */
+function buildCatalogQuery(query?: DocumentCatalogQuery): string {
+  const params = new URLSearchParams();
 
-export type DocumentStatus =
-  | 'DRAFT' | 'UNDER_REVIEW' | 'PENDING_APPROVAL' | 'APPROVED'
-  | 'ACTIVE' | 'OBSOLETE' | 'ARCHIVED';
+  if (!query) {
+    return '';
+  }
 
-export type DocumentHistoryAction =
-  | 'CREATE' | 'EDIT' | 'DELETE' | 'VERSION_CHANGE' | 'APPROVAL'
-  | 'SIGNATURE' | 'ARCHIVE' | 'RESTORE' | 'STATUS_CHANGE' | 'DOWNLOAD' | 'REPLACEMENT';
+  if (query.companyId) params.set('companyId', query.companyId);
+  if (query.documentType) params.set('documentType', query.documentType);
+  if (query.status) params.set('status', query.status);
+  if (query.sourceModule) params.set('sourceModule', query.sourceModule);
+  if (query.search) params.set('search', query.search);
+  if (query.generatedFrom) params.set('generatedFrom', query.generatedFrom);
+  if (query.generatedTo) params.set('generatedTo', query.generatedTo);
+  if (query.page !== undefined) params.set('page', String(query.page));
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
+  if (query.sort) params.set('sort', query.sort);
 
-export interface DocumentMasterModel {
-  _id: string;
-  companyId: string;
-  code: string;
-  name: string;
-  description?: string;
-  documentType: DocumentType;
-  process?: string;
-  version: number;
-  status: DocumentStatus;
-  ownerUser?: { _id: string; name?: string; email?: string } | string;
-  approvalUser?: { _id: string; name?: string; email?: string } | string;
-  approvalDate?: string;
-  expirationDate?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : '';
 }
 
-export interface DocumentVersionModel {
-  _id: string;
-  documentId: string;
-  versionNumber: number;
-  fileUrl: string;
-  uploadedBy?: { _id: string; name?: string; email?: string } | string;
-  uploadDate?: string;
-  changeDescription?: string;
-  isCurrent: boolean;
-  createdAt: string;
+/**
+ * Catálogo documental paginado con filtros (GET /document-generation/catalog).
+ */
+export function fetchDocumentCatalog(token: string, query?: DocumentCatalogQuery): Promise<DocumentCatalogPage> {
+  return apiFetch<DocumentCatalogPage>(`/document-generation/catalog${buildCatalogQuery(query)}`, token, { method: 'GET' });
 }
 
-export interface DocumentHistoryModel {
-  _id: string;
-  companyId: string;
-  documentId: string;
-  userId: { _id: string; name?: string; email?: string } | string;
-  action: DocumentHistoryAction;
-  previousValue?: Record<string, unknown>;
-  newValue?: Record<string, unknown>;
-  description?: string;
-  createdAt: string;
-}
-
-export interface DocumentApprovalModel {
-  _id: string;
-  companyId: string;
-  documentId: string | DocumentMasterModel;
-  requestedBy: { _id: string; name?: string; email?: string } | string;
-  approvedBy?: { _id: string; name?: string; email?: string } | string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  comments?: string;
-  rejectionReason?: string;
-  approvedAt?: string;
-  createdAt: string;
-}
-
-export interface DocumentSignatureModel {
-  _id: string;
-  companyId: string;
-  documentId: string;
-  userId: { _id: string; name?: string; email?: string } | string;
-  signerName: string;
-  signerEmail?: string;
-  signatureHash?: string;
-  signatureUrl?: string;
-  comments?: string;
-  isExecutiveSignature: boolean;
-  createdAt: string;
-}
-
-export interface RetentionRuleModel {
-  _id: string;
-  companyId: string;
-  documentType: DocumentType;
-  retentionYears: number;
-  description?: string;
-  isActive: boolean;
-}
-
-export interface DocumentStatsModel {
-  total: number;
-  byType: Record<string, number>;
-  byStatus: Record<string, number>;
-  active: number;
-  expiringSoon: number;
-  expired: number;
-}
-
-export interface DocumentSearchResult {
-  documents: DocumentMasterModel[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export interface ExpirationInfo {
-  isExpired: boolean;
-  retentionDate: string | null;
-  daysUntilExpiration: number | null;
-}
-
-export function fetchDocumentsMaster(token: string) {
-  return apiFetch<DocumentMasterModel[]>('/document-management', token, { method: 'GET' });
-}
-
-export function fetchDocumentMaster(token: string, id: string) {
-  return apiFetch<DocumentMasterModel>(`/document-management/${id}`, token, { method: 'GET' });
-}
-
-export function createDocumentMaster(token: string, payload: {
-  code: string;
-  name: string;
-  description?: string;
-  documentType: DocumentType;
-  process?: string;
-  version?: number;
-  status?: DocumentStatus;
-  ownerUser?: string;
-  approvalUser?: string;
-  expirationDate?: string;
-}) {
-  return apiFetch<DocumentMasterModel>('/document-management', token, { method: 'POST', body: JSON.stringify(payload) });
-}
-
-export function updateDocumentMaster(token: string, id: string, payload: Record<string, unknown>) {
-  return apiFetch<DocumentMasterModel>(`/document-management/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
-}
-
-export function deleteDocumentMaster(token: string, id: string) {
-  return apiFetch<void>(`/document-management/${id}`, token, { method: 'DELETE' });
-}
-
-export function changeDocumentStatus(token: string, id: string, status: DocumentStatus, reason?: string) {
-  return apiFetch<DocumentMasterModel>(`/document-management/${id}/status`, token, { method: 'PATCH', body: JSON.stringify({ status, reason }) });
-}
-
-export function fetchDocumentStats(token: string) {
-  return apiFetch<DocumentStatsModel>('/document-management/stats', token, { method: 'GET' });
-}
-
-export function searchDocuments(token: string, params: Record<string, string | number | undefined>) {
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== '') query.append(key, String(value));
-  });
-  return apiFetch<DocumentSearchResult>(`/document-management/search?${query.toString()}`, token, { method: 'GET' });
-}
-
-export function uploadDocumentVersion(token: string, documentId: string, fileUrl: string, changeDescription?: string) {
-  return apiFetch<{ document: DocumentMasterModel; version: DocumentVersionModel }>(
-    `/document-management/${documentId}/versions`, token,
-    { method: 'POST', body: JSON.stringify({ fileUrl, changeDescription }) },
+/**
+ * Catálogo forzado a una empresa (GET /document-generation/catalog/company/:companyId).
+ */
+export function fetchDocumentCatalogByCompany(token: string, companyId: string, query?: DocumentCatalogQuery): Promise<DocumentCatalogPage> {
+  return apiFetch<DocumentCatalogPage>(
+    `/document-generation/catalog/company/${encodeURIComponent(companyId)}${buildCatalogQuery(query)}`,
+    token,
+    { method: 'GET' },
   );
 }
 
-export function fetchDocumentVersions(token: string, documentId: string) {
-  return apiFetch<DocumentVersionModel[]>(`/document-management/${documentId}/versions`, token, { method: 'GET' });
+/**
+ * Detalle de una instancia documental (GET /document-generation/catalog/:id).
+ */
+export function fetchDocumentCatalogItem(token: string, id: string): Promise<DocumentCatalogDetail> {
+  return apiFetch<DocumentCatalogDetail>(`/document-generation/catalog/${encodeURIComponent(id)}`, token, { method: 'GET' });
 }
-
-export function fetchDocumentHistory(token: string, documentId: string) {
-  return apiFetch<DocumentHistoryModel[]>(`/document-management/${documentId}/history`, token, { method: 'GET' });
-}
-
-export function fetchAllHistory(token: string) {
-  return apiFetch<DocumentHistoryModel[]>('/document-management/history/all', token, { method: 'GET' });
-}
-
-export function submitDocumentForApproval(token: string, documentId: string, comments?: string) {
-  return apiFetch<DocumentApprovalModel>(
-    `/document-management/${documentId}/submit-approval`, token,
-    { method: 'POST', body: JSON.stringify({ comments }) },
-  );
-}
-
-export function fetchPendingApprovals(token: string) {
-  return apiFetch<DocumentApprovalModel[]>('/document-management/approvals/pending', token, { method: 'GET' });
-}
-
-export function fetchApprovalHistory(token: string) {
-  return apiFetch<DocumentApprovalModel[]>('/document-management/approvals/history', token, { method: 'GET' });
-}
-
-export function approveDocument(token: string, approvalId: string, payload: {
-  approvedBy: string;
-  comments?: string;
-  signatureHash?: string;
-  signatureUrl?: string;
-  signerName?: string;
-  signerEmail?: string;
-}) {
-  return apiFetch<{ approval: DocumentApprovalModel; document: DocumentMasterModel }>(
-    `/document-management/approvals/${approvalId}/approve`, token,
-    { method: 'POST', body: JSON.stringify(payload) },
-  );
-}
-
-export function rejectDocument(token: string, approvalId: string, rejectionReason: string, comments?: string) {
-  return apiFetch<DocumentApprovalModel>(
-    `/document-management/approvals/${approvalId}/reject`, token,
-    { method: 'POST', body: JSON.stringify({ rejectionReason, comments }) },
-  );
-}
-
-export function addDocumentSignature(token: string, documentId: string, payload: {
-  signerName: string;
-  signerEmail?: string;
-  signatureHash?: string;
-  signatureUrl?: string;
-  comments?: string;
-  isExecutiveSignature?: boolean;
-}) {
-  return apiFetch<DocumentSignatureModel>(
-    `/document-management/${documentId}/signatures`, token,
-    { method: 'POST', body: JSON.stringify(payload) },
-  );
-}
-
-export function fetchDocumentSignatures(token: string, documentId: string) {
-  return apiFetch<DocumentSignatureModel[]>(`/document-management/${documentId}/signatures`, token, { method: 'GET' });
-}
-
-export function fetchRetentionRules(token: string) {
-  return apiFetch<RetentionRuleModel[]>('/document-management/retention-rules', token, { method: 'GET' });
-}
-
-export function createRetentionRule(token: string, payload: { documentType: DocumentType; retentionYears: number; description?: string }) {
-  return apiFetch<RetentionRuleModel>('/document-management/retention-rules', token, { method: 'POST', body: JSON.stringify(payload) });
-}
-
-export function updateRetentionRule(token: string, documentType: DocumentType, payload: { retentionYears?: number; description?: string }) {
-  return apiFetch<RetentionRuleModel>(`/document-management/retention-rules/${documentType}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
-}
-
-export function deleteRetentionRule(token: string, documentType: DocumentType) {
-  return apiFetch<void>(`/document-management/retention-rules/${documentType}`, token, { method: 'DELETE' });
-}
-
-export function checkDocumentExpiration(token: string, documentId: string) {
-  return apiFetch<ExpirationInfo>(`/document-management/${documentId}/expiration`, token, { method: 'GET' });
-}
-
-export function fetchExpiringDocuments(token: string, withinDays: number) {
-  return apiFetch<DocumentMasterModel[]>(`/document-management/expiring/${withinDays}`, token, { method: 'GET' });
-}
-
-export function fetchExpiredDocuments(token: string) {
-  return apiFetch<DocumentMasterModel[]>('/document-management/expired', token, { method: 'GET' });
-}
-
-export function triggerDocumentAlerts(token: string) {
-  return apiFetch<{ message: string }>('/document-management/alerts/check', token, { method: 'POST' });
-}
-
 
 // ==================== COMMUNICATION / COMUNICACIÓN SG-SST API ====================
 
@@ -2339,7 +2254,6 @@ export function checkAccountabilityOverdue(token: string) {
   return apiFetch<{ message: string; overdueCount: number }>('/accountability/check-overdue', token, { method: 'POST' });
 }
 
-
 // ==================== DEDICATED ANNUAL WORK PLAN API ====================
 
 export interface AnnualWorkPlanModel {
@@ -2599,7 +2513,6 @@ export function fetchPlanHistory(token: string, planId: string) {
 export function processAutoStatus(token: string) {
   return apiFetch<{ message: string }>('/annual-work-plan/process-auto-status', token, { method: 'POST' });
 }
-
 
 export type InitialEvaluationStatus = 'Borrador' | 'En evaluación' | 'Pendiente aprobación' | 'Aprobada' | 'Archivada';
 export type InitialEvaluationStandardStatus = 'Cumple' | 'No Cumple' | 'No Aplica';
@@ -3142,6 +3055,14 @@ export interface WizardStepModel {
   details?: string;
   label: string;
   description: string;
+  // Campos enriquecidos por el Implementation Validator Engine (FASE 3.2.1).
+  // Son opcionales: el backend los envía desde /dashboard y /overview.
+  criteria?: string[];
+  pendingCriteria?: string[];
+  title?: string;
+  moduleRoute?: string;
+  percentage?: number;
+  lastValidatedAt?: string;
 }
 
 export interface WizardHistoryEntryModel {
@@ -3169,6 +3090,7 @@ export interface WizardDashboardModel {
   certificateVerificationCode?: string;
   steps: WizardStepModel[];
   history: WizardHistoryEntryModel[];
+  lastValidatedAt?: string;
 }
 
 export function fetchWizard(token: string) {
@@ -3179,14 +3101,35 @@ export function fetchWizardDashboard(token: string) {
   return apiFetch<WizardDashboardModel>('/implementation-wizard/dashboard', token, { method: 'GET' });
 }
 
-export function updateWizardStep(token: string, stepId: WizardStepId, payload: { score: number; status: WizardStepStatus; details?: string }) {
-  return apiFetch<WizardDashboardModel>(`/implementation-wizard/step/${stepId}`, token, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+export interface WizardOverviewStepModel {
+  stepId: WizardStepId;
+  title: string;
+  moduleRoute: string;
+  percentage: number;
+  status: WizardStepStatus;
+  completed: boolean;
+  criteria: string[];
+  pendingCriteria: string[];
+  /** Preparado para UX inteligente: impacto estimado de completar el paso. */
+  estimatedImpact?: string | null;
 }
 
-export function runWizardAutoValidation(token: string, payload: Record<string, { score: number; status: WizardStepStatus }>) {
+export interface WizardOverviewModel {
+  overallPercentage: number;
+  overallScore: number;
+  level: string;
+  completedSteps: number;
+  totalSteps: number;
+  isImplementationComplete: boolean;
+  lastValidatedAt: string | null;
+  steps: WizardOverviewStepModel[];
+}
+
+export function fetchWizardOverview(token: string) {
+  return apiFetch<WizardOverviewModel>('/implementation-wizard/overview', token, { method: 'GET' });
+}
+
+export function runWizardAutoValidation(token: string, payload: Record<string, { score: number; status: WizardStepStatus }> = {}) {
   return apiFetch<WizardDashboardModel>('/implementation-wizard/auto-validate', token, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -3205,6 +3148,75 @@ export function getWizardModuleRoute(token: string, stepId: WizardStepId) {
   return apiFetch<{ route: string }>(`/implementation-wizard/module-route/${stepId}`, token, { method: 'GET' });
 }
 
+// ==================== IMPLEMENTATION PRIORITY API ====================
+
+/** Prioridad calculada por el ImplementationPriorityEngine (backend). */
+export interface PriorityItemModel {
+  stepId: WizardStepId;
+  title: string;
+  moduleRoute: string;
+  status: WizardStepStatus;
+  percentage: number;
+  /** Puntaje PS(s) 0-100 (mayor = más urgente). */
+  priorityScore: number;
+  /** Posición tras ordenar por priorityScore desc. */
+  rank: number;
+  /** Impacto visible "+X% implementación". */
+  estimatedImpact: string | null;
+  /** Impacto numérico recuperable (peso × restante). */
+  impactPoints: number;
+  criticality: 'ALTA' | 'MEDIA' | 'BAJA';
+  riskLevel: 'ALTO' | 'MEDIO' | 'BAJO' | 'NINGUNO';
+  /** Prerrequisitos incompletos que bloquean el paso. */
+  blockedBy: string[];
+  /** Pasos que desbloquea al completarse. */
+  unlocks: string[];
+  /** true si no hay prerrequisitos incompletos. */
+  ready: boolean;
+  /** Potencial de desbloqueo normalizado 0-1. */
+  unlockPotential: number;
+  pendingCriteria: string[];
+  recommendedAction: string;
+  estimatedEffort: 'BAJO' | 'MEDIO' | 'ALTO' | null;
+  /** Reservado para futuras versiones. */
+  confidence?: number;
+  /** Reservado para futuras versiones. */
+  actionType?: string;
+}
+
+/** Respuesta de GET /implementation-priority/company/:companyId/priorities. */
+export interface PriorityOverviewModel {
+  companyId: string;
+  generatedAt: string;
+  overallPercentage: number;
+  overallScore: number;
+  level: string;
+  completedSteps: number;
+  totalSteps: number;
+  readyCount: number;
+  blockedCount: number;
+  /** Top N prioridades, ya ordenadas por priorityScore desc. */
+  priorities: PriorityItemModel[];
+}
+
+/**
+ * Obtiene las prioridades reales del ImplementationPriorityEngine.
+ *
+ * Usa la empresa activa (localStorage) como companyId del path.
+ *
+ * GET /implementation-priority/company/:companyId/priorities
+ */
+export function fetchImplementationPriorities(token: string) {
+  const companyId = getActiveCompanyId();
+  if (!companyId) {
+    return Promise.reject(new Error('No hay empresa activa'));
+  }
+  return apiFetch<PriorityOverviewModel>(
+    `/implementation-priority/company/${companyId}/priorities`,
+    token,
+    { method: 'GET' },
+  );
+}
 
 // ==================== RESPONSIBILITY MATRIX API ====================
 
@@ -3291,10 +3303,8 @@ export const createResponsibilityMatrixVersion = (token: string, versionLabel?: 
 export const fetchResponsibilityMatrixHistory = (token: string) =>
   apiFetch<MatrixAuditEntryModel[]>('/responsibility-matrix/history', token, { method: 'GET' });
 
-
 export const fetchResponsibilityMatrixCampaignInfo = (token: string) =>
   apiFetch<{ hasCampaign: boolean; campaign?: any; workers?: any[]; stats?: any; message?: string }>('/responsibility-matrix/campaign-info', token, { method: 'GET' });
-
 
 // ==================== RESPONSIBILITY ACCEPTANCE API ====================
 
@@ -3469,7 +3479,6 @@ export function processRenewals(token: string) {
 export function fetchAcceptanceHistory(token: string) {
   return apiFetch<ResponsibilityAcceptanceModel[]>('/responsibility-matrix/acceptances/history', token, { method: 'GET' });
 }
-
 
 // ==================== WORKER SIGNATURE CAMPAIGN API ====================
 
@@ -4004,7 +4013,6 @@ export const signSocialization = (token: string, payload: {
     slideCompletionPercent: number;
     totalViewingTimeSeconds: number;
   } }>(`/socialize/${token}/sign`, '', { method: 'POST', body: JSON.stringify(payload) });
-
 
 // ==================== CONVIVENCIA / COMITÉ DE CONVIVENCIA LABORAL API ====================
 

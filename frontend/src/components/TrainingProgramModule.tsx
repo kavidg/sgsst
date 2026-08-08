@@ -15,6 +15,8 @@ import {
   AdvancedHeader,
   AdvancedKpiGrid,
 } from './advanced-layout';
+import { AdvancedModuleReportTemplate } from '../pdf/templates/AdvancedModuleReportTemplate';
+import { exportAdvancedPdf } from '../pdf/utils/exportAdvancedPdf';
 
 // ============================================================
 // SIDEBAR ITEMS (12 tabs)
@@ -1089,10 +1091,31 @@ export default function TrainingProgramModule({ token }: { token: string }) {
             label: '📄 Exportar PDF',
             variant: 'secondary' as const,
             onClick: () => {
-              const lines = ['=== PROGRAMA DE CAPACITACIÓN PyP ===', `Versión: v${currentVersion}`, `Estado: ${approvalStatus}`, `Generado: ${new Date().toLocaleString()}`, '', `Programas: ${totalProgrammed}`, `Capacitaciones: ${trainingRecords.length}`, `Ejecutadas: ${totalExecuted}`, `Cumplimiento: ${compliancePct}%`, `Certificados: ${certificateRecords.length}`, '', '=== FIN ==='];
-              const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a'); a.href = url; a.download = `capacitacion-pyp-v${currentVersion}.txt`; a.click(); URL.revokeObjectURL(url);
+              void exportAdvancedPdf({
+                filename: `capacitacion-pyp-v${currentVersion}.pdf`,
+                document: (
+                  <AdvancedModuleReportTemplate
+                    data={{
+                      title: 'Programa de Capacitación PyP',
+                      version: `v${currentVersion}`,
+                      status: approvalStatus,
+                      generatedAt: new Date().toLocaleString(),
+                      sections: [
+                        {
+                          title: 'Indicadores del programa',
+                          rows: [
+                            { label: 'Programas', value: String(totalProgrammed) },
+                            { label: 'Capacitaciones', value: String(trainingRecords.length) },
+                            { label: 'Ejecutadas', value: String(totalExecuted) },
+                            { label: 'Cumplimiento', value: `${compliancePct}%` },
+                            { label: 'Certificados', value: String(certificateRecords.length) },
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                ),
+              });
               notify('📄 Reporte exportado.');
             },
           },

@@ -5,11 +5,18 @@ import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
+import { ApprovalDecision } from '../approval-workflow/enums/approval-decision.enum';
+import { ApprovalEntity } from '../approval-workflow/enums/approval-entity.enum';
+import { buildApprovalActor } from '../approval-workflow/helpers/approval-actor.helper';
+import { ApprovalWorkflowService } from '../approval-workflow/approval-workflow.service';
 import { ConvivenciaService } from './convivencia.service';
 
 @Controller('convivencia')
 export class ConvivenciaController {
-  constructor(private readonly convivenciaService: ConvivenciaService) {}
+  constructor(
+    private readonly convivenciaService: ConvivenciaService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
+  ) {}
 
   @Get('summary')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
@@ -181,23 +188,96 @@ export class ConvivenciaController {
   @Post('periods/:periodId/submit-approval')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin')
-  submitForApproval(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
-    return this.convivenciaService.submitForApproval(periodId, req.user?.email ?? 'system');
+  async submitForApproval(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
+    const userEmail = req.user?.email ?? 'system';
+    const period = await this.convivenciaService.submitForApproval(periodId, userEmail);
+
+    // Crear la solicitud de aprobación en el Approval Workflow Core.
+    await this.approvalWorkflowService.createRequest(
+      req.companyId?.toString() ?? period.companyId.toString(),
+      {
+        module: ApprovalEntity.CONVIVENCIA,
+        entityType: 'ConvivenciaPeriod',
+        entityId: periodId,
+        assignedRoles: ['owner', 'manager'],
+        comments: 'Aprobación del periodo Comité de Convivencia',
+      },
+      buildApprovalActor({
+        userId: req.user?._id,
+        firebaseUid: req.user?.uid,
+        email: req.user?.email,
+        role: req.user?.role,
+      }),
+    );
+
+    return period;
   }
 
   @Post('periods/:periodId/approve')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'manager')
-  approvePeriod(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
-    return this.convivenciaService.approve(periodId, req.user?.email ?? '', req.user?.role ?? '');
+  async approvePeriod(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
+    // Delegar la aprobación al Approval Workflow Core, que reutiliza
+    // ConvivenciaService.approve a través del adapter (conserva
+    // APPROVED_AND_SIGNED, auditHistory, approvedBy y alertas). La respuesta
+    // conserva compatibilidad con el frontend actual.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      await this.resolveCompanyId(req, periodId),
+      ApprovalEntity.CONVIVENCIA,
+      periodId,
+      {
+        decision: ApprovalDecision.APPROVED,
+        metadata: {
+          signerEmail: req.user?.email,
+          signerRole: req.user?.role,
+        },
+      },
+      buildApprovalActor({
+        userId: req.user?._id,
+        firebaseUid: req.user?.uid,
+        email: req.user?.email,
+        role: req.user?.role,
+      }),
+    );
+
+    return result.applied;
   }
 
   @Post('periods/:periodId/reject')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'manager')
-  rejectPeriod(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: { reason: string }) {
+  async rejectPeriod(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: { reason: string }) {
     if (!dto.reason || !dto.reason.trim()) throw new Error('Rejection reason is required');
-    return this.convivenciaService.reject(periodId, dto.reason, req.user?.email ?? 'system');
+
+    // Delegar el rechazo al Approval Workflow Core, que reutiliza
+    // ConvivenciaService.reject a través del adapter.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      await this.resolveCompanyId(req, periodId),
+      ApprovalEntity.CONVIVENCIA,
+      periodId,
+      {
+        decision: ApprovalDecision.REJECTED,
+        reason: dto.reason,
+      },
+      buildApprovalActor({
+        userId: req.user?._id,
+        firebaseUid: req.user?.uid,
+        email: req.user?.email,
+        role: req.user?.role,
+      }),
+    );
+
+    return result.applied;
+  }
+
+  /**
+   * Resuelve el companyId: lo toma del request (guardias) o, como fallback,
+   * lo lee del periodo para mantener consistencia en los tres endpoints.
+   */
+  private async resolveCompanyId(req: RequestWithUser, periodId: string): Promise<string> {
+    if (req.companyId) return req.companyId.toString();
+    const period = await this.convivenciaService.findById(new Types.ObjectId(periodId));
+    return period.companyId.toString();
   }
 
   @Get('periods/:periodId/audit')

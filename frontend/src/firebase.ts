@@ -8,6 +8,7 @@ type FirebaseUserCredential = {
 };
 
 type FirebaseAuth = {
+  currentUser: FirebaseUser | null;
   signInWithEmailAndPassword: (
     email: string,
     password: string,
@@ -51,6 +52,18 @@ export async function signInWithEmailAndPassword(email: string, password: string
 }
 
 export async function getIdToken(user: FirebaseUser) {
+  return user.getIdToken();
+}
+
+/**
+ * Devuelve el token Firebase del usuario autenticado actualmente
+ * (null si no hay sesión activa). FASE 7.2 — usado por hooks como usePhvaCatalog.
+ */
+export async function getCurrentUserIdToken(): Promise<string | null> {
+  const user = auth.currentUser;
+  if (!user) {
+    return null;
+  }
   return user.getIdToken();
 }
 

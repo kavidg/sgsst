@@ -1,15 +1,22 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { RequestWithUser } from '../auth/auth.types';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
+import { ApprovalDecision } from '../approval-workflow/enums/approval-decision.enum';
+import { ApprovalEntity } from '../approval-workflow/enums/approval-entity.enum';
+import { buildApprovalActor } from '../approval-workflow/helpers/approval-actor.helper';
+import { ApprovalWorkflowService } from '../approval-workflow/approval-workflow.service';
 import { CopasstService } from './copasst.service';
 
 @Controller('copasst')
 export class CopasstController {
-  constructor(private readonly copasstService: CopasstService) {}
+  constructor(
+    private readonly copasstService: CopasstService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
+  ) {}
 
   // ─── SUMMARY ───
   @Get('summary')
@@ -210,23 +217,95 @@ export class CopasstController {
   @Post('periods/:periodId/submit-approval')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin')
-  submitForApproval(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
-    return this.copasstService.submitForApproval(periodId, req.user?.email ?? 'system');
+  async submitForApproval(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
+    const userEmail = req.user?.email ?? 'system';
+    const period = await this.copasstService.submitForApproval(periodId, userEmail);
+
+    // Crear la solicitud de aprobación en el Approval Workflow Core.
+    await this.approvalWorkflowService.createRequest(
+      req.companyId?.toString() ?? period.companyId.toString(),
+      {
+        module: ApprovalEntity.COPASST,
+        entityType: 'CopasstPeriod',
+        entityId: periodId,
+        assignedRoles: ['owner', 'manager'],
+        comments: 'Aprobación del periodo COPASST',
+      },
+      buildApprovalActor({
+        userId: req.user?._id,
+        firebaseUid: req.user?.uid,
+        email: req.user?.email,
+        role: req.user?.role,
+      }),
+    );
+
+    return period;
   }
 
   @Post('periods/:periodId/approve')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'manager')
-  approvePeriod(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
-    return this.copasstService.approve(periodId, req.user?.email ?? '', req.user?.role ?? '');
+  async approvePeriod(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
+    // Delegar la aprobación al Approval Workflow Core, que reutiliza
+    // CopasstService.approve a través del adapter (conserva APPROVED_AND_SIGNED,
+    // acta PDF, auditHistory y alertas). La respuesta conserva compatibilidad.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      await this.resolveCompanyId(req, periodId),
+      ApprovalEntity.COPASST,
+      periodId,
+      {
+        decision: ApprovalDecision.APPROVED,
+        metadata: {
+          signerEmail: req.user?.email,
+          signerRole: req.user?.role,
+        },
+      },
+      buildApprovalActor({
+        userId: req.user?._id,
+        firebaseUid: req.user?.uid,
+        email: req.user?.email,
+        role: req.user?.role,
+      }),
+    );
+
+    return result.applied;
   }
 
   @Post('periods/:periodId/reject')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'manager')
-  rejectPeriod(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: { reason: string }) {
+  async rejectPeriod(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: { reason: string }) {
     if (!dto.reason || !dto.reason.trim()) throw new Error('Rejection reason is required');
-    return this.copasstService.reject(periodId, dto.reason, req.user?.email ?? 'system');
+
+    // Delegar el rechazo al Approval Workflow Core, que reutiliza
+    // CopasstService.reject a través del adapter.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      await this.resolveCompanyId(req, periodId),
+      ApprovalEntity.COPASST,
+      periodId,
+      {
+        decision: ApprovalDecision.REJECTED,
+        reason: dto.reason,
+      },
+      buildApprovalActor({
+        userId: req.user?._id,
+        firebaseUid: req.user?.uid,
+        email: req.user?.email,
+        role: req.user?.role,
+      }),
+    );
+
+    return result.applied;
+  }
+
+  /**
+   * Resuelve el companyId: lo toma del request (guardias) o, como fallback,
+   * lo lee del periodo para mantener consistencia en los tres endpoints.
+   */
+  private async resolveCompanyId(req: RequestWithUser, periodId: string): Promise<string> {
+    if (req.companyId) return req.companyId.toString();
+    const period = await this.copasstService.findById(new Types.ObjectId(periodId));
+    return period.companyId.toString();
   }
 
   // ─── AUDIT ───

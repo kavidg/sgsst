@@ -1,4 +1,6 @@
-import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCompanyContext } from '../../context/CompanyContext';
+import { loadEvaluations, mapBackendToAnswers, saveEvaluation } from '../../services/evaluation-sync.service';
 
 type AnswerValue = {
   status: string;
@@ -58,11 +60,68 @@ const loadInitialAnswers = (): AnswersState => {
   }
 };
 
-export function DocumentsEvaluationProvider({ children }: { children: ReactNode }) {
+export function DocumentsEvaluationProvider({ children, token, userId }: { children: ReactNode; token: string; userId: string }) {
+  const { companyId } = useCompanyContext();
   const [answers, setAnswers] = useState<AnswersState>(() => loadInitialAnswers());
   const [sections, setSections] = useState<Record<string, { title: string; items: SectionItem[] }>>({});
   const [missingCodes, setMissingCodes] = useState<Set<string>>(new Set());
   const [sectionErrors, setSectionErrors] = useState<Set<string>>(new Set());
+
+  // Empresa a la que pertenecen las respuestas actuales en memoria.
+  // Evita que al cambiar de empresa se filtren respuestas de la anterior.
+  const loadedCompanyRef = useRef('');
+
+  // FASE 5: el backend (MongoDB) es la fuente principal del PHVA.
+  // Al iniciar se cargan las respuestas existentes desde el módulo Evaluations.
+  // localStorage queda únicamente como caché temporal de respaldo.
+  useEffect(() => {
+    if (!token || !companyId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    loadEvaluations(token, companyId)
+      .then((evaluations) => {
+        if (cancelled) {
+          return;
+        }
+
+        const backendAnswers = mapBackendToAnswers(evaluations);
+        const sameCompany = loadedCompanyRef.current === companyId;
+
+        // Si el backend responde vacío se conserva la caché local (compatibilidad).
+        // Al cambiar de empresa, se reinicia para no filtrar respuestas ajenas.
+        if (Object.keys(backendAnswers).length === 0) {
+          if (!sameCompany) {
+            setAnswers({});
+          }
+          loadedCompanyRef.current = companyId;
+          return;
+        }
+
+        setAnswers((current) => {
+          // El backend es la fuente oficial: sus respuestas nunca se sobrescriben
+          // con la caché local. localStorage solo completa los códigos ausentes
+          // y únicamente cuando las respuestas ya pertenecen a la misma empresa.
+          const base = sameCompany ? current : {};
+          const next = { ...base, ...backendAnswers };
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          }
+          return next;
+        });
+        loadedCompanyRef.current = companyId;
+      })
+      .catch((requestError) => {
+        // Backend no disponible: usar caché local, advertencia silenciosa, no bloquear.
+        console.warn('[PHVA] No se pudieron cargar las evaluaciones desde el backend. Usando caché local.', requestError);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, companyId]);
 
   const registerSection = useCallback((sectionId: string, section: { title: string; items: SectionItem[] }) => {
     setSections((current) => ({ ...current, [sectionId]: section }));
@@ -103,7 +162,15 @@ export function DocumentsEvaluationProvider({ children }: { children: ReactNode 
       }
       return next;
     });
-  }, []);
+
+    // FASE 5: persistir únicamente el estándar modificado en el backend.
+    // Si la operación falla se conserva el estado local y la caché.
+    if (token && userId && companyId) {
+      saveEvaluation(token, userId, companyId, code, status).catch((requestError) => {
+        console.warn(`[PHVA] No se pudo guardar el estándar ${code} en el backend. Se conserva la respuesta local.`, requestError);
+      });
+    }
+  }, [token, userId, companyId]);
 
   const validateAll = useCallback((): ValidationResult => {
     const missing: string[] = [];

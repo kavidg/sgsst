@@ -6,16 +6,37 @@ import { AutoCommunicationService } from '../communication/auto-communication.se
 import { Company, CompanyDocument } from '../companies/schemas/company.schema';
 import { CompanyProfile, CompanyProfileDoc } from '../company-profile/schemas/company-profile.schema';
 import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
+import { CopasstPeriod, CopasstPeriodDocument } from '../copasst/schemas/copasst.schema';
 import { AlertSeverity } from '../alerts/schemas/alert.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
 import {
   PhvaAdvancedResponsableSst,
   PhvaAdvancedResponsableSstDocument,
+  ResponsableSstApprovalStatus,
   ResponsableSstComplianceStatus,
   ResponsableSstDocumentType,
   ResponsableSstStoredDocument,
+  ResponsableSstVersion,
 } from './schemas/phva-advanced-responsable-sst.schema';
+import { buildResponsableSstVersion, bumpResponsableSstVersion } from './phva-advanced-versioning.utils';
+import { DocumentGenerationService } from '../document-generation/services/document-generation.service';
+import { SystemTemplateService } from '../document-generation/services/system-template.service';
+import { ResponsibleSgsstVariableResolver } from './responsible-sgsst-variable-resolver.service';
+import { CopasstVariableResolverService } from './copasst-variable-resolver.service';
+import { ResponsibilitiesVariableResolverService } from './responsibilities-variable-resolver.service';
+import { ResourceAssignmentVariableResolverService } from './resource-assignment-variable-resolver.service';
+import { SstPolicyVariableResolverService } from './sst-policy-variable-resolver.service';
+import { DocumentSourceModule } from '../document-generation/types/renderer.types';
+import {
+  DocumentApprovalMetadata,
+  DocumentGenerationResult,
+  PHVA_SOURCE_ENTITY_COPASST,
+  PHVA_SOURCE_ENTITY_RESOURCE_ASSIGNMENT,
+  PHVA_SOURCE_ENTITY_RESPONSIBILITIES,
+  PHVA_SOURCE_ENTITY_RESPONSIBLE_SG_SST,
+  PHVA_SOURCE_ENTITY_SST_POLICY,
+} from '../document-generation/types/document-generation.types';
 import {
   PhvaAdvancedResponsibilities,
   PhvaAdvancedResponsibilitiesDocument,
@@ -47,7 +68,10 @@ const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'profession',
   'sstProfessionalType',
   'sstLicenseNumber',
-  'licenseExpiresAt',
+  // NOTA normativa (Fase 1.1.1): licenseExpiresAt NO es requisito del
+  // estándar. La licencia SST no posee vencimiento normativo obligatorio;
+  // el campo es opcional y solo documental (soporta actos que indiquen una
+  // vigencia concreta). Su ausencia es NORMAL y nunca genera incumplimiento.
   'licenseType',
   'issuingAuthority',
   'course50HoursDate',
@@ -96,12 +120,50 @@ export class PhvaAdvancedService {
     private readonly alertsService: AlertsService,
     private readonly autoCommService: AutoCommunicationService,
     private readonly policyTemplateService: PolicyTemplateService,
+    // Fase 2 — generación documental del Responsable del SG-SST (1.1.1).
+    private readonly documentGenerationService: DocumentGenerationService,
+    private readonly systemTemplateService: SystemTemplateService,
+    private readonly responsibleSgsstResolver: ResponsibleSgsstVariableResolver,
+    // Fase 3 — generación documental del COPASST (aprobación del periodo).
+    @InjectModel(CopasstPeriod.name)
+    private readonly copasstPeriodModel: Model<CopasstPeriodDocument>,
+    private readonly copasstResolver: CopasstVariableResolverService,
+    // Fase 4 — generación documental de la Matriz de Responsabilidades (1.1.2).
+    private readonly responsibilitiesResolver: ResponsibilitiesVariableResolverService,
+    // Fase 5 — generación documental de la Asignación de Recursos (1.1.3).
+    private readonly resourceAssignmentResolver: ResourceAssignmentVariableResolverService,
+    // Fase 6 — generación documental de la Política de Seguridad y Salud en
+    // el Trabajo (2.1.1).
+    private readonly sstPolicyResolver: SstPolicyVariableResolverService,
   ) {}
 
   async findOrCreateResourceAssignment(companyId: Types.ObjectId) {
     const current = await this.resourceAssignmentModel.findOne({ companyId, itemCode: '1.1.3' }).exec();
     if (current) return current;
     return this.resourceAssignmentModel.create({ companyId, itemCode: '1.1.3' });
+  }
+
+  /**
+   * Getter de lectura por identificador (sin crear registros). Usado por el
+   * ResourceAssignmentHandler del Approval Workflow Core.
+   */
+  async findResourceAssignmentById(id: Types.ObjectId): Promise<PhvaAdvancedResourceAssignmentDocument> {
+    const record = await this.resourceAssignmentModel.findById(id).exec();
+    if (!record) throw new NotFoundException('Resource assignment not found');
+    return record;
+  }
+
+  /**
+   * Getter de lectura del registro vigente de la empresa (sin crear un
+   * registro como hace findOrCreate). Usado por el handler cuando getEntity
+   * llega sin entityId.
+   */
+  async findResourceAssignmentByCompany(companyId: Types.ObjectId): Promise<PhvaAdvancedResourceAssignmentDocument> {
+    const record = await this.resourceAssignmentModel
+      .findOne({ companyId, itemCode: '1.1.3' })
+      .exec();
+    if (!record) throw new NotFoundException('Resource assignment not found');
+    return record;
   }
 
   async updateResourceAssignment(companyId: Types.ObjectId, user: UserDocument, dto: UpdateResourceAssignmentDto) {
@@ -342,6 +404,53 @@ export class PhvaAdvancedService {
     const current = await this.responsibilitiesModel.findOne({ companyId, itemCode: '1.1.2' }).exec();
     if (current) return current;
     return this.responsibilitiesModel.create({ companyId, itemCode: '1.1.2' });
+  }
+
+  /**
+   * Getter de lectura del registro de Responsibilities (1.1.2) por id (sin
+   * crear un registro como hace findOrCreate). Usado por el handler cuando
+   * getEntity llega con entityId.
+   */
+  async findResponsibilitiesById(id: Types.ObjectId): Promise<PhvaAdvancedResponsibilitiesDocument> {
+    const record = await this.responsibilitiesModel.findById(id).exec();
+    if (!record) throw new NotFoundException('Responsibilities not found');
+    return record;
+  }
+
+  /**
+   * Getter de lectura del registro vigente de la empresa (itemCode fijo
+   * '1.1.2', sin crear un registro como hace findOrCreate). Usado por el
+   * handler cuando getEntity llega sin entityId.
+   */
+  async findResponsibilitiesByCompany(companyId: Types.ObjectId): Promise<PhvaAdvancedResponsibilitiesDocument> {
+    const record = await this.responsibilitiesModel
+      .findOne({ companyId, itemCode: '1.1.2' })
+      .exec();
+    if (!record) throw new NotFoundException('Responsibilities not found');
+    return record;
+  }
+
+  /**
+   * Getter de lectura del estado de aprobación del registro de
+   * Responsibilities (1.1.2) sin modificar nada.
+   *
+   * El estado de aprobación vive dentro de la fila '__META__' del arreglo
+   * responsibilities (campo category con JSON). Este getter expone únicamente
+   * el approvalStatus ya embebido por el servicio (submit/approve/reject) para
+   * que el handler del Approval Workflow Core NO interprete el JSON: toda la
+   * lectura del __META__ queda en el servicio.
+   */
+  getResponsibilitiesApprovalStatus(record: PhvaAdvancedResponsibilitiesDocument): string {
+    const metaIndex = record.responsibilities.findIndex((entry) => entry.title === '__META__');
+    if (metaIndex < 0) return 'DRAFT';
+    try {
+      const meta = JSON.parse(record.responsibilities[metaIndex].category) as {
+        approvalStatus?: string;
+      };
+      return meta.approvalStatus ?? 'DRAFT';
+    } catch {
+      return 'DRAFT';
+    }
   }
 
   async updateResponsibilities(companyId: Types.ObjectId, user: UserDocument, responsibilities: ResponsibilityAssignmentEntry[]) {
@@ -628,8 +737,738 @@ export class PhvaAdvancedService {
     return this.responsableSstModel.create({ companyId, itemCode: '1.1.1' });
   }
 
+  /**
+   * Getter de lectura del registro del Responsable del SG-SST (1.1.1) por id
+   * (sin crear un registro como hace findOrCreate). Usado por el
+   * ResponsibleSgsstHandler del Approval Workflow Core y por la generación
+   * documental (Fase 2).
+   */
+  async findResponsableSstById(id: Types.ObjectId): Promise<PhvaAdvancedResponsableSstDocument> {
+    const record = await this.responsableSstModel.findById(id).exec();
+    if (!record) throw new NotFoundException('Responsable SST not found');
+    return record;
+  }
+
+  /**
+   * Getter de lectura del registro vigente del Responsable del SG-SST (1.1.1)
+   * por empresa (itemCode fijo, sin crear registros). Usado por el handler
+   * cuando getEntity llega sin entityId.
+   */
+  async findResponsableSstByCompany(companyId: Types.ObjectId): Promise<PhvaAdvancedResponsableSstDocument> {
+    const record = await this.responsableSstModel
+      .findOne({ companyId, itemCode: '1.1.1' })
+      .exec();
+    if (!record) throw new NotFoundException('Responsable SST not found');
+    return record;
+  }
+
+  /**
+   * Envía a aprobación el punto PHVA 1.1.1 (Responsable del SG-SST).
+   *
+   * Fase 2 — el flujo de aprobación se delega al Approval Workflow Core
+   * (el controller crea el ApprovalRequest); este método solo actualiza el
+   * estado local del módulo (PENDING_APPROVAL, versión, auditoría y alertas)
+   * para compatibilidad con el frontend, igual que el patrón de Resource
+   * Assignment (1.1.3).
+   */
+  async submitResponsableSst(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateResponsableSst(companyId);
+
+    if (record.approvalStatus === ResponsableSstApprovalStatus.PENDING_APPROVAL) {
+      throw new BadRequestException('El módulo ya está pendiente de aprobación.');
+    }
+    if (
+      record.approvalStatus === ResponsableSstApprovalStatus.APPROVED ||
+      record.approvalStatus === ResponsableSstApprovalStatus.APPROVED_AND_SIGNED
+    ) {
+      throw new BadRequestException('El módulo ya está aprobado.');
+    }
+
+    // Fase 8.3.C — GATE DE APROBACIÓN: el estándar solo puede enviarse a
+    // aprobación si cumple TODOS los requisitos (COMPLIES). Esto garantiza el
+    // invariante `APPROVED → documento generado` (generateResponsibleSgsstDocument
+    // exige COMPLIES). No bloquea guardar el formulario: un DRAFT incompleto
+    // sigue siendo editable.
+    const compliance = this.calculateCompliance(record);
+    record.complianceStatus = compliance.status;
+    record.complianceReason = compliance.reason;
+    if (compliance.status !== ResponsableSstComplianceStatus.COMPLIES) {
+      throw new BadRequestException(
+        `No se puede enviar a aprobación el estándar 1.1.1 (Responsable del SG-SST) porque no cumple todos los requisitos. Estado: ${compliance.status}. ${compliance.reason}`,
+      );
+    }
+
+    // Fase B — versionado estructurado: se crea un snapshot inmutable del
+    // estado que se envía a aprobación. Un reenvío tras rechazo conserva la
+    // versión rechazada (con su rejectionReason) y genera una nueva versión
+    // con los datos corregidos.
+    const isResubmit = record.approvalStatus === ResponsableSstApprovalStatus.REJECTED;
+    const newVer = bumpResponsableSstVersion(record.currentVersion);
+    if (!Array.isArray(record.versions)) {
+      (record as unknown as { versions: ResponsableSstVersion[] }).versions = [];
+    }
+    record.versions.unshift(
+      buildResponsableSstVersion({
+        record,
+        version: newVer,
+        reason: isResubmit ? 'RESUBMIT' : 'SUBMIT',
+        action: isResubmit ? 'Reenviado a aprobación tras corrección' : 'Enviado a aprobación',
+        createdBy: this.resolveUserId(user),
+        createdByEmail: user.email,
+        approvalStatus: ResponsableSstApprovalStatus.PENDING_APPROVAL,
+        submittedAt: new Date(),
+      }),
+    );
+
+    record.approvalStatus = ResponsableSstApprovalStatus.PENDING_APPROVAL;
+    record.locked = true;
+    record.currentVersion = newVer;
+    record.submittedBy = this.resolveUserId(user);
+    record.submittedAt = new Date();
+    record.assignedReviewer = 'Manager';
+    // En reenvío se limpia el rechazo del ciclo anterior (la versión
+    // rechazada y la auditoría lo conservan históricamente).
+    record.rejectionReason = '';
+
+    // Validate that at least one MANAGER exists before creating alerts
+    const managers = await this.userModel.find({ companyId, role: 'manager', isActive: true }).exec();
+    if (managers.length === 0) {
+      throw new BadRequestException('No existe un usuario MANAGER asignado a esta empresa.');
+    }
+
+    const actionUrl = '/advanced-management/1.1.1?mode=review';
+    const alertPromises = managers.map(async (mgr) => {
+      try {
+        await this.alertsService.create({
+          companyId: companyId.toString(),
+          type: 'APPROVAL_REQUEST',
+          message: `📋 Nueva solicitud de aprobación — Responsable del SG-SST (1.1.1). Enviado por: ${user.email}. Fecha: ${new Date().toLocaleDateString()}.`,
+          severity: AlertSeverity.HIGH,
+          targetUserId: mgr._id.toString(),
+          actionUrl,
+          moduleCode: '1.1.1',
+          moduleName: 'Responsable del SG-SST',
+          submittedBy: user.email,
+          submittedAt: new Date().toISOString(),
+          documentId: record._id.toString(),
+        });
+      } catch { /* alert failure should not block */ }
+    });
+    await Promise.all(alertPromises);
+
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'approvalStatus',
+      oldValue: 'DRAFT',
+      newValue: 'PENDING_APPROVAL',
+    });
+
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
+  /**
+   * Aprueba el punto PHVA 1.1.1 (Responsable del SG-SST). Reutilizado por el
+   * ResponsibleSgsstHandler del Approval Workflow Core: conserva el estado
+   * local (APPROVED/APPROVED_AND_SIGNED), approvedBy, auditHistory y las
+   * alertas a admins.
+   */
+  async approveResponsableSst(companyId: Types.ObjectId, user: UserDocument) {
+    const record = await this.findOrCreateResponsableSst(companyId);
+
+    if (record.approvalStatus !== ResponsableSstApprovalStatus.PENDING_APPROVAL) {
+      throw new BadRequestException('El módulo no está pendiente de aprobación.');
+    }
+
+    // Fase 8.3.C — validación defensiva: aunque el submit ya validó COMPLIES,
+    // se vuelve a verificar aquí para impedir que llamadas directas o cambios
+    // futuros aprueben un estado inválido (invariante `APPROVED → documento`).
+    const compliance = this.calculateCompliance(record);
+    if (compliance.status !== ResponsableSstComplianceStatus.COMPLIES) {
+      throw new BadRequestException(
+        `No se puede aprobar el estándar 1.1.1 (Responsable del SG-SST) porque no cumple todos los requisitos. Estado: ${compliance.status}. ${compliance.reason}`,
+      );
+    }
+
+    // Check if manager acts as legal representative
+    let managerActsAsLegalRepresentative = true;
+    try {
+      const profile = await this.companyProfileModel.findOne({ companyId }).lean().exec();
+      if (profile !== null) {
+        managerActsAsLegalRepresentative = (profile as unknown as Record<string, unknown>).managerActsAsLegalRepresentative !== false;
+      }
+    } catch { /* use default */ }
+
+    const newStatus = managerActsAsLegalRepresentative
+      ? ResponsableSstApprovalStatus.APPROVED_AND_SIGNED
+      : ResponsableSstApprovalStatus.APPROVED;
+
+    record.approvalStatus = newStatus;
+    record.locked = true;
+    record.approvedBy = {
+      userId: this.resolveUserId(user).toString(),
+      email: user.email,
+      role: user.role,
+      companyId: companyId.toString(),
+      timestamp: new Date().toISOString(),
+    };
+    record.submittedAt = undefined;
+
+    // Fase B — la versión aprobada queda inmutable: se marca su metadata como
+    // APPROVED/APPROVED_AND_SIGNED con approvedAt (el snapshot no cambia).
+    const approvedVersion = record.versions?.[0];
+    if (approvedVersion) {
+      approvedVersion.approvalStatus = newStatus;
+      approvedVersion.approvedAt = new Date();
+    }
+
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'approvalStatus',
+      oldValue: 'PENDING_APPROVAL',
+      newValue: newStatus,
+    });
+
+    // Notify ADMIN users
+    const admins = await this.userModel.find({ companyId, role: { $in: ['admin', 'owner'] }, isActive: true }).exec();
+    const notificationMessage = managerActsAsLegalRepresentative
+      ? `✅ Solicitud aprobada y firmada — Responsable del SG-SST (1.1.1). Aprobado por: ${user.email}. El MANAGER actúa como Representante Legal, por lo que la aprobación incluye la firma legal.`
+      : `✅ Solicitud aprobada — Responsable del SG-SST (1.1.1). Aprobado por: ${user.email}.`;
+
+    await Promise.all(admins.map((adminUser) =>
+      this.alertsService.create({
+        companyId: companyId.toString(),
+        type: 'RESPONSABLE_SST_APPROVED',
+        message: notificationMessage,
+        severity: AlertSeverity.HIGH,
+      }).catch(() => {}),
+    ));
+
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
+  /**
+   * Rechaza el punto PHVA 1.1.1 (Responsable del SG-SST). Reutilizado por el
+   * ResponsibleSgsstHandler del Approval Workflow Core: conserva REJECTED,
+   * rejectionReason, rejectedBy y auditHistory.
+   */
+  async rejectResponsableSst(companyId: Types.ObjectId, user: UserDocument, reason: string) {
+    const record = await this.findOrCreateResponsableSst(companyId);
+
+    if (record.approvalStatus !== ResponsableSstApprovalStatus.PENDING_APPROVAL) {
+      throw new BadRequestException('El módulo no está pendiente de aprobación.');
+    }
+
+    record.approvalStatus = ResponsableSstApprovalStatus.REJECTED;
+    record.locked = false;
+    record.rejectionReason = reason;
+    record.submittedAt = undefined;
+    record.rejectedBy = {
+      userId: this.resolveUserId(user).toString(),
+      email: user.email,
+      role: user.role,
+      companyId: companyId.toString(),
+      timestamp: new Date().toISOString(),
+    };
+
+    // Fase B — la versión rechazada se conserva (snapshot inmutable) y solo
+    // cambia su metadata para reflejar el rechazo.
+    const rejectedVersion = record.versions?.[0];
+    if (rejectedVersion) {
+      rejectedVersion.approvalStatus = ResponsableSstApprovalStatus.REJECTED;
+      rejectedVersion.rejectionReason = reason;
+    }
+
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'approvalStatus',
+      oldValue: 'PENDING_APPROVAL',
+      newValue: 'REJECTED',
+    });
+    record.auditHistory.push({
+      userId: this.resolveUserId(user),
+      userEmail: user.email,
+      changedAt: new Date(),
+      field: 'rejectionReason',
+      oldValue: '',
+      newValue: reason,
+    });
+
+    // Notify ADMIN users
+    const admins = await this.userModel.find({ companyId, role: { $in: ['admin', 'owner'] }, isActive: true }).exec();
+    await Promise.all(admins.map((adminUser) =>
+      this.alertsService.create({
+        companyId: companyId.toString(),
+        type: 'RESPONSABLE_SST_REJECTED',
+        message: `❌ Solicitud rechazada — Responsable del SG-SST (1.1.1). Rechazado por: ${user.email}. Motivo: ${reason}.`,
+        severity: AlertSeverity.HIGH,
+      }).catch(() => {}),
+    ));
+
+    record.updatedBy = this.resolveUserId(user);
+    return record.save();
+  }
+
+  /**
+   * Genera el documento formal del Responsable del SG-SST (PHVA 1.1.1).
+   *
+   * Fase 2 — primer documento formal del sistema con enfoque Resolución 0312
+   * de 2019. Flujo:
+   *
+   *   1. Validar que el registro existe y pertenece a la empresa.
+   *   2. Validación completa (complianceStatus COMPLIES).
+   *   3. Asegurar la plantilla de sistema (SystemTemplateService).
+   *   4. Resolver variables de dominio (ResponsibleSgsstVariableResolver).
+   *   5. Delegar en DocumentGenerationService.generateDocument() con
+   *      sourceModule PHVA_ADVANCED, sourceEntity RESPONSIBLE_SG_SST y
+   *      sourceEntityId = id del registro PHVA 1.1.1.
+   *
+   * @param params.companyId - Empresa propietaria.
+   * @param params.sourceEntityId - Id del registro PHVA 1.1.1.
+   * @param params.approval - Metadatos de aprobación (cuando se genera tras
+   * la aprobación en el Approval Workflow Core).
+   */
+  async generateResponsibleSgsstDocument(params: {
+    companyId: Types.ObjectId;
+    sourceEntityId: Types.ObjectId;
+    approval?: DocumentApprovalMetadata;
+  }): Promise<DocumentGenerationResult> {
+    const record = await this.findResponsableSstById(params.sourceEntityId);
+
+    if (record.companyId.toString() !== params.companyId.toString()) {
+      throw new NotFoundException('Responsable SST not found');
+    }
+
+    if (record.complianceStatus !== ResponsableSstComplianceStatus.COMPLIES) {
+      throw new BadRequestException(
+        'El punto PHVA 1.1.1 no está completo: complete la información y evidencias antes de generar el documento.',
+      );
+    }
+
+    const template = await this.systemTemplateService.ensureResponsibleSgsstTemplate();
+    const domainContext = await this.responsibleSgsstResolver.resolve(params.companyId, record._id);
+
+    const context: Record<string, unknown> = {
+      ...domainContext,
+      document: {
+        code: 'PHVA-1.1.1',
+        version: record.currentVersion || '1.0',
+        generatedAt: new Date().toISOString(),
+      },
+      // Fase 8.3.D — la aprobación legible la resuelve el resolver desde la
+      // metadata del registro (record.approvedBy), que approveResponsableSst
+      // guarda ANTES de que el listener del Approval Workflow genere el
+      // documento. Los params (ObjectId crudo) solo son fallback. Acceso
+      // defensivo: algunos specs/stubs del servicio devuelven un contexto de
+      // dominio sin la rama approval.
+      approval: {
+        status:
+          domainContext.approval?.status && domainContext.approval.status !== 'Borrador'
+            ? domainContext.approval.status
+            : params.approval?.status ?? 'Pendiente',
+        approvedBy:
+          domainContext.approval?.approvedBy &&
+          domainContext.approval.approvedBy !== 'No registrado'
+            ? domainContext.approval.approvedBy
+            : (params.approval?.approvedBy?.toString() ?? ''),
+        approvedAt:
+          domainContext.approval?.approvedAt &&
+          domainContext.approval.approvedAt !== 'No registrada'
+            ? domainContext.approval.approvedAt
+            : (params.approval?.approvedAt?.toISOString() ?? ''),
+      },
+    };
+
+    return this.documentGenerationService.generateDocument({
+      companyId: params.companyId,
+      templateId: template._id.toString(),
+      sourceModule: DocumentSourceModule.PHVA_ADVANCED,
+      sourceEntity: PHVA_SOURCE_ENTITY_RESPONSIBLE_SG_SST,
+      sourceEntityId: record._id,
+      generatedBy: params.approval?.approvedBy,
+      context,
+      approval: params.approval,
+    });
+  }
+
+  /**
+   * Genera el acta de conformación del COPASST (Fase 3).
+   *
+   * Flujo (mismo patrón que generateResponsibleSgsstDocument):
+   *
+   *   1. Validar que el periodo COPASST existe y pertenece a la empresa.
+   *   2. Asegurar la plantilla de sistema (SystemTemplateService).
+   *   3. Resolver variables de dominio (CopasstVariableResolverService).
+   *   4. Delegar en DocumentGenerationService.generateDocument() con
+   *      sourceModule PHVA_ADVANCED, sourceEntity COPASST y
+   *      sourceEntityId = id del periodo COPASST.
+   *
+   * Las listas del contexto (members, employerRepresentatives,
+   * workerRepresentatives, functions) se entregan como texto multilínea:
+   * el renderer DOCX (docxtemplater con parser de paths punto a punto) espera
+   * valores escalares por placeholder, no arreglos.
+   *
+   * @param params.companyId - Empresa propietaria.
+   * @param params.sourceEntityId - Id del periodo COPASST aprobado.
+   * @param params.approval - Metadatos de aprobación (cuando se genera tras la
+   * aprobación en el Approval Workflow Core).
+   */
+  async generateCopasstDocument(params: {
+    companyId: Types.ObjectId;
+    sourceEntityId: Types.ObjectId;
+    approval?: DocumentApprovalMetadata;
+  }): Promise<DocumentGenerationResult> {
+    const period = await this.copasstPeriodModel.findById(params.sourceEntityId).exec();
+
+    if (!period) {
+      throw new NotFoundException('COPASST period not found');
+    }
+
+    if (period.companyId.toString() !== params.companyId.toString()) {
+      throw new NotFoundException('COPASST period not found');
+    }
+
+    // Defensa en profundidad (patrón Fase 2 que valida COMPLIES): el acta de
+    // conformación solo se genera para periodos aprobados. El listener del
+    // Approval Workflow dispara DESPUÉS de approve() (que deja el periodo en
+    // APPROVED / APPROVED_AND_SIGNED), por lo que una llamada directa tampoco
+    // puede generar el documento de un periodo DRAFT o REJECTED.
+    const periodApproved =
+      period.approvalStatus === 'APPROVED' ||
+      period.approvalStatus === 'APPROVED_AND_SIGNED';
+    // La metadata de aprobación solo habilita la generación cuando expresa un
+    // estado realmente aprobado (el generador siempre envía 'APPROVED'); así
+    // un estado ajeno (REJECTED, ADJUSTMENTS_REQUESTED) no la autoriza.
+    const approvalCarried =
+      params.approval?.status === 'APPROVED' ||
+      params.approval?.status === 'APPROVED_AND_SIGNED';
+    if (!periodApproved && !approvalCarried) {
+      throw new BadRequestException(
+        'El periodo COPASST no está aprobado: no se puede generar el acta de conformación.',
+      );
+    }
+
+    const template = await this.systemTemplateService.ensureCopasstTemplate();
+    const domainContext = await this.copasstResolver.resolve(
+      params.companyId,
+      period._id,
+    );
+
+    const context: Record<string, unknown> = {
+      ...domainContext,
+      // Listas → texto multilínea para el renderer DOCX.
+      members: domainContext.members.join('\n'),
+      employerRepresentatives: domainContext.employerRepresentatives.join('\n'),
+      workerRepresentatives: domainContext.workerRepresentatives.join('\n'),
+      functions: domainContext.functions.join('\n'),
+      document: {
+        code: 'PHVA-COPASST',
+        version: period.currentVersion || '1.0',
+        generatedAt: new Date().toISOString(),
+      },
+      approval: {
+        status: params.approval?.status ?? 'Pendiente',
+        approvedBy: params.approval?.approvedBy?.toString() ?? '',
+        approvedAt: params.approval?.approvedAt?.toISOString() ?? '',
+      },
+    };
+
+    return this.documentGenerationService.generateDocument({
+      companyId: params.companyId,
+      templateId: template._id.toString(),
+      sourceModule: DocumentSourceModule.PHVA_ADVANCED,
+      sourceEntity: PHVA_SOURCE_ENTITY_COPASST,
+      sourceEntityId: period._id,
+      generatedBy: params.approval?.approvedBy,
+      context,
+      approval: params.approval,
+    });
+  }
+
+  /**
+   * Genera el documento formal de la Matriz de Responsabilidades del SG-SST
+   * (PHVA 1.1.2).
+   *
+   * Fase 4 — mismo patrón que generateResponsibleSgsstDocument (Fase 2) y
+   * generateCopasstDocument (Fase 3):
+   *
+   *   1. Validar que el registro existe y pertenece a la empresa.
+   *   2. Validar estado aprobado (el approvalStatus vive en la fila __META__;
+   *      se lee con getResponsibilitiesApprovalStatus, sin interpretar el JSON).
+   *   3. Asegurar la plantilla de sistema (SystemTemplateService).
+   *   4. Resolver variables de dominio (ResponsibilitiesVariableResolverService).
+   *   5. Delegar en DocumentGenerationService.generateDocument() con
+   *      sourceModule PHVA_ADVANCED, sourceEntity RESPONSIBILITIES y
+   *      sourceEntityId = id del registro PHVA 1.1.2.
+   *
+   * Las listas del contexto (responsiblePersons, assignments) se entregan
+   * como texto multilínea: el renderer DOCX espera valores escalares por
+   * placeholder, no arreglos.
+   *
+   * @param params.companyId - Empresa propietaria.
+   * @param params.sourceEntityId - Id del registro PHVA 1.1.2.
+   * @param params.approval - Metadatos de aprobación (cuando se genera tras la
+   * aprobación en el Approval Workflow Core).
+   */
+  async generateResponsibilitiesDocument(params: {
+    companyId: Types.ObjectId;
+    sourceEntityId: Types.ObjectId;
+    approval?: DocumentApprovalMetadata;
+  }): Promise<DocumentGenerationResult> {
+    const record = await this.findResponsibilitiesById(params.sourceEntityId);
+
+    if (record.companyId.toString() !== params.companyId.toString()) {
+      throw new NotFoundException('Responsibilities not found');
+    }
+
+    // Defensa en profundidad (patrón Fase 3): el documento solo se genera para
+    // registros aprobados. El listener del Approval Workflow dispara DESPUÉS
+    // de approve() (que deja el __META__ en APPROVED / APPROVED_AND_SIGNED).
+    const recordApproved = ['APPROVED', 'APPROVED_AND_SIGNED'].includes(
+      this.getResponsibilitiesApprovalStatus(record),
+    );
+    // La metadata de aprobación solo habilita la generación cuando expresa un
+    // estado realmente aprobado (el generador siempre envía 'APPROVED').
+    const approvalCarried =
+      params.approval?.status === 'APPROVED' ||
+      params.approval?.status === 'APPROVED_AND_SIGNED';
+    if (!recordApproved && !approvalCarried) {
+      throw new BadRequestException(
+        'El punto PHVA 1.1.2 no está aprobado: no se puede generar el documento de responsabilidades.',
+      );
+    }
+
+    const template = await this.systemTemplateService.ensureResponsibilitiesTemplate();
+    const domainContext = await this.responsibilitiesResolver.resolve(
+      params.companyId,
+      record._id,
+    );
+
+    const context: Record<string, unknown> = {
+      ...domainContext,
+      // Listas → texto multilínea para el renderer DOCX.
+      responsiblePersons: domainContext.responsiblePersons.join('\n'),
+      assignments: domainContext.assignments.join('\n'),
+      document: {
+        code: 'PHVA-1.1.2',
+        date: new Date().toISOString(),
+      },
+      approval: {
+        status: params.approval?.status ?? 'Pendiente',
+        approvedBy: params.approval?.approvedBy?.toString() ?? '',
+        approvedAt: params.approval?.approvedAt?.toISOString() ?? '',
+      },
+    };
+
+    return this.documentGenerationService.generateDocument({
+      companyId: params.companyId,
+      templateId: template._id.toString(),
+      sourceModule: DocumentSourceModule.PHVA_ADVANCED,
+      sourceEntity: PHVA_SOURCE_ENTITY_RESPONSIBILITIES,
+      sourceEntityId: record._id,
+      generatedBy: params.approval?.approvedBy,
+      context,
+      approval: params.approval,
+    });
+  }
+
+  /**
+   * Genera el documento formal de la Asignación de Recursos para el SG-SST
+   * (PHVA 1.1.3).
+   *
+   * Fase 5 — mismo patrón que generateResponsibleSgsstDocument (Fase 2),
+   * generateCopasstDocument (Fase 3) y generateResponsibilitiesDocument (Fase 4):
+   *
+   *   1. Validar que el registro existe y pertenece a la empresa.
+   *   2. Validar estado aprobado (approvalStatus APPROVED/APPROVED_AND_SIGNED).
+   *   3. Asegurar la plantilla de sistema (SystemTemplateService).
+   *   4. Resolver variables de dominio (ResourceAssignmentVariableResolverService).
+   *   5. Delegar en DocumentGenerationService.generateDocument() con
+   *      sourceModule PHVA_ADVANCED, sourceEntity RESOURCE_ASSIGNMENT y
+   *      sourceEntityId = id del registro PHVA 1.1.3.
+   *
+   * Las listas del contexto (resources.human, resources.technical,
+   * resources.financial, resources.physical) se entregan como texto
+   * multilínea: el renderer DOCX espera valores escalares por placeholder, no
+   * arreglos.
+   *
+   * @param params.companyId - Empresa propietaria.
+   * @param params.sourceEntityId - Id del registro PHVA 1.1.3.
+   * @param params.approval - Metadatos de aprobación (cuando se genera tras la
+   * aprobación en el Approval Workflow Core).
+   */
+  async generateResourceAssignmentDocument(params: {
+    companyId: Types.ObjectId;
+    sourceEntityId: Types.ObjectId;
+    approval?: DocumentApprovalMetadata;
+  }): Promise<DocumentGenerationResult> {
+    const record = await this.findResourceAssignmentById(params.sourceEntityId);
+
+    if (record.companyId.toString() !== params.companyId.toString()) {
+      throw new NotFoundException('Resource assignment not found');
+    }
+
+    // Defensa en profundidad (patrón Fases 3-4): el documento solo se genera
+    // para registros aprobados. El listener del Approval Workflow dispara
+    // DESPUÉS de approve() (que deja el registro en APPROVED /
+    // APPROVED_AND_SIGNED).
+    const recordApproved =
+      record.approvalStatus === 'APPROVED' ||
+      record.approvalStatus === 'APPROVED_AND_SIGNED';
+    // La metadata de aprobación solo habilita la generación cuando expresa un
+    // estado realmente aprobado (el generador siempre envía 'APPROVED').
+    const approvalCarried =
+      params.approval?.status === 'APPROVED' ||
+      params.approval?.status === 'APPROVED_AND_SIGNED';
+    if (!recordApproved && !approvalCarried) {
+      throw new BadRequestException(
+        'El punto PHVA 1.1.3 no está aprobado: no se puede generar el documento de asignación de recursos.',
+      );
+    }
+
+    const template = await this.systemTemplateService.ensureResourceAssignmentTemplate();
+    const domainContext = await this.resourceAssignmentResolver.resolve(
+      params.companyId,
+      record._id,
+    );
+
+    const context: Record<string, unknown> = {
+      ...domainContext,
+      // Listas → texto multilínea para el renderer DOCX.
+      resources: {
+        human: domainContext.resources.human.join('\n'),
+        technical: domainContext.resources.technical.join('\n'),
+        financial: domainContext.resources.financial.join('\n'),
+        physical: domainContext.resources.physical.join('\n'),
+      },
+      document: {
+        code: 'PHVA-1.1.3',
+        date: new Date().toISOString(),
+      },
+      approval: {
+        status: params.approval?.status ?? 'Pendiente',
+        approvedBy: params.approval?.approvedBy?.toString() ?? '',
+        approvedAt: params.approval?.approvedAt?.toISOString() ?? '',
+      },
+    };
+
+    return this.documentGenerationService.generateDocument({
+      companyId: params.companyId,
+      templateId: template._id.toString(),
+      sourceModule: DocumentSourceModule.PHVA_ADVANCED,
+      sourceEntity: PHVA_SOURCE_ENTITY_RESOURCE_ASSIGNMENT,
+      sourceEntityId: record._id,
+      generatedBy: params.approval?.approvedBy,
+      context,
+      approval: params.approval,
+    });
+  }
+
+  /**
+   * Genera el documento formal de la Política de Seguridad y Salud en el
+   * Trabajo (PHVA 2.1.1).
+   *
+   * Fase 6 — mismo patrón que generateResponsibleSgsstDocument (Fase 2),
+   * generateCopasstDocument (Fase 3), generateResponsibilitiesDocument (Fase 4)
+   * y generateResourceAssignmentDocument (Fase 5):
+   *
+   *   1. Validar que la política existe y pertenece a la empresa.
+   *   2. Validar estado aprobado (SstPolicyStatus.APPROVED).
+   *   3. Asegurar la plantilla de sistema (SystemTemplateService).
+   *   4. Resolver variables de dominio (SstPolicyVariableResolverService).
+   *   5. Delegar en DocumentGenerationService.generateDocument() con
+   *      sourceModule PHVA_ADVANCED, sourceEntity SST_POLICY y
+   *      sourceEntityId = id del registro de la política.
+   *
+   * @param params.companyId - Empresa propietaria.
+   * @param params.sourceEntityId - Id del registro de la política (SstPolicy).
+   * @param params.approval - Metadatos de aprobación (cuando se genera tras la
+   * aprobación en el Approval Workflow Core).
+   */
+  async generateSstPolicyDocument(params: {
+    companyId: Types.ObjectId;
+    sourceEntityId: Types.ObjectId;
+    approval?: DocumentApprovalMetadata;
+  }): Promise<DocumentGenerationResult> {
+    const record = await this.findSstPolicyById(params.sourceEntityId);
+
+    if (record.companyId.toString() !== params.companyId.toString()) {
+      throw new NotFoundException('SST Policy not found');
+    }
+
+    // Defensa en profundidad (patrón Fases 3-5): el documento solo se genera
+    // para políticas aprobadas. El listener del Approval Workflow dispara
+    // DESPUÉS de approve() (que deja el registro en SstPolicyStatus.APPROVED).
+    const recordApproved = record.status === SstPolicyStatus.APPROVED;
+    // La metadata de aprobación solo habilita la generación cuando expresa un
+    // estado realmente aprobado (el generador siempre envía 'APPROVED').
+    const approvalCarried =
+      params.approval?.status === 'APPROVED' ||
+      params.approval?.status === 'APPROVED_AND_SIGNED';
+    if (!recordApproved && !approvalCarried) {
+      throw new BadRequestException(
+        'La política SST no está aprobada: no se puede generar el documento.',
+      );
+    }
+
+    const template = await this.systemTemplateService.ensureSstPolicyTemplate();
+    const domainContext = await this.sstPolicyResolver.resolve(
+      params.companyId,
+      record._id,
+    );
+
+    const context: Record<string, unknown> = {
+      ...domainContext,
+      document: {
+        code: 'PHVA-2.1.1',
+        version: record.currentVersion || '1.0',
+        generatedAt: new Date().toISOString(),
+      },
+      approval: {
+        status: params.approval?.status ?? 'Pendiente',
+        approvedBy: params.approval?.approvedBy?.toString() ?? '',
+        approvedAt: params.approval?.approvedAt?.toISOString() ?? '',
+      },
+    };
+
+    return this.documentGenerationService.generateDocument({
+      companyId: params.companyId,
+      templateId: template._id.toString(),
+      sourceModule: DocumentSourceModule.PHVA_ADVANCED,
+      sourceEntity: PHVA_SOURCE_ENTITY_SST_POLICY,
+      sourceEntityId: record._id,
+      generatedBy: params.approval?.approvedBy,
+      context,
+      approval: params.approval,
+    });
+  }
+
+  /**
+   * Fase D — inmutabilidad: bloquea cualquier modificación de contenido cuando
+   * el documento está aprobado o bloqueado (incluye PENDING_APPROVAL, que el
+   * submit deja con locked=true). Operaciones administrativas que no toquen el
+   * contenido aprobado no pasan por este guard.
+   */
+  private assertResponsableSstEditable(record: PhvaAdvancedResponsableSstDocument) {
+    if (
+      record.approvalStatus === ResponsableSstApprovalStatus.APPROVED ||
+      record.approvalStatus === ResponsableSstApprovalStatus.APPROVED_AND_SIGNED ||
+      record.locked
+    ) {
+      throw new BadRequestException('El módulo está bloqueado. No se puede modificar un documento aprobado.');
+    }
+  }
+
   async updateResponsableSst(companyId: Types.ObjectId, user: UserDocument, dto: UpdateResponsableSstDto) {
     const record = await this.findOrCreateResponsableSst(companyId);
+    this.assertResponsableSstEditable(record);
     const auditEntries = this.buildAuditEntries(record, dto, user);
 
     for (const [key, value] of Object.entries(dto) as Array<[keyof UpdateResponsableSstDto, string | undefined]>) {
@@ -683,6 +1522,7 @@ export class PhvaAdvancedService {
       throw new BadRequestException('El tipo de documento no es una licencia SST válida.');
     }
     const record = await this.findOrCreateResponsableSst(params.companyId);
+    this.assertResponsableSstEditable(record);
     const previousDocument = record.documents.find((document) => document.type === params.type);
 
     const storedDocument: ResponsableSstStoredDocument = {
@@ -717,9 +1557,12 @@ export class PhvaAdvancedService {
     record.licenseOcrEntries.push(ocrEntry as never);
 
     // Auto-populate license fields from OCR if not set
+    // NOTA normativa (Fase 1.1.1): la fecha detectada por OCR se conserva como
+    // dato documental (detectedExpirationDate en licenseOcrEntries) pero NO se
+    // auto-asigna a licenseExpiresAt. Solo una corrección manual explícita
+    // (registerLicenseOcrModification) puede poblar el campo documental.
     if (params.ocrLicenseNumber && !record.sstLicenseNumber) record.sstLicenseNumber = params.ocrLicenseNumber;
     if (detectedIssueDate && !record.licenseIssueDate) record.licenseIssueDate = detectedIssueDate;
-    if (detectedExpirationDate && !record.licenseExpiresAt) record.licenseExpiresAt = detectedExpirationDate;
     if (params.ocrIssuingAuthority && !record.issuingAuthority) record.issuingAuthority = params.ocrIssuingAuthority;
     if (params.ocrLicenseHolder && !record.fullName) record.fullName = params.ocrLicenseHolder;
 
@@ -771,6 +1614,10 @@ export class PhvaAdvancedService {
     issuingAuthority?: string;
   }) {
     const record = await this.findOrCreateResponsableSst(companyId);
+    // Fase D — la corrección manual de datos OCR modifica contenido aprobado
+    // (sstLicenseNumber, licenseIssueDate, licenseExpiresAt, issuingAuthority),
+    // por lo que también queda bloqueada cuando el documento está aprobado.
+    this.assertResponsableSstEditable(record);
     const ocrEntry = record.licenseOcrEntries[ocrIndex];
     if (!ocrEntry) throw new NotFoundException('Entrada OCR no encontrada');
 
@@ -892,6 +1739,7 @@ export class PhvaAdvancedService {
     finalUserDate?: string;
   }) {
     const record = await this.findOrCreateResponsableSst(params.companyId);
+    this.assertResponsableSstEditable(record);
     const detectedDate = params.type === ResponsableSstDocumentType.FIFTY_HOUR_CERTIFICATE
       ? this.detectDateFromFileName(params.fileName)
       : undefined;
@@ -956,15 +1804,30 @@ export class PhvaAdvancedService {
     return record.auditHistory.sort((left, right) => right.changedAt.getTime() - left.changedAt.getTime());
   }
 
+  /**
+   * Calcula el estado de cumplimiento del punto PHVA 1.1.1.
+   *
+   * Semántica de estados (Fase 8.3.C):
+   * - PENDING        = información insuficiente (campos o evidencias aún no
+   *                    aportadas; no hay un hecho que permita decidir).
+   * - NON_COMPLIANT  = incumplimiento DEMOSTRABLE: existe un hecho evaluable
+   *                    que incumple (curso 50h por encima del umbral sin
+   *                    actualización 20h; licencia de perfil exigido sin
+   *                    evidencia documental).
+   * - COMPLIES       = todos los requisitos demostrados.
+   *
+   * NOTA normativa (Fase 1.1.1, corrección previa): la licencia SST NO tiene
+   * vencimiento obligatorio. La ausencia de licenseExpiresAt es NORMAL y una
+   * fecha documental antigua NUNCA genera incumplimiento por sí sola.
+   */
   private calculateCompliance(record: PhvaAdvancedResponsableSstDocument): { status: ResponsableSstComplianceStatus; reason: string } {
     const missingFields = REQUIRED_TEXT_FIELDS.filter((field) => !String((record as unknown as Record<string, unknown>)[field] ?? '').trim());
     const hasDiploma = record.documents.some((document) => document.type === ResponsableSstDocumentType.DIPLOMA);
     const has50HourCertificate = record.documents.some((document) => document.type === ResponsableSstDocumentType.FIFTY_HOUR_CERTIFICATE);
     const has20HourCertificate = record.documents.some((document) => document.type === ResponsableSstDocumentType.TWENTY_HOUR_UPDATE_CERTIFICATE);
-    const licenseValid = Boolean(record.licenseExpiresAt && record.licenseExpiresAt >= this.startOfToday());
     const courseExpired = this.isCourseOlderThanThreeYears(record.course50HoursDate);
 
-    // Check if license type requires SST license document
+    // Licencia: solo la exigencia DOCUMENTAL por perfil (regla existente).
     const licenseRequiresDoc = ['Tecnólogo SST', 'Profesional SST', 'Especialista SST'].includes(record.licenseType);
     const hasLicenseDocument = record.documents.some((document) =>
       document.type === ResponsableSstDocumentType.SST_LICENSE_PDF ||
@@ -972,32 +1835,67 @@ export class PhvaAdvancedService {
     );
     const licenseMissing = licenseRequiresDoc && !hasLicenseDocument;
 
-    // Resolve license status
+    // Designación (Fase 8.3.C): fecha + quien designa + cargo de quien designa
+    // (número opcional). La evidencia DESIGNATION es obligatoria.
+    const designationDataComplete = Boolean(
+      record.designationDate &&
+      String(record.designationIssuerName ?? '').trim() &&
+      String(record.designationIssuerPosition ?? '').trim(),
+    );
+    const hasDesignationDocument = record.documents.some((document) => document.type === ResponsableSstDocumentType.DESIGNATION);
+
+    // Estado documental de la licencia (informativo; nunca afecta compliance).
     this.resolveLicenseStatus(record);
 
-    if (missingFields.length || !hasDiploma || !has50HourCertificate || (courseExpired && (!record.course20HoursDate || !has20HourCertificate)) || !licenseValid || licenseMissing) {
-      const reasons = [
-        missingFields.length ? `Campos requeridos pendientes: ${missingFields.join(', ')}` : '',
-        !hasDiploma ? 'Diploma pendiente.' : '',
-        !has50HourCertificate ? 'Certificado de curso 50 horas pendiente.' : '',
-        courseExpired && !record.course20HoursDate ? 'Fecha curso 20 horas requerida.' : '',
-        courseExpired && !has20HourCertificate ? 'Certificado de actualización 20 horas requerido.' : '',
-        !licenseValid ? 'Licencia SST no vigente o sin fecha válida.' : '',
-        licenseMissing ? `Licencia SST requerida para tipo "${record.licenseType}" pero no cargada.` : '',
-      ].filter(Boolean);
-
-      return {
-        status: reasons.some((reason) => reason.includes('no vigente')) ? ResponsableSstComplianceStatus.NON_COMPLIANT : ResponsableSstComplianceStatus.PENDING,
-        reason: reasons.join(' '),
-      };
+    // ── NON_COMPLIANT: incumplimientos demostrables ────────────────────────
+    // Solo se declara incumplimiento cuando la BASE del registro está completa
+    // (campos requeridos presentes): si faltan datos base → PENDING (Caso C,
+    // "datos faltantes no se convierten automáticamente en NON_COMPLIANT").
+    const nonCompliantReasons: string[] = [];
+    if (missingFields.length === 0) {
+      // Caso A — curso 50h supera el umbral y no hay actualización 20h válida.
+      if (courseExpired && (!record.course20HoursDate || !has20HourCertificate)) {
+        nonCompliantReasons.push('El curso de 50 horas supera el umbral y no se registró la actualización de 20 horas.');
+      }
+      // Caso B — el perfil exige documentalmente la licencia y no está cargada.
+      if (licenseMissing) {
+        nonCompliantReasons.push(`Licencia SST requerida para el tipo "${record.licenseType}" pero no cargada.`);
+      }
+    }
+    if (nonCompliantReasons.length > 0) {
+      return { status: ResponsableSstComplianceStatus.NON_COMPLIANT, reason: nonCompliantReasons.join(' ') };
     }
 
+    // ── PENDING: información insuficiente ──────────────────────────────────
+    const pendingReasons = [
+      missingFields.length ? `Campos requeridos pendientes: ${missingFields.join(', ')}` : '',
+      !hasDiploma ? 'Diploma pendiente.' : '',
+      !has50HourCertificate ? 'Certificado de curso 50 horas pendiente.' : '',
+      !designationDataComplete ? 'Designación incompleta (fecha de designación, nombre y cargo de quien designa).' : '',
+      !hasDesignationDocument ? 'Documento de designación pendiente.' : '',
+    ].filter(Boolean);
+
+    if (pendingReasons.length > 0) {
+      return { status: ResponsableSstComplianceStatus.PENDING, reason: pendingReasons.join(' ') };
+    }
+
+    // ── COMPLIES: todos los requisitos demostrados ─────────────────────────
     return { status: ResponsableSstComplianceStatus.COMPLIES, reason: 'Cumple validaciones avanzadas del responsable SG-SST.' };
   }
 
+  /**
+   * Estado documental de la licencia SST.
+   *
+   * NOTA normativa (Fase 1.1.1): la licencia SST NO posee un vencimiento
+   * normativo obligatorio. La ausencia de licenseExpiresAt es NORMAL y se
+   * expone como 'Pendiente' (sin interpretación de vencimiento). Solo cuando
+   * existe una fecha explícita proveniente de un documento/acto se calcula un
+   * estado informativo (Vigente/Próxima a vencer/Vencida) sin que ello afecte
+   * jamás el compliance del estándar (ver calculateCompliance).
+   */
   private resolveLicenseStatus(record: PhvaAdvancedResponsableSstDocument) {
     if (!record.licenseExpiresAt) {
-      record.licenseStatus = 'Vencida';
+      record.licenseStatus = 'Pendiente';
       return;
     }
     const today = this.startOfToday();
@@ -1013,36 +1911,24 @@ export class PhvaAdvancedService {
 
   private buildAlertSchedule(record: PhvaAdvancedResponsableSstDocument) {
     const alerts: Array<{ type: string; message: string; severity: string; dueAt: Date; generated: boolean }> = [];
-    if (record.licenseExpiresAt) {
-      // Enhanced alert schedule: 90, 60, 30, 15, 5, 1 day(s)
-      for (const days of [90, 60, 30, 15, 5, 1]) {
-        alerts.push({
-          type: `PHVA_RESPONSABLE_SST_LICENSE_${days}_DAYS`,
-          message: `La licencia SST vence en ${days} día(s).`,
-          severity: days <= 5 ? AlertSeverity.HIGH : days <= 30 ? AlertSeverity.MEDIUM : AlertSeverity.LOW,
-          dueAt: this.addDays(record.licenseExpiresAt, -days),
-          generated: false,
-        });
-      }
-      if (record.licenseExpiresAt < this.startOfToday()) {
-        alerts.push({ type: 'PHVA_RESPONSABLE_SST_LICENSE_EXPIRED', message: 'Licencia SST expirada.', severity: AlertSeverity.HIGH, dueAt: new Date(), generated: false });
-      }
-
-      // Missing license document alert for critical types
-      const licenseRequiresDoc = ['Tecnólogo SST', 'Profesional SST', 'Especialista SST'].includes(record.licenseType);
-      const hasLicenseDocument = record.documents.some((document) =>
-        document.type === ResponsableSstDocumentType.SST_LICENSE_PDF ||
-        document.type === ResponsableSstDocumentType.SST_LICENSE_SCANNED
-      );
-      if (licenseRequiresDoc && !hasLicenseDocument) {
-        alerts.push({
-          type: 'PHVA_RESPONSABLE_SST_LICENSE_DOC_MISSING',
-          message: `Documento de licencia SST requerido para tipo "${record.licenseType}" no ha sido cargado.`,
-          severity: AlertSeverity.HIGH,
-          dueAt: new Date(),
-          generated: false,
-        });
-      }
+    // NOTA normativa (Fase 1.1.1): NO se generan alertas de vencimiento de
+    // licencia SST basadas en el paso del tiempo. La licencia no posee
+    // vencimiento normativo obligatorio; una fecha documental opcional no se
+    // convierte en regla universal de alertas. La única alerta de licencia es
+    // documental: documento requerido no cargado para tipos que lo exigen.
+    const licenseRequiresDoc = ['Tecnólogo SST', 'Profesional SST', 'Especialista SST'].includes(record.licenseType);
+    const hasLicenseDocument = record.documents.some((document) =>
+      document.type === ResponsableSstDocumentType.SST_LICENSE_PDF ||
+      document.type === ResponsableSstDocumentType.SST_LICENSE_SCANNED
+    );
+    if (licenseRequiresDoc && !hasLicenseDocument) {
+      alerts.push({
+        type: 'PHVA_RESPONSABLE_SST_LICENSE_DOC_MISSING',
+        message: `Documento de licencia SST requerido para tipo "${record.licenseType}" no ha sido cargado.`,
+        severity: AlertSeverity.HIGH,
+        dueAt: new Date(),
+        generated: false,
+      });
     }
     if (this.isCourseOlderThanThreeYears(record.course50HoursDate)) {
       alerts.push({ type: 'PHVA_RESPONSABLE_SST_COURSE_EXPIRED', message: 'Curso vencido: requiere actualización 20 horas.', severity: AlertSeverity.HIGH, dueAt: new Date(), generated: false });
@@ -2025,6 +2911,30 @@ export class PhvaAdvancedService {
     return this.saveSstPolicyWithCompliance(record);
   }
 
+  /**
+   * Getter de lectura de una política SST por id (sin crear un registro como
+   * hace findOrCreate). Usado por el handler cuando getEntity llega con
+   * entityId.
+   */
+  async findSstPolicyById(id: Types.ObjectId): Promise<SstPolicyDocument> {
+    const record = await this.sstPolicyModel.findById(id).exec();
+    if (!record) throw new NotFoundException('SST Policy not found');
+    return record;
+  }
+
+  /**
+   * Getter de lectura de la política vigente de la empresa (itemCode fijo
+   * '2.1.1', sin crear un registro como hace findOrCreate). Usado por el
+   * handler cuando getEntity llega sin entityId.
+   */
+  async findSstPolicyByCompany(companyId: Types.ObjectId): Promise<SstPolicyDocument> {
+    const record = await this.sstPolicyModel
+      .findOne({ companyId, itemCode: '2.1.1' })
+      .exec();
+    if (!record) throw new NotFoundException('SST Policy not found');
+    return record;
+  }
+
   async approveSstPolicy(companyId: Types.ObjectId, user: UserDocument) {
     const record = await this.findOrCreateSstPolicy(companyId);
     const missingRequired = record.signatures.filter((signature) => signature.required && signature.status !== PolicySignatureStatus.SIGNED);
@@ -2185,6 +3095,29 @@ export class PhvaAdvancedService {
     const current = await this.trainingManagementModel.findOne({ companyId, itemCode: '1.2.1' }).exec();
     if (current) return current;
     return this.trainingManagementModel.create({ companyId, itemCode: '1.2.1' });
+  }
+
+  /**
+   * Getter de lectura por identificador (sin crear registros). Usado por el
+   * TrainingManagementHandler del Approval Workflow Core.
+   */
+  async findTrainingManagementById(id: Types.ObjectId): Promise<TrainingManagementDocument> {
+    const record = await this.trainingManagementModel.findById(id).exec();
+    if (!record) throw new NotFoundException('Training management not found');
+    return record;
+  }
+
+  /**
+   * Getter de lectura del registro vigente de la empresa (sin crear un
+   * registro como hace findOrCreate). Usado por el handler cuando getEntity
+   * llega sin entityId.
+   */
+  async findTrainingManagementByCompany(companyId: Types.ObjectId): Promise<TrainingManagementDocument> {
+    const record = await this.trainingManagementModel
+      .findOne({ companyId, itemCode: '1.2.1' })
+      .exec();
+    if (!record) throw new NotFoundException('Training management not found');
+    return record;
   }
 
   async updateTrainingManagement(companyId: Types.ObjectId, user: UserDocument, dto: Partial<TrainingManagement>) {

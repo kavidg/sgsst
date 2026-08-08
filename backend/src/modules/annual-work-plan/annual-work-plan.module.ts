@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { AlertsModule } from '../alerts/alerts.module';
+import { ApprovalWorkflowModule } from '../approval-workflow/approval-workflow.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { AnnualWorkPlanController } from './annual-work-plan.controller';
@@ -26,6 +27,7 @@ import { PlanHistory, PlanHistorySchema } from './schemas/plan-history.schema';
     AuthModule,
     UsersModule,
     AlertsModule,
+    forwardRef(() => ApprovalWorkflowModule),
     MongooseModule.forFeature([
       { name: AnnualWorkPlan.name, schema: AnnualWorkPlanSchema },
       { name: PlanActivity.name, schema: PlanActivitySchema },

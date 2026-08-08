@@ -64,4 +64,21 @@ export class UpdateResponsableSstDto {
   @IsOptional()
   @IsString()
   course20HoursDate?: string;
+
+  // === Designación del Responsable SG-SST (Fase 8.3.C) ===
+  @IsOptional()
+  @IsString()
+  designationDate?: string;
+
+  @IsOptional()
+  @IsString()
+  designationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  designationIssuerName?: string;
+
+  @IsOptional()
+  @IsString()
+  designationIssuerPosition?: string;
 }

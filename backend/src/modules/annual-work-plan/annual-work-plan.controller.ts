@@ -18,6 +18,12 @@ import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { RolesGuard } from '../questions/roles.guard';
 import { Roles } from '../questions/roles.decorator';
 import { UsersService } from '../users/users.service';
+import { UserDocument } from '../users/schemas/user.schema';
+import { ApprovalWorkflowService } from '../approval-workflow/approval-workflow.service';
+import { ApprovalEntity } from '../approval-workflow/enums/approval-entity.enum';
+import { ApprovalDecision } from '../approval-workflow/enums/approval-decision.enum';
+import { ApprovalActor } from '../approval-workflow/interfaces/approval-actor.interface';
+import { buildApprovalActor } from '../approval-workflow/helpers/approval-actor.helper';
 import { AnnualWorkPlanService } from './services/annual-work-plan.service';
 import { CreateAnnualWorkPlanDto, ApproveAnnualWorkPlanDto } from './dto/create-annual-work-plan.dto';
 import { CreatePlanActivityDto, UpdatePlanActivityDto } from './dto/create-plan-activity.dto';
@@ -35,6 +41,7 @@ export class AnnualWorkPlanController {
   constructor(
     private readonly annualWorkPlanService: AnnualWorkPlanService,
     private readonly usersService: UsersService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
   ) {}
 
   // ==================== PLAN ENDPOINTS ====================
@@ -101,16 +108,31 @@ export class AnnualWorkPlanController {
     @Body() dto: ApproveAnnualWorkPlanDto,
     @Req() request: RequestWithUser,
   ) {
+    const companyId = this.resolveCompanyId(request);
     const user = await this.resolveUserFromRequest(request);
-    return this.annualWorkPlanService.approve(
-      new Types.ObjectId(id),
-      user._id,
-      dto.approvedByEmail,
-      dto.approvedByName,
-      dto.signatureHash,
-      dto.signatureUrl,
-      dto.comments,
+
+    // Fase 3 — Delegar al Approval Workflow Core. El adapter reutiliza
+    // AnnualWorkPlanService.approve (conserva firma, comments y PlanHistory)
+    // y `result.applied` mantiene la misma respuesta del frontend.
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.ANNUAL_WORK_PLAN,
+      id,
+      {
+        decision: ApprovalDecision.APPROVED,
+        comments: dto.comments,
+        metadata: {
+          approvedById: user._id.toString(),
+          signerName: dto.approvedByName,
+          signerEmail: dto.approvedByEmail,
+          signatureHash: dto.signatureHash,
+          signatureUrl: dto.signatureUrl,
+        },
+      },
+      this.buildActor(user),
     );
+
+    return result.applied;
   }
 
   @Delete(':id')
@@ -438,5 +460,19 @@ export class AnnualWorkPlanController {
     const user = await this.usersService.findByFirebaseUid(firebaseUid);
     if (!user) throw new ForbiddenException('Authenticated user is not registered');
     return user;
+  }
+
+  /**
+   * Construye el actor del Approval Workflow Core a partir del usuario real
+   * usando el helper central buildApprovalActor (ObjectId + firebaseUid).
+   */
+  private buildActor(user: UserDocument): ApprovalActor {
+    return buildApprovalActor({
+      userId: user._id.toString(),
+      firebaseUid: user.firebaseUid,
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`.trim(),
+      role: user.role,
+    });
   }
 }

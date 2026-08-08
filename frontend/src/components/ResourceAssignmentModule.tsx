@@ -19,6 +19,8 @@ import {
   AdvancedHeader,
   AdvancedKpiGrid,
 } from './advanced-layout';
+import { AdvancedModuleReportTemplate } from '../pdf/templates/AdvancedModuleReportTemplate';
+import { exportAdvancedPdf } from '../pdf/utils/exportAdvancedPdf';
 
 // ============================================================
 // CONSTANTS
@@ -526,27 +528,31 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
             label: '📄 Exportar PDF',
             variant: 'secondary' as const,
             onClick: () => {
-              const reportLines = [
-                '=== ASIGNACIÓN DE RECURSOS SG-SST ===',
-                `Empresa: Documento REC-SST-001`,
-                `Versión: v${currentVersion}`,
-                `Estado: ${approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador'}`,
-                `Generado: ${new Date().toLocaleString()}`,
-                '',
-                `Recursos financieros: ${totalFinancial}`,
-                `Recursos humanos: ${totalHuman}`,
-                `Recursos técnicos: ${totalTechnical}`,
-                `Evidencias: ${totalEvidences}`,
-                '',
-                '=== FIN DEL REPORTE ===',
-              ];
-              const blob = new Blob([reportLines.join('\n')], { type: 'text/plain' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `asignacion-recursos-sst-v${currentVersion}.txt`;
-              a.click();
-              URL.revokeObjectURL(url);
+              void exportAdvancedPdf({
+                filename: `asignacion-recursos-sst-v${currentVersion}.pdf`,
+                document: (
+                  <AdvancedModuleReportTemplate
+                    data={{
+                      title: 'Asignación de Recursos SG-SST',
+                      companyName: 'Documento REC-SST-001',
+                      version: `v${currentVersion}`,
+                      status: approvalStatus === 'APPROVED' ? 'Aprobado' : approvalStatus === 'PENDING_APPROVAL' ? 'Pendiente' : approvalStatus === 'ARCHIVED' ? 'Archivado' : 'Borrador',
+                      generatedAt: new Date().toLocaleString(),
+                      sections: [
+                        {
+                          title: 'Resumen de recursos',
+                          rows: [
+                            { label: 'Recursos financieros', value: String(totalFinancial) },
+                            { label: 'Recursos humanos', value: String(totalHuman) },
+                            { label: 'Recursos técnicos', value: String(totalTechnical) },
+                            { label: 'Evidencias', value: String(totalEvidences) },
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                ),
+              });
               notify('📄 Reporte exportado.');
             },
           },
@@ -689,7 +695,7 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
               {budgetTab === 'general' && (
                 <>
                   {/* KPI Card Header */}
-                  <div className="budget-page__kpi-grid">
+                  <AdvancedKpiGrid>
                     <article className="budget-page__kpi-card budget-page__kpi-card--primary">
                       <span className="budget-page__kpi-label">Presupuesto Programado</span>
                       <span className="budget-page__kpi-value">{formatCurrency(totalBudgeted)}</span>
@@ -706,7 +712,7 @@ export default function ResourceAssignmentModule({ token }: { token: string }) {
                       <span className="budget-page__kpi-label">% Ejecutado</span>
                       <span className="budget-page__kpi-value">{executionPercent}%</span>
                     </article>
-                  </div>
+                  </AdvancedKpiGrid>
 
                   {/* Progress Bar */}
                   <div className="resource-page__section">

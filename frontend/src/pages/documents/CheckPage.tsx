@@ -1,10 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useDocumentsEvaluation } from './evaluationState';
+import { usePhvaCatalog } from '../../hooks/usePhvaCatalog';
+import { mergeCatalogItems } from './utils/mergeCatalogItems';
+import { groupCatalogItems } from './utils/groupCatalogItems';
+import { shouldUseCatalogSet, hasCatalogSectionItems, catalogItemToEvaluationItem } from './utils/shouldUseCatalogSet';
+import type { StandardSection } from '../../models/standard-catalog';
+import type { PhvaCatalogItem } from '../../services/phva-catalog.service';
 
 type EvaluationEntry = {
   code: string;
@@ -12,6 +18,8 @@ type EvaluationEntry = {
   weight: number;
   modeReview: string;
   criteria: string;
+  /** Sección del PHVA desde el StandardCatalog (opcional — FASE 7.5). */
+  section?: StandardSection;
 };
 
 const verificacionItems: EvaluationEntry[] = [
@@ -57,6 +65,62 @@ export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
+  // ────────────────────────────────────────────────────────────────────────
+  // FASE 7.5 — Migración piloto: StandardCatalog como fuente de datos.
+  //
+  // Se consume usePhvaCatalog() y se filtran únicamente los estándares de la
+  // fase VERIFICAR (fuente única de verdad: cada página consume SOLO su fase,
+  // sin excepciones cross-phase). El array legacy (verificacionItems) NO se
+  // elimina: permanece como respaldo cuando el catálogo falla o está vacío
+  // (la pantalla nunca queda vacía) y como referencia del orden actual.
+  //
+  // Para cada estándar, si el catálogo VERIFICAR contiene criteria/modeReview/
+  // section se usan esos valores; si no existen, se mantienen los textos
+  // legacy. registerSection se mantiene exactamente igual (los códigos y pesos
+  // son idénticos entre legacy y merge).
+  // ────────────────────────────────────────────────────────────────────────
+  const { catalog, error } = usePhvaCatalog();
+
+  const verificarCatalogByCode = useMemo(() => {
+    const byCode = new Map<string, PhvaCatalogItem>();
+    for (const item of catalog) {
+      if (item.phva === 'VERIFICAR') byCode.set(item.code, item);
+    }
+    return byCode;
+  }, [catalog]);
+
+  const useCatalog = !error && catalog.length > 0;
+
+  // FASE 7.7.F — Metadata de secciones desde el StandardCatalog. groupCatalogItems
+  // agrupa los estándares del catálogo por section.id (título y porcentaje). El
+  // título del catálogo es byte-idéntico al hardcodeado de la página (copiado en
+  // 7.7.B.1), por lo que el cambio visual es nulo. Si el catálogo falla o está
+  // vacío, se usa exactamente el título legacy actual.
+  const catalogSections = useMemo(() => (useCatalog ? groupCatalogItems(catalog) : {}), [catalog, useCatalog]);
+
+  // FASE 7.7.G — Migración controlada del set PHVA. shouldUseCatalogSet valida
+  // la completitud del catálogo del nivel para la fase VERIFICAR (sin conteos
+  // fijos). Si la fase tiene todos sus estándares con metadata completa, la
+  // sección renderiza los ítems del catálogo agrupados por section.id (misma
+  // interfaz {code, title, weight, criteria, modeReview, section}). Si no, se
+  // usan los arrays legacy con el merge de metadata (fallback — la pantalla
+  // nunca queda vacía).
+  const catalogGroups = useMemo(() => groupCatalogItems(catalog), [catalog]);
+  const useCatalogSet =
+    shouldUseCatalogSet('VERIFICAR', catalog) &&
+    hasCatalogSectionItems(catalogGroups, ['check-verificacion']);
+
+  // Array memoizado (referencia estable) para evitar re-renders. Si el
+  // catálogo no está disponible se usa el array legacy tal cual (FASE 7.7.B.2
+  // — merge consolidado en mergeCatalogItems).
+  const verificacionItemsMerged = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['check-verificacion']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(verificacionItems, verificarCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, verificarCatalogByCode, useCatalog],
+  );
+
   useEffect(() => {
     registerSection('check-verificacion', {
       title: 'Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)',
@@ -71,10 +135,10 @@ export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
       />
       {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
-      <Card title="Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)" className={sectionErrors.has('check-verificacion') ? 'card--error' : ''}>
+      <Card title={catalogSections['check-verificacion']?.title ?? 'Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)'} className={sectionErrors.has('check-verificacion') ? 'card--error' : ''}>
         <p className="muted">Gestión y resultados del SG-SST (5%)</p>
         <div className="evaluation-list" style={{ marginTop: '1rem' }}>
-          {verificacionItems.map((item, index) => (
+          {verificacionItemsMerged.map((item, index) => (
             <div key={item.code} className="evaluation-list__row">
               <EvaluationItem
                 {...item}
@@ -83,7 +147,7 @@ export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
                 readOnly={readOnly}
                 onStatusChange={(code, status) => setAnswerStatus(code, status)}
               />
-              {index < verificacionItems.length - 1 ? <hr className="evaluation-list__divider" /> : null}
+              {index < verificacionItemsMerged.length - 1 ? <hr className="evaluation-list__divider" /> : null}
             </div>
           ))}
         </div>

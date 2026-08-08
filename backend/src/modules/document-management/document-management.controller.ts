@@ -36,6 +36,12 @@ import {
   ChangeDocumentStatusDto,
 } from './dto/create-document.dto';
 import { DocumentType, DocumentStatus } from './schemas/document-master.schema';
+import { ApprovalWorkflowService } from '../approval-workflow/approval-workflow.service';
+import { ApprovalEntity } from '../approval-workflow/enums/approval-entity.enum';
+import { ApprovalDecision } from '../approval-workflow/enums/approval-decision.enum';
+import { ApprovalActor } from '../approval-workflow/interfaces/approval-actor.interface';
+import { buildApprovalActor } from '../approval-workflow/helpers/approval-actor.helper';
+import { UserDocument } from '../users/schemas/user.schema';
 
 @Controller('document-management')
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
@@ -47,6 +53,7 @@ export class DocumentManagementController {
     private readonly historyService: DocumentHistoryService,
     private readonly alertService: DocumentAlertService,
     private readonly usersService: UsersService,
+    private readonly approvalWorkflowService: ApprovalWorkflowService,
   ) {}
 
   // ==================== DOCUMENT CRUD ====================
@@ -208,12 +215,29 @@ export class DocumentManagementController {
   ) {
     const companyId = this.resolveCompanyId(request);
     const user = await this.resolveUserFromRequest(request);
-    return this.documentService.submitForApproval(
+
+    // Lógica documental existente (DocumentApproval, alerta e historial).
+    const approval = await this.documentService.submitForApproval(
       new Types.ObjectId(id),
       companyId,
       user._id,
       dto.comments,
     );
+
+    // Fase 2 — Registrar la solicitud en el Approval Workflow Core.
+    await this.approvalWorkflowService.createRequest(
+      companyId.toString(),
+      {
+        module: ApprovalEntity.DOCUMENT,
+        entityType: 'DocumentMaster',
+        entityId: id,
+        assignedRoles: ['owner', 'manager'],
+        comments: dto.comments,
+      },
+      this.buildActor(user),
+    );
+
+    return approval;
   }
 
   @Get('approvals/pending')
@@ -239,16 +263,31 @@ export class DocumentManagementController {
   ) {
     const companyId = this.resolveCompanyId(request);
     const user = await this.resolveUserFromRequest(request);
-    return this.documentService.approve(
+
+    // Resuelve el documento asociado para delegar al Approval Workflow Core.
+    const approval = await this.documentService.findApprovalById(
       new Types.ObjectId(approvalId),
-      companyId,
-      new Types.ObjectId(dto.approvedBy),
-      dto.comments,
-      dto.signatureHash,
-      dto.signatureUrl,
-      dto.signerName,
-      dto.signerEmail,
     );
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.DOCUMENT,
+      approval.documentId.toString(),
+      {
+        decision: ApprovalDecision.APPROVED,
+        comments: dto.comments,
+        metadata: {
+          approvedById: dto.approvedBy,
+          signatureHash: dto.signatureHash,
+          signatureUrl: dto.signatureUrl,
+          signerName: dto.signerName,
+          signerEmail: dto.signerEmail,
+        },
+      },
+      this.buildActor(user),
+    );
+
+    // Mantiene la misma respuesta del frontend ({ approval, document }).
+    return result.applied;
   }
 
   @Post('approvals/:approvalId/reject')
@@ -256,12 +295,27 @@ export class DocumentManagementController {
   async reject(
     @Param('approvalId') approvalId: string,
     @Body() dto: RejectDocumentDto,
+    @Req() request: RequestWithUser,
   ) {
-    return this.documentService.reject(
+    const companyId = this.resolveCompanyId(request);
+    const user = await this.resolveUserFromRequest(request);
+
+    const approval = await this.documentService.findApprovalById(
       new Types.ObjectId(approvalId),
-      dto.rejectionReason,
-      dto.comments,
     );
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.DOCUMENT,
+      approval.documentId.toString(),
+      {
+        decision: ApprovalDecision.REJECTED,
+        reason: dto.rejectionReason,
+        comments: dto.comments,
+      },
+      this.buildActor(user),
+    );
+
+    return result.applied;
   }
 
   // ==================== DIGITAL SIGNATURES ====================
@@ -526,5 +580,19 @@ export class DocumentManagementController {
     const user = await this.usersService.findByFirebaseUid(firebaseUid);
     if (!user) throw new ForbiddenException('Authenticated user is not registered');
     return user;
+  }
+
+  /**
+   * Construye el actor del Approval Workflow Core a partir del usuario real
+   * usando el helper central buildApprovalActor (ObjectId + firebaseUid).
+   */
+  private buildActor(user: UserDocument): ApprovalActor {
+    return buildApprovalActor({
+      userId: user._id.toString(),
+      firebaseUid: user.firebaseUid,
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`.trim(),
+      role: user.role,
+    });
   }
 }

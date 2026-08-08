@@ -65,6 +65,12 @@ import { Card } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
 import { Sheet } from '../../components/ui/Sheet';
 import { useDocumentsEvaluation } from './evaluationState';
+import { usePhvaCatalog } from '../../hooks/usePhvaCatalog';
+import { mergeCatalogItems } from './utils/mergeCatalogItems';
+import { groupCatalogItems } from './utils/groupCatalogItems';
+import { shouldUseCatalogSet, hasCatalogSectionItems, catalogItemToEvaluationItem } from './utils/shouldUseCatalogSet';
+import type { StandardSection } from '../../models/standard-catalog';
+import type { PhvaCatalogItem } from '../../services/phva-catalog.service';
 import CommunicationAdvancedPanel from '../../components/CommunicationAdvancedPanel';
 import { ResponsableSstPanel } from '../../components/ResponsableSstPanel';
 
@@ -281,6 +287,8 @@ type EvaluationEntry = {
   weight: number;
   modeReview: string;
   criteria: string;
+  /** Sección del PHVA desde el StandardCatalog (opcional — pilotos FASE 7.3). */
+  section?: StandardSection;
 };
 
 type AdvancedManagementForm = {
@@ -329,6 +337,7 @@ const documentLabels: Record<string, string> = {
   SST_LICENSE_SCANNED: 'Licencia SST Escaneada',
   SST_LICENSE_RESOLUTION: 'Resolución Licencia SST',
   SST_LICENSE_SUPPORTING: 'Soporte Licencia SST',
+  DESIGNATION: 'Documento de designación',
 };
 
 function toDateInputValue(value?: string | Date) {
@@ -869,8 +878,9 @@ function AdvancedManagementPanel({
       ['profession', 'Profesión'],
       ['sstProfessionalType', 'Tipo profesional SST'],
       ['sstLicenseNumber', 'Número licencia SST'],
-      ['licenseExpiresAt', 'Fecha vencimiento licencia'],
       ['course50HoursDate', 'Fecha curso 50 horas'],
+      // NOTA normativa (1.1.1): licenseExpiresAt NO es obligatorio. La licencia
+      // SST no posee vencimiento normativo; el campo es opcional y documental.
     ];
 
     requiredFields.forEach(([key, label]) => {
@@ -879,17 +889,24 @@ function AdvancedManagementPanel({
 
     if (!hasDocument('DIPLOMA')) messages.push('Diploma cargado es obligatorio.');
     if (!hasDocument('FIFTY_HOUR_CERTIFICATE')) messages.push('Certificado curso 50 horas cargado es obligatorio.');
+    // Fase 8.3.C — la designación es evidencia obligatoria del estándar 1.1.1.
+    if (!hasDocument('DESIGNATION')) messages.push('Documento de designación es obligatorio.');
     if (requires20HourUpdate && !form.course20HoursDate.trim()) messages.push('Fecha curso 20 horas es obligatoria porque el curso 50 horas tiene más de 3 años.');
     if (requires20HourUpdate && !hasDocument('TWENTY_HOUR_UPDATE_CERTIFICATE')) messages.push('Certificado actualización 20 horas es obligatorio porque el curso 50 horas tiene más de 3 años.');
-    if (form.licenseExpiresAt && new Date(`${form.licenseExpiresAt}T00:00:00.000Z`) < new Date(new Date().toISOString().slice(0, 10))) messages.push('La licencia SST está expirada.');
+    // NOTA normativa (1.1.1): la fecha de vigencia documental de la licencia
+    // no genera incumplimiento automático por el paso del tiempo. Se conserva
+    // únicamente como dato informativo cuando existe.
 
     return messages;
   }, [form, pendingDocuments, requires20HourUpdate, savedRecord]);
 
   const quickBadges = [
-    { label: 'Licencia vigente', ok: Boolean(form.licenseExpiresAt && new Date(`${form.licenseExpiresAt}T00:00:00.000Z`) >= new Date(new Date().toISOString().slice(0, 10))) },
+    // NOTA normativa (1.1.1): el badge evalúa la existencia de la licencia
+    // (número documentado), NO una fecha de vencimiento que no es requisito.
+    { label: 'Licencia registrada', ok: Boolean(form.sstLicenseNumber.trim()) },
     { label: 'Curso vigente', ok: Boolean(form.course50HoursDate && !requires20HourUpdate) },
-    { label: 'Documentos completos', ok: hasDocument('DIPLOMA') && hasDocument('FIFTY_HOUR_CERTIFICATE') && (!requires20HourUpdate || hasDocument('TWENTY_HOUR_UPDATE_CERTIFICATE')) },
+    // Fase 8.3.C — la designación es evidencia obligatoria del estándar 1.1.1.
+    { label: 'Documentos completos', ok: hasDocument('DIPLOMA') && hasDocument('FIFTY_HOUR_CERTIFICATE') && hasDocument('DESIGNATION') && (!requires20HourUpdate || hasDocument('TWENTY_HOUR_UPDATE_CERTIFICATE')) },
   ];
 
   useEffect(() => {
@@ -1092,7 +1109,7 @@ function AdvancedManagementPanel({
           <label className="field"><span className="label">Tipo profesional SST</span><input className="input" value={form.sstProfessionalType} disabled={readOnly} placeholder="Profesional SST / Posgrado SST" onChange={(event) => updateField('sstProfessionalType', event.target.value)} /></label>
           <div className="grid grid-2">
             <label className="field"><span className="label">Número licencia SST</span><input className="input" value={form.sstLicenseNumber} disabled={readOnly} onChange={(event) => updateField('sstLicenseNumber', event.target.value)} /></label>
-            <label className="field"><span className="label">Fecha vencimiento licencia</span><input type="date" className="input" value={form.licenseExpiresAt} disabled={readOnly} onChange={(event) => updateField('licenseExpiresAt', event.target.value)} /></label>
+            <label className="field"><span className="label">Vigencia indicada en documento (opcional)</span><input type="date" className="input" value={form.licenseExpiresAt} disabled={readOnly} onChange={(event) => updateField('licenseExpiresAt', event.target.value)} /></label>
           </div>
           <div className="grid grid-2">
             <label className="field"><span className="label">Fecha curso 50 horas</span><input type="date" className="input" value={form.course50HoursDate} disabled={readOnly} onChange={(event) => updateField('course50HoursDate', event.target.value)} /></label>
@@ -1107,7 +1124,7 @@ function AdvancedManagementPanel({
       <section className="advanced-management__section">
         <h3>Documentos</h3>
         <div className="advanced-management__documents">
-          {(['DIPLOMA', 'FIFTY_HOUR_CERTIFICATE'] as ResponsableSstDocumentType[]).concat(requires20HourUpdate ? ['TWENTY_HOUR_UPDATE_CERTIFICATE'] : []).map((type) => {
+          {(['DIPLOMA', 'FIFTY_HOUR_CERTIFICATE', 'DESIGNATION'] as ResponsableSstDocumentType[]).concat(requires20HourUpdate ? ['TWENTY_HOUR_UPDATE_CERTIFICATE'] : []).map((type) => {
             const existing = savedRecord?.documents.find((document) => document.type === type);
             const pending = pendingDocuments[type];
             return (
@@ -1294,6 +1311,89 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
   const [discardRequest, setDiscardRequest] = useState(0);
   const [closeAfterSave, setCloseAfterSave] = useState(false);
 
+  // ────────────────────────────────────────────────────────────────────────
+  // FASE 7.3 — Migración piloto: StandardCatalog como fuente de datos.
+  //
+  // Se consume usePhvaCatalog() y se filtran únicamente los estándares
+  // PLANEAR. Los ítems legacy (financialResourcesItems, trainingItems,
+  // integralManagementItems) NO se eliminan: permanecen como mecanismo de
+  // respaldo cuando el catálogo falla o está vacío (la pantalla nunca queda
+  // vacía) y como referencia del orden actual.
+  //
+  // Para cada estándar, si el catálogo contiene criteria/modeReview/section
+  // se usan esos valores; si no existen, se mantienen los textos legacy.
+  // ────────────────────────────────────────────────────────────────────────
+  const { catalog, error } = usePhvaCatalog(token);
+
+  const planearCatalogByCode = useMemo(() => {
+    const byCode = new Map<string, PhvaCatalogItem>();
+    for (const item of catalog) {
+      if (item.phva === 'PLANEAR') byCode.set(item.code, item);
+    }
+    return byCode;
+  }, [catalog]);
+
+  const useCatalog = !error && catalog.length > 0;
+
+  // FASE 7.7.F — Metadata de secciones desde el StandardCatalog. groupCatalogItems
+  // agrupa los estándares del catálogo por section.id (título y porcentaje). Los
+  // títulos del catálogo son byte-idénticos a los hardcodeados de la página
+  // (copiados en 7.7.B.1), por lo que el cambio visual es nulo. Si el catálogo
+  // falla o está vacío, se usan exactamente los títulos legacy actuales.
+  const catalogSections = useMemo(() => (useCatalog ? groupCatalogItems(catalog) : {}), [catalog, useCatalog]);
+
+  // FASE 7.7.G — Migración controlada del set PHVA. shouldUseCatalogSet valida
+  // la completitud del catálogo del nivel para la fase (sin conteos fijos). Si
+  // la fase tiene todos sus estándares con metadata completa, las secciones
+  // renderizan los ítems del catálogo agrupados por section.id (misma interfaz
+  // {code, title, weight, criteria, modeReview, section}). Si no, se usan los
+  // arrays legacy con el merge de metadata (fallback — la pantalla nunca queda
+  // vacía).
+  const catalogGroups = useMemo(() => groupCatalogItems(catalog), [catalog]);
+  const useCatalogSet =
+    shouldUseCatalogSet('PLANEAR', catalog) &&
+    hasCatalogSectionItems(catalogGroups, ['plan-recursos', 'plan-capacitacion', 'plan-gestion-integral']);
+
+  // Arrays memoizados (referencias estables) para que registerSection no se
+  // vuelva a registrar en cada render. Si el catálogo no está disponible se
+  // usan los arrays legacy tal cual (FASE 7.7.B.2 — merge consolidado en
+  // mergeCatalogItems).
+  const financialResources = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['plan-recursos']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(financialResourcesItems, planearCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, planearCatalogByCode, useCatalog],
+  );
+  const training = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['plan-capacitacion']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(trainingItems, planearCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, planearCatalogByCode, useCatalog],
+  );
+  const integralManagement = useMemo(
+    () =>
+      useCatalogSet
+        ? (catalogGroups['plan-gestion-integral']?.items ?? []).map(catalogItemToEvaluationItem)
+        : mergeCatalogItems(integralManagementItems, planearCatalogByCode, useCatalog),
+    [useCatalogSet, catalogGroups, planearCatalogByCode, useCatalog],
+  );
+
+  // FASE 7.7.E — Dispatcher consolidado: StandardCatalog.moduleRoute es la
+  // fuente única para saber qué estándares tienen panel avanzado. Solo las
+  // rutas de panel avanzado (/advanced-management/*) navegan; cualquier otro
+  // moduleRoute (misma página PHVA o módulo general) mantiene el panel interno
+  // actual. Si el estándar no existe en el catálogo, se usa el panel interno.
+  const onOpenAdvancedManagement = (item: EvaluationEntry) => {
+    const catalogItem = planearCatalogByCode.get(item.code);
+    if (catalogItem?.moduleRoute?.startsWith('/advanced-management/')) {
+      navigate(catalogItem.moduleRoute);
+      return;
+    }
+    setAdvancedManagementItem(item);
+  };
+
   const closeAdvancedManagement = () => {
     setAdvancedManagementItem(null);
     setShowUnsavedModal(false);
@@ -1314,38 +1414,20 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
       />
       {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
       <EvaluationSection
-        title="Recursos financieros, técnicos, humanos... (4%)"
-        items={financialResourcesItems}
+        title={catalogSections['plan-recursos']?.title ?? 'Recursos financieros, técnicos, humanos... (4%)'}
+        items={financialResources}
         sectionId="plan-recursos"
         readOnly={readOnly}
-        onOpenAdvancedManagement={(item) => {
-            if (item.code === '1.1.2') {
-              navigate('/advanced-management/1.1.2');
-            } else if (item.code === '1.1.3') {
-              navigate('/advanced-management/1.1.3');
-            } else if (item.code === '1.1.6') {
-              navigate('/advanced-management/1.1.6');
-            } else if (item.code === '1.1.8') {
-              navigate('/advanced-management/1.1.8');
-            } else {
-              setAdvancedManagementItem(item);
-            }
-          }}
+        onOpenAdvancedManagement={onOpenAdvancedManagement}
       />
       <EvaluationSection
-        title="Capacitación en el SG-SST (6%)"
-        items={trainingItems}
+        title={catalogSections['plan-capacitacion']?.title ?? 'Capacitación en el SG-SST (6%)'}
+        items={training}
         sectionId="plan-capacitacion"
         readOnly={readOnly}
-        onOpenAdvancedManagement={(item) => {
-            if (item.code === '1.2.1') {
-              navigate('/advanced-management/1.2.1');
-            } else {
-              setAdvancedManagementItem(item);
-            }
-          }}
+        onOpenAdvancedManagement={onOpenAdvancedManagement}
       />
-      <EvaluationSection title="Gestión Integral del SG-SST (15%)" items={integralManagementItems} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={(item) => { if (item.code === '2.6.1') { navigate('/accountability'); } else if (item.code === '2.1.1') { navigate('/advanced-management/2.1.1'); } else if (item.code === '2.4.1') { navigate('/advanced-management/2.4.1'); } else { setAdvancedManagementItem(item); } }}>
+      <EvaluationSection title={catalogSections['plan-gestion-integral']?.title ?? 'Gestión Integral del SG-SST (15%)'} items={integralManagement} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/do')}>
             Siguiente → Hacer

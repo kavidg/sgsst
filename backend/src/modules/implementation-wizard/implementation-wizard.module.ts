@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ImplementationWizardController } from './implementation-wizard.controller';
 import { ImplementationWizardService } from './implementation-wizard.service';
 import { ImplementationWizard, ImplementationWizardSchema } from './schemas/implementation-wizard.schema';
+import { ImplementationValidatorModule } from '../implementation-validator/implementation-validator.module';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 
@@ -10,6 +11,7 @@ import { UsersModule } from '../users/users.module';
   imports: [
     AuthModule,
     UsersModule,
+    ImplementationValidatorModule,
     MongooseModule.forFeature([
       { name: ImplementationWizard.name, schema: ImplementationWizardSchema },
     ]),

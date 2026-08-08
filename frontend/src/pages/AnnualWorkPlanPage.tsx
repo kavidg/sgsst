@@ -67,13 +67,6 @@ const PRIORITY_LABELS: Record<string, string> = {
   Critical: 'Crítica',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  Draft: '#f59e0b',
-  Active: '#3b82f6',
-  Completed: '#10b981',
-  Archived: '#6b7280',
-};
-
 const ACTIVITY_STATUS_COLORS: Record<string, string> = {
   Pending: '#f59e0b',
   InProgress: '#3b82f6',
@@ -630,7 +623,7 @@ export function AnnualWorkPlanPage({ token }: AnnualWorkPlanPageProps) {
               { label: 'Actividades', value: activities.length },
               { label: 'Tareas', value: kpis.totalTasks, variant: 'info' },
             ]}
-            columns={5}
+            columns={4}
           />
           {plan.approval ? (
             <Card style={{ marginTop: '1rem' }}>

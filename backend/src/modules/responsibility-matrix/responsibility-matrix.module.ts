@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ApprovalWorkflowModule } from '../approval-workflow/approval-workflow.module';
 import { AuthModule } from '../auth/auth.module';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { RolesGuard } from '../questions/roles.guard';
@@ -16,6 +17,7 @@ import { WorkerSignatureCampaignModule } from '../worker-signature-campaign/work
     AuthModule,
     UsersModule,
     WorkerSignatureCampaignModule,
+    forwardRef(() => ApprovalWorkflowModule),
     MongooseModule.forFeature([
       { name: ResponsibilityMatrix.name, schema: ResponsibilityMatrixSchema },
       { name: User.name, schema: UserSchema },

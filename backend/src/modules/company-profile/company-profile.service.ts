@@ -4,6 +4,17 @@ import { Model, Types } from 'mongoose';
 import { Company } from '../companies/schemas/company.schema';
 import { CompanyProfile, CompanyProfileDoc } from './schemas/company-profile.schema';
 
+/**
+ * Campos obligatorios que determinan la completitud del perfil de empresa.
+ * Fuente única de verdad para calculateCompletion y para el
+ * CompanyInfoProvider del Implementation Validator Engine.
+ */
+export const COMPANY_PROFILE_REQUIRED_FIELDS: Array<keyof CompanyProfile> = [
+  'companyName', 'legalName', 'nit', 'economicSector', 'verificationDigit', 'companySize', 'riskLevel', 'companyType',
+  'address', 'city', 'department', 'phone', 'email',
+  'totalEmployees', 'directEmployees', 'arlName', 'sstStartDate', 'implementationStatus',
+];
+
 @Injectable()
 export class CompanyProfileService {
   constructor(
@@ -143,11 +154,7 @@ export class CompanyProfileService {
 
   // ============ COMPLETION CALCULATION ============
   async calculateCompletion(profile: CompanyProfileDoc): Promise<CompanyProfileDoc> {
-    const requiredFields: Array<keyof CompanyProfile> = [
-      'companyName', 'legalName', 'nit', 'economicSector', 'verificationDigit', 'companySize', 'riskLevel', 'companyType',
-      'address', 'city', 'department', 'phone', 'email',
-      'totalEmployees', 'directEmployees', 'arlName', 'sstStartDate', 'implementationStatus',
-    ];
+    const requiredFields = COMPANY_PROFILE_REQUIRED_FIELDS;
 
     let filled = 0;
     for (const field of requiredFields) {

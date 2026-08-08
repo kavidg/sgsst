@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { createHash } from 'crypto';
@@ -77,6 +77,26 @@ export class ResponsibilityMatrixService {
       { $setOnInsert: { companyId, itemCode: '1.1.2' } },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     ).exec();
+  }
+
+  /**
+   * Getter de lectura por identificador (sin crear registros). Usado por el
+   * ResponsibilityMatrixAdapter del Approval Workflow Core.
+   */
+  async findById(id: Types.ObjectId): Promise<ResponsibilityMatrixDocument> {
+    const record = await this.matrixModel.findById(id).exec();
+    if (!record) throw new NotFoundException('Responsibility matrix not found');
+    return record;
+  }
+
+  /**
+   * Getter de lectura por empresa (la matriz es UNA por company, itemCode
+   * fijo '1.1.2'). Usado por el adapter cuando getEntity llega sin entityId.
+   */
+  async findByCompany(companyId: Types.ObjectId): Promise<ResponsibilityMatrixDocument> {
+    const record = await this.matrixModel.findOne({ companyId, itemCode: '1.1.2' }).exec();
+    if (!record) throw new NotFoundException('Responsibility matrix not found');
+    return record;
   }
 
   async generate(companyId: Types.ObjectId, dto: GenerateMatrixDto, userEmail: string): Promise<ResponsibilityMatrixDocument> {

@@ -29,10 +29,24 @@ import { LegalMatrixModule } from './modules/legal-matrix/legal-matrix.module';
 import { CommunicationModule } from './modules/communication/communication.module';
 import { CompanyProfileModule } from './modules/company-profile/company-profile.module';
 import { ImplementationWizardModule } from './modules/implementation-wizard/implementation-wizard.module';
+import { ImplementationValidatorModule } from './modules/implementation-validator/implementation-validator.module';
+import { ImplementationPriorityModule } from './modules/implementation-priority/implementation-priority.module';
+import { StandardCatalogModule } from './modules/standard-catalog/standard-catalog.module';
 import { WorkerSignatureCampaignModule } from './modules/worker-signature-campaign/worker-signature-campaign.module';
 import { ResponsibilityMatrixModule } from './modules/responsibility-matrix/responsibility-matrix.module';
 import { SocializationModule } from './modules/socialization/socialization.module';
 import { ConvivenciaModule } from './modules/convivencia/convivencia.module';
+import { ComplianceEngineModule } from './modules/compliance-engine/compliance-engine.module';
+import { ComplianceTimelineModule } from './modules/compliance-timeline/compliance-timeline.module';
+import { ComplianceActionEngineModule } from './modules/compliance-action-engine/compliance-action-engine.module';
+import { ComplianceAutomationModule } from './modules/compliance-automation/compliance-automation.module';
+import { ComplianceExecutionModule } from './modules/compliance-execution/compliance-execution.module';
+import { AiModule } from './modules/ai/ai.module';
+import { AiContextModule } from './modules/ai/context/ai-context.module';
+import { ApprovalWorkflowModule } from './modules/approval-workflow/approval-workflow.module';
+import { ComplianceAiModule } from './modules/compliance-ai/compliance-ai.module';
+import { PhvaModule } from './modules/phva/phva.module';
+import { DocumentGenerationModule } from './modules/document-generation/document-generation.module';
 
 @Module({
   imports: [
@@ -73,10 +87,24 @@ import { ConvivenciaModule } from './modules/convivencia/convivencia.module';
     CommunicationModule,
     CompanyProfileModule,
     ImplementationWizardModule,
+    ImplementationValidatorModule,
+    ImplementationPriorityModule,
+    StandardCatalogModule,
     WorkerSignatureCampaignModule,
     ResponsibilityMatrixModule,
     SocializationModule,
     ConvivenciaModule,
+    ComplianceEngineModule,
+    ComplianceTimelineModule,
+    ComplianceActionEngineModule,
+    ComplianceAutomationModule,
+    ComplianceExecutionModule,
+    AiModule,
+    AiContextModule,
+    ComplianceAiModule,
+    PhvaModule,
+    DocumentGenerationModule,
+    ApprovalWorkflowModule,
   ],
 })
 export class AppModule {}

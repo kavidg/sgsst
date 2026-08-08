@@ -16,5 +16,6 @@ import { Risk, RiskSchema } from './schemas/risk.schema';
   ],
   controllers: [RisksController],
   providers: [RisksService, RolesGuard],
+  exports: [RisksService],
 })
 export class RisksModule {}

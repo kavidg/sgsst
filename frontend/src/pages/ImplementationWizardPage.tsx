@@ -1,16 +1,31 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import {
-  fetchWizardDashboard,
   completeWizardOnboarding,
+  fetchImplementationPriorities,
+  fetchWizardDashboard,
+  fetchWizardOverview,
   generateWizardCertificate,
-  updateWizardStep,
+  runWizardAutoValidation,
+  PriorityItemModel,
   WizardDashboardModel,
+  WizardOverviewModel,
   WizardStepId,
   WizardStepStatus,
 } from '../api';
+import {
+  AdvancedHeader,
+  type HeaderAction,
+  AdvancedKpiGrid,
+  AdvancedPageLayout,
+  AdvancedProgressBar,
+  AdvancedSection,
+} from '../components/advanced-layout';
 
+// Fallback de títulos cuando el backend no envía title (p. ej. historial).
+// FASE 3.2.4: moduleRoute ya proviene siempre del backend (STEP_MODULE_ROUTES,
+// incluye training → /trainings). STEP_LABELS se conserva para el historial.
 const STEP_LABELS: Record<WizardStepId, string> = {
   company_info: 'Información Empresa',
   users_roles: 'Usuarios y Roles',
@@ -45,46 +60,72 @@ const STEP_DESCRIPTIONS: Record<WizardStepId, string> = {
   document_management: 'Active el repositorio maestro de documentos.',
 };
 
-const STEP_MODULES: Record<WizardStepId, string> = {
-  company_info: '/company-configuration',
-  users_roles: '/users',
-  responsible_sst: '/company-configuration',
-  course_50_hours: '/company-configuration',
-  sst_policy: '/documents/plan',
-  sst_objectives: '/documents/plan',
-  initial_evaluation: '/evaluations',
-  annual_plan: '/annual-work-plan',
-  copasst: '/documents/do',
-  convivencia_committee: '/documents/do',
-  training: '/advanced-management/1.2.1',
-  communication: '/documents/do',
-  legal_matrix: '/legal-matrix',
-  document_management: '/document-management',
+// Orden canónico de los 14 pasos (misma fuente que el backend).
+const ALL_STEP_IDS: WizardStepId[] = [
+  'company_info', 'users_roles', 'responsible_sst', 'course_50_hours',
+  'sst_policy', 'sst_objectives', 'initial_evaluation', 'annual_plan',
+  'copasst', 'convivencia_committee', 'training', 'communication',
+  'legal_matrix', 'document_management',
+];
+
+/**
+ * Paso unificado para la UI: combina los datos del ImplementationValidatorEngine
+ * (overview: title/percentage/criteria/pendingCriteria/moduleRoute/estimatedImpact)
+ * con los datos de historial/certificado del dashboard, degradando a los mapas
+ * legacy cuando un campo llega vacío.
+ */
+interface DisplayStep {
+  stepId: WizardStepId;
+  status: WizardStepStatus;
+  title: string;
+  description: string;
+  percentage: number;
+  criteria: string[];
+  pendingCriteria: string[];
+  moduleRoute: string;
+  details?: string;
+  validatedAt?: string;
+  estimatedImpact?: string | null;
+}
+
+const LEVEL_META: Record<string, { label: string; cls: string; emoji: string }> = {
+  EXCELLENT: { label: 'Excelente', cls: 'wiz-badge--excellent', emoji: '🟢' },
+  GOOD: { label: 'Bueno', cls: 'wiz-badge--good', emoji: '🔵' },
+  FAIR: { label: 'Regular', cls: 'wiz-badge--fair', emoji: '🟡' },
+  POOR: { label: 'Bajo', cls: 'wiz-badge--poor', emoji: '🟠' },
+  NO_DATA: { label: 'Sin datos', cls: 'wiz-badge--no_data', emoji: '⚪' },
 };
 
-function StepIcon({ status }: { status: WizardStepStatus }) {
-  if (status === 'COMPLETED') return <span style={{ fontSize: 20 }}>✔</span>;
-  if (status === 'IN_PROGRESS') return <span style={{ fontSize: 20 }}>⏳</span>;
-  if (status === 'BLOCKED') return <span style={{ fontSize: 20 }}>✖</span>;
-  return <span style={{ fontSize: 20, opacity: 0.5 }}>○</span>;
-}
+const STATUS_META: Record<
+  WizardStepStatus,
+  { label: string; cls: string; icon: string; iconCls: string; progress: 'success' | 'default' | 'warning' | 'danger' }
+> = {
+  COMPLETED: { label: 'Completado', cls: 'completed', icon: '✔', iconCls: 'completed', progress: 'success' },
+  IN_PROGRESS: { label: 'En progreso', cls: 'inprogress', icon: '⏳', iconCls: 'inprogress', progress: 'default' },
+  BLOCKED: { label: 'Bloqueado', cls: 'blocked', icon: '✖', iconCls: 'blocked', progress: 'danger' },
+  PENDING: { label: 'Pendiente', cls: 'pending', icon: '○', iconCls: 'pending', progress: 'default' },
+};
 
-function getStepColor(status: WizardStepStatus): string {
-  switch (status) {
-    case 'COMPLETED': return '#16a34a';
-    case 'IN_PROGRESS': return '#2563eb';
-    case 'BLOCKED': return '#dc2626';
-    default: return '#cbd5e1';
-  }
-}
+const RISK_META: Record<string, { label: string; cls: string }> = {
+  ALTO: { label: 'ALTO', cls: 'wiz-risk--alto' },
+  MEDIO: { label: 'MEDIO', cls: 'wiz-risk--medio' },
+  BAJO: { label: 'BAJO', cls: 'wiz-risk--bajo' },
+  NINGUNO: { label: 'NINGUNO', cls: 'wiz-risk--ninguno' },
+};
 
 export default function ImplementationWizardPage({ token }: { token: string }) {
   const navigate = useNavigate();
-  const [wizard, setWizard] = useState<WizardDashboardModel | null>(null);
+  // Fuente primaria: DTO real del ImplementationValidatorEngine.
+  const [overview, setOverview] = useState<WizardOverviewModel | null>(null);
+  // Fuente secundaria: historial, certificado y flags de onboarding.
+  const [dashboard, setDashboard] = useState<WizardDashboardModel | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedStep, setSelectedStep] = useState<WizardStepId | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [generatingCert, setGeneratingCert] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
+  // Prioridades reales del ImplementationPriorityEngine (backend).
+  const [priorities, setPriorities] = useState<PriorityItemModel[] | null>(null);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -93,24 +134,83 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const data = await fetchWizardDashboard(token);
-      setWizard(data);
-      if (!data.isOnboardingComplete && data.completionPercentage < 30) {
-        setShowOnboarding(true);
-      }
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Error al cargar wizard');
-    } finally {
-      setLoading(false);
+    // Los endpoints son tolerantes (TTL de 5 min); se cargan en paralelo y
+    // cada uno degrada independientemente (Promise.allSettled nunca rechaza).
+    const [ovResult, dashResult, prioritiesResult] = await Promise.allSettled([
+      fetchWizardOverview(token),
+      fetchWizardDashboard(token),
+      fetchImplementationPriorities(token),
+    ]);
+
+    const ov = ovResult.status === 'fulfilled' ? ovResult.value : null;
+    const dash = dashResult.status === 'fulfilled' ? dashResult.value : null;
+    // null = endpoint de prioridades no disponible (fallback seguro).
+    const prio = prioritiesResult.status === 'fulfilled' ? prioritiesResult.value.priorities : null;
+    setOverview(ov);
+    setDashboard(dash);
+    setPriorities(prio);
+
+    const pct = ov?.overallPercentage ?? dash?.completionPercentage ?? 0;
+    if (dash && !dash.isOnboardingComplete && pct < 30) {
+      setShowOnboarding(true);
     }
+    if (!ov && !dash) {
+      showError('Error al cargar wizard');
+    } else if (ov && !dash) {
+      showError('Datos de historial y certificado no disponibles temporalmente');
+    }
+    setLoading(false);
   }, [token]);
 
   useEffect(() => { void load(); }, [load]);
 
+  // ─── Combinación segura de estados ───
+  const overallPercentage = overview?.overallPercentage ?? dashboard?.completionPercentage ?? 0;
+  const overallScore = overview?.overallScore ?? dashboard?.overallScore ?? 0;
+  const completedSteps = overview?.completedSteps ?? dashboard?.completedSteps ?? 0;
+  const totalSteps = overview?.totalSteps ?? dashboard?.totalSteps ?? ALL_STEP_IDS.length;
+  const pendingSteps = overview
+    ? overview.steps.filter((s) => s.status === 'PENDING').length
+    : (dashboard?.pendingSteps ?? 0);
+  const inProgressSteps = overview
+    ? overview.steps.filter((s) => s.status === 'IN_PROGRESS').length
+    : (dashboard?.inProgressSteps ?? 0);
+  const isImplementationComplete = overview?.isImplementationComplete ?? dashboard?.isImplementationComplete ?? false;
+  const certificateGenerated = dashboard?.certificateGenerated ?? false;
+  const certificateVerificationCode = dashboard?.certificateVerificationCode;
+  const lastValidatedAt = overview?.lastValidatedAt ?? dashboard?.lastValidatedAt ?? null;
+  // Nivel del motor; si el overview no responde se deriva del % (misma regla
+  // que classifyImplementationLevel del backend) para no mostrar "Sin datos".
+  const level = overview?.level
+    ?? (overallPercentage >= 80 ? 'EXCELLENT' : overallPercentage >= 60 ? 'GOOD' : overallPercentage >= 40 ? 'FAIR' : overallPercentage > 0 ? 'POOR' : 'NO_DATA');
+  const levelMeta = LEVEL_META[level] ?? LEVEL_META.NO_DATA;
+  const history = dashboard?.history ?? [];
+
+  // Pasos unificados: overview primero, dashboard después, legacy al final.
+  const displaySteps = useMemo<DisplayStep[]>(() => {
+    return ALL_STEP_IDS.map((stepId) => {
+      const ov = overview?.steps.find((s) => s.stepId === stepId);
+      const db = dashboard?.steps.find((s) => s.stepId === stepId);
+      return {
+        stepId,
+        status: ov?.status ?? db?.status ?? 'PENDING',
+        title: ov?.title || db?.title || db?.label || STEP_LABELS[stepId] || stepId,
+        description: db?.description || STEP_DESCRIPTIONS[stepId] || '',
+        percentage: ov?.percentage ?? db?.percentage ?? db?.score ?? 0,
+        criteria: ov?.criteria ?? db?.criteria ?? [],
+        pendingCriteria: ov?.pendingCriteria ?? db?.pendingCriteria ?? [],
+        moduleRoute: ov?.moduleRoute || db?.moduleRoute || '',
+        details: db?.details,
+        validatedAt: db?.validatedAt,
+        estimatedImpact: ov?.estimatedImpact ?? null,
+      };
+    });
+  }, [overview, dashboard]);
+
   const handleCompleteOnboarding = async () => {
     try {
-      await completeWizardOnboarding(token);
+      const updated = await completeWizardOnboarding(token);
+      setDashboard(updated);
       setShowOnboarding(false);
       notify('¡Bienvenido! Puede comenzar la implementación.');
       void load();
@@ -123,8 +223,9 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
     setGeneratingCert(true);
     try {
       const updated = await generateWizardCertificate(token);
-      setWizard(updated);
+      setDashboard(updated);
       notify(`¡Certificado generado! Código: ${updated.certificateVerificationCode}`);
+      void load();
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Error al generar certificado');
     } finally {
@@ -132,26 +233,59 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
     }
   };
 
-  const handleMarkComplete = async (stepId: WizardStepId) => {
+  /**
+   * Actualiza el análisis ejecutando el motor real (POST /auto-validate).
+   */
+  const handleRevalidate = async () => {
+    setRevalidating(true);
     try {
-      const updated = await updateWizardStep(token, stepId, { score: 100, status: 'COMPLETED' });
-      setWizard(updated);
-      notify(`"${STEP_LABELS[stepId]}" marcado como completado`);
+      await runWizardAutoValidation(token);
+      notify('Análisis actualizado con datos reales de los módulos');
+      void load();
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Error');
+      showError(err instanceof Error ? err.message : 'Error al actualizar análisis');
+    } finally {
+      setRevalidating(false);
     }
   };
 
-  const handleGoToModule = (stepId: WizardStepId) => {
-    navigate(STEP_MODULES[stepId]);
+  const handleGoToRoute = (route: string) => {
+    if (route) navigate(route);
   };
 
-  if (!wizard) {
-    return <div className="card"><p className="muted">{loading ? 'Cargando wizard de implementación...' : 'No hay datos disponibles.'}</p></div>;
+  // Acorde visual hero/barra: azul (info) para empresas nuevas al 0%.
+  const heroAccent = overallPercentage >= 80 ? 'success' : overallPercentage >= 40 ? 'warning' : overallPercentage > 0 ? 'danger' : 'info';
+  const progressVariant = overallPercentage >= 80 ? 'success' : overallPercentage >= 40 ? 'warning' : overallPercentage > 0 ? 'danger' : 'default';
+
+  const headerActions: HeaderAction[] = [
+    {
+      label: revalidating ? 'Analizando...' : '🔄 Actualizar análisis',
+      onClick: () => void handleRevalidate(),
+      variant: 'secondary',
+      disabled: revalidating,
+    },
+  ];
+  if (isImplementationComplete && !certificateGenerated) {
+    headerActions.push({
+      label: generatingCert ? 'Generando...' : '🏅 Generar Certificado',
+      onClick: () => void handleGenerateCertificate(),
+      variant: 'primary',
+      disabled: generatingCert,
+    });
+  }
+
+  if (!overview && !dashboard) {
+    return (
+      <AdvancedPageLayout>
+        <div className="card">
+          <p className="muted">{loading ? 'Cargando centro de implementación...' : 'No hay datos disponibles.'}</p>
+        </div>
+      </AdvancedPageLayout>
+    );
   }
 
   return (
-    <div className="company-config">
+    <AdvancedPageLayout>
       {/* Onboarding Modal */}
       {showOnboarding && (
         <div className="modal-overlay" style={{
@@ -172,139 +306,217 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
         </div>
       )}
 
-      {/* Hero */}
-      <section className="advanced-management__hero">
-        <div>
-          <h3>Implementación SG-SST</h3>
-          <p className="muted">Asistente guiado para la implementación del Sistema de Gestión de Seguridad y Salud en el Trabajo.</p>
-        </div>
-        <div className="actions" style={{ gap: 8 }}>
-          <span className={`company-config__badge ${wizard.completionPercentage >= 80 ? 'company-config__badge--success' : wizard.completionPercentage >= 40 ? 'company-config__badge--warning' : 'company-config__badge--danger'}`}>
-            {wizard.completionPercentage}% Implementado
+      {/* Hero ejecutivo */}
+      <AdvancedHeader
+        moduleCode="SG-SST"
+        moduleTitle="Centro de Implementación SG-SST"
+        description={`Motor real de validación · ${totalSteps} módulos según Resolución 0312 de 2019 · ${completedSteps} completados · ${pendingSteps} pendientes`}
+        statusBadge={
+          <span className={`wiz-badge ${levelMeta.cls}`}>
+            {levelMeta.emoji} Nivel {levelMeta.label}
           </span>
-          {wizard.isImplementationComplete && !wizard.certificateGenerated && (
-            <Button type="button" onClick={handleGenerateCertificate} disabled={generatingCert}>
-              {generatingCert ? 'Generando...' : 'Generar Certificado'}
-            </Button>
-          )}
-        </div>
-      </section>
+        }
+        actions={headerActions}
+        lastSaved={lastValidatedAt
+          ? `Última validación automática: ${new Date(lastValidatedAt).toLocaleString()}`
+          : undefined}
+      />
 
-      {/* Score Overview */}
-      <div className="kpi-grid" style={{ marginBottom: 16 }}>
-        <article className="card kpi-card">
-          <h3 className="kpi-title">Puntaje General</h3>
-          <p className="kpi-value" style={{ fontSize: '2.3rem' }}>{wizard.overallScore}%</p>
-        </article>
-        <article className="card kpi-card">
-          <h3 className="kpi-title">Pasos Completados</h3>
-          <p className="kpi-value" style={{ fontSize: '2.3rem' }}>{wizard.completedSteps}/{wizard.totalSteps}</p>
-        </article>
-        <article className="card kpi-card">
-          <h3 className="kpi-title">Pendientes</h3>
-          <p className="kpi-value" style={{ fontSize: '2.3rem', color: '#eab308' }}>{wizard.pendingSteps}</p>
-        </article>
-        <article className="card kpi-card">
-          <h3 className="kpi-title">En Progreso</h3>
-          <p className="kpi-value" style={{ fontSize: '2.3rem', color: '#2563eb' }}>{wizard.inProgressSteps}</p>
-        </article>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="objective-progress" style={{ marginBottom: 20 }}>
-        <div className="objective-progress__track" style={{ height: 18 }}>
-          <span
-            className={`objective-progress__bar ${wizard.completionPercentage >= 80 ? 'objective-progress__bar--high' : wizard.completionPercentage >= 40 ? 'objective-progress__bar--medium' : 'objective-progress__bar--low'}`}
-            style={{ width: `${wizard.completionPercentage}%` }}
-          />
+      {/* Barra ejecutiva */}
+      <AdvancedSection accent={heroAccent} className="wiz-hero">
+        <div className="wiz-hero__main">
+          <div className="wiz-hero__value">
+            <span className="wiz-hero__pct">{overallPercentage}%</span>
+            <span className="wiz-hero__label">Implementado</span>
+          </div>
+          <div className="wiz-hero__progress">
+            <AdvancedProgressBar value={overallPercentage} size="lg" variant={progressVariant} showPercentage={false} />
+            <div className="wiz-hero__meta">
+              <span><strong>{overallScore}%</strong> Puntaje general</span>
+              <span><strong>{completedSteps}/{totalSteps}</strong> pasos completados</span>
+              <span>{isImplementationComplete ? '✅ Implementación completa' : '🚧 En implementación'}</span>
+            </div>
+          </div>
         </div>
-        <strong style={{ fontSize: '0.9rem', minWidth: 45 }}>{wizard.completionPercentage}%</strong>
-      </div>
+      </AdvancedSection>
 
-      {/* Certificate info */}
-      {wizard.certificateGenerated && (
-        <div className="advanced-management__section" style={{
-          background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8,
-          padding: '12px 16px', marginBottom: 16,
-        }}>
-          <p style={{ color: '#15803d', margin: 0 }}>
-            ✅ Certificado de Implementación generado · Código: <strong>{wizard.certificateVerificationCode}</strong>
-          </p>
-        </div>
-      )}
+      {/* Grid de KPIs */}
+      <AdvancedKpiGrid
+        columns={4}
+        items={[
+          { label: 'Puntaje General', value: `${overallScore}%`, variant: 'info', icon: '🎯' },
+          { label: 'Pasos Completados', value: `${completedSteps}/${totalSteps}`, variant: 'success', icon: '✅' },
+          { label: 'En Progreso', value: inProgressSteps, variant: 'default', icon: '⏳' },
+          { label: 'Pendientes', value: pendingSteps, variant: 'warning', icon: '⏰' },
+        ]}
+      />
 
       {error ? <p className="error">{error}</p> : null}
       {success ? <p className="advanced-management__success">{success}</p> : null}
 
-      {/* Stepper — 14 steps */}
-      <div className="wizard-stepper">
-        {wizard.steps.map((step, idx) => {
-          const isSelected = selectedStep === step.stepId;
-          const color = getStepColor(step.status);
-          return (
-            <div
-              key={step.stepId}
-              className={`wizard-step ${isSelected ? 'wizard-step--selected' : ''}`}
-              style={{ borderLeft: `4px solid ${color}` }}
-            >
-              <div className="wizard-step__header">
-                <div className="actions" style={{ alignItems: 'center', gap: 8 }}>
-                  <StepIcon status={step.status} />
-                  <div>
-                    <strong style={{ fontSize: '0.95rem' }}>{idx + 1}. {step.label}</strong>
-                    <span style={{
-                      display: 'inline-block', marginLeft: 8,
-                      fontSize: '0.75rem', fontWeight: 700,
-                      padding: '2px 8px', borderRadius: 999,
-                      background: step.status === 'COMPLETED' ? '#dcfce7' : step.status === 'IN_PROGRESS' ? '#dbeafe' : step.status === 'BLOCKED' ? '#fee2e2' : '#f1f5f9',
-                      color: step.status === 'COMPLETED' ? '#166534' : step.status === 'IN_PROGRESS' ? '#1e40af' : step.status === 'BLOCKED' ? '#991b1b' : '#475569',
-                    }}>
-                      {step.status === 'COMPLETED' ? 'Completado' : step.status === 'IN_PROGRESS' ? 'En progreso' : step.status === 'BLOCKED' ? 'Bloqueado' : 'Pendiente'}
-                    </span>
-                    {step.score > 0 && step.score < 100 && (
-                      <span style={{ marginLeft: 8, fontSize: '0.8rem', color: '#64748b' }}>{step.score}%</span>
+      {/* Acciones Prioritarias — motor real del backend */}
+      <AdvancedSection
+        title="Acciones Prioritarias"
+        description="Prioridades calculadas por el motor (score, riesgo, dependencias y desbloqueos)"
+        accent="warning"
+        headerRight={priorities && priorities.length > 0 ? (
+          <span className="wiz-badge wiz-badge--count">{priorities.length} priorizadas</span>
+        ) : undefined}
+      >
+        {priorities === null ? (
+          <p className="muted" style={{ margin: 0 }}>
+            Prioridades no disponibles en este momento.
+          </p>
+        ) : priorities.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>
+            🎉 No hay acciones pendientes con impacto recuperable. ¡La implementación está al día!
+          </p>
+        ) : (
+          <div className="wiz-priority">
+            {priorities.map((p) => {
+              const riskMeta = RISK_META[p.riskLevel] ?? RISK_META.MEDIO;
+              return (
+                <div className="wiz-priority__item" key={p.stepId}>
+                  <span className="wiz-priority__rank">{p.rank}</span>
+                  <div className="wiz-priority__body">
+                    <span className="wiz-priority__title">{p.title}</span>
+                    {p.recommendedAction && (
+                      <span className="wiz-priority__meta">{p.recommendedAction}</span>
+                    )}
+                    {p.pendingCriteria.length > 0 && (
+                      <span className="wiz-priority__meta">
+                        Pendiente: {p.pendingCriteria.slice(0, 2).join(' · ')}
+                      </span>
+                    )}
+                    {p.blockedBy.length > 0 && (
+                      <span className="wiz-priority__deps wiz-priority__deps--blocked">
+                        ⛔ Requiere primero: {p.blockedBy.map((b) => STEP_LABELS[b as WizardStepId] ?? b).join(', ')}
+                      </span>
+                    )}
+                    {p.unlocks.length > 0 && (
+                      <span className="wiz-priority__deps wiz-priority__deps--unlock">
+                        🔓 Desbloquea: {p.unlocks.map((u) => STEP_LABELS[u as WizardStepId] ?? u).join(', ')}
+                      </span>
                     )}
                   </div>
+                  <span className="wiz-score">{p.priorityScore}/100</span>
+                  {p.estimatedImpact && <span className="wiz-impact">{p.estimatedImpact}</span>}
+                  <span className={`wiz-risk ${riskMeta.cls}`}>{riskMeta.label}</span>
+                  {p.moduleRoute && (
+                    <Button type="button" variant="secondary" onClick={() => handleGoToRoute(p.moduleRoute)}>
+                      Ir al módulo
+                    </Button>
+                  )}
                 </div>
-                <Button type="button" variant="ghost" onClick={() => setSelectedStep(isSelected ? null : step.stepId)}>
-                  {isSelected ? '▼' : '▶'}
-                </Button>
-              </div>
+              );
+            })}
+          </div>
+        )}
+      </AdvancedSection>
 
-              {isSelected && (
-                <div className="wizard-step__body">
-                  <p className="muted" style={{ margin: '8px 0', fontSize: '0.9rem', lineHeight: 1.5 }}>
-                    {step.description || STEP_DESCRIPTIONS[step.stepId]}
-                  </p>
-                  {step.details && (
-                    <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0' }}>Detalles: {step.details}</p>
-                  )}
-                  {step.validatedAt && (
-                    <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '4px 0' }}>
-                      Última validación: {new Date(step.validatedAt).toLocaleString()}
-                    </p>
-                  )}
-                  <div className="actions" style={{ gap: 8, marginTop: 8 }}>
-                    <Button type="button" onClick={() => handleGoToModule(step.stepId)}>Ir al módulo</Button>
-                    {step.status !== 'COMPLETED' && (
-                      <Button type="button" variant="secondary" onClick={() => handleMarkComplete(step.stepId)}>
-                        Marcar completado
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
+      {/* Certificado */}
+      {certificateGenerated && (
+        <AdvancedSection title="Certificado de Implementación" accent="success">
+          <div className="wiz-cert">
+            <span className="wiz-cert__icon">🏅</span>
+            <div>
+              <strong>Certificado de Implementación generado</strong>
+              <p className="muted" style={{ margin: '2px 0 0' }}>
+                Código de verificación: <strong>{certificateVerificationCode}</strong>
+              </p>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        </AdvancedSection>
+      )}
 
-      {/* History Timeline */}
-      {wizard.history.length > 0 && (
-        <section className="advanced-management__section" style={{ marginTop: 16 }}>
-          <h3>Historial de Implementación</h3>
+      {/* Tarjetas por módulo */}
+      <AdvancedSection
+        title="Módulos de Implementación"
+        description="Cada tarjeta muestra el avance real calculado por el motor de validación"
+      >
+        <div className="wiz-grid">
+          {displaySteps.map((step) => {
+            const isSelected = selectedStep === step.stepId;
+            const statusMeta = STATUS_META[step.status] ?? STATUS_META.PENDING;
+            return (
+              <article key={step.stepId} className={`wiz-card ${isSelected ? 'wiz-card--selected' : ''}`}>
+                <div className="wiz-card__header">
+                  <div className="wiz-card__title">
+                    <span className={`wiz-card__icon wiz-card__icon--${statusMeta.iconCls}`}>{statusMeta.icon}</span>
+                    <strong>{step.title}</strong>
+                  </div>
+                  <span className={`wiz-status wiz-status--${statusMeta.cls}`}>{statusMeta.label}</span>
+                </div>
+
+                <AdvancedProgressBar value={step.percentage} size="sm" variant={statusMeta.progress} showPercentage={false} />
+
+                <div className="wiz-card__footer">
+                  <span className="wiz-card__detail">{step.percentage}%</span>
+                  {step.estimatedImpact && <span className="wiz-impact">{step.estimatedImpact}</span>}
+                  <button
+                    type="button"
+                    className="wiz-card__toggle"
+                    onClick={() => setSelectedStep(isSelected ? null : step.stepId)}
+                  >
+                    {isSelected ? '▲ Ocultar' : '▼ Detalle'}
+                  </button>
+                </div>
+
+                {isSelected && (
+                  <div className="wiz-card__body">
+                    <p className="muted" style={{ margin: '4px 0 8px', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                      {step.description}
+                    </p>
+
+                    {step.criteria.length > 0 && (
+                      <div className="wiz-criteria">
+                        <strong>✓ Completado</strong>
+                        <ul>
+                          {step.criteria.map((criterion, i) => (
+                            <li key={i}>{criterion}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {step.pendingCriteria.length > 0 && (
+                      <div className="wiz-pending">
+                        <strong>⚠ Pendiente</strong>
+                        <ul>
+                          {step.pendingCriteria.map((criterion, i) => (
+                            <li key={i}>{criterion}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {step.details && (
+                      <p className="wiz-card__detail" style={{ margin: '6px 0 0' }}>Detalles: {step.details}</p>
+                    )}
+                    {step.validatedAt && (
+                      <p className="wiz-card__detail" style={{ margin: '4px 0 0' }}>
+                        Última validación: {new Date(step.validatedAt).toLocaleString()}
+                      </p>
+                    )}
+
+                    {step.moduleRoute && (
+                      <div style={{ marginTop: 8 }}>
+                        <Button type="button" onClick={() => handleGoToRoute(step.moduleRoute)}>Ir al módulo</Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </AdvancedSection>
+
+      {/* Historial */}
+      {history.length > 0 && (
+        <AdvancedSection title="Historial de Implementación" description="Registro de las últimas acciones y validaciones">
           <div className="timeline">
-            {wizard.history.slice(0, 10).map((entry, idx) => (
+            {history.slice(0, 10).map((entry, idx) => (
               <article key={idx} className="timeline__item">
                 <div className="actions" style={{ justifyContent: 'space-between' }}>
                   <strong style={{ fontSize: '0.85rem' }}>
@@ -321,13 +533,13 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
               </article>
             ))}
           </div>
-        </section>
+        </AdvancedSection>
       )}
 
       <div className="advanced-management__footer">
-        <span className="muted">14 pasos · {wizard.completedSteps} completados · Puntaje: {wizard.overallScore}%</span>
+        <span className="muted">{totalSteps} pasos · {completedSteps} completados · Puntaje: {overallScore}%</span>
         <Button type="button" variant="ghost" onClick={() => void load()}>Recargar</Button>
       </div>
-    </div>
+    </AdvancedPageLayout>
   );
 }

@@ -23,5 +23,6 @@ import { InspectionActivity, InspectionActivitySchema } from './schemas/inspecti
   ],
   controllers: [InspectionsController],
   providers: [InspectionsService, RolesGuard],
+  exports: [InspectionsService],
 })
 export class InspectionsModule {}

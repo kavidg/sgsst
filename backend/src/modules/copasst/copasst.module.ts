@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ApprovalWorkflowModule } from '../approval-workflow/approval-workflow.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { AuthModule } from '../auth/auth.module';
 import { CommunicationModule } from '../communication/communication.module';
@@ -19,6 +20,7 @@ import { CopasstPeriod, CopasstPeriodSchema } from './schemas/copasst.schema';
     UsersModule,
     AlertsModule,
     CommunicationModule,
+    forwardRef(() => ApprovalWorkflowModule),
     MongooseModule.forFeature([
       { name: CopasstPeriod.name, schema: CopasstPeriodSchema },
       { name: User.name, schema: UserSchema },
@@ -28,5 +30,6 @@ import { CopasstPeriod, CopasstPeriodSchema } from './schemas/copasst.schema';
   ],
   controllers: [CopasstController],
   providers: [CopasstService, RolesGuard, CompanyAccessGuard],
+  exports: [CopasstService],
 })
 export class CopasstModule {}

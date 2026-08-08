@@ -29,5 +29,6 @@ import { DashboardService } from './dashboard.service';
   ],
   controllers: [DashboardController],
   providers: [DashboardService, RolesGuard],
+  exports: [DashboardService],
 })
 export class DashboardModule {}
