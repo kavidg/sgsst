@@ -146,7 +146,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     phva: 'PLANEAR',
     normativeWeight: 0.5,
     applicableLevels: ['21', '60'],
-    moduleRoute: '/documents/plan',
+    moduleRoute: '/advanced-management/1.1.7',
     priorityMetadata: { criticality: 'BAJA', estimatedEffort: 'BAJO' },
     // FASE 7.7.B.1 — Textos tomados de PlanPage (financialResourcesItems).
     criteria:

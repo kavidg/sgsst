@@ -12,8 +12,10 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { CommunicationModule } from '../communication/communication.module';
 import { DocumentGenerationModule } from '../document-generation/document-generation.module';
+import { CopasstModule } from '../copasst/copasst.module';
 import { PhvaAdvancedController } from './phva-advanced.controller';
 import { PhvaAdvancedService } from './phva-advanced.service';
+import { PhvaAdvancedCopasstTrainingService } from './phva-advanced-copasst-training.service';
 import { ResponsibleSgsstVariableResolver } from './responsible-sgsst-variable-resolver.service';
 import { ResponsibleSgsstDocumentGenerator } from './responsible-sgsst-document.generator';
 import { PhvaAdvancedResourceAssignment, PhvaAdvancedResourceAssignmentSchema } from './schemas/phva-advanced-resource-assignment.schema';
@@ -22,6 +24,7 @@ import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from './
 import { PhvaAdvancedArlAffiliations, PhvaAdvancedArlAffiliationsSchema } from './schemas/phva-advanced-arl-affiliations.schema';
 import { SpecialPensionConfiguration, SpecialPensionConfigurationSchema } from './schemas/phva-advanced-special-pension.schema';
 import { TrainingManagement, TrainingManagementSchema } from './schemas/phva-advanced-training-management.schema';
+import { PhvaAdvancedCopasstTraining, PhvaAdvancedCopasstTrainingSchema } from './schemas/phva-advanced-copasst-training.schema';
 import { SstPolicy, SstPolicySchema } from './schemas/phva-advanced-sst-policy.schema';
 import { SstObjectives, SstObjectivesSchema } from './schemas/phva-advanced-sst-objective.schema';
 import { PolicyTemplate, PolicyTemplateSchema } from './schemas/policy-template.schema';
@@ -69,7 +72,13 @@ import { SstPolicyDocumentGenerator } from './sst-policy-document.generator';
       // consulta el periodo CopasstPeriod para resolver las variables de la
       // plantilla de conformación del comité.
       { name: CopasstPeriod.name, schema: CopasstPeriodSchema },
+      // Fase 1 (1.1.7) — dominio independiente de Capacitación COPASST.
+      { name: PhvaAdvancedCopasstTraining.name, schema: PhvaAdvancedCopasstTrainingSchema },
     ]),
+    // Fase 1 (1.1.7) — CopasstService (periodo vigente + miembros activos).
+    // forwardRef por el grafo real de dependencias del dominio
+    // (phva-advanced ↔ copasst ↔ approval-workflow ↔ phva-advanced).
+    forwardRef(() => CopasstModule),
     forwardRef(() => ApprovalWorkflowModule),
     // Fase 2 — Document Generation Engine: genera el documento formal del
     // Responsable del SG-SST (1.1.1) tras la aprobación. forwardRef por el
@@ -80,6 +89,8 @@ import { SstPolicyDocumentGenerator } from './sst-policy-document.generator';
   controllers: [PhvaAdvancedController, PolicyTemplateController],
   providers: [
     PhvaAdvancedService,
+    // Fase 1 (1.1.7) — service de dominio de Capacitación COPASST.
+    PhvaAdvancedCopasstTrainingService,
     PolicyTemplateService,
     RolesGuard,
     CompanyAccessGuard,
@@ -125,6 +136,8 @@ import { SstPolicyDocumentGenerator } from './sst-policy-document.generator';
   ],
   exports: [
     PhvaAdvancedService,
+    // Fase 1 (1.1.7) — exportado para futuras fases (Approval/Document/Compliance).
+    PhvaAdvancedCopasstTrainingService,
     ResponsibleSgsstDocumentGenerator,
     CopasstDocumentGenerator,
     ResponsibilitiesDocumentGenerator,

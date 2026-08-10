@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, Fragment } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import ResourceAssignmentModule from '../components/ResourceAssignmentModule';
 import TrainingProgramModule from '../components/TrainingProgramModule';
+import TrainingCopasstModule from '../components/TrainingCopasstModule';
 import PolicyManagementModule from '../components/PolicyManagementModule';
 import ResponsableSstPanel from '../components/ResponsableSstPanel';
 import CopasstManagementPage from './CopasstManagementPage';
@@ -263,6 +264,9 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
   }
   if (standardCode === '1.2.1') {
     return <TrainingProgramModule token={token} />;
+  }
+  if (standardCode === '1.1.7') {
+    return <TrainingCopasstModule token={token} />;
   }
   if (standardCode === '2.1.1') {
     return <PolicyManagementModule token={token} />;

@@ -1340,6 +1340,131 @@ export interface TrainingManagementAdvancedModel {
 export const fetchTrainingManagementAdvanced = (token: string) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management', token, { method: 'GET' });
 export const updateTrainingManagementAdvanced = (token: string, payload: Partial<TrainingManagementAdvancedModel>) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const approveTrainingManagementAdvanced = (token: string, payload: { status: 'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; comments?: string }) => apiFetch<TrainingManagementAdvancedModel>('/phva-advanced/training-management/approval', token, { method: 'PATCH', body: JSON.stringify(payload) });
+
+// ==================== 1.1.7 CAPACITACIÓN COPASST API ====================
+// Fase 3 — Frontend de Gestión Avanzada. Consume los endpoints de dominio
+// implementados en las Fases 1/2 (colección phva_advanced_copasst_training).
+// Nombres claramente diferenciados de 1.2.1 (TrainingManagement) para no
+// mezclar tipos incompatibles.
+
+export type CopasstTrainingComplianceStatus = 'COMPLIES' | 'PENDING' | 'NON_COMPLIANT';
+
+/** Snapshot histórico de un miembro COPASST dentro de una sesión (1.1.7). */
+export interface CopasstTrainingParticipantModel {
+  userId: string;
+  name: string;
+  committeeRole?: string;
+  representationType?: string;
+}
+
+/** Sesión de capacitación COPASST (espejo del sub-schema Session + copasstParticipants). */
+export interface CopasstTrainingSessionModel {
+  _id?: string;
+  title: string;
+  type?: string;
+  responsible?: string;
+  scheduledDate?: string;
+  expirationDate?: string;
+  status?: string;
+  participants?: string[];
+  evidences?: string[];
+  multimedia?: string[];
+  instructor?: string;
+  location?: string;
+  duration?: string;
+  evaluation?: string;
+  completionDate?: string;
+  copasstParticipants?: CopasstTrainingParticipantModel[];
+}
+
+/** Actividad del programa anual (mismo sub-schema Session de 1.2.1). */
+export interface CopasstTrainingAnnualProgramItemModel {
+  title: string;
+  type?: string;
+  responsible?: string;
+  scheduledDate?: string;
+  expirationDate?: string;
+  status?: string;
+}
+
+/** Entrada de cobertura por miembro activo del COPASST (recalculada por backend). */
+export interface CopasstMemberCoverageEntryModel {
+  userId: string;
+  name: string;
+  committeeRole?: string;
+  representationType?: string;
+  status: string;
+  trained: boolean;
+  trainedAt?: string;
+  executedSessions: number;
+  totalHours: number;
+  lastEvaluationScore?: number;
+  lastEvaluationDate?: string;
+}
+
+/** Resumen de cobertura: GET /phva-advanced/copasst-training/coverage. */
+export interface CopasstTrainingCoverageModel {
+  totalMembers: number;
+  trainedMembers: number;
+  coveragePercentage: number;
+  executedSessions: number;
+  memberCoverage: CopasstMemberCoverageEntryModel[];
+}
+
+/** Entidad 1.1.7 tal como la devuelve GET /phva-advanced/copasst-training. */
+export interface CopasstTrainingAdvancedModel {
+  _id: string;
+  companyId: string;
+  itemCode: string;
+  year: number;
+  periodId?: string;
+  annualProgram: CopasstTrainingAnnualProgramItemModel[];
+  sessions: CopasstTrainingSessionModel[];
+  memberCoverage: CopasstMemberCoverageEntryModel[];
+  checklistTemplate: Array<{ key: string; label: string; status: 'COMPLETED'|'PENDING'|'NOT_APPLICABLE' }>;
+  evaluationAttempts: Array<Record<string, unknown>>;
+  certificates: string[];
+  evidenceFiles: string[];
+  attendanceEvidence: string[];
+  signatureEvidence: string[];
+  signatures: Array<Record<string, unknown>>;
+  alerts: string[];
+  history: Array<{ action: string; createdBy: string; createdAt: string; details?: string }>;
+  approval: { status: 'PENDING'|'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; version: number; approvedBy?: string; approvedAt?: string; comments?: string };
+  complianceStatus: CopasstTrainingComplianceStatus;
+  complianceReason: string;
+  updatedAt: string;
+}
+
+/** Miembro COPASST disponible para una sesión (GET /copasst-training/members). */
+export interface CopasstTrainingAvailableMemberModel {
+  userId: string;
+  name: string;
+  committeeRole?: string;
+  representationType?: string;
+  status: 'ACTIVO';
+}
+
+/** Payload del PATCH (nunca envía companyId/itemCode: el backend los controla). */
+export interface UpdateCopasstTrainingPayload {
+  year?: number;
+  periodId?: string;
+  annualProgram?: CopasstTrainingAnnualProgramItemModel[];
+  sessions?: CopasstTrainingSessionModel[];
+  checklistTemplate?: Array<{ key: string; label: string; status: string }>;
+  evaluationAttempts?: Array<Record<string, unknown>>;
+  certificates?: string[];
+  evidenceFiles?: string[];
+  attendanceEvidence?: string[];
+  signatureEvidence?: string[];
+  signatures?: Array<Record<string, unknown>>;
+  alerts?: string[];
+}
+
+export const fetchCopasstTrainingAdvanced = (token: string) => apiFetch<CopasstTrainingAdvancedModel>('/phva-advanced/copasst-training', token, { method: 'GET' });
+export const updateCopasstTrainingAdvanced = (token: string, payload: UpdateCopasstTrainingPayload) => apiFetch<CopasstTrainingAdvancedModel>('/phva-advanced/copasst-training', token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const fetchCopasstTrainingMembers = (token: string) => apiFetch<CopasstTrainingAvailableMemberModel[]>('/phva-advanced/copasst-training/members', token, { method: 'GET' });
+export const fetchCopasstTrainingCoverage = (token: string) => apiFetch<CopasstTrainingCoverageModel>('/phva-advanced/copasst-training/coverage', token, { method: 'GET' });
 export interface CopasstPeriodModel {
   _id: string;
   periodName: string;

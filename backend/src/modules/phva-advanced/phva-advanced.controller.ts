@@ -33,6 +33,8 @@ import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
 import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dto';
 import { UploadResponsableSstDocumentDto } from './dto/upload-responsable-sst-document.dto';
 import { PhvaAdvancedService } from './phva-advanced.service';
+import { PhvaAdvancedCopasstTrainingService } from './phva-advanced-copasst-training.service';
+import { UpdateCopasstTrainingDto } from './dto/update-copasst-training.dto';
 import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ResponsibilityAssignmentEntry } from './schemas/phva-advanced-responsibilities.schema';
 import { UpdateSpecialPensionDto } from './dto/update-special-pension.dto';
@@ -46,6 +48,8 @@ export class PhvaAdvancedController {
     private readonly usersService: UsersService,
     private readonly firebaseAdminService: FirebaseAdminService,
     private readonly approvalWorkflowService: ApprovalWorkflowService,
+    // Fase 1 (1.1.7) — service de dominio de Capacitación COPASST.
+    private readonly copasstTrainingService: PhvaAdvancedCopasstTrainingService,
   ) {}
 
   @Get('responsable-sst')
@@ -390,6 +394,37 @@ export class PhvaAdvancedController {
   async updateTrainingManagement(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
     const user = await this.resolveUserFromRequest(request);
     return this.phvaAdvancedService.updateTrainingManagement(this.resolveCompanyId(request), user, dto as never);
+  }
+
+  @Get('copasst-training')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getCopasstTraining(@Req() request: RequestWithUser) {
+    // Fase 1 (1.1.7) — endpoint mínimo de dominio (sin Approval/evidencias aún).
+    return this.copasstTrainingService.findOrCreate(this.resolveCompanyId(request));
+  }
+
+  @Get('copasst-training/members')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getCopasstTrainingMembers(@Req() request: RequestWithUser) {
+    // Fase 2 (1.1.7) — miembros ACTIVOS del periodo vigente (selector de participantes).
+    return this.copasstTrainingService.getAvailableMembers(this.resolveCompanyId(request));
+  }
+
+  @Get('copasst-training/coverage')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getCopasstTrainingCoverage(@Req() request: RequestWithUser) {
+    // Fase 2 (1.1.7) — cobertura recalculada de forma determinista + snapshot por miembro.
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.copasstTrainingService.findOrCreate(companyId);
+    const coverage = await this.copasstTrainingService.recalculateCoverage(companyId, record);
+    return { ...coverage, memberCoverage: record.memberCoverage };
+  }
+
+  @Patch('copasst-training')
+  @Roles('owner', 'admin')
+  async updateCopasstTraining(@Req() request: RequestWithUser, @Body() dto: UpdateCopasstTrainingDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.copasstTrainingService.update(this.resolveCompanyId(request), user, dto as never);
   }
 
   @Patch('training-management/approval')
