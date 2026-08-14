@@ -43,6 +43,10 @@ import { ResourceAssignmentVariableResolverService } from './resource-assignment
 import { ResourceAssignmentDocumentGenerator } from './resource-assignment-document.generator';
 import { SstPolicyVariableResolverService } from './sst-policy-variable-resolver.service';
 import { SstPolicyDocumentGenerator } from './sst-policy-document.generator';
+// Fase 4 (1.1.7) — evidencias y generación documental de la Capacitación COPASST.
+import { CopasstTrainingVariableResolverService } from './copasst-training-variable-resolver.service';
+import { CopasstTrainingDocumentService } from './copasst-training-document.service';
+import { CopasstTrainingDocumentGenerator } from './copasst-training-document.generator';
 
 @Module({
   imports: [
@@ -133,6 +137,18 @@ import { SstPolicyDocumentGenerator } from './sst-policy-document.generator';
     // PHVA_ADVANCED:'PhvaAdvancedSstPolicy' y el alias
     // PHVA_ADVANCED:'SST_POLICY' (ambas apuntan al mismo generador).
     SstPolicyDocumentGenerator,
+    // Fase 4 (1.1.7) — resolución de variables de los documentos de la
+    // Capacitación COPASST (certificado, asistencia, informe, cumplimiento).
+    CopasstTrainingVariableResolverService,
+    // Fase 4 (1.1.7) — generación documental de la Capacitación COPASST.
+    CopasstTrainingDocumentService,
+    // Fase 4 (1.1.7) — generador documental post-aprobación (INERTE en esta
+    // fase: 1.1.7 no posee flujo de aprobación aún). Se registra en el
+    // ApprovalDocumentRegistryService bajo la clave real
+    // PHVA_ADVANCED:'PhvaAdvancedCopasstTraining' y el alias
+    // PHVA_ADVANCED:'COPASST_TRAINING' para que la Fase 5 lo conecte sin
+    // cambios estructurales.
+    CopasstTrainingDocumentGenerator,
   ],
   exports: [
     PhvaAdvancedService,
@@ -143,6 +159,10 @@ import { SstPolicyDocumentGenerator } from './sst-policy-document.generator';
     ResponsibilitiesDocumentGenerator,
     ResourceAssignmentDocumentGenerator,
     SstPolicyDocumentGenerator,
+    // Fase 4 (1.1.7) — exportados para futuras fases (Approval Fase 5).
+    CopasstTrainingVariableResolverService,
+    CopasstTrainingDocumentService,
+    CopasstTrainingDocumentGenerator,
   ],
 })
 export class PhvaAdvancedModule {}

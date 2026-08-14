@@ -66,6 +66,21 @@ describe('intent-router', () => {
     assert.equal(resolveEngineName('¿cuál es el nivel de cumplimiento SG-SST?'), 'compliance');
   });
 
+  it('enruta consultas de capacitación/integrantes/cobertura del COPASST (1.1.7) a compliance', () => {
+    assert.equal(resolveEngineName('¿Cómo está la capacitación del COPASST?'), 'compliance');
+    assert.equal(resolveEngineName('¿Qué integrantes del COPASST están pendientes?'), 'compliance');
+    assert.equal(resolveEngineName('¿Cuál es la cobertura de capacitación de los integrantes del COPASST?'), 'compliance');
+    assert.equal(resolveEngineName('¿qué integrantes del copasst ya están capacitados?'), 'compliance');
+  });
+
+  it('las consultas que mencionan COPASST + plan/actividad enrutan a compliance (decisión intencional: el contexto 1.1.7 vive en los findings de cumplimiento)', () => {
+    // La regla 'copasst' está en la PRIMERA regla (compliance), por lo que gana
+    // sobre 'plan'/'actividad' (phva). Es un cambio deliberado de Fase 7 para
+    // que toda consulta COPASST use los findings reales de 1.1.7.
+    assert.equal(resolveEngineName('¿cómo va el plan de capacitación del COPASST?'), 'compliance');
+    assert.equal(resolveEngineName('¿qué actividades de capacitación del copasst están pendientes?'), 'compliance');
+  });
+
   it('retorna null cuando ninguna regla coincide', () => {
     assert.equal(resolveEngineName('hola mundo'), null);
   });

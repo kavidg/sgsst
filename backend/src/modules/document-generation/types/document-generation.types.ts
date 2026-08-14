@@ -31,6 +31,12 @@ export enum DocumentTemplateType {
   PHVA_RESOURCE_ASSIGNMENT = 'PHVA_RESOURCE_ASSIGNMENT',
   /** Documento formal de la Política de Seguridad y Salud en el Trabajo (PHVA 2.1.1). */
   PHVA_SST_POLICY = 'PHVA_SST_POLICY',
+  /**
+   * Documentos de la Capacitación de los integrantes del COPASST (PHVA 1.1.7):
+   * certificado, lista de asistencia, informe de capacitación y reporte de
+   * cumplimiento (Fase 4).
+   */
+  PHVA_COPASST_TRAINING = 'PHVA_COPASST_TRAINING',
   OTHER = 'OTHER',
 }
 
@@ -92,6 +98,18 @@ export const PHVA_SOURCE_ENTITY_RESOURCE_ASSIGNMENT = 'RESOURCE_ASSIGNMENT';
  * apuntan al mismo generador para no duplicar generación).
  */
 export const PHVA_SOURCE_ENTITY_SST_POLICY = 'SST_POLICY';
+
+/**
+ * Entidad de origen de los documentos de la Capacitación COPASST (PHVA 1.1.7).
+ *
+ * Fase 4: se usa como sourceEntity de la DocumentInstance. La clave REAL del
+ * flujo de aprobación (Fase 5) será module=PHVA_ADVANCED +
+ * entityType='PhvaAdvancedCopasstTraining' (ver el generador
+ * CopasstTrainingDocumentGenerator), por lo que el generador se registra bajo
+ * esa clave Y bajo PHVA_ADVANCED:'COPASST_TRAINING' como clave normalizada
+ * (ambas apuntan al mismo generador para no duplicar generación).
+ */
+export const PHVA_SOURCE_ENTITY_COPASST_TRAINING = 'COPASST_TRAINING';
 
 /**
  * Metadatos de aprobación de una instancia documental generada.

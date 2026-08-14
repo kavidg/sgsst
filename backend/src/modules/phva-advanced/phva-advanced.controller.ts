@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   InternalServerErrorException,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -35,6 +36,15 @@ import { UploadResponsableSstDocumentDto } from './dto/upload-responsable-sst-do
 import { PhvaAdvancedService } from './phva-advanced.service';
 import { PhvaAdvancedCopasstTrainingService } from './phva-advanced-copasst-training.service';
 import { UpdateCopasstTrainingDto } from './dto/update-copasst-training.dto';
+import { CreateCopasstTrainingEvidenceDto } from './dto/create-copasst-training-evidence.dto';
+import {
+  GenerateCopasstTrainingAttendanceDto,
+  GenerateCopasstTrainingCertificateDto,
+} from './dto/generate-copasst-training-document.dto';
+import { DecideCopasstTrainingApprovalDto } from './dto/decide-copasst-training-approval.dto';
+import { CopasstTrainingDocumentService } from './copasst-training-document.service';
+import { PHVA_SOURCE_ENTITY_COPASST_TRAINING } from '../document-generation/types/document-generation.types';
+import { StorageService } from '../document-generation/services/storage.service';
 import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ResponsibilityAssignmentEntry } from './schemas/phva-advanced-responsibilities.schema';
 import { UpdateSpecialPensionDto } from './dto/update-special-pension.dto';
@@ -50,6 +60,11 @@ export class PhvaAdvancedController {
     private readonly approvalWorkflowService: ApprovalWorkflowService,
     // Fase 1 (1.1.7) — service de dominio de Capacitación COPASST.
     private readonly copasstTrainingService: PhvaAdvancedCopasstTrainingService,
+    // Fase 4 (1.1.7) — generación documental de la Capacitación COPASST.
+    private readonly copasstTrainingDocumentService: CopasstTrainingDocumentService,
+    // Fase 4 (1.1.7) — StorageService centralizado (reutilizado, NO se crea un
+    // segundo servicio de Firebase Storage).
+    private readonly storageService: StorageService,
   ) {}
 
   @Get('responsable-sst')
@@ -425,6 +440,359 @@ export class PhvaAdvancedController {
   async updateCopasstTraining(@Req() request: RequestWithUser, @Body() dto: UpdateCopasstTrainingDto) {
     const user = await this.resolveUserFromRequest(request);
     return this.copasstTrainingService.update(this.resolveCompanyId(request), user, dto as never);
+  }
+
+  // ─────────────────────────────────────────────
+  // FASE 4 (1.1.7) — EVIDENCIAS Y GENERACIÓN DOCUMENTAL
+  // ─────────────────────────────────────────────
+
+  /**
+   * Carga una evidencia de la Capacitación COPASST (1.1.7, Fase 4).
+   *
+   * El archivo se sube con el StorageService centralizado a una ruta separada
+   * por companyId / estándar 1.1.7 / año / sesión / tipo:
+   *   phva-advanced/{companyId}/copasst-training/{year}/sessions/{sessionIndex|general}/{type}/...
+   * El companyId NUNCA proviene del body: se resuelve desde x-company-id.
+   *
+   * DECISIÓN (Fase 5): la carga de evidencias permanece disponible durante el
+   * ciclo de aprobación (PENDING/APPROVED). Solo la edición de datos base
+   * (PATCH /copasst-training) queda bloqueada por `locked`; adjuntar soportes
+   * documentales durante la aprobación es un escenario válido y NO modifica
+   * programa/sesiones/participantes (los snapshots históricos se conservan).
+   */
+  @Post('copasst-training/evidence')
+  @Roles('owner', 'admin')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadCopasstTrainingEvidence(
+    @Req() request: RequestWithUser,
+    @UploadedFile() file: UploadedBinaryFile,
+    @Body() dto: CreateCopasstTrainingEvidenceDto,
+  ) {
+    if (!file) throw new BadRequestException('File is required');
+
+    const companyId = this.resolveCompanyId(request);
+    const user = await this.resolveUserFromRequest(request);
+    const record = await this.copasstTrainingService.findOrCreate(companyId);
+
+    const sessionKey =
+      dto.sessionIndex !== undefined ? `sessions/${dto.sessionIndex}` : 'general';
+    const folder = `phva-advanced/${companyId.toString()}/copasst-training/${record.year}/${sessionKey}/${dto.type}`;
+    const upload = await this.storageService.upload(file.buffer, file.originalname, folder);
+
+    return this.copasstTrainingService.addEvidence(companyId, user, {
+      type: dto.type,
+      fileName: file.originalname,
+      fileUrl: upload.fileUrl,
+      storagePath: upload.storagePath,
+      sessionIndex: dto.sessionIndex,
+      metadata: dto.metadata,
+    });
+  }
+
+  /**
+   * Lista las evidencias estructuradas de la Capacitación COPASST (1.1.7).
+   * Devuelve la entidad completa (las evidencias viven en `record.evidences`)
+   * más el arreglo plano para consumo directo de la UI.
+   */
+  @Get('copasst-training/evidence')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async listCopasstTrainingEvidences(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.copasstTrainingService.findOrCreate(companyId);
+    return { evidences: record.evidences ?? [] };
+  }
+
+  /**
+   * Genera el certificado de capacitación de un participante de una sesión
+   * EJECUTADA (1.1.7).
+   */
+  @Post('copasst-training/documents/certificate')
+  @Roles('owner', 'admin', 'manager')
+  async generateCopasstTrainingCertificate(
+    @Req() request: RequestWithUser,
+    @Body() dto: GenerateCopasstTrainingCertificateDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.copasstTrainingDocumentService.generateCertificate(
+      this.resolveCompanyId(request),
+      user,
+      { sessionIndex: dto.sessionIndex, participantUserId: dto.participantUserId },
+    );
+  }
+
+  /**
+   * Genera la lista de asistencia de una sesión (1.1.7) usando el snapshot
+   * histórico de participantes (inmutable).
+   */
+  @Post('copasst-training/documents/attendance')
+  @Roles('owner', 'admin', 'manager')
+  async generateCopasstTrainingAttendance(
+    @Req() request: RequestWithUser,
+    @Body() dto: GenerateCopasstTrainingAttendanceDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.copasstTrainingDocumentService.generateAttendance(
+      this.resolveCompanyId(request),
+      user,
+      { sessionIndex: dto.sessionIndex },
+    );
+  }
+
+  /** Genera el informe documental de la capacitación COPASST (1.1.7). */
+  @Post('copasst-training/documents/report')
+  @Roles('owner', 'admin', 'manager')
+  async generateCopasstTrainingReport(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.copasstTrainingDocumentService.generateReport(
+      this.resolveCompanyId(request),
+      user,
+    );
+  }
+
+  /**
+   * Genera el reporte de cumplimiento (1.1.7) consumiendo el estado actual
+   * del dominio (sin reglas del Compliance Engine).
+   */
+  @Post('copasst-training/documents/compliance-report')
+  @Roles('owner', 'admin', 'manager')
+  async generateCopasstTrainingComplianceReport(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.copasstTrainingDocumentService.generateComplianceReport(
+      this.resolveCompanyId(request),
+      user,
+    );
+  }
+
+  /**
+   * Reporte de cumplimiento parametrizable (1.1.7, Fase 4). Expone el estado
+   * actual del dominio para ser reutilizado posteriormente por
+   * Compliance/PHVA. No implementa reglas del Compliance Engine.
+   */
+  @Get('copasst-training/compliance')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getCopasstTrainingCompliance(@Req() request: RequestWithUser) {
+    return this.copasstTrainingDocumentService.getComplianceReportData(
+      this.resolveCompanyId(request),
+    );
+  }
+
+  /**
+   * Trazabilidad documental de la entidad 1.1.7 de la empresa (DocumentInstance
+   * generadas para COPASST_TRAINING).
+   */
+  @Get('copasst-training/documents')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async listCopasstTrainingDocuments(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    const instances = await this.copasstTrainingDocumentService.listDocuments(companyId);
+    return {
+      documents: instances.map((instance) => ({
+        id: instance._id.toString(),
+        version: instance.version,
+        status: instance.status,
+        fileUrl: instance.fileUrl,
+        storagePath: instance.storagePath,
+        generatedAt: instance.generatedAt,
+      })),
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // FASE 5 (1.1.7) — APPROVAL WORKFLOW
+  // ─────────────────────────────────────────────
+
+  /**
+   * Estado de aprobación de la Capacitación COPASST (1.1.7, Fase 5).
+   *
+   * Devuelve el ApprovalStatus canónico (DRAFT si nunca se envió — la fuente
+   * de verdad del ciclo es la ApprovalRequest más reciente), el estado local
+   * embebido del dominio, locking, versión y la solicitud/eventos asociados
+   * (scoped por empresa).
+   */
+  @Get('copasst-training/approval')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getCopasstTrainingApproval(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.copasstTrainingService.findOrCreate(companyId);
+    const entityId = record._id.toString();
+
+    const approvalRequest = await this.approvalWorkflowService.findRequestByEntity(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+    );
+    const events = approvalRequest
+      ? await this.approvalWorkflowService.getHistory(
+          companyId.toString(),
+          approvalRequest._id.toString(),
+        )
+      : [];
+
+    return {
+      entityId,
+      // La solicitud es la fuente de verdad del ciclo: sin solicitud → DRAFT.
+      status: approvalRequest?.status ?? ApprovalStatus.DRAFT,
+      approvalStatus: record.approval?.status,
+      locked: record.locked,
+      currentVersion: record.approval?.version ?? 1,
+      requestId: approvalRequest?._id?.toString(),
+      requestedBy: approvalRequest?.requestedBy,
+      // createdAt lo aporta Mongoose (timestamps: true), aunque la clase no lo
+      // declare explícitamente en el tipo.
+      submittedAt: (approvalRequest as unknown as { createdAt?: Date })?.createdAt,
+      assignedRoles: approvalRequest?.assignedRoles ?? ['owner', 'manager'],
+      rejectionReason: approvalRequest?.rejectionReason,
+      comments: record.approval?.comments,
+      approvedBy: record.approval?.approvedBy,
+      approvedAt: record.approval?.approvedAt,
+      history: events.map((event) => ({
+        action: event.action,
+        previousStatus: event.previousStatus,
+        newStatus: event.newStatus,
+        reason: event.reason,
+        actor: event.actor,
+        createdAt: event.createdAt,
+      })),
+    };
+  }
+
+  /**
+   * Envía la Capacitación COPASST a aprobación (Fase 5): DRAFT →
+   * PENDING_APPROVAL.
+   *
+   * 1. Verifica la pertenencia de la entidad a la empresa (findOrCreate + el
+   *    dominio nunca acepta companyId del body).
+   * 2. El actor debe tener rol owner/admin (@Roles).
+   * 3. El dominio marca PENDING + locked (submitCopasstTraining rechaza si ya
+   *    está pendiente/aprobada → evita duplicados).
+   * 4. Crea la ApprovalRequest PENDING_APPROVAL SOLO si no existe una pendiente
+   *    (findRequestByEntity + guardia de estado).
+   */
+  @Patch('copasst-training/approval')
+  @Roles('owner', 'admin')
+  async submitCopasstTrainingApproval(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    // 1. Dominio: marca PENDING + locked (valida que no esté ya pendiente/aprobada).
+    const record = await this.copasstTrainingService.submitCopasstTraining(companyId, user);
+    const entityId = record._id.toString();
+
+    // 2. Approval Workflow: solicitud PENDING_APPROVAL sin duplicados.
+    const existing = await this.approvalWorkflowService.findRequestByEntity(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+    );
+    if (!existing || existing.status !== ApprovalStatus.PENDING_APPROVAL) {
+      await this.approvalWorkflowService.createRequest(
+        companyId.toString(),
+        {
+          module: ApprovalEntity.PHVA_ADVANCED,
+          entityType: PHVA_SOURCE_ENTITY_COPASST_TRAINING,
+          entityId,
+          assignedRoles: ['owner', 'manager'],
+          comments: 'Aprobación de la Capacitación COPASST (1.1.7)',
+        },
+        actor,
+      );
+    }
+
+    return record;
+  }
+
+  /**
+   * Decide sobre la aprobación de 1.1.7 (Fase 5): APPROVED | REJECTED |
+   * ADJUSTMENTS_REQUESTED.
+   *
+   * Reutiliza ApprovalWorkflowService.decideAndApply (sin lógica paralela).
+   * Si no existe una solicitud PENDING (flujo legacy o ciclo rechazo →
+   * corrección → reenvío), se crea una nueva antes de decidir (mismo patrón
+   * que 1.2.1). Solo APPROVED activa la generación documental del
+   * ApprovalDocumentGenerationListener (Informe de capacitación vía
+   * CopasstTrainingDocumentGenerator).
+   *
+   * Corrección M1 (Fase 9): la decisión opera SOLO sobre una entidad
+   * existente — si no hay entidad 1.1.7 para la empresa se rechaza la
+   * decisión y NUNCA se crea una entidad implícitamente (findByCompany + 404).
+   * La validación de contenido mínimo para APPROVED vive en el dominio
+   * (PhvaAdvancedCopasstTrainingService.approveCopasstTraining).
+   */
+  @Post('copasst-training/approval/decide')
+  @Roles('owner', 'manager')
+  async decideCopasstTrainingApproval(
+    @Req() request: RequestWithUser,
+    @Body() dto: DecideCopasstTrainingApprovalDto,
+  ) {
+    // El motivo es obligatorio para el rechazo (patrón de los módulos PHVA).
+    if (
+      dto.decision === ApprovalDecision.REJECTED &&
+      (!dto.reason || !dto.reason.trim())
+    ) {
+      throw new BadRequestException('Rejection reason is required');
+    }
+
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.copasstTrainingService.findByCompany(companyId);
+    if (!record) {
+      throw new NotFoundException('Capacitación COPASST no encontrada');
+    }
+    const entityId = record._id.toString();
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    // Ciclo rechazo/ajustes → corrección → re-aprobación: si no existe una
+    // solicitud PENDING se crea una nueva antes de decidir (evita duplicados
+    // cuando ya hay una pendiente).
+    const existing = await this.approvalWorkflowService.findRequestByEntity(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+    );
+    if (!existing || existing.status !== ApprovalStatus.PENDING_APPROVAL) {
+      await this.approvalWorkflowService.createRequest(
+        companyId.toString(),
+        {
+          module: ApprovalEntity.PHVA_ADVANCED,
+          entityType: PHVA_SOURCE_ENTITY_COPASST_TRAINING,
+          entityId,
+          assignedRoles: ['owner', 'manager'],
+          comments: 'Aprobación de la Capacitación COPASST (1.1.7)',
+        },
+        actor,
+      );
+    }
+
+    // Delegar al Approval Workflow Core, que reutiliza
+    // PhvaAdvancedCopasstTrainingService.approveCopasstTraining a través del
+    // CopasstTrainingHandler (conserva approval, history, approvedBy/At,
+    // comments, version y locking).
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      entityId,
+      {
+        decision: dto.decision,
+        reason: dto.reason,
+        comments: dto.comments,
+        metadata: {
+          decidedByEmail: request.user?.email,
+        },
+      },
+      actor,
+    );
+
+    return result.applied;
   }
 
   @Patch('training-management/approval')

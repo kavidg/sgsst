@@ -199,10 +199,19 @@ describe('Estado de implementación', () => {
     }
   });
 
-  it('nivel 60: 28 IMPLEMENTED / 22 PARTIAL / 10 PLANNED', () => {
-    assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'IMPLEMENTED').length, 28);
-    assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'PARTIAL').length, 22);
+  it('nivel 60: 29 IMPLEMENTED / 21 PARTIAL / 10 PLANNED', () => {
+    assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'IMPLEMENTED').length, 29);
+    assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'PARTIAL').length, 21);
     assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'PLANNED').length, 10);
+  });
+
+  it('FASE 6: 1.1.7 Capacitación COPASST → IMPLEMENTED con provider y ruta (peso intacto)', () => {
+    const standard = CATALOG_60.find((s) => s.code === '1.1.7');
+    assert.ok(standard, '1.1.7 presente en el catálogo');
+    assert.equal(standard.implementationStatus, 'IMPLEMENTED');
+    assert.equal(standard.validationProvider, 'copasst-training.provider');
+    assert.equal(standard.moduleRoute, '/advanced-management/1.1.7');
+    assert.equal(standard.normativeWeight, 0.5, 'peso normativo intacto (no se alteraron pesos)');
   });
 
   it('nivel 7: 10 IMPLEMENTED / 1 PARTIAL / 0 PLANNED', () => {
@@ -211,9 +220,9 @@ describe('Estado de implementación', () => {
     assert.equal(CATALOG_7.filter((s) => s.implementationStatus === 'PLANNED').length, 0);
   });
 
-  it('nivel 21: 19 IMPLEMENTED / 3 PARTIAL / 0 PLANNED', () => {
-    assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'IMPLEMENTED').length, 19);
-    assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'PARTIAL').length, 3);
+  it('nivel 21: 20 IMPLEMENTED / 2 PARTIAL / 0 PLANNED', () => {
+    assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'IMPLEMENTED').length, 20);
+    assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'PARTIAL').length, 2);
     assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'PLANNED').length, 0);
   });
 });
@@ -326,7 +335,7 @@ describe('StandardCatalogService — catálogo efectivo (FASE 5.1)', () => {
   it('getEffectiveCatalog: count = IMPLEMENTED + PARTIAL y PLANNED fuera', () => {
     const dto = service.getEffectiveCatalog('60');
     assert.equal(dto.count, 50);
-    assert.equal(dto.implementedCount, 28);
+    assert.equal(dto.implementedCount, 29);
     assert.equal(dto.plannedCount, 10);
     for (const standard of dto.standards) {
       assert.ok(

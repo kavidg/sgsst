@@ -139,6 +139,35 @@ describe('ComplianceAIEngine.analyzeCompliance', () => {
     assert.equal(result7.standardLevel, '7 estándares');
     assert.equal(result60.standardLevel, '60 estándares');
   });
+
+  it('consume los findings y recomendaciones reales de 1.1.7 (copasst-training) desde el overview', async () => {
+    // Fase 6 registró CopasstTrainingProvider en el Compliance Engine: sus
+    // findings/recomendaciones llegan al overview y ComplianceAI los consume
+    // sin duplicar reglas ni inventar datos.
+    const engine = buildEngine({
+      company: { _id: COMPANY_ID, standardsType: '60' },
+      overview: {
+        overallCompliance: 40,
+        findings: [
+          {
+            title: 'Programa de capacitación COPASST no registrado',
+            priority: 'HIGH',
+            module: 'copasst-training',
+          },
+        ],
+        recommendations: [{ title: 'Capacitar integrantes COPASST' }],
+      },
+    });
+
+    const result = await engine.analyzeCompliance(COMPANY_ID);
+
+    // Los hallazgos HIGH de 1.1.7 aparecen como hallazgos de alta prioridad.
+    assert.ok(result.criticalFindings.includes('Programa de capacitación COPASST no registrado'));
+    // La recomendación generada por el provider de 1.1.7 se expone al usuario.
+    assert.ok(result.recommendations.includes('Capacitar integrantes COPASST'));
+    // No se inventa un porcentaje de 1.1.7: se reutiliza el overview real.
+    assert.equal(result.overall, 40);
+  });
 });
 
 describe('ComplianceAIEngine.execute', () => {

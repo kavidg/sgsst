@@ -5,6 +5,9 @@ import { Company, CompanySchema } from '../../companies/schemas/company.schema';
 import { ComplianceEngineModule } from '../../compliance-engine/compliance-engine.module';
 import { DocumentManagementModule } from '../../document-management/document-management.module';
 import { PhvaModule } from '../../phva/phva.module';
+// Fase 7 (1.1.7): expone PhvaAdvancedCopasstTrainingService (dominio de
+// Capacitación COPASST) para alimentar la sección copasstTraining del contexto.
+import { PhvaAdvancedModule } from '../../phva-advanced/phva-advanced.module';
 import { AiContextService } from './ai-context.service';
 
 /**
@@ -23,6 +26,9 @@ import { AiContextService } from './ai-context.service';
     PhvaModule,
     DocumentManagementModule,
     AnnualWorkPlanModule,
+    // Fase 7 (1.1.7): módulo de dominio de la Capacitación COPASST. El grafo
+    // no genera ciclos (PhvaAdvancedModule no depende de AiContextModule).
+    PhvaAdvancedModule,
   ],
   providers: [AiContextService],
   exports: [AiContextService],

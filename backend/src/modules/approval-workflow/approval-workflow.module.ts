@@ -30,11 +30,13 @@ import { TrainingManagementHandler } from './adapters/handlers/training-manageme
 import { SstPolicyHandler } from './adapters/handlers/sst-policy.handler';
 import { ResponsibilitiesHandler } from './adapters/handlers/responsibilities.handler';
 import { ResponsibleSgsstHandler } from './adapters/handlers/responsible-sgsst.handler';
+import { CopasstTrainingHandler } from './adapters/handlers/copasst-training.handler';
 import { ResponsibleSgsstDocumentGenerator } from '../phva-advanced/responsible-sgsst-document.generator';
 import { CopasstDocumentGenerator } from '../phva-advanced/copasst-document.generator';
 import { ResponsibilitiesDocumentGenerator } from '../phva-advanced/responsibilities-document.generator';
 import { ResourceAssignmentDocumentGenerator } from '../phva-advanced/resource-assignment-document.generator';
 import { SstPolicyDocumentGenerator } from '../phva-advanced/sst-policy-document.generator';
+import { CopasstTrainingDocumentGenerator } from '../phva-advanced/copasst-training-document.generator';
 import { ApprovalDocumentGenerationListener } from './document-generation/approval-document-generation.listener';
 import { ApprovalDocumentRegistryService } from './document-generation/approval-document-registry.service';
 import {
@@ -126,6 +128,9 @@ import {
     SstPolicyHandler,
     ResponsibilitiesHandler,
     ResponsibleSgsstHandler,
+    // Fase 5 (1.1.7) — Capacitación COPASST: approve/reject/adjustments
+    // reutilizan PhvaAdvancedCopasstTrainingService.approveCopasstTraining.
+    CopasstTrainingHandler,
     {
       provide: APPROVAL_ADAPTERS,
       useFactory: (...adapters: ApprovalAdapter[]) => adapters,
@@ -157,12 +162,18 @@ import {
       // Fase 6: SstPolicyDocumentGenerator (clave real
       // PHVA_ADVANCED:'PhvaAdvancedSstPolicy' + alias
       // PHVA_ADVANCED:'SST_POLICY' declarado en el propio generador).
+      // Fase 4 (1.1.7): CopasstTrainingDocumentGenerator (clave real
+      // PHVA_ADVANCED:'PhvaAdvancedCopasstTraining' + alias
+      // PHVA_ADVANCED:'COPASST_TRAINING' declarado en el propio generador).
+      // Fase 5: activo — genera el Informe de capacitación cuando 1.1.7 se
+      // aprueba (ApprovalDocumentGenerationListener).
       inject: [
         ResponsibleSgsstDocumentGenerator,
         CopasstDocumentGenerator,
         ResponsibilitiesDocumentGenerator,
         ResourceAssignmentDocumentGenerator,
         SstPolicyDocumentGenerator,
+        CopasstTrainingDocumentGenerator,
       ],
     },
   ],

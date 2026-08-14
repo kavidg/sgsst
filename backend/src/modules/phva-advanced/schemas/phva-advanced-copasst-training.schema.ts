@@ -48,6 +48,80 @@ export class CopasstTrainingSession extends Session {
 }
 
 /**
+ * Tipos de evidencia persistida de la Capacitación COPASST (1.1.7, Fase 4).
+ *
+ * Estructura abierta aditiva: los documentos generados por el motor
+ * (certificado, asistencia, informe, cumplimiento) se registran también como
+ * evidencias estructuradas para que la UI las liste sin URLs ficticias.
+ */
+export enum CopasstTrainingEvidenceType {
+  /** Material, presentaciones o soportes cargados por el usuario. */
+  GENERAL = 'GENERAL',
+  /** Lista de asistencia de una sesión (generada o cargada). */
+  ATTENDANCE = 'ATTENDANCE',
+  /** Registro de firmas de una sesión. */
+  SIGNATURE = 'SIGNATURE',
+  /** Certificado de capacitación de un participante. */
+  CERTIFICATE = 'CERTIFICATE',
+  /** Informe documental de la capacitación. */
+  REPORT = 'REPORT',
+  /** Reporte de cumplimiento del estándar. */
+  COMPLIANCE_REPORT = 'COMPLIANCE_REPORT',
+}
+
+/**
+ * Evidencia persistida de la Capacitación COPASST (1.1.7, Fase 4).
+ *
+ * Estructura PARALELA específica de 1.1.7: NO se agrega metadata al
+ * sub-schema compartido `Session` (que 1.2.1 reutiliza y no debe modificarse).
+ *
+ * La sesión se referencia por `sessionIndex` (índice ESTABLE del arreglo
+ * `sessions` según el modelo existente — las sesiones no poseen _id propio) y
+ * se denormaliza un snapshot mínimo (sessionTitle, sessionDate) para conservar
+ * el contexto aunque la sesión se elimine o reordene posteriormente.
+ */
+@Schema({ _id: false })
+export class CopasstTrainingEvidence {
+  @Prop({ type: String, required: true, enum: Object.values(CopasstTrainingEvidenceType) })
+  type!: CopasstTrainingEvidenceType;
+
+  /** Nombre original del archivo (legible en la UI). */
+  @Prop({ required: true })
+  fileName!: string;
+
+  /** URL pública del archivo en Firebase Storage (nunca inventada). */
+  @Prop({ required: true })
+  fileUrl!: string;
+
+  /** Ruta de Storage (para futuras descargas/eliminaciones). */
+  @Prop()
+  storagePath?: string;
+
+  /** Índice estable de la sesión asociada (opcional para evidencias globales). */
+  @Prop()
+  sessionIndex?: number;
+
+  /** Snapshot denormalizado del título de la sesión al momento de cargar. */
+  @Prop()
+  sessionTitle?: string;
+
+  /** Snapshot denormalizado de la fecha de la sesión al momento de cargar. */
+  @Prop()
+  sessionDate?: Date;
+
+  /** Usuario que registró la evidencia (referencia a User._id). */
+  @Prop({ type: Types.ObjectId })
+  uploadedBy?: Types.ObjectId;
+
+  @Prop({ default: Date.now })
+  uploadedAt!: Date;
+
+  /** Metadata abierta específica (p.ej. participantUserId de un certificado). */
+  @Prop({ type: Object, default: undefined })
+  metadata?: Record<string, unknown>;
+}
+
+/**
  * Registro de cobertura de capacitación por miembro activo del COPASST (1.1.7).
  *
  * Se recalcula al actualizar sesiones/evidencias. `trained` es true si el
@@ -136,15 +210,40 @@ export class PhvaAdvancedCopasstTraining {
   @Prop({ type: [String], default: [] })
   signatureEvidence!: string[];
 
+  /**
+   * Evidencias estructuradas persistentes (Fase 4). Fuente de verdad para la
+   * UI de evidencias de 1.1.7; los arreglos legacy de strings se conservan
+   * intactos por compatibilidad aditiva.
+   */
+  @Prop({ type: [CopasstTrainingEvidence], default: [] })
+  evidences!: CopasstTrainingEvidence[];
+
   @Prop({ type: [String], default: [] })
   alerts!: string[];
 
   @Prop({ type: [AuditEntry], default: [] })
   history!: AuditEntry[];
 
-  /** Approval embebido — modelado SOLO para preparar la fase 5 (sin integrar el motor aún). */
+  /**
+   * Approval embebido del flujo de aprobación (Fase 5). El estado lo escribe
+   * el dominio vía submitCopasstTraining/approveCopasstTraining (a través del
+   * CopasstTrainingHandler); la ApprovalRequest del Approval Workflow Core es
+   * la fuente de verdad del ciclo (GET /copasst-training/approval).
+   */
   @Prop({ type: Approval, default: { version: 1, status: 'PENDING' } })
   approval!: Approval;
+
+  /**
+   * Locking del flujo de aprobación (Fase 5): true mientras la entidad está
+   * PENDIENTE de aprobación o APROBADA (no editable). REJECTED y
+   * ADJUSTMENTS_REQUESTED liberan la edición para correcciones.
+   *
+   * Campo PROPIO de 1.1.7 (aditivo): NO se usa el Approval embebido compartido
+   * con 1.2.1 para derivar el lock, porque su estado inicial 'PENDING' es
+   * ambiguo (no enviado vs pendiente de decisión).
+   */
+  @Prop({ default: false })
+  locked!: boolean;
 
   @Prop({ default: 'PENDING' })
   complianceStatus!: 'COMPLIES'|'PENDING'|'NON_COMPLIANT';

@@ -2,6 +2,7 @@ import { RecommendationDto } from '../dto/recommendation.dto';
 import { FindingPriority } from '../enums/finding-priority.enum';
 import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 import { ProviderComplianceResult } from '../providers/compliance-provider.interface';
+import { COPASST_TRAINING_THRESHOLD } from '../providers/copasst-training.provider';
 
 const TRAINING_THRESHOLD = 70;
 
@@ -75,6 +76,21 @@ export function generateRecommendations(results: ProviderComplianceResult[]): Re
       'Existen alertas de severidad alta sin resolver que requieren atención inmediata.',
       FindingPriority.CRITICAL,
       'check',
+    );
+  }
+
+  // Regla (FASE 6): capacitación COPASST (1.1.7) por debajo del umbral →
+  // completar la formación de los integrantes. Aditiva: no altera las reglas
+  // existentes; consume el resultado real del provider de 1.1.7. El umbral
+  // viene del propio provider (fuente única, evita deriva entre módulos).
+  const copasstTraining = results.find((result) => result.module === 'copasst-training');
+  if (copasstTraining && copasstTraining.percentage < COPASST_TRAINING_THRESHOLD) {
+    push(
+      'copasst-training',
+      'Completar la capacitación de los integrantes del COPASST',
+      `La cobertura de capacitación de los integrantes del COPASST es del ${copasstTraining.percentage}%, por debajo del umbral recomendado del ${COPASST_TRAINING_THRESHOLD}%. Programar y ejecutar las sesiones pendientes (1.1.7).`,
+      FindingPriority.MEDIUM,
+      'do',
     );
   }
 

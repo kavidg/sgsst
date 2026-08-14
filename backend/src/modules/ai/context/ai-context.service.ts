@@ -10,8 +10,14 @@ import { DocumentMasterService } from '../../document-management/services/docume
 import { PhvaAnalysisResult } from '../../phva/interfaces/phva-analysis.interface';
 import { PhvaAnalysisService } from '../../phva/phva-analysis.service';
 import {
+  CopasstTrainingCoverage,
+  PhvaAdvancedCopasstTrainingService,
+} from '../../phva-advanced/phva-advanced-copasst-training.service';
+import { PhvaAdvancedCopasstTrainingDocument } from '../../phva-advanced/schemas/phva-advanced-copasst-training.schema';
+import {
   CompanyAIContext,
   CompanyAIContextActivities,
+  CompanyAIContextCopasstTraining,
   CompanyAIContextDocuments,
 } from './interfaces/company-ai-context.interface';
 
@@ -45,6 +51,9 @@ export class AiContextService {
     private readonly phvaAnalysisService: PhvaAnalysisService,
     private readonly documentMasterService: DocumentMasterService,
     private readonly annualWorkPlanService: AnnualWorkPlanService,
+    // Fase 7 (1.1.7): service de dominio de Capacitación COPASST. El contexto
+    // NO recalcula cobertura ni miembros: reutiliza las reglas del dominio.
+    private readonly copasstTrainingService: PhvaAdvancedCopasstTrainingService,
   ) {}
 
   /**
@@ -62,12 +71,13 @@ export class AiContextService {
     // pendientes por fase (sin duplicar código) y no modifica contratos existentes.
     // Si el rendimiento lo exige, PhvaAnalysisService podría aceptar el overview ya
     // agregado como parámetro opcional en una fase futura.
-    const [company, overview, phva, documents, activities] = await Promise.all([
+    const [company, overview, phva, documents, activities, copasstTraining] = await Promise.all([
       this.safeFindCompany(companyId),
       this.safeGetOverview(companyId),
       this.safeGetPhva(companyId),
       this.safeGetDocuments(companyObjectId),
       this.safeGetActivities(companyObjectId),
+      this.safeGetCopasstTraining(companyObjectId),
     ]);
 
     return {
@@ -86,6 +96,7 @@ export class AiContextService {
       phva: phva ?? this.emptyPhva(),
       documents: this.buildDocumentsContext(documents),
       activities: this.buildActivitiesContext(activities),
+      copasstTraining: this.buildCopasstTrainingContext(copasstTraining),
     };
   }
 
@@ -147,6 +158,27 @@ export class AiContextService {
     }
   }
 
+  /**
+   * Lectura tolerante de la entidad 1.1.7 + cobertura real.
+   *
+   * Multi-tenancy: se consulta SIEMPRE a través del service de dominio con el
+   * companyId autenticado (nunca por entityId suelto). Una empresa sin entidad
+   * o con el módulo caído devuelve null (sección con valores por defecto).
+   */
+  private async safeGetCopasstTraining(
+    companyObjectId: Types.ObjectId,
+  ): Promise<{ record: PhvaAdvancedCopasstTrainingDocument; coverage: CopasstTrainingCoverage } | null> {
+    try {
+      const record = await this.copasstTrainingService.findByCompany(companyObjectId);
+      if (!record) return null;
+      const coverage = await this.copasstTrainingService.calculateCoverage(companyObjectId, record);
+      return { record, coverage };
+    } catch (error) {
+      this.logger.debug(`Capacitación COPASST (1.1.7) no disponible: ${this.errorMessage(error)}`);
+      return null;
+    }
+  }
+
   private buildDocumentsContext(
     documents: { name: string; status: DocumentStatus; expirationDate?: Date }[],
   ): CompanyAIContextDocuments {
@@ -203,6 +235,129 @@ export class AiContextService {
       delayed: delayed.slice(0, MAX_ITEMS_PER_LIST),
       completed: completed.slice(0, MAX_ITEMS_PER_LIST),
     };
+  }
+
+  /**
+   * Construye la sección 1.1.7 del contexto con datos REALES del dominio.
+   *
+   * - Cobertura: `calculateCoverage` del dominio (misma definición que el
+   *   Compliance Engine: miembros ACTIVOS con ≥1 sesión ejecutada / activos).
+   * - Sesión ejecutada: `isSessionExecuted` del dominio (status 'Ejecutada' o
+   *   completionDate). La IA NO reimplementa la regla.
+   * - Miembros: snapshot `memberCoverage` (no re-resuelve el periodo).
+   * - Evaluaciones: `evaluationAttempts` global de la entidad (no hay relación
+   *   evaluación → participante en el modelo: no se inventa).
+   * - Evidencias: conteos reales (legacy + estructuradas). Sin URLs.
+   * - Tendencia: null (no hay histórico suficiente para una tendencia real).
+   */
+  private buildCopasstTrainingContext(data: {
+    record: PhvaAdvancedCopasstTrainingDocument;
+    coverage: CopasstTrainingCoverage;
+  } | null): CompanyAIContextCopasstTraining {
+    if (!data) {
+      return this.emptyCopasstTrainingContext();
+    }
+
+    const { record, coverage } = data;
+    const sessions = record.sessions ?? [];
+    const memberCoverage = record.memberCoverage ?? [];
+    const attempts = record.evaluationAttempts ?? [];
+
+    const executed = sessions.filter((session) =>
+      this.copasstTrainingService.isSessionExecuted(session),
+    );
+    const canceled = sessions.filter((session) => session.status === 'Cancelada');
+    const notExecuted = sessions.filter(
+      (session) => !this.copasstTrainingService.isSessionExecuted(session),
+    );
+    const now = new Date();
+    const expired = notExecuted.filter(
+      (session) =>
+        session.expirationDate !== undefined &&
+        this.toDate(session.expirationDate).getTime() < now.getTime(),
+    );
+    const upcoming = notExecuted.filter(
+      (session) =>
+        session.scheduledDate !== undefined &&
+        this.toDate(session.scheduledDate).getTime() >= now.getTime(),
+    );
+    const scheduled = notExecuted.filter((session) => session.status !== 'Cancelada');
+    const pendingMembers = memberCoverage.filter((member) => !member.trained);
+
+    return {
+      itemCode: record.itemCode ?? null,
+      year: record.year ?? null,
+      complianceStatus: record.complianceStatus ?? null,
+      complianceReason: record.complianceReason ?? null,
+      coverage: {
+        percentage: coverage.coveragePercentage,
+        totalMembers: coverage.totalMembers,
+        trainedMembers: coverage.trainedMembers,
+        pendingMembers: coverage.totalMembers - coverage.trainedMembers,
+        pendingMemberNames: pendingMembers
+          .map((member) => member.name)
+          .slice(0, MAX_ITEMS_PER_LIST),
+      },
+      sessions: {
+        total: sessions.length,
+        executed: executed.length,
+        scheduled: scheduled.length,
+        canceled: canceled.length,
+        expired: expired.length,
+        upcoming: upcoming.length,
+      },
+      members: memberCoverage.slice(0, MAX_ITEMS_PER_LIST).map((member) => ({
+        userId: member.userId.toString(),
+        name: member.name,
+        committeeRole: member.committeeRole,
+        representationType: member.representationType,
+        status: member.status,
+        trained: member.trained,
+        trainedAt: member.trainedAt ? this.toDate(member.trainedAt).toISOString() : null,
+        executedSessions: member.executedSessions,
+      })),
+      evaluations: {
+        attempts: attempts.length,
+        passed: attempts.filter((attempt) => attempt.passed).length,
+        failed: attempts.filter((attempt) => !attempt.passed).length,
+      },
+      evidences: {
+        legacyCount:
+          (record.attendanceEvidence ?? []).length +
+          (record.signatureEvidence ?? []).length +
+          (record.evidenceFiles ?? []).length +
+          (record.certificates ?? []).length,
+        structuredCount: (record.evidences ?? []).length,
+      },
+      trend: null,
+    };
+  }
+
+  /** Sección 1.1.7 vacía (empresa sin entidad o módulo caído): no rompe el contrato. */
+  private emptyCopasstTrainingContext(): CompanyAIContextCopasstTraining {
+    return {
+      itemCode: null,
+      year: null,
+      complianceStatus: null,
+      complianceReason: null,
+      coverage: {
+        percentage: 0,
+        totalMembers: 0,
+        trainedMembers: 0,
+        pendingMembers: 0,
+        pendingMemberNames: [],
+      },
+      sessions: { total: 0, executed: 0, scheduled: 0, canceled: 0, expired: 0, upcoming: 0 },
+      members: [],
+      evaluations: { attempts: 0, passed: 0, failed: 0 },
+      evidences: { legacyCount: 0, structuredCount: 0 },
+      trend: null,
+    };
+  }
+
+  /** Normaliza una fecha del dominio (Date o string) para comparaciones seguras. */
+  private toDate(value: Date | string): Date {
+    return value instanceof Date ? value : new Date(value);
   }
 
   /** Estructura PHVA vacía (sin datos) para no romper el contrato del contexto. */

@@ -10,6 +10,7 @@ import { IncidentsModule } from '../incidents/incidents.module';
 import { InitialEvaluation, InitialEvaluationSchema } from '../initial-evaluation/schemas/initial-evaluation.schema';
 import { InspectionsModule } from '../inspections/inspections.module';
 import { LegalMatrixModule } from '../legal-matrix/legal-matrix.module';
+import { PhvaAdvancedModule } from '../phva-advanced/phva-advanced.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { RisksModule } from '../risks/risks.module';
 import { TrainingsModule } from '../trainings/trainings.module';
@@ -18,6 +19,7 @@ import { ComplianceEngineController } from './compliance-engine.controller';
 import { ComplianceEngineService } from './compliance-engine.service';
 import { AlertsProvider } from './providers/alerts.provider';
 import { AnnualWorkPlanProvider } from './providers/annual-work-plan.provider';
+import { CopasstTrainingProvider } from './providers/copasst-training.provider';
 import { DashboardProvider } from './providers/dashboard.provider';
 import { DocumentsProvider } from './providers/documents.provider';
 import { EvaluationsProvider } from './providers/evaluations.provider';
@@ -47,6 +49,9 @@ import { TrainingsProvider } from './providers/trainings.provider';
     LegalMatrixModule,
     AlertsModule,
     DashboardModule,
+    // FASE 6: provider de cumplimiento 1.1.7 (Capacitación COPASST) que
+    // reutiliza PhvaAdvancedCopasstTrainingService (entidad + cobertura real).
+    PhvaAdvancedModule,
   ],
   controllers: [ComplianceEngineController],
   providers: [
@@ -63,6 +68,7 @@ import { TrainingsProvider } from './providers/trainings.provider';
     AlertsProvider,
     DashboardProvider,
     InitialEvaluationProvider,
+    CopasstTrainingProvider,
   ],
   // Exportado para que ComplianceTimelineModule pueda reutilizar getOverview()
   // como fuente única de datos del timeline.

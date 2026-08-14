@@ -9,6 +9,8 @@ import { TrainingManagementHandler } from './handlers/training-management.handle
 import { SstPolicyHandler } from './handlers/sst-policy.handler';
 import { ResponsibilitiesHandler } from './handlers/responsibilities.handler';
 import { ResponsibleSgsstHandler } from './handlers/responsible-sgsst.handler';
+import { CopasstTrainingHandler } from './handlers/copasst-training.handler';
+import { PhvaAdvancedCopasstTrainingService } from '../../phva-advanced/phva-advanced-copasst-training.service';
 import { ApprovalWorkflowService } from '../approval-workflow.service';
 import { ApprovalActor } from '../interfaces/approval-actor.interface';
 import { ApprovalDecision } from '../enums/approval-decision.enum';
@@ -138,8 +140,32 @@ function buildPhvaAdvancedService(overrides?: {
     findResponsableSstByCompany: async () => {
       throw new NotFoundException('Responsable SST not found');
     },
+    // Stub del CopasstTrainingHandler (no utilizado por estas pruebas, pero
+    // requerido por el dispatcher del adapter).
+    findCopasstTrainingById: async () => {
+      throw new NotFoundException('Capacitación COPASST not found');
+    },
+    findCopasstTrainingByCompany: async () => {
+      throw new NotFoundException('Capacitación COPASST not found');
+    },
   } as unknown as PhvaAdvancedService;
   return { service, approveCalls, rejectCalls };
+}
+
+/**
+ * Service stub del CopasstTrainingHandler que siempre lanza NotFound (para que
+ * el dispatcher del adapter no caiga en él durante las pruebas de otros
+ * handlers).
+ */
+function buildNotFoundCopasstService(): PhvaAdvancedCopasstTrainingService {
+  return {
+    findById: async () => {
+      throw new NotFoundException('Capacitación COPASST not found');
+    },
+    findByCompany: async () => {
+      throw new NotFoundException('Capacitación COPASST not found');
+    },
+  } as unknown as PhvaAdvancedCopasstTrainingService;
 }
 
 /** Stub del modelo User usado por el handler para resolver al actor. */
@@ -186,6 +212,13 @@ function buildAdapter(overrides?: {
     service,
     overrides?.userModel ?? buildUserModel(),
   );
+  // El CopasstTrainingHandler solo se alcanza cuando TODOS los demás handlers
+  // lanzan NotFound (p.ej. pruebas de empresa incorrecta): su service stub debe
+  // lanzar NotFound (findById/findByCompany), nunca fallar con TypeError.
+  const copasstTrainingHandler = new CopasstTrainingHandler(
+    buildNotFoundCopasstService(),
+    overrides?.userModel ?? buildUserModel(),
+  );
   return {
     adapter: new PhvaAdvancedAdapter(
       resourceHandler,
@@ -193,6 +226,7 @@ function buildAdapter(overrides?: {
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     ),
     approveCalls,
     rejectCalls,
@@ -399,12 +433,17 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       } as unknown as PhvaAdvancedService,
       buildUserModel(),
     );
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      buildNotFoundCopasstService(),
+      buildUserModel(),
+    );
     const adapter = new PhvaAdvancedAdapter(
       resourceHandler,
       trainingHandler,
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -471,12 +510,17 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       } as unknown as PhvaAdvancedService,
       buildUserModel(),
     );
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      buildNotFoundCopasstService(),
+      buildUserModel(),
+    );
     const adapter = new PhvaAdvancedAdapter(
       resourceHandler,
       trainingHandler,
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -550,12 +594,17 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       } as unknown as PhvaAdvancedService,
       buildUserModel(),
     );
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      buildNotFoundCopasstService(),
+      buildUserModel(),
+    );
     const adapter = new PhvaAdvancedAdapter(
       resourceHandler,
       trainingHandler,
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -604,12 +653,17 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       responsibleService,
       buildUserModel(),
     );
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      buildNotFoundCopasstService(),
+      buildUserModel(),
+    );
     const adapter = new PhvaAdvancedAdapter(
       resourceHandler,
       trainingHandler,
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -617,6 +671,64 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
     assert.ok(result.entity);
     assert.equal((result.entity as { itemCode: string }).itemCode, '1.1.1');
     assert.equal(result.status, 'PENDING_APPROVAL');
+  });
+
+  it('despacha hacia CopasstTrainingHandler cuando el registro es de Capacitación COPASST (1.1.7)', async () => {
+    // Los stubs de Resource, Training, SST Policy, Responsibilities y
+    // Responsible SST lanzan NotFound para que el dispatcher caiga en el
+    // handler de la Capacitación COPASST.
+    const notFound = async () => {
+      throw new NotFoundException('not found');
+    };
+    const otherService = {
+      findResourceAssignmentById: notFound,
+      findResourceAssignmentByCompany: notFound,
+      findTrainingManagementById: notFound,
+      findTrainingManagementByCompany: notFound,
+      findSstPolicyById: notFound,
+      findSstPolicyByCompany: notFound,
+      findResponsibilitiesById: notFound,
+      findResponsibilitiesByCompany: notFound,
+      findResponsableSstById: notFound,
+      findResponsableSstByCompany: notFound,
+    } as unknown as PhvaAdvancedService;
+    const copasstRecord = {
+      _id: new Types.ObjectId(RECORD_ID),
+      companyId: new Types.ObjectId(COMPANY_ID),
+      itemCode: '1.1.7',
+      approval: { status: 'PENDING', version: 1 },
+      locked: false,
+    };
+    const copasstService = {
+      findById: async () => copasstRecord,
+      findByCompany: async () => copasstRecord,
+      approveCopasstTraining: async () => copasstRecord,
+    } as unknown as PhvaAdvancedCopasstTrainingService;
+
+    const resourceHandler = new ResourceAssignmentHandler(otherService, buildUserModel());
+    const trainingHandler = new TrainingManagementHandler(otherService, buildUserModel());
+    const sstPolicyHandler = new SstPolicyHandler(otherService, buildUserModel());
+    const responsibilitiesHandler = new ResponsibilitiesHandler(otherService, buildUserModel());
+    const responsibleSgsstHandler = new ResponsibleSgsstHandler(otherService, buildUserModel());
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      copasstService,
+      buildUserModel(),
+    );
+    const adapter = new PhvaAdvancedAdapter(
+      resourceHandler,
+      trainingHandler,
+      sstPolicyHandler,
+      responsibilitiesHandler,
+      responsibleSgsstHandler,
+      copasstTrainingHandler,
+    );
+
+    const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
+
+    assert.ok(result.entity);
+    assert.equal((result.entity as { itemCode: string }).itemCode, '1.1.7');
+    assert.equal(result.status, 'PENDING');
+    assert.equal(result.version, 1);
   });
 
   it('aprueba el Responsable SG-SST delegando en PhvaAdvancedService.approveResponsableSst', async () => {
@@ -665,12 +777,17 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
     const sstPolicyHandler = new SstPolicyHandler(responsibleService, buildUserModel());
     const responsibilitiesHandler = new ResponsibilitiesHandler(responsibleService, buildUserModel());
     const responsibleSgsstHandler = new ResponsibleSgsstHandler(responsibleService, buildUserModel());
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      buildNotFoundCopasstService(),
+      buildUserModel(),
+    );
     const adapter = new PhvaAdvancedAdapter(
       resourceHandler,
       trainingHandler,
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     );
 
     const result = await adapter.applyDecision(
@@ -692,12 +809,17 @@ describe('Integración ApprovalWorkflowService + PhvaAdvancedAdapter', () => {
     const sstPolicyHandler = new SstPolicyHandler(phvaService, buildUserModel());
     const responsibilitiesHandler = new ResponsibilitiesHandler(phvaService, buildUserModel());
     const responsibleSgsstHandler = new ResponsibleSgsstHandler(phvaService, buildUserModel());
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      buildNotFoundCopasstService(),
+      buildUserModel(),
+    );
     const adapter = new PhvaAdvancedAdapter(
       resourceHandler,
       trainingHandler,
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     );
     const events: unknown[] = [];
     let latestRequest: ApprovalRequestDocument | null = null;
@@ -763,12 +885,17 @@ describe('Integración ApprovalWorkflowService + PhvaAdvancedAdapter', () => {
     const sstPolicyHandler = new SstPolicyHandler(phvaService, buildUserModel());
     const responsibilitiesHandler = new ResponsibilitiesHandler(phvaService, buildUserModel());
     const responsibleSgsstHandler = new ResponsibleSgsstHandler(phvaService, buildUserModel());
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      buildNotFoundCopasstService(),
+      buildUserModel(),
+    );
     const adapter = new PhvaAdvancedAdapter(
       resourceHandler,
       trainingHandler,
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     );
     const events: unknown[] = [];
     let latestRequest: ApprovalRequestDocument | null = null;
@@ -833,12 +960,17 @@ describe('Integración ApprovalWorkflowService + PhvaAdvancedAdapter', () => {
     const sstPolicyHandler = new SstPolicyHandler(phvaService, buildUserModel());
     const responsibilitiesHandler = new ResponsibilitiesHandler(phvaService, buildUserModel());
     const responsibleSgsstHandler = new ResponsibleSgsstHandler(phvaService, buildUserModel());
+    const copasstTrainingHandler = new CopasstTrainingHandler(
+      buildNotFoundCopasstService(),
+      buildUserModel(),
+    );
     const adapter = new PhvaAdvancedAdapter(
       resourceHandler,
       trainingHandler,
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     );
     const events: unknown[] = [];
     const createdRequests: ApprovalRequestDocument[] = [];

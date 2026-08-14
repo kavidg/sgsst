@@ -965,4 +965,52 @@ describe('PhvaAdvancedCopasstTrainingService (1.1.7)', () => {
       assert.equal(record.itemCode, '1.1.7');
     });
   });
+
+  // ═════════════════════════════════════════════
+  // FUENTES DE EVIDENCIA DE ASISTENCIA (Fase 9, A1)
+  // ═════════════════════════════════════════════
+  describe('resolveCompliance — fuentes de evidencia de asistencia (Fase 9, A1)', () => {
+    const user = { email: 'admin@empresa.com' } as unknown as UserDocument;
+    const companyId = new Types.ObjectId(COMPANY_A);
+
+    it('A1.1: evidencia legacy de asistencia → COMPLIES', async () => {
+      const { service } = buildService({ period: buildPeriod(3, 3) });
+
+      const record = await service.update(companyId, user, {
+        year: 2025,
+        annualProgram: [{ title: 'Programa anual COPASST' }] as never,
+        sessions: [executedSession([1, 2, 3])],
+        attendanceEvidence: ['https://storage/lista-asistencia.pdf'],
+      });
+
+      assert.equal(record.complianceStatus, 'COMPLIES');
+    });
+
+    it('A1.1b: solo signatureEvidence legacy → COMPLIES', async () => {
+      const { service } = buildService({ period: buildPeriod(3, 3) });
+
+      const record = await service.update(companyId, user, {
+        year: 2025,
+        annualProgram: [{ title: 'Programa anual COPASST' }] as never,
+        sessions: [executedSession([1, 2, 3])],
+        signatureEvidence: ['https://storage/firmas.pdf'],
+      });
+
+      assert.equal(record.complianceStatus, 'COMPLIES');
+    });
+
+    it('A1.7: sin ninguna evidencia → PENDING (resto de condiciones cumplidas)', async () => {
+      // Entidad con programa + sesión ejecutada + cobertura, pero SIN ninguna
+      // evidencia de asistencia (ni legacy ni estructurada): PENDING.
+      const { service } = buildService({ period: buildPeriod(3, 3) });
+
+      const record = await service.update(companyId, user, {
+        year: 2025,
+        annualProgram: [{ title: 'Programa anual COPASST' }] as never,
+        sessions: [executedSession([1, 2, 3])],
+      });
+
+      assert.equal(record.complianceStatus, 'PENDING');
+    });
+  });
 });

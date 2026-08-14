@@ -43,6 +43,7 @@ const STEP_LABELS: Record<WizardStepId, string> = {
   initial_evaluation: 'Evaluación Inicial',
   annual_plan: 'Plan Anual',
   copasst: 'COPASST',
+  copasst_training: 'Capacitación COPASST',
   convivencia_committee: 'Comité de Convivencia',
   training: 'Capacitación',
   communication: 'Comunicación',

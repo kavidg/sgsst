@@ -21,6 +21,9 @@ export const LEGACY_INITIAL_EVALUATION_CATALOG: Array<
   { code: '1.1.4', chapter: '1. Recursos', title: 'Afiliación a riesgos laborales', description: 'Cobertura en riesgos laborales del personal.', weight: 0.5 },
   { code: '1.1.5', chapter: '1. Recursos', title: 'Trabajadores alto riesgo', description: 'Identificación y control de tareas de alto riesgo.', weight: 0.5 },
   { code: '1.1.6', chapter: '1. Recursos', title: 'Conformación COPASST', description: 'COPASST vigente y operativo.', weight: 0.5, autoSource: 'COPASST' },
+  // FASE 6: 1.1.7 entra al diagnóstico automático (módulo real en Gestión
+  // Avanzada). Peso/capítulo/título alineados con el StandardCatalog.
+  { code: '1.1.7', chapter: '1. Recursos', title: 'Capacitación COPASST', description: 'Formación pertinente y periódica de los integrantes del COPASST.', weight: 0.5, autoSource: 'Capacitación COPASST' },
   { code: '1.1.8', chapter: '1. Recursos', title: 'Comité de convivencia', description: 'Comité de convivencia laboral conformado.', weight: 0.5 },
   { code: '1.2.1', chapter: '1. Capacitación', title: 'Programa de capacitación SST', description: 'Programa anual de capacitación, inducción y reinducción.', weight: 6, autoSource: 'Capacitaciones' },
   { code: '2.1.1', chapter: '2. Gestión integral', title: 'Política SST', description: 'Política SST vigente, aprobada y divulgada.', weight: 1, autoSource: 'Política SST' },

@@ -9,6 +9,7 @@ import { CopasstPeriod, CopasstPeriodDocument } from '../committee-engine/schema
 import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstDocument, ResponsableSstComplianceStatus } from '../phva-advanced/schemas/phva-advanced-responsable-sst.schema';
 import { SstObjectives, SstObjectivesDocument } from '../phva-advanced/schemas/phva-advanced-sst-objective.schema';
 import { SstPolicy, SstPolicyDocument, SstPolicyStatus } from '../phva-advanced/schemas/phva-advanced-sst-policy.schema';
+import { PhvaAdvancedCopasstTraining, PhvaAdvancedCopasstTrainingDocument } from '../phva-advanced/schemas/phva-advanced-copasst-training.schema';
 import { TrainingManagement, TrainingManagementDocument } from '../phva-advanced/schemas/phva-advanced-training-management.schema';
 import { UserDocument } from '../users/schemas/user.schema';
 import { InitialEvaluationCatalogAdapter } from './initial-evaluation-catalog.adapter';
@@ -28,6 +29,7 @@ export class InitialEvaluationService {
     @InjectModel(SstObjectives.name) private readonly objectivesModel: Model<SstObjectivesDocument>,
     @InjectModel(CopasstPeriod.name) private readonly copasstModel: Model<CopasstPeriodDocument>,
     @InjectModel(TrainingManagement.name) private readonly trainingManagementModel: Model<TrainingManagementDocument>,
+    @InjectModel(PhvaAdvancedCopasstTraining.name) private readonly copasstTrainingModel: Model<PhvaAdvancedCopasstTrainingDocument>,
     private readonly alertsService: AlertsService,
     private readonly catalogAdapter: InitialEvaluationCatalogAdapter,
   ) {}
@@ -73,12 +75,13 @@ export class InitialEvaluationService {
 
   async runAutoDiagnostic(companyId: Types.ObjectId, user?: UserDocument) {
     const evaluation = await this.findOrCreate(companyId);
-    const [responsable, policy, objectives, copasst, training] = await Promise.all([
+    const [responsable, policy, objectives, copasst, training, copasstTraining] = await Promise.all([
       this.responsableModel.findOne({ companyId, itemCode: '1.1.1' }).lean().exec(),
       this.policyModel.findOne({ companyId }).lean().exec(),
       this.objectivesModel.findOne({ companyId }).lean().exec(),
       this.copasstModel.findOne({ companyId, status: { $in: ['ACTIVO', 'PROXIMO_A_VENCER'] } }).lean().exec(),
       this.trainingManagementModel.findOne({ companyId, itemCode: '1.2.1' }).lean().exec(),
+      this.copasstTrainingModel.findOne({ companyId, itemCode: '1.1.7' }).lean().exec(),
     ]);
 
     this.applyAutomaticStandard(evaluation, '1.1.1', responsable?.complianceStatus === ResponsableSstComplianceStatus.COMPLIES, 'Responsable SST vigente');
@@ -86,6 +89,11 @@ export class InitialEvaluationService {
     this.applyAutomaticStandard(evaluation, '2.2.1', Boolean(objectives?.objectives?.length), 'Objetivos SST registrados');
     this.applyAutomaticStandard(evaluation, '1.1.6', Boolean(copasst?.members?.length), 'COPASST vigente');
     this.applyAutomaticStandard(evaluation, '1.2.1', Boolean(training?.annualProgram?.length || training?.trainings?.length || training?.complianceStatus === 'COMPLIES'), 'Programa de capacitación detectado');
+    // FASE 6: 1.1.7 Capacitación COPASST — usa el estado de cumplimiento REAL
+    // del dominio (complianceStatus del módulo de Gestión Avanzada). COMPLIES →
+    // Cumple; PENDING/NON_COMPLIANT o ausencia → No Cumple (Initial Evaluation
+    // solo soporta Cumple / No Cumple / No Aplica).
+    this.applyAutomaticStandard(evaluation, '1.1.7', copasstTraining?.complianceStatus === 'COMPLIES', 'Capacitación COPASST');
 
     evaluation.status = evaluation.status === InitialEvaluationStatus.DRAFT ? InitialEvaluationStatus.IN_PROGRESS : evaluation.status;
     this.pushHistory(evaluation, user, 'InitialEvaluation', 'autoDiagnostic', '', 'Auto-diagnóstico ejecutado');
@@ -237,7 +245,7 @@ export class InitialEvaluationService {
   }
 
   private recommendedAction(standard: Pick<EvaluationStandard, 'code' | 'title'>) {
-    const map: Record<string, string> = { '2.1.1': 'Create SST Policy', '1.1.6': 'Conform COPASST', '1.1.1': 'Asignar Responsable SST', '1.2.1': 'Crear programa de capacitación SST', '2.2.1': 'Definir objetivos SST' };
+    const map: Record<string, string> = { '2.1.1': 'Create SST Policy', '1.1.6': 'Conform COPASST', '1.1.1': 'Asignar Responsable SST', '1.2.1': 'Crear programa de capacitación SST', '2.2.1': 'Definir objetivos SST', '1.1.7': 'Capacitar a los integrantes del COPASST' };
     return map[standard.code] ?? `Cerrar brecha: ${standard.title}`;
   }
 

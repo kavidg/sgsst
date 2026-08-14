@@ -6,8 +6,8 @@ export type ImplementationWizardDoc = HydratedDocument<ImplementationWizard>;
 export type StepId =
   | 'company_info' | 'users_roles' | 'responsible_sst' | 'course_50_hours'
   | 'sst_policy' | 'sst_objectives' | 'initial_evaluation' | 'annual_plan'
-  | 'copasst' | 'convivencia_committee' | 'training' | 'communication'
-  | 'legal_matrix' | 'document_management';
+  | 'copasst' | 'copasst_training' | 'convivencia_committee' | 'training'
+  | 'communication' | 'legal_matrix' | 'document_management';
 
 export type StepStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
 

@@ -8,6 +8,7 @@ import { IntelligentFinding } from './interfaces/intelligent-finding.interface';
 import { ComplianceProvider, ProviderComplianceResult } from './providers/compliance-provider.interface';
 import { AlertsProvider } from './providers/alerts.provider';
 import { AnnualWorkPlanProvider } from './providers/annual-work-plan.provider';
+import { CopasstTrainingProvider } from './providers/copasst-training.provider';
 import { DashboardProvider } from './providers/dashboard.provider';
 import { DocumentsProvider } from './providers/documents.provider';
 import { EvaluationsProvider } from './providers/evaluations.provider';
@@ -47,6 +48,7 @@ export class ComplianceEngineService {
     private readonly alertsProvider: AlertsProvider,
     private readonly dashboardProvider: DashboardProvider,
     private readonly initialEvaluationProvider: InitialEvaluationProvider,
+    private readonly copasstTrainingProvider: CopasstTrainingProvider,
   ) {
     this.providers = [
       this.evaluationsProvider,
@@ -60,6 +62,7 @@ export class ComplianceEngineService {
       this.alertsProvider,
       this.dashboardProvider,
       this.initialEvaluationProvider,
+      this.copasstTrainingProvider,
     ];
   }
 

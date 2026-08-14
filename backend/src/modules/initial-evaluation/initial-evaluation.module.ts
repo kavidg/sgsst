@@ -7,6 +7,7 @@ import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { Company, CompanySchema } from '../companies/schemas/company.schema';
 import { CopasstPeriod, CopasstPeriodSchema } from '../committee-engine/schemas/copasst.schema';
+import { PhvaAdvancedCopasstTraining, PhvaAdvancedCopasstTrainingSchema } from '../phva-advanced/schemas/phva-advanced-copasst-training.schema';
 import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from '../phva-advanced/schemas/phva-advanced-responsable-sst.schema';
 import { SstObjectives, SstObjectivesSchema } from '../phva-advanced/schemas/phva-advanced-sst-objective.schema';
 import { SstPolicy, SstPolicySchema } from '../phva-advanced/schemas/phva-advanced-sst-policy.schema';
@@ -37,6 +38,9 @@ import { InitialEvaluation, InitialEvaluationSchema } from './schemas/initial-ev
       { name: SstObjectives.name, schema: SstObjectivesSchema },
       { name: CopasstPeriod.name, schema: CopasstPeriodSchema },
       { name: TrainingManagement.name, schema: TrainingManagementSchema },
+      // FASE 6: diagnóstico automático de 1.1.7 (Capacitación COPASST) con el
+      // complianceStatus real del dominio.
+      { name: PhvaAdvancedCopasstTraining.name, schema: PhvaAdvancedCopasstTrainingSchema },
     ]),
   ],
   controllers: [InitialEvaluationController],

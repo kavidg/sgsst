@@ -10,6 +10,7 @@ import { CommunicationProvider } from './providers/communication.provider';
 import { CompanyInfoProvider } from './providers/company-info.provider';
 import { ConvivenciaProvider } from './providers/convivencia.provider';
 import { CopasstProvider } from './providers/copasst.provider';
+import { CopasstTrainingProvider } from './providers/copasst-training.provider';
 import { Course50HoursProvider } from './providers/course-50-hours.provider';
 import { DocumentManagementProvider } from './providers/document-management.provider';
 import { InitialEvaluationProvider } from './providers/initial-evaluation.provider';
@@ -38,11 +39,11 @@ export interface ImplementationValidationSummary {
 /**
  * Implementation Validator Engine — versión completa (FASE 2).
  *
- * Agregador central del Centro de Implementación: consulta los 14 providers
+ * Agregador central del Centro de Implementación: consulta los 15 providers
  * en paralelo (Promise.all) y construye un resultado estandarizado con datos
  * reales de los módulos. Sigue el patrón arquitectónico del Compliance Engine.
  *
- * Los 14 pasos del wizard quedan cubiertos:
+ * Los 15 pasos del wizard quedan cubiertos:
  * - company_info            (CompanyInfoProvider)
  * - users_roles             (UsersRolesProvider)
  * - responsible_sst         (ResponsibleSstProvider)
@@ -52,6 +53,7 @@ export interface ImplementationValidationSummary {
  * - initial_evaluation      (InitialEvaluationProvider)
  * - annual_plan             (AnnualPlanProvider)
  * - copasst                 (CopasstProvider)
+ * - copasst_training        (CopasstTrainingProvider) — 1.1.7 (FASE 6)
  * - convivencia_committee   (ConvivenciaProvider)
  * - training                (TrainingProvider)
  * - communication           (CommunicationProvider)
@@ -72,6 +74,7 @@ export class ImplementationValidatorService {
     private readonly initialEvaluationProvider: InitialEvaluationProvider,
     private readonly annualPlanProvider: AnnualPlanProvider,
     private readonly copasstProvider: CopasstProvider,
+    private readonly copasstTrainingProvider: CopasstTrainingProvider,
     private readonly convivenciaProvider: ConvivenciaProvider,
     private readonly trainingProvider: TrainingProvider,
     private readonly communicationProvider: CommunicationProvider,
@@ -88,6 +91,7 @@ export class ImplementationValidatorService {
       this.initialEvaluationProvider,
       this.annualPlanProvider,
       this.copasstProvider,
+      this.copasstTrainingProvider,
       this.convivenciaProvider,
       this.trainingProvider,
       this.communicationProvider,

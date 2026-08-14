@@ -179,6 +179,21 @@ export class ImplementationWizardService {
           criteria: result.criteria ?? [],
           pendingCriteria: result.pendingCriteria ?? [],
         };
+      } else {
+        // FASE 6 (aditivo): pasos cubiertos por un provider que aún no existen
+        // en un wizard persistido (p. ej. `copasst_training` 1.1.7, creado
+        // después de que la empresa inicializara el wizard con 14 pasos) se
+        // AGREGAN. Convergencia aditiva: nunca borra ni reordena pasos
+        // existentes; la siguiente auto-validación deja el wizard en 15 pasos.
+        wizard.steps.push({
+          stepId: result.stepId,
+          status: result.status,
+          score: result.percentage,
+          validatedAt: new Date().toISOString(),
+          details: result.details,
+          criteria: result.criteria ?? [],
+          pendingCriteria: result.pendingCriteria ?? [],
+        });
       }
     }
 
@@ -196,8 +211,8 @@ export class ImplementationWizardService {
     // KPI 1 — completionPercentage: progreso ponderado por la importancia
     // de cada paso (pesos de implementation-weights.ts).
     wizard.completionPercentage = weightedPercentage;
-    // KPI 2 — overallScore: promedio simple de los porcentajes de los 14
-    // pasos (sin pesos). Distinto propósito: mide el avance promedio real.
+    // KPI 2 — overallScore: promedio simple de los porcentajes de los pasos
+    // (sin pesos). Distinto propósito: mide el avance promedio real.
     wizard.overallScore = Math.round(
       wizard.steps.reduce((sum, step) => sum + (step.score ?? 0), 0) /
         Math.max(1, wizard.steps.length),

@@ -1428,12 +1428,79 @@ export interface CopasstTrainingAdvancedModel {
   attendanceEvidence: string[];
   signatureEvidence: string[];
   signatures: Array<Record<string, unknown>>;
+  // Fase 4 — evidencias estructuradas persistentes (fuente de verdad de la UI).
+  evidences: CopasstTrainingEvidenceModel[];
   alerts: string[];
   history: Array<{ action: string; createdBy: string; createdAt: string; details?: string }>;
   approval: { status: 'PENDING'|'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'; version: number; approvedBy?: string; approvedAt?: string; comments?: string };
+  // Fase 5 — locking del flujo de aprobación (true mientras está pendiente/aprobada).
+  locked: boolean;
   complianceStatus: CopasstTrainingComplianceStatus;
   complianceReason: string;
   updatedAt: string;
+}
+
+/** Tipo de evidencia persistida de la Capacitación COPASST (1.1.7, Fase 4). */
+export type CopasstTrainingEvidenceType =
+  | 'GENERAL'
+  | 'ATTENDANCE'
+  | 'SIGNATURE'
+  | 'CERTIFICATE'
+  | 'REPORT'
+  | 'COMPLIANCE_REPORT';
+
+/** Evidencia estructurada persistida (Fase 4) — nunca una URL ficticia. */
+export interface CopasstTrainingEvidenceModel {
+  type: CopasstTrainingEvidenceType;
+  fileName: string;
+  fileUrl: string;
+  storagePath?: string;
+  sessionIndex?: number;
+  sessionTitle?: string;
+  sessionDate?: string;
+  uploadedBy?: string;
+  uploadedAt: string;
+  metadata?: Record<string, unknown>;
+}
+
+/** Resultado de una generación documental de 1.1.7 (Fase 4). */
+export interface CopasstTrainingDocumentResultModel {
+  document: {
+    /** Puede ser undefined cuando el documento fue reutilizado (evidencia legada sin id persistido). */
+    instanceId?: string;
+    fileUrl: string;
+    storagePath: string;
+    version: number;
+  };
+  evidence: CopasstTrainingEvidenceModel;
+  /** true si se reutilizó un documento existente (sin regenerar). */
+  reused: boolean;
+}
+
+/** Documento generado listado por GET /copasst-training/documents. */
+export interface CopasstTrainingDocumentModel {
+  id: string;
+  version: number;
+  status: string;
+  fileUrl: string;
+  storagePath: string;
+  generatedAt: string;
+}
+
+/** Reporte de cumplimiento parametrizable de 1.1.7 (Fase 4). */
+export interface CopasstTrainingComplianceDataModel {
+  status: CopasstTrainingComplianceStatus;
+  coveragePercentage: number;
+  totalMembers: number;
+  trainedMembers: number;
+  pendingMembers: number;
+  scheduledSessions: number;
+  executedSessions: number;
+  expiredSessions: number;
+  availableEvidences: number;
+  evaluationAttempts: number;
+  passedEvaluations: number;
+  observations: string[];
 }
 
 /** Miembro COPASST disponible para una sesión (GET /copasst-training/members). */
@@ -1465,6 +1532,94 @@ export const fetchCopasstTrainingAdvanced = (token: string) => apiFetch<CopasstT
 export const updateCopasstTrainingAdvanced = (token: string, payload: UpdateCopasstTrainingPayload) => apiFetch<CopasstTrainingAdvancedModel>('/phva-advanced/copasst-training', token, { method: 'PATCH', body: JSON.stringify(payload) });
 export const fetchCopasstTrainingMembers = (token: string) => apiFetch<CopasstTrainingAvailableMemberModel[]>('/phva-advanced/copasst-training/members', token, { method: 'GET' });
 export const fetchCopasstTrainingCoverage = (token: string) => apiFetch<CopasstTrainingCoverageModel>('/phva-advanced/copasst-training/coverage', token, { method: 'GET' });
+
+// ─────────────────────────────────────────────
+// FASE 4 (1.1.7) — EVIDENCIAS Y GENERACIÓN DOCUMENTAL
+// ─────────────────────────────────────────────
+
+/** Payload multipart de carga de evidencia (nunca envía companyId: el backend lo controla). */
+export interface UploadCopasstTrainingEvidencePayload {
+  type: CopasstTrainingEvidenceType;
+  sessionIndex?: number;
+  file: File;
+}
+
+export function uploadCopasstTrainingEvidence(token: string, payload: UploadCopasstTrainingEvidencePayload) {
+  const formData = new FormData();
+  formData.append('type', payload.type);
+  if (payload.sessionIndex !== undefined) formData.append('sessionIndex', String(payload.sessionIndex));
+  formData.append('file', payload.file);
+  return apiFetchFormData<CopasstTrainingAdvancedModel>('/phva-advanced/copasst-training/evidence', token, formData, { method: 'POST' });
+}
+
+export const fetchCopasstTrainingEvidences = (token: string) =>
+  apiFetch<{ evidences: CopasstTrainingEvidenceModel[] }>('/phva-advanced/copasst-training/evidence', token, { method: 'GET' });
+
+export const generateCopasstTrainingCertificate = (token: string, payload: { sessionIndex: number; participantUserId: string }) =>
+  apiFetch<CopasstTrainingDocumentResultModel>('/phva-advanced/copasst-training/documents/certificate', token, { method: 'POST', body: JSON.stringify(payload) });
+
+export const generateCopasstTrainingAttendance = (token: string, payload: { sessionIndex: number }) =>
+  apiFetch<CopasstTrainingDocumentResultModel>('/phva-advanced/copasst-training/documents/attendance', token, { method: 'POST', body: JSON.stringify(payload) });
+
+export const generateCopasstTrainingReport = (token: string) =>
+  apiFetch<CopasstTrainingDocumentResultModel>('/phva-advanced/copasst-training/documents/report', token, { method: 'POST' });
+
+export const generateCopasstTrainingComplianceReport = (token: string) =>
+  apiFetch<CopasstTrainingDocumentResultModel>('/phva-advanced/copasst-training/documents/compliance-report', token, { method: 'POST' });
+
+export const fetchCopasstTrainingDocuments = (token: string) =>
+  apiFetch<{ documents: CopasstTrainingDocumentModel[] }>('/phva-advanced/copasst-training/documents', token, { method: 'GET' });
+
+export const fetchCopasstTrainingCompliance = (token: string) =>
+  apiFetch<CopasstTrainingComplianceDataModel>('/phva-advanced/copasst-training/compliance', token, { method: 'GET' });
+
+// ─────────────────────────────────────────────
+// FASE 5 (1.1.7) — APPROVAL WORKFLOW
+// ─────────────────────────────────────────────
+
+/** Estado de aprobación de 1.1.7 (GET /copasst-training/approval). */
+export interface CopasstTrainingApprovalModel {
+  entityId: string;
+  /** Estado canónico del Approval Workflow (DRAFT si nunca se envió). */
+  status: 'DRAFT'|'PENDING_APPROVAL'|'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED'|'ARCHIVED';
+  /** Estado local embebido del dominio 1.1.7 (PENDING|APPROVED|REJECTED|ADJUSTMENTS_REQUESTED). */
+  approvalStatus?: string;
+  locked: boolean;
+  currentVersion: number;
+  requestId?: string;
+  requestedBy?: { userId: string; email: string; name?: string; role: string; timestamp: string };
+  submittedAt?: string;
+  assignedRoles: string[];
+  rejectionReason?: string;
+  comments?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  history: Array<{
+    action: string;
+    previousStatus: string;
+    newStatus: string;
+    reason?: string;
+    actor?: { userId: string; email: string; role: string };
+    createdAt?: string;
+  }>;
+}
+
+/** Payload de decisión sobre la aprobación de 1.1.7 (nunca envía companyId). */
+export interface DecideCopasstTrainingApprovalPayload {
+  decision: 'APPROVED'|'REJECTED'|'ADJUSTMENTS_REQUESTED';
+  reason?: string;
+  comments?: string;
+}
+
+export const fetchCopasstTrainingApproval = (token: string) =>
+  apiFetch<CopasstTrainingApprovalModel>('/phva-advanced/copasst-training/approval', token, { method: 'GET' });
+
+export const submitCopasstTrainingApproval = (token: string) =>
+  apiFetch<CopasstTrainingAdvancedModel>('/phva-advanced/copasst-training/approval', token, { method: 'PATCH' });
+
+export const decideCopasstTrainingApproval = (token: string, payload: DecideCopasstTrainingApprovalPayload) =>
+  apiFetch<CopasstTrainingAdvancedModel>('/phva-advanced/copasst-training/approval/decide', token, { method: 'POST', body: JSON.stringify(payload) });
+
 export interface CopasstPeriodModel {
   _id: string;
   periodName: string;
@@ -3167,8 +3322,8 @@ export function fetchCompanyProfileCompletion(token: string) {
 export type WizardStepId =
   | 'company_info' | 'users_roles' | 'responsible_sst' | 'course_50_hours'
   | 'sst_policy' | 'sst_objectives' | 'initial_evaluation' | 'annual_plan'
-  | 'copasst' | 'convivencia_committee' | 'training' | 'communication'
-  | 'legal_matrix' | 'document_management';
+  | 'copasst' | 'copasst_training' | 'convivencia_committee' | 'training'
+  | 'communication' | 'legal_matrix' | 'document_management';
 
 export type WizardStepStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
 

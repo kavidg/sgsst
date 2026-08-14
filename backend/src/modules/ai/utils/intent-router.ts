@@ -17,7 +17,10 @@ export interface IntentRule {
 export const INTENT_RULES: readonly IntentRule[] = [
   {
     engine: 'compliance',
-    keywords: ['estandar', 'estandares', 'cumplimiento sgsst', 'cumplimiento del sg sst', 'compliance', 'autoevaluacion', 'nivel de cumplimiento'],
+    // Fase 7 (1.1.7): 'copasst' cubre las consultas de capacitación/integrantes/
+    // cobertura del COPASST y las enruta al engine de cumplimiento, que consume
+    // los findings reales de 1.1.7 vía el Compliance Engine (sin engine nuevo).
+    keywords: ['estandar', 'estandares', 'cumplimiento sgsst', 'cumplimiento del sg sst', 'compliance', 'autoevaluacion', 'nivel de cumplimiento', 'copasst'],
   },
   {
     engine: 'indicators',

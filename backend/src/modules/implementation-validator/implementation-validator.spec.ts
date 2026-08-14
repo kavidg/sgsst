@@ -16,8 +16,8 @@ import {
 const ALL_STEPS: StepId[] = [
   'company_info', 'users_roles', 'responsible_sst', 'course_50_hours',
   'sst_policy', 'sst_objectives', 'initial_evaluation', 'annual_plan',
-  'copasst', 'convivencia_committee', 'training', 'communication',
-  'legal_matrix', 'document_management',
+  'copasst', 'copasst_training', 'convivencia_committee', 'training',
+  'communication', 'legal_matrix', 'document_management',
 ];
 
 function makeProvider(
@@ -48,7 +48,7 @@ function buildService(
 }
 
 describe('implementation-calculator', () => {
-  it('calcula el porcentaje ponderado con subconjunto de pasos (3 de 14)', () => {
+  it('calcula el porcentaje ponderado con subconjunto de pasos (3 de 15)', () => {
     const weights = getImplementationWeights();
     const results: ProviderValidationResult[] = [
       { stepId: 'company_info', percentage: 100, status: 'COMPLETED', details: '' },
@@ -106,7 +106,7 @@ describe('ImplementationValidatorService', () => {
 
     const summary = await buildService(empty).validate('company-new');
 
-    assert.equal(summary.results.length, 14);
+    assert.equal(summary.results.length, 15);
     assert.equal(summary.weightedPercentage, 0);
     assert.equal(summary.level, 'NO_DATA');
     assert.ok(summary.results.every((result) => result.status === 'PENDING'));
@@ -123,7 +123,7 @@ describe('ImplementationValidatorService', () => {
 
     const summary = await buildService(partial).validate('company-partial');
 
-    assert.equal(summary.results.length, 14);
+    assert.equal(summary.results.length, 15);
     assert.ok(summary.weightedPercentage > 0 && summary.weightedPercentage < 100);
     assert.ok(summary.results.every((result) => result.status === 'IN_PROGRESS'));
   });
@@ -139,7 +139,7 @@ describe('ImplementationValidatorService', () => {
 
     const summary = await buildService(complete).validate('company-complete');
 
-    assert.equal(summary.results.length, 14);
+    assert.equal(summary.results.length, 15);
     assert.equal(summary.weightedPercentage, 100);
     assert.equal(summary.level, 'EXCELLENT');
     assert.ok(summary.results.every((result) => result.status === 'COMPLETED'));
@@ -158,7 +158,7 @@ describe('ImplementationValidatorService', () => {
     const service = buildService({}, { company_info: failingProvider });
     const summary = await service.validate('company-failing');
 
-    assert.equal(summary.results.length, 14);
+    assert.equal(summary.results.length, 15);
     const companyInfo = summary.results.find((result) => result.stepId === 'company_info');
     assert.equal(companyInfo?.percentage, 0);
     assert.equal(companyInfo?.status, 'PENDING');

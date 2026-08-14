@@ -41,6 +41,16 @@ import {
   buildSstPolicyTemplateDocx,
   SST_POLICY_TEMPLATE_VARIABLES,
 } from '../system-templates/sst-policy.template';
+import {
+  buildCopasstTrainingAttendanceDocx,
+  buildCopasstTrainingCertificateDocx,
+  buildCopasstTrainingComplianceDocx,
+  buildCopasstTrainingReportDocx,
+  COPASST_TRAINING_ATTENDANCE_VARIABLES,
+  COPASST_TRAINING_CERTIFICATE_VARIABLES,
+  COPASST_TRAINING_COMPLIANCE_VARIABLES,
+  COPASST_TRAINING_REPORT_VARIABLES,
+} from '../system-templates/copasst-training.templates';
 
 /**
  * SystemTemplateService: gestiona las plantillas de sistema del Document
@@ -285,6 +295,124 @@ export class SystemTemplateService {
       format: RendererFormat.DOCX,
       source: DocumentTemplateSource.SYSTEM,
       variables: SST_POLICY_TEMPLATE_VARIABLES,
+      storageUrl: upload.storagePath,
+      version: 1,
+      active: true,
+    });
+  }
+
+  /**
+   * Devuelve la plantilla de sistema del Certificado de capacitación COPASST
+   * (PHVA 1.1.7), creándola (y subiendo su DOCX base) la primera vez.
+   * Reutiliza el patrón find-or-create de ensureResponsibleSgsstTemplate.
+   */
+  async ensureCopasstTrainingCertificateTemplate(): Promise<DocumentTemplateDocument> {
+    return this.ensureCopasstTrainingTemplate({
+      documentType: DocumentTemplateType.PHVA_COPASST_TRAINING,
+      name: 'Certificado de capacitación COPASST (PHVA 1.1.7)',
+      description:
+        'Certificado de capacitación de un integrante del COPASST según el estándar 1.1.7.',
+      variables: COPASST_TRAINING_CERTIFICATE_VARIABLES,
+      buildDocx: buildCopasstTrainingCertificateDocx,
+      filename: 'copasst-training-certificate-template.docx',
+    });
+  }
+
+  /**
+   * Devuelve la plantilla de sistema de la Lista de asistencia por sesión de
+   * la Capacitación COPASST (PHVA 1.1.7), creándola la primera vez.
+   */
+  async ensureCopasstTrainingAttendanceTemplate(): Promise<DocumentTemplateDocument> {
+    return this.ensureCopasstTrainingTemplate({
+      documentType: DocumentTemplateType.PHVA_COPASST_TRAINING,
+      name: 'Lista de asistencia — Capacitación COPASST (PHVA 1.1.7)',
+      description:
+        'Lista de asistencia de una sesión de capacitación del COPASST (estándar 1.1.7).',
+      variables: COPASST_TRAINING_ATTENDANCE_VARIABLES,
+      buildDocx: buildCopasstTrainingAttendanceDocx,
+      filename: 'copasst-training-attendance-template.docx',
+    });
+  }
+
+  /**
+   * Devuelve la plantilla de sistema del Informe de capacitación COPASST
+   * (PHVA 1.1.7), creándola la primera vez.
+   */
+  async ensureCopasstTrainingReportTemplate(): Promise<DocumentTemplateDocument> {
+    return this.ensureCopasstTrainingTemplate({
+      documentType: DocumentTemplateType.PHVA_COPASST_TRAINING,
+      name: 'Informe de capacitación COPASST (PHVA 1.1.7)',
+      description:
+        'Informe documental de la capacitación de los integrantes del COPASST (estándar 1.1.7).',
+      variables: COPASST_TRAINING_REPORT_VARIABLES,
+      buildDocx: buildCopasstTrainingReportDocx,
+      filename: 'copasst-training-report-template.docx',
+    });
+  }
+
+  /**
+   * Devuelve la plantilla de sistema del Reporte de cumplimiento de la
+   * Capacitación COPASST (PHVA 1.1.7), creándola la primera vez.
+   */
+  async ensureCopasstTrainingComplianceTemplate(): Promise<DocumentTemplateDocument> {
+    return this.ensureCopasstTrainingTemplate({
+      documentType: DocumentTemplateType.PHVA_COPASST_TRAINING,
+      name: 'Reporte de cumplimiento — Capacitación COPASST (PHVA 1.1.7)',
+      description:
+        'Reporte de cumplimiento de la capacitación del COPASST (estándar 1.1.7). Consume el estado actual del dominio.',
+      variables: COPASST_TRAINING_COMPLIANCE_VARIABLES,
+      buildDocx: buildCopasstTrainingComplianceDocx,
+      filename: 'copasst-training-compliance-template.docx',
+    });
+  }
+
+  /**
+   * Carga una plantilla de sistema por id validando que sea SYSTEM (no se
+   * permite resolver plantillas de empresa por este acceso).
+   */
+  /**
+   * Implementación compartida find-or-create de las plantillas de la
+   * Capacitación COPASST (PHVA 1.1.7, Fase 4). Todas comparten el mismo
+   * documentType PHVA_COPASST_TRAINING, por lo que la distinción real entre
+   * certificado / asistencia / informe / cumplimiento se hace por `name`
+   * (nombre de plantilla único, usado también como clave de find-or-create).
+   */
+  private async ensureCopasstTrainingTemplate(params: {
+    documentType: DocumentTemplateType;
+    name: string;
+    description: string;
+    variables: string[];
+    buildDocx: () => Buffer;
+    filename: string;
+  }): Promise<DocumentTemplateDocument> {
+    const existing = await this.templateModel
+      .findOne({
+        name: params.name,
+        documentType: params.documentType,
+        source: DocumentTemplateSource.SYSTEM,
+        active: true,
+        companyId: { $exists: false },
+      })
+      .exec();
+
+    if (existing) {
+      return existing;
+    }
+
+    const docxBuffer = params.buildDocx();
+    const upload = await this.storageService.upload(
+      docxBuffer,
+      params.filename,
+      'system-templates/phva-advanced',
+    );
+
+    return this.templateModel.create({
+      name: params.name,
+      description: params.description,
+      documentType: params.documentType,
+      format: RendererFormat.DOCX,
+      source: DocumentTemplateSource.SYSTEM,
+      variables: params.variables,
       storageUrl: upload.storagePath,
       version: 1,
       active: true,

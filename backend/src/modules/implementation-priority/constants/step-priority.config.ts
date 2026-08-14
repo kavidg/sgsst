@@ -77,6 +77,13 @@ export const STEP_PRIORITY_CONFIG: Record<StepId, StepPriorityConfig> = {
     dependencies: [],
     actionTemplate: 'Configurar el COPASST o registrar la exención',
   },
+  // FASE 6: 1.1.7 Capacitación COPASST — depende de tener COPASST conformado.
+  copasst_training: {
+    criticality: 'MEDIA',
+    estimatedEffort: 'BAJO',
+    dependencies: ['copasst'],
+    actionTemplate: 'Programar y ejecutar la capacitación de los integrantes del COPASST',
+  },
   convivencia_committee: {
     criticality: 'BAJA',
     estimatedEffort: 'BAJO',

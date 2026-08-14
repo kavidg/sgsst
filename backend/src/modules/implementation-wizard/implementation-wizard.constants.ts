@@ -1,11 +1,11 @@
 import { StepId } from './schemas/implementation-wizard.schema';
 
-/** Orden canónico de los 14 pasos del Centro de Implementación. */
+/** Orden canónico de los 15 pasos del Centro de Implementación. */
 export const ALL_STEPS: StepId[] = [
   'company_info', 'users_roles', 'responsible_sst', 'course_50_hours',
   'sst_policy', 'sst_objectives', 'initial_evaluation', 'annual_plan',
-  'copasst', 'convivencia_committee', 'training', 'communication',
-  'legal_matrix', 'document_management',
+  'copasst', 'copasst_training', 'convivencia_committee', 'training',
+  'communication', 'legal_matrix', 'document_management',
 ];
 
 /** Etiqueta legible de cada paso (usada en dashboard, overview y UI). */
@@ -19,6 +19,7 @@ export const STEP_LABELS: Record<StepId, string> = {
   initial_evaluation: 'Evaluación Inicial',
   annual_plan: 'Plan Anual',
   copasst: 'COPASST',
+  copasst_training: 'Capacitación COPASST',
   convivencia_committee: 'Comité de Convivencia',
   training: 'Capacitación',
   communication: 'Comunicación',
@@ -37,6 +38,7 @@ export const STEP_DESCRIPTIONS: Record<StepId, string> = {
   initial_evaluation: 'Complete la evaluación inicial del SG-SST según la normativa aplicable.',
   annual_plan: 'Cree el Plan Anual de Trabajo con al menos una actividad asignada.',
   copasst: 'Configure el COPASST o registre una justificación de exención.',
+  copasst_training: 'Programe y ejecute la capacitación de los integrantes del COPASST (1.1.7).',
   convivencia_committee: 'Configure el Comité de Convivencia o registre una justificación de exención.',
   training: 'Defina el plan anual de capacitaciones en SST.',
   communication: 'Genere al menos una comunicación interna sobre temas SST.',
@@ -58,6 +60,7 @@ export const STEP_MODULE_ROUTES: Record<StepId, string> = {
   initial_evaluation: '/documents/plan',
   annual_plan: '/annual-work-plan',
   copasst: '/documents/do',
+  copasst_training: '/advanced-management/1.1.7',
   convivencia_committee: '/documents/do',
   training: '/trainings',
   communication: '/documents/do',

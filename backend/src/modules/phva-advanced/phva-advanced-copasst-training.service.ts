@@ -6,6 +6,8 @@ import { CopasstMember, CopasstPeriodDocument } from '../copasst/schemas/copasst
 import { UserDocument } from '../users/schemas/user.schema';
 import {
   CopasstMemberCoverage,
+  CopasstTrainingEvidence,
+  CopasstTrainingEvidenceType,
   CopasstTrainingParticipant,
   CopasstTrainingSession,
   PhvaAdvancedCopasstTraining,
@@ -64,6 +66,36 @@ export interface AvailableCopasstMember {
   representationType?: string;
   status: 'ACTIVO';
 }
+
+/**
+ * Entrada de creación de una evidencia persistida de 1.1.7 (Fase 4). Los
+ * campos companyId/itemCode/información maestra NO son aceptados del cliente:
+ * se resuelven desde el contexto autenticado y el dominio.
+ */
+export interface CreateEvidenceInput {
+  type: CopasstTrainingEvidenceType;
+  fileName: string;
+  fileUrl: string;
+  storagePath?: string;
+  /** Índice ESTABLE de la sesión asociada (valida rango real). */
+  sessionIndex?: number;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Tipos de evidencia estructurada (Fase 4) que cuentan como evidencia de
+ * asistencia para la regla de cumplimiento base (corrección A1, Fase 9):
+ * ATTENDANCE (lista de asistencia), SIGNATURE (firmas) y CERTIFICATE
+ * (certificado de capacitación).
+ *
+ * GENERAL (materiales/soportes), REPORT (informe) y COMPLIANCE_REPORT
+ * (reporte de cumplimiento) NO cuentan como evidencia de asistencia.
+ */
+const ATTENDANCE_EVIDENCE_TYPES: readonly CopasstTrainingEvidenceType[] = [
+  CopasstTrainingEvidenceType.ATTENDANCE,
+  CopasstTrainingEvidenceType.SIGNATURE,
+  CopasstTrainingEvidenceType.CERTIFICATE,
+];
 
 /**
  * Service de dominio del estándar 1.1.7 — Capacitación COPASST (Fase 1).
@@ -483,6 +515,221 @@ export class PhvaAdvancedCopasstTrainingService {
   }
 
   // ─────────────────────────────────────────────
+  // EVIDENCIAS ESTRUCTURADAS (Fase 4)
+  // ─────────────────────────────────────────────
+
+  /**
+   * Persiste una evidencia estructurada en la entidad 1.1.7 (Fase 4).
+   *
+   * Reglas:
+   * - Filtra SIEMPRE por companyId (findOrCreate); nunca acepta companyId del
+   *   cliente como fuente de verdad.
+   * - Valida el tipo contra el enum de evidencia.
+   * - Si se indica `sessionIndex`, la sesión debe existir en la entidad de la
+   *   misma empresa (rango real); se denormaliza un snapshot mínimo
+   *   (sessionTitle, sessionDate) para conservar el contexto histórico.
+   * - Registra historial append-only con el usuario autenticado.
+   */
+  async addEvidence(
+    companyId: Types.ObjectId,
+    user: UserDocument | undefined,
+    input: CreateEvidenceInput,
+  ): Promise<PhvaAdvancedCopasstTrainingDocument> {
+    if (!Object.values(CopasstTrainingEvidenceType).includes(input.type)) {
+      throw new BadRequestException('Tipo de evidencia inválido para capacitación COPASST');
+    }
+
+    const record = await this.findOrCreate(companyId);
+
+    let sessionTitle: string | undefined;
+    let sessionDate: Date | undefined;
+    if (input.sessionIndex !== undefined) {
+      const session = record.sessions[input.sessionIndex];
+      if (!session) {
+        throw new BadRequestException('La sesión indicada no existe en la capacitación COPASST');
+      }
+      sessionTitle = session.title;
+      if (session.scheduledDate) sessionDate = this.toDate(session.scheduledDate);
+    }
+
+    const evidence: CopasstTrainingEvidence = {
+      type: input.type,
+      fileName: input.fileName,
+      fileUrl: input.fileUrl,
+      storagePath: input.storagePath,
+      sessionIndex: input.sessionIndex,
+      sessionTitle,
+      sessionDate,
+      uploadedBy: this.resolveUserId(user),
+      uploadedAt: new Date(),
+      metadata: input.metadata,
+    } as CopasstTrainingEvidence;
+
+    record.evidences.push(evidence as never);
+    this.pushAudit(
+      record,
+      'EVIDENCE_ADDED',
+      user,
+      `Evidencia agregada: ${input.type} (${input.fileName})`,
+    );
+    this.resolveCompliance(record);
+    return record.save();
+  }
+
+  /**
+   * Recupera una evidencia por su posición en el arreglo validando que la
+   * entidad pertenezca a la empresa (nunca lectura cruzada). Devuelve null si
+   * no existe.
+   */
+  async findEvidence(
+    companyId: Types.ObjectId,
+    index: number,
+  ): Promise<CopasstTrainingEvidence | null> {
+    const record = await this.findByCompany(companyId);
+    if (!record) return null;
+    const evidence = record.evidences[index];
+    return evidence ?? null;
+  }
+
+  /**
+   * Busca la primera evidencia que cumpla un predicado (p.ej. certificado
+   * existente de un participante en una sesión). Devuelve null si no existe.
+   * Solo opera sobre la entidad de la empresa autenticada.
+   */
+  async findEvidenceBy(
+    companyId: Types.ObjectId,
+    predicate: (evidence: CopasstTrainingEvidence) => boolean,
+  ): Promise<CopasstTrainingEvidence | null> {
+    const record = await this.findByCompany(companyId);
+    if (!record) return null;
+    return (record.evidences ?? []).find(predicate) ?? null;
+  }
+
+  /**
+   * Sesión de la entidad 1.1.7 de la empresa por índice estable. Lanza
+   * BadRequest si el índice no corresponde a una sesión real (multi-tenancy:
+   * la sesión siempre se busca en la entidad de la empresa autenticada).
+   */
+  async findSessionByIndex(
+    companyId: Types.ObjectId,
+    sessionIndex: number,
+  ): Promise<CopasstTrainingSession> {
+    const record = await this.findOrCreate(companyId);
+    const session = record.sessions[sessionIndex];
+    if (!session) {
+      throw new BadRequestException('La sesión indicada no existe en la capacitación COPASST');
+    }
+    return session;
+  }
+
+  // ─────────────────────────────────────────────
+  // APPROVAL WORKFLOW (Fase 5)
+  // ─────────────────────────────────────────────
+
+  /**
+   * Envía la entidad 1.1.7 a aprobación (submit): DRAFT → PENDING.
+   *
+   * Reglas (corrección M1, Fase 9):
+   * 1. El registro DEBE existir (findByCompany; nunca se crea implícitamente
+   *    una entidad vacía al enviar).
+   * 2. Rechaza si la entidad ya está bloqueada (pendiente de decisión) o
+   *    aprobada (mismo contrato que submitResourceAssignment).
+   * 3. Exige contenido mínimo (programa anual o al menos una sesión): una
+   *    entidad vacía no puede enviarse a aprobación.
+   * 4. Marca `locked = true` (bloquea la edición de la entidad hasta la
+   *    decisión).
+   * 5. Fija `approval.status = 'PENDING'` (equivalente canónico
+   *    PENDING_APPROVAL del Approval Workflow) conservando la versión.
+   * 6. Registra historial append-only SUBMITTED.
+   *
+   * La creación de la ApprovalRequest pendiente la orquesta el CONTROLLER
+   * (que tiene acceso al ApprovalWorkflowService): el dominio solo marca el
+   * estado y el lock.
+   */
+  async submitCopasstTraining(
+    companyId: Types.ObjectId,
+    user: UserDocument,
+  ): Promise<PhvaAdvancedCopasstTrainingDocument> {
+    const record = await this.findByCompany(companyId);
+    if (!record) {
+      throw new NotFoundException('Capacitación COPASST no encontrada');
+    }
+    if (record.locked || record.approval?.status === 'APPROVED') {
+      throw new BadRequestException(
+        'La capacitación COPASST ya está pendiente de aprobación o aprobada',
+      );
+    }
+    this.assertMinimumApprovalContent(record);
+
+    record.locked = true;
+    record.approval = {
+      ...record.approval,
+      status: 'PENDING' as const,
+      version: record.approval?.version ?? 1,
+    } as never;
+    this.pushAudit(record, 'SUBMITTED', user, 'Enviada a aprobación (1.1.7)');
+    return record.save();
+  }
+
+  /**
+   * Aplica una decisión de aprobación sobre la entidad (Fase 5).
+   *
+   * Espejo de PhvaAdvancedService.approveTrainingManagement (patrón existente
+   * de 1.2.1): el Approval Workflow Core delega aquí vía
+   * CopasstTrainingHandler para las tres decisiones.
+   *
+   * Corrección M1 (Fase 9):
+   * - El registro DEBE existir (findByCompany; NUNCA se crea implícitamente
+   *   una entidad para decidir).
+   * - APPROVED exige contenido mínimo (programa anual o ≥1 sesión): una
+   *   entidad vacía no puede aprobarse ni generar documentación vacía.
+   * - REJECTED / ADJUSTMENTS_REQUESTED NO exigen contenido mínimo (son
+   *   decisiones que no aprueban la entidad).
+   *
+   * Comportamiento conservado:
+   * - APPROVED → status 'APPROVED' + locked true (queda bloqueada).
+   * - REJECTED / ADJUSTMENTS_REQUESTED → status correspondiente + locked
+   *   false (permite correcciones y reenvío).
+   * - version++ en cada decisión; historial append-only APPROVAL_<STATUS>.
+   */
+  async approveCopasstTraining(
+    companyId: Types.ObjectId,
+    user: UserDocument,
+    payload: {
+      status: 'APPROVED' | 'REJECTED' | 'ADJUSTMENTS_REQUESTED';
+      comments?: string;
+    },
+  ): Promise<PhvaAdvancedCopasstTrainingDocument> {
+    const record = await this.findByCompany(companyId);
+    if (!record) {
+      throw new NotFoundException('Capacitación COPASST no encontrada');
+    }
+    if (payload.status === 'APPROVED') {
+      this.assertMinimumApprovalContent(record);
+    }
+    record.approval = {
+      ...record.approval,
+      status: payload.status,
+      comments: payload.comments,
+      approvedBy: user.email,
+      approvedAt: new Date(),
+      version: (record.approval?.version ?? 1) + 1,
+    } as never;
+    record.locked = payload.status === 'APPROVED';
+    this.pushAudit(record, `APPROVAL_${payload.status}`, user, payload.comments ?? '');
+    return record.save();
+  }
+
+  /**
+   * Resuelve el ObjectId del usuario autenticado de forma segura: si el user
+   * no posee _id (stub/tests), devuelve undefined en lugar de lanzar.
+   */
+  private resolveUserId(user: UserDocument | undefined): Types.ObjectId | undefined {
+    const id = (user as unknown as { _id?: Types.ObjectId } | undefined)?._id;
+    return id ?? undefined;
+  }
+
+  // ─────────────────────────────────────────────
   // ACTUALIZACIÓN BASE (Fase 1: sin approval/evidencias reales aún)
   // ─────────────────────────────────────────────
 
@@ -510,6 +757,20 @@ export class PhvaAdvancedCopasstTrainingService {
       targetYear = existing?.year ?? new Date().getFullYear();
     }
     const record = await this.findOrCreate(companyId, targetYear);
+
+    // Locking del flujo de aprobación (Fase 5): mientras la entidad está
+    // PENDIENTE de aprobación o APROBADA no se permiten modificaciones
+    // sensibles. REJECTED/ADJUSTMENTS_REQUESTED liberan la edición.
+    //
+    // Nota: el lock es POR REGISTRO (un registro por empresa/año). Editar con
+    // un `year` distinto crearía un registro paralelo del otro año (no
+    // bloqueado); el frontend siempre envía el año del registro vigente y el
+    // flujo de aprobación opera sobre el registro del año actual.
+    if (record.locked) {
+      throw new BadRequestException(
+        'La capacitación COPASST está bloqueada (pendiente de aprobación o aprobada). No se puede editar.',
+      );
+    }
 
     // Aplicar campos base permitidos (nunca itemCode).
     if (dto.periodId !== undefined) {
@@ -550,7 +811,8 @@ export class PhvaAdvancedCopasstTrainingService {
    * Regla de cumplimiento BASE de 1.1.7 (no copia la de 1.2.1):
    *
    * COMPLIES       → programa anual definido + ≥1 sesión ejecutada +
-   *                  cobertura > 0% + evidencia de asistencia.
+   *                  cobertura > 0% + evidencia de asistencia (legacy o
+   *                  estructurada ATTENDANCE/SIGNATURE/CERTIFICATE — A1).
    * PENDING        → hay programa o sesiones (avance parcial).
    * NON_COMPLIANT  → sin programa, sin sesiones y sin cobertura.
    *
@@ -564,7 +826,8 @@ export class PhvaAdvancedCopasstTrainingService {
     );
     const hasAttendance =
       (record.attendanceEvidence ?? []).length > 0 ||
-      (record.signatureEvidence ?? []).length > 0;
+      (record.signatureEvidence ?? []).length > 0 ||
+      this.hasStructuredAttendanceEvidence(record);
     const hasCoverage = (record.memberCoverage ?? []).some((entry) => entry.trained);
 
     if (hasProgram && hasExecuted && hasCoverage && hasAttendance) {
@@ -579,6 +842,41 @@ export class PhvaAdvancedCopasstTrainingService {
     }
   }
 
+  /**
+   * Regla mínima de contenido para enviar/aprobar la entidad 1.1.7
+   * (corrección M1, Fase 9): la entidad debe tener al menos un elemento del
+   * programa anual o al menos una sesión. Impide aprobar entidades vacías que
+   * generarían documentación sin contenido.
+   *
+   * NO exige en esta fase: sesión ejecutada, evidencia, cobertura,
+   * participantes ni aprobación documental (reglas de otras etapas).
+   */
+  private assertMinimumApprovalContent(
+    record: PhvaAdvancedCopasstTrainingDocument,
+  ): void {
+    const hasContent =
+      (record.annualProgram ?? []).length > 0 || (record.sessions ?? []).length > 0;
+    if (!hasContent) {
+      throw new BadRequestException(
+        'La capacitación COPASST debe tener al menos un programa anual o una sesión antes de enviarse a aprobación.',
+      );
+    }
+  }
+
+  /**
+   * ¿Existe evidencia estructurada que cuente como evidencia de asistencia?
+   * (corrección A1, Fase 9). Fuente única de la regla: los tipos
+   * ATTENDANCE/SIGNATURE/CERTIFICATE cuentan; GENERAL/REPORT/
+   * COMPLIANCE_REPORT no.
+   */
+  private hasStructuredAttendanceEvidence(
+    record: PhvaAdvancedCopasstTrainingDocument,
+  ): boolean {
+    return (record.evidences ?? []).some((evidence) =>
+      ATTENDANCE_EVIDENCE_TYPES.includes(evidence.type),
+    );
+  }
+
   // ─────────────────────────────────────────────
   // HELPERS
   // ─────────────────────────────────────────────
@@ -586,12 +884,12 @@ export class PhvaAdvancedCopasstTrainingService {
   private pushAudit(
     record: PhvaAdvancedCopasstTrainingDocument,
     action: string,
-    user: UserDocument,
+    user: UserDocument | undefined,
     details: string,
   ): void {
     record.history.push({
       action,
-      createdBy: user.email ?? 'system',
+      createdBy: user?.email ?? 'system',
       createdAt: new Date(),
       details,
     } as never);

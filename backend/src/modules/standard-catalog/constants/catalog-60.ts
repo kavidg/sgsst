@@ -139,7 +139,12 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '1.1.7',
-    implementationStatus: 'PARTIAL',
+    // FASE 6: 1.1.7 pasa de PARTIAL a IMPLEMENTED porque el módulo de Gestión
+    // Avanzada ya cubre programa anual, sesiones, cobertura, evidencias,
+    // documentos, aprobación y cumplimiento, y el Implementation Validator lo
+    // valida con datos reales (copasst-training.provider). El peso normativo
+    // NO cambia: el peso efectivo se recalcula solo y la suma sigue siendo 100.
+    implementationStatus: 'IMPLEMENTED',
     title: 'Capacitación COPASST',
     description: 'Formación pertinente y periódica de los integrantes del COPASST.',
     chapter: 'Recursos',
@@ -147,6 +152,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     normativeWeight: 0.5,
     applicableLevels: ['21', '60'],
     moduleRoute: '/advanced-management/1.1.7',
+    validationProvider: 'copasst-training.provider',
     priorityMetadata: { criticality: 'BAJA', estimatedEffort: 'BAJO' },
     // FASE 7.7.B.1 — Textos tomados de PlanPage (financialResourcesItems).
     criteria:

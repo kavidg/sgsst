@@ -8,6 +8,7 @@ import { TrainingManagementHandler } from './handlers/training-management.handle
 import { SstPolicyHandler } from './handlers/sst-policy.handler';
 import { ResponsibilitiesHandler } from './handlers/responsibilities.handler';
 import { ResponsibleSgsstHandler } from './handlers/responsible-sgsst.handler';
+import { CopasstTrainingHandler } from './handlers/copasst-training.handler';
 
 /**
  * Contrato estructural de los handlers de sub-entidad de PHVA Advanced.
@@ -44,6 +45,11 @@ interface PhvaAdvancedSubHandler {
  * generar el documento formal (Document Generation Engine).
  * La interfaz del motor (ApprovalAdapter) permanece intacta.
  *
+ * Fase 5 (1.1.7): CopasstTrainingHandler — Capacitación COPASST, aprobación/
+ * rechazo/ajustes reutilizando PhvaAdvancedCopasstTrainingService
+ * (approveCopasstTraining). Tras la aprobación, el listener resuelve el
+ * CopasstTrainingDocumentGenerator para generar el Informe de capacitación.
+ *
  * El adapter NO contiene lógica de negocio: toda decisión se aplica
  * reutilizando los servicios existentes de PhvaAdvancedService a través de los
  * handlers.
@@ -60,6 +66,7 @@ export class PhvaAdvancedAdapter implements ApprovalAdapter {
     private readonly sstPolicyHandler: SstPolicyHandler,
     private readonly responsibilitiesHandler: ResponsibilitiesHandler,
     private readonly responsibleSgsstHandler: ResponsibleSgsstHandler,
+    private readonly copasstTrainingHandler: CopasstTrainingHandler,
   ) {
     this.handlers = [
       resourceAssignmentHandler,
@@ -67,6 +74,7 @@ export class PhvaAdvancedAdapter implements ApprovalAdapter {
       sstPolicyHandler,
       responsibilitiesHandler,
       responsibleSgsstHandler,
+      copasstTrainingHandler,
     ];
   }
 

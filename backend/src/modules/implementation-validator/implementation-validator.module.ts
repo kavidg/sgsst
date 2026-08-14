@@ -26,6 +26,7 @@ import { CommunicationProvider } from './providers/communication.provider';
 import { CompanyInfoProvider } from './providers/company-info.provider';
 import { ConvivenciaProvider } from './providers/convivencia.provider';
 import { CopasstProvider } from './providers/copasst.provider';
+import { CopasstTrainingProvider } from './providers/copasst-training.provider';
 import { Course50HoursProvider } from './providers/course-50-hours.provider';
 import { DocumentManagementProvider } from './providers/document-management.provider';
 import { InitialEvaluationProvider } from './providers/initial-evaluation.provider';
@@ -66,6 +67,7 @@ import { UsersRolesProvider } from './providers/users-roles.provider';
     InitialEvaluationProvider,
     AnnualPlanProvider,
     CopasstProvider,
+    CopasstTrainingProvider,
     ConvivenciaProvider,
     TrainingProvider,
     CommunicationProvider,

@@ -266,7 +266,7 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
     return <TrainingProgramModule token={token} />;
   }
   if (standardCode === '1.1.7') {
-    return <TrainingCopasstModule token={token} />;
+    return <TrainingCopasstModule token={token} role={role} />;
   }
   if (standardCode === '2.1.1') {
     return <PolicyManagementModule token={token} />;

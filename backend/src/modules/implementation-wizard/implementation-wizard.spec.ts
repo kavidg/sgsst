@@ -18,8 +18,8 @@ import {
 const ALL_STEPS: StepId[] = [
   'company_info', 'users_roles', 'responsible_sst', 'course_50_hours',
   'sst_policy', 'sst_objectives', 'initial_evaluation', 'annual_plan',
-  'copasst', 'convivencia_committee', 'training', 'communication',
-  'legal_matrix', 'document_management',
+  'copasst', 'copasst_training', 'convivencia_committee', 'training',
+  'communication', 'legal_matrix', 'document_management',
 ];
 
 function makeProvider(
@@ -142,9 +142,9 @@ describe('buildWizardOverview', () => {
     const overview = buildWizardOverview(wizard as never);
 
     assert.equal(overview.overallPercentage, 42);
-    assert.equal(overview.totalSteps, 14);
+    assert.equal(overview.totalSteps, 15);
     assert.equal(overview.completedSteps, 1);
-    assert.equal(overview.steps.length, 14);
+    assert.equal(overview.steps.length, 15);
     assert.ok('title' in overview.steps[0]);
     assert.ok('moduleRoute' in overview.steps[0]);
     assert.equal(overview.steps[0].completed, true);
@@ -185,7 +185,7 @@ describe('ImplementationWizardService.getOverview', () => {
 
     const overview = await service.getOverview(new Types.ObjectId('a'.repeat(24)));
 
-    assert.equal(overview.totalSteps, 14);
+    assert.equal(overview.totalSteps, 15);
     assert.equal(overview.overallPercentage, 0);
     assert.equal(overview.isImplementationComplete, false);
     assert.ok(overview.steps.every((s) => s.status === 'PENDING'));
@@ -204,7 +204,7 @@ describe('ImplementationWizardService.getOverview', () => {
 
     const overview = await service.getOverview(new Types.ObjectId('a'.repeat(24)));
 
-    assert.equal(overview.totalSteps, 14);
+    assert.equal(overview.totalSteps, 15);
     assert.ok(overview.overallPercentage > 0 && overview.overallPercentage < 100);
     assert.ok(overview.steps.some((s) => s.status === 'COMPLETED'));
     assert.ok(overview.steps.some((s) => s.status === 'PENDING'));
@@ -220,7 +220,7 @@ describe('ImplementationWizardService.getOverview', () => {
     const overview = await service.getOverview(new Types.ObjectId('a'.repeat(24)));
 
     assert.equal(overview.overallPercentage, 100);
-    assert.equal(overview.completedSteps, 14);
+    assert.equal(overview.completedSteps, 15);
     assert.equal(overview.isImplementationComplete, true);
   });
 
@@ -241,15 +241,58 @@ describe('ImplementationWizardService.getOverview', () => {
 
     const overview = await service.getOverview(new Types.ObjectId('a'.repeat(24)));
 
-    assert.equal(overview.totalSteps, 14);
-    // 13 pasos al 100% + company_info (peso 0.1) en 0 → 90% ponderado.
+    assert.equal(overview.totalSteps, 15);
+    // 14 pasos al 100% + company_info (peso 0.1) en 0 → (1.05-0.1)/1.05 = 90.5 → 90% ponderado.
     assert.equal(overview.overallPercentage, 90);
     const companyInfo = overview.steps.find((s) => s.stepId === 'company_info');
     assert.equal(companyInfo?.percentage, 0);
     assert.equal(companyInfo?.status, 'PENDING');
     assert.equal(companyInfo?.completed, false);
     // El resto sigue calculando.
-    assert.ok(overview.steps.filter((s) => s.completed).length >= 13);
+    assert.ok(overview.steps.filter((s) => s.completed).length >= 14);
+  });
+});
+
+describe('ImplementationWizardService.validateImplementation · paso nuevo (FASE 6)', () => {
+  it('agrega pasos nuevos de providers a un wizard persistido con menos pasos (convergencia aditiva)', async () => {
+    // Wizard persistido ANTES de FASE 6: 14 pasos, sin copasst_training.
+    const steps14 = ALL_STEPS.filter((s) => s !== 'copasst_training').map((stepId) => ({
+      stepId,
+      status: 'COMPLETED' as const,
+      score: 100,
+      criteria: [],
+      pendingCriteria: [],
+    }));
+    const stored = {
+      companyId: 'a'.repeat(24),
+      steps: steps14,
+      overallScore: 100,
+      completionPercentage: 100,
+      isOnboardingComplete: true,
+      isImplementationComplete: true,
+      history: [],
+      lastAutoValidationAt: '2026-01-01T00:00:00.000Z',
+      save: async function () {
+        return this;
+      },
+    };
+    const model = {
+      findOne: () => ({ exec: async () => stored }),
+      create: async () => stored,
+    };
+    const service = new ImplementationWizardService(
+      model as never,
+      buildValidator(allStepsResult(100, 'COMPLETED', ['ok'], [])),
+    );
+
+    const wizard = await service.validateImplementation(new Types.ObjectId('a'.repeat(24)));
+
+    assert.equal(wizard.steps.length, 15);
+    const newStep = wizard.steps.find((s) => s.stepId === 'copasst_training');
+    assert.ok(newStep, 'el paso copasst_training se agrega al wizard persistido');
+    assert.equal(newStep?.score, 100);
+    assert.equal(newStep?.status, 'COMPLETED');
+    assert.equal(wizard.isImplementationComplete, true);
   });
 });
 
@@ -264,7 +307,7 @@ describe('ImplementationWizardService.getDashboardMetrics', () => {
     const metrics = await service.getDashboardMetrics(new Types.ObjectId('a'.repeat(24)));
 
     assert.equal(metrics.completionPercentage, 100);
-    assert.equal(metrics.completedSteps, 14);
+    assert.equal(metrics.completedSteps, 15);
     assert.ok('title' in metrics.steps[0]);
     assert.ok('moduleRoute' in metrics.steps[0]);
     assert.ok('pendingCriteria' in metrics.steps[0]);

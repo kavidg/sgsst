@@ -43,9 +43,10 @@ class SpyCatalogService extends StandardCatalogService {
 }
 
 describe('buildLegacyStandards', () => {
-  it('genera 10 estándares legacy con estado DOES_NOT_COMPLY y defaults', () => {
+  it('genera 11 estándares legacy con estado DOES_NOT_COMPLY y defaults', () => {
     const standards = buildLegacyStandards();
-    assert.equal(standards.length, 10);
+    assert.equal(standards.length, 11);
+    assert.ok(standards.some((s) => s.code === '1.1.7'), '1.1.7 presente en el catálogo legacy (FASE 6)');
     for (const standard of standards) {
       assert.equal(standard.status, StandardEvaluationStatus.DOES_NOT_COMPLY);
       assert.equal(standard.observations, '');
@@ -153,13 +154,13 @@ describe('InitialEvaluationCatalogAdapter.resolveStandards', () => {
   it('company nulo → fallback legacy sin lanzar', () => {
     const adapter = new InitialEvaluationCatalogAdapter(new SpyCatalogService());
     const standards = adapter.resolveStandards(null);
-    assert.equal(standards.length, 10);
+    assert.equal(standards.length, 11);
   });
 
   it('standardsType inválido → fallback legacy', () => {
     const adapter = new InitialEvaluationCatalogAdapter(new SpyCatalogService());
     const standards = adapter.resolveStandards({ standardsType: '999' });
-    assert.equal(standards.length, 10);
+    assert.equal(standards.length, 11);
   });
 
   it('niveles 7/21/60: consulta el StandardCatalog y mantiene fallback legacy (no rompe creación)', () => {
@@ -167,7 +168,7 @@ describe('InitialEvaluationCatalogAdapter.resolveStandards', () => {
       const spy = new SpyCatalogService();
       const adapter = new InitialEvaluationCatalogAdapter(spy);
       const standards = adapter.resolveStandards({ standardsType: level });
-      assert.equal(standards.length, 10, `nivel ${level}: fallback legacy`);
+      assert.equal(standards.length, 11, `nivel ${level}: fallback legacy`);
       assert.equal(spy.applicableCalls, 1, `nivel ${level}: StandardCatalog consultado`);
     }
   });
@@ -179,7 +180,7 @@ describe('InitialEvaluationCatalogAdapter.resolveStandards', () => {
     } as unknown as StandardCatalogService;
     const adapter = new InitialEvaluationCatalogAdapter(emptyService);
     const standards = adapter.resolveStandards({ standardsType: '60' });
-    assert.equal(standards.length, 10);
+    assert.equal(standards.length, 11);
   });
 
   it('excepción del catálogo → fallback legacy sin lanzar', () => {
@@ -187,7 +188,7 @@ describe('InitialEvaluationCatalogAdapter.resolveStandards', () => {
     spy.throwOnNext = true;
     const adapter = new InitialEvaluationCatalogAdapter(spy);
     const standards = adapter.resolveStandards({ standardsType: '60' });
-    assert.equal(standards.length, 10);
+    assert.equal(standards.length, 11);
   });
 
   it('equivalencia verificada → usa el catálogo oficial (migración activa)', () => {
@@ -197,7 +198,7 @@ describe('InitialEvaluationCatalogAdapter.resolveStandards', () => {
     } as unknown as StandardCatalogService;
     const adapter = new InitialEvaluationCatalogAdapter(equivalentService);
     const standards = adapter.resolveStandards({ standardsType: '60' });
-    assert.equal(standards.length, 10);
+    assert.equal(standards.length, 11);
     // El primer estándar del catálogo oficial NO lleva autoSource legacy.
     assert.equal(standards[0].autoSource, undefined);
     assert.equal(standards[0].code, '1.1.1');
@@ -213,7 +214,7 @@ describe('InitialEvaluationCatalogAdapter.resolveStandards', () => {
     } as unknown as StandardCatalogService;
     const adapter = new InitialEvaluationCatalogAdapter(service);
     const standards = adapter.resolveStandards({ standardsType: '60' });
-    assert.equal(standards.length, 10);
+    assert.equal(standards.length, 11);
     assert.equal(standards[0].autoSource, 'Responsable SST', 'fallback legacy preserva autoSource');
   });
 });
@@ -265,6 +266,7 @@ describe('InitialEvaluationService.findOrCreate (FASE 6A)', () => {
       unusedModel as never,
       unusedModel as never,
       unusedModel as never,
+      unusedModel as never,
       {} as AlertsService,
       adapter,
     );
@@ -308,6 +310,6 @@ describe('InitialEvaluationService.findOrCreate (FASE 6A)', () => {
   it('empresa nueva sin empresa en BD: fallback legacy sin romper', async () => {
     const { service, getStored } = buildService({ company: null });
     await service.findOrCreate('a'.repeat(24) as never);
-    assert.equal((getStored()?.standards as unknown[]).length, 10);
+    assert.equal((getStored()?.standards as unknown[]).length, 11);
   });
 });

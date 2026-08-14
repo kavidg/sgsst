@@ -19,6 +19,8 @@ import { TrainingManagementHandler } from './handlers/training-management.handle
 import { SstPolicyHandler } from './handlers/sst-policy.handler';
 import { ResponsibilitiesHandler } from './handlers/responsibilities.handler';
 import { ResponsibleSgsstHandler } from './handlers/responsible-sgsst.handler';
+import { CopasstTrainingHandler } from './handlers/copasst-training.handler';
+import { PhvaAdvancedCopasstTrainingService } from '../../phva-advanced/phva-advanced-copasst-training.service';
 
 /** ObjectIds válidos de MongoDB para las pruebas. */
 const COMPANY_ID = '64b000000000000000000001';
@@ -274,6 +276,33 @@ function buildResponsibleSgsstFixture(): PhvaHandlerFixture {
   return { adapter: buildAdapterLike(handler), approveCalls, rejectCalls };
 }
 
+function buildCopasstTrainingFixture(): PhvaHandlerFixture {
+  const approveCalls: unknown[][] = [];
+  const record = {
+    _id: new Types.ObjectId(RECORD_ID),
+    companyId: new Types.ObjectId(COMPANY_ID),
+    itemCode: '1.1.7',
+    approval: { status: 'PENDING', version: 1 },
+    history: [],
+    locked: false,
+  };
+  const service = {
+    findById: async () => record,
+    findByCompany: async () => record,
+    approveCopasstTraining: async (...args: unknown[]) => {
+      approveCalls.push(args);
+      const status = (args[2] as { status: string }).status;
+      return {
+        ...record,
+        approval: { ...record.approval, status, version: 2 },
+        locked: status === 'APPROVED',
+      };
+    },
+  } as unknown as PhvaAdvancedCopasstTrainingService;
+  const handler = new CopasstTrainingHandler(service, buildUserModel());
+  return { adapter: buildAdapterLike(handler), approveCalls, rejectCalls: [] };
+}
+
 /**
  * Suite global (Fase 6.7) que ejecuta el MISMO contrato para TODOS los handlers
  * de PHVA Advanced, garantizando uniformidad sin duplicar la lógica de las
@@ -475,5 +504,11 @@ createPhvaHandlersContractSuite([
     entityType: 'RESPONSIBLE_SG_SST',
     supportsRejection: true,
     build: buildResponsibleSgsstFixture,
+  },
+  {
+    name: 'CopasstTraining (1.1.7)',
+    entityType: 'PhvaAdvancedCopasstTraining',
+    supportsRejection: true,
+    build: buildCopasstTrainingFixture,
   },
 ]);

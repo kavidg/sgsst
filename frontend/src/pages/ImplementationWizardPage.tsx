@@ -36,6 +36,7 @@ const STEP_LABELS: Record<WizardStepId, string> = {
   initial_evaluation: 'Evaluación Inicial',
   annual_plan: 'Plan Anual',
   copasst: 'COPASST',
+  copasst_training: 'Capacitación COPASST',
   convivencia_committee: 'Comité de Convivencia',
   training: 'Capacitación',
   communication: 'Comunicación',
@@ -53,6 +54,7 @@ const STEP_DESCRIPTIONS: Record<WizardStepId, string> = {
   initial_evaluation: 'Complete la evaluación inicial del SG-SST.',
   annual_plan: 'Cree el Plan Anual de Trabajo.',
   copasst: 'Configure el COPASST o justifique exención.',
+  copasst_training: 'Programe y ejecute la capacitación de los integrantes del COPASST (1.1.7).',
   convivencia_committee: 'Configure el Comité de Convivencia o justifique exención.',
   training: 'Defina el plan anual de capacitaciones.',
   communication: 'Genere al menos una comunicación interna.',
@@ -60,12 +62,12 @@ const STEP_DESCRIPTIONS: Record<WizardStepId, string> = {
   document_management: 'Active el repositorio maestro de documentos.',
 };
 
-// Orden canónico de los 14 pasos (misma fuente que el backend).
+// Orden canónico de los 15 pasos (misma fuente que el backend).
 const ALL_STEP_IDS: WizardStepId[] = [
   'company_info', 'users_roles', 'responsible_sst', 'course_50_hours',
   'sst_policy', 'sst_objectives', 'initial_evaluation', 'annual_plan',
-  'copasst', 'convivencia_committee', 'training', 'communication',
-  'legal_matrix', 'document_management',
+  'copasst', 'copasst_training', 'convivencia_committee', 'training',
+  'communication', 'legal_matrix', 'document_management',
 ];
 
 /**
@@ -296,7 +298,7 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
             <h2 style={{ marginTop: 0 }}>Bienvenido al Sistema de Gestión SST</h2>
             <p className="muted" style={{ marginBottom: 24, lineHeight: 1.6 }}>
               Complete los pasos iniciales para comenzar la implementación del SG-SST.
-              Este asistente le guiará a través de los 14 pasos necesarios para una implementación completa.
+              Este asistente le guiará a través de los 15 pasos necesarios para una implementación completa.
             </p>
             <div className="actions" style={{ justifyContent: 'center', gap: 12 }}>
               <Button type="button" onClick={handleCompleteOnboarding}>Iniciar implementación</Button>
