@@ -3,6 +3,12 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type ConvivenciaPeriodDocument = HydratedDocument<ConvivenciaPeriod>;
 
+/** Discriminador estable del estándar 1.1.8 (nunca editable). */
+export const CONVIVENCIA_ITEM_CODE = '1.1.8';
+
+/** Estado de cumplimiento del estándar 1.1.8 (dominio de cumplimiento, Fase 2). */
+export type ConvivenciaComplianceStatus = 'COMPLIES' | 'PENDING' | 'NON_COMPLIANT';
+
 @Schema({ _id: false })
 export class ConvivenciaMember {
   @Prop({ type: Types.ObjectId, required: true }) userId!: Types.ObjectId;
@@ -103,6 +109,15 @@ export class ConvivenciaPeriod {
   @Prop({ type: [ConvivenciaMeetingExtended], default: [] }) meetings!: ConvivenciaMeetingExtended[];
   @Prop({ type: [ConvivenciaCandidateExtended], default: [] }) candidateExtended!: ConvivenciaCandidateExtended[];
   @Prop({ type: [ConvivenciaVoteExtended], default: [] }) votesExtended!: ConvivenciaVoteExtended[];
+  /**
+   * Estado persistido de la elección (F7B-3, 1.1.8): NOT_STARTED → OPEN → CLOSED.
+   * Fuente de verdad: ConvivenciaService (initVoting abre, closeVoting cierra).
+   */
+  @Prop({ enum: ['NOT_STARTED', 'OPEN', 'CLOSED'], default: 'NOT_STARTED' }) electionState!: string;
+  /** Inicio de la ventana de votación (fijado por initVoting al abrir). */
+  @Prop() votingStartedAt?: Date;
+  /** Cierre de la ventana de votación (fijado por closeVoting al cerrar). */
+  @Prop() votingClosedAt?: Date;
   @Prop({ type: ConvivenciaRegistrationCampaign }) registrationCampaign?: ConvivenciaRegistrationCampaign;
   @Prop({ type: [Object], default: [] }) commitments!: Array<{
     _id?: Types.ObjectId;
@@ -140,6 +155,61 @@ export class ConvivenciaPeriod {
   @Prop({ default: '' }) constitutionMinutesPdfUrl!: string;
   @Prop({ default: 0 }) totalEmployees!: number;
   @Prop({ default: true }) requiresConvivencia!: boolean;
+
+  /**
+   * Discriminador estable del estándar 1.1.8 (Comité de Convivencia Laboral).
+   * Nunca editable: el dominio lo fija en creación y lo filtra en toda consulta.
+   */
+  @Prop({ required: true, default: CONVIVENCIA_ITEM_CODE })
+  itemCode!: string;
+
+  /**
+   * Estado de cumplimiento del estándar (Fase 2 — dominio de cumplimiento).
+   * Fuente de verdad: ConvivenciaService.resolveCompliance(). Los futuros
+   * consumidores (Compliance Engine, Initial Evaluation, IA) leerán SOLO este
+   * campo + complianceReason; no reimplementarán la regla.
+   */
+  @Prop({ default: 'PENDING' })
+  complianceStatus!: ConvivenciaComplianceStatus;
+
+  /** Razón legible del estado de cumplimiento (Fase 2). */
+  @Prop({ default: 'Pendiente gestión avanzada del Comité de Convivencia (1.1.8).' })
+  complianceReason!: string;
 }
 
 export const ConvivenciaPeriodSchema = SchemaFactory.createForClass(ConvivenciaPeriod);
+
+// Búsquedas por empresa y estándar (el itemCode es fijo '1.1.8' pero se incluye
+// en el índice para robustez futura si el dominio llegara a compartir colección).
+ConvivenciaPeriodSchema.index({ companyId: 1, itemCode: 1 });
+
+/**
+ * Secuencia persistente de números de caso del Comité de Convivencia (F7B-6,
+ * 1.1.8). Reemplaza el contador en memoria (`caseCounter`) que se reiniciaba
+ * al reiniciar el backend, no sobrevivía a múltiples instancias y podía
+ * reutilizar números tras un reinicio.
+ *
+ * Clave de unicidad: { companyId, year } — la secuencia es INDEPENDIENTE por
+ * empresa y por año (CC-YYYY-NNNN inicia una nueva serie cada año). El
+ * incremento es atómico (findOneAndUpdate + $inc con upsert, respaldado por el
+ * índice único) de modo que dos createCase() concurrentes de la misma empresa
+ * y año reciben números distintos.
+ */
+@Schema({ timestamps: true, collection: 'convivencia_case_sequences' })
+export class ConvivenciaCaseSequence {
+  @Prop({ type: Types.ObjectId, required: true }) companyId!: Types.ObjectId;
+  /** Año de la secuencia: cada año arranca en CC-YYYY-0001. */
+  @Prop({ required: true }) year!: number;
+  /** Último número emitido para (companyId, year). 0 = sin casos aún. */
+  @Prop({ default: 0 }) sequence!: number;
+}
+
+export type ConvivenciaCaseSequenceDocument = HydratedDocument<ConvivenciaCaseSequence>;
+
+export const ConvivenciaCaseSequenceSchema =
+  SchemaFactory.createForClass(ConvivenciaCaseSequence);
+
+// Índice único: evita que dos upserts concurrentes dupliquen la secuencia de
+// (empresa, año). El contador vive en su PROPIA colección (nueva, sin datos
+// legacy), por lo que el índice puede crearse con seguridad.
+ConvivenciaCaseSequenceSchema.index({ companyId: 1, year: 1 }, { unique: true });

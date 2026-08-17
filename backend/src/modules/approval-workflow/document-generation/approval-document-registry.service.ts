@@ -23,7 +23,10 @@ import {
  *     Fase 5) con alias PHVA_ADVANCED:'RESOURCE_ASSIGNMENT' (clave normalizada).
  *   - PHVA_ADVANCED: 'PhvaAdvancedSstPolicy' (clave real del flujo, Fase 6)
  *     con alias PHVA_ADVANCED:'SST_POLICY' (clave normalizada).
- *   - CONVIVENCIA (fases posteriores).
+ *   - CONVIVENCIA: 'ConvivenciaPeriod' (clave real del flujo, Fase 5) con
+ *     alias CONVIVENCIA:'CONVIVENCIA' (clave normalizada). F7B-14 confirma
+ *     que la integración documental de 1.1.8 está completa (generador +
+ *     registry + listener + controller), no "fases posteriores".
  */
 @Injectable()
 export class ApprovalDocumentRegistryService {

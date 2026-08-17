@@ -86,6 +86,20 @@ export class DocumentInstance {
   /** Código del estándar PHVA origen (StandardCatalog, p. ej. '1.1.1'). */
   @Prop()
   standardCode?: string;
+
+  /**
+   * Código documental canónico del TIPO de documento (F7B-7, trazabilidad
+   * documental). Ej.: 'PHVA-1.1.8-ACTA' / 'PHVA-1.1.8-COMP'.
+   *
+   * Identifica el tipo documental de forma EXPLÍCITA y ESTABLE (independiente
+   * de fileUrl, storagePath, orden de generación o heurísticas del frontend).
+   * El valor proviene SIEMPRE del servidor (context.document.code definido por
+   * el dominio); nunca del request del cliente. Opcional por compatibilidad
+   * legacy: las instancias creadas antes de F7B-7 no tienen el campo y los
+   * consumidores lo reciben como null/unknown explícito.
+   */
+  @Prop({ trim: true })
+  documentCode?: string;
 }
 
 export const DocumentInstanceSchema = SchemaFactory.createForClass(DocumentInstance);

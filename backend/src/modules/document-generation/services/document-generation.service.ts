@@ -111,6 +111,11 @@ export class DocumentGenerationService {
         sourceModule: request.sourceModule ?? DocumentSourceModule.TEMPLATES,
         sourceEntity: request.sourceEntity ?? template.documentType,
         sourceEntityId: request.sourceEntityId,
+        // F7B-7: código documental canónico del tipo de documento. Proviene
+        // EXCLUSIVAMENTE del contexto construido por el servidor (los servicios
+        // de dominio fijan context.document.code); nunca del request del
+        // cliente. Ausente → undefined (sin inventar códigos).
+        documentCode: this.resolveDocumentCode(request.context),
         status: DocumentStatus.GENERATED,
         format: RendererFormat.DOCX,
         fileUrl: upload.fileUrl,
@@ -174,6 +179,24 @@ export class DocumentGenerationService {
         approvalEventId: request.approval?.approvalEventId,
       })
       .exec();
+  }
+
+  /**
+   * F7B-7: extrae el código documental canónico del contexto de render.
+   *
+   * El contexto es construido por los servicios de dominio
+   * (context.document.code, p.ej. 'PHVA-1.1.8-ACTA'). Se tolera cualquier
+   * shape de contexto (anidado nuevo o plano legado) y se devuelve undefined
+   * si no hay código — NUNCA se inventa uno.
+   */
+  private resolveDocumentCode(
+    context: DocumentGenerationRequest['context'],
+  ): string | undefined {
+    if (!context || typeof context !== 'object') return undefined;
+    const document = (context as Record<string, unknown>).document;
+    if (!document || typeof document !== 'object') return undefined;
+    const code = (document as Record<string, unknown>).code;
+    return typeof code === 'string' && code.trim() ? code.trim() : undefined;
   }
 
   private toResult(instance: DocumentInstanceDocument): DocumentGenerationResult {

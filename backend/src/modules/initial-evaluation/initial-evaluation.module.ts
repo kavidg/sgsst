@@ -6,7 +6,11 @@ import { AuthModule } from '../auth/auth.module';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { Company, CompanySchema } from '../companies/schemas/company.schema';
-import { CopasstPeriod, CopasstPeriodSchema } from '../committee-engine/schemas/copasst.schema';
+// F7B-9A: schema canónico de COPASST (modules/copasst) en lugar del schema
+// legacy de committee-engine (misma colección copasst_periods). El registro
+// Mongoose usa el mismo modelo CopasstPeriod que modules/copasst, sin conflicto
+// de nombres ni OverwriteModelError.
+import { CopasstPeriod, CopasstPeriodSchema } from '../copasst/schemas/copasst.schema';
 import { PhvaAdvancedCopasstTraining, PhvaAdvancedCopasstTrainingSchema } from '../phva-advanced/schemas/phva-advanced-copasst-training.schema';
 import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstSchema } from '../phva-advanced/schemas/phva-advanced-responsable-sst.schema';
 import { SstObjectives, SstObjectivesSchema } from '../phva-advanced/schemas/phva-advanced-sst-objective.schema';

@@ -37,6 +37,12 @@ export enum DocumentTemplateType {
    * cumplimiento (Fase 4).
    */
   PHVA_COPASST_TRAINING = 'PHVA_COPASST_TRAINING',
+  /**
+   * Documentos del Comité de Convivencia Laboral (PHVA 1.1.8, Fase 5): acta de
+   * conformación y reporte de cumplimiento. Los documentos comparten el tipo y
+   * se distinguen por `name` (mismo patrón que PHVA_COPASST_TRAINING).
+   */
+  PHVA_CONVIVENCIA = 'PHVA_CONVIVENCIA',
   OTHER = 'OTHER',
 }
 
@@ -110,6 +116,18 @@ export const PHVA_SOURCE_ENTITY_SST_POLICY = 'SST_POLICY';
  * (ambas apuntan al mismo generador para no duplicar generación).
  */
 export const PHVA_SOURCE_ENTITY_COPASST_TRAINING = 'COPASST_TRAINING';
+
+/**
+ * Entidad de origen de los documentos del Comité de Convivencia (PHVA 1.1.8).
+ *
+ * Fase 5: se usa como sourceEntity de la DocumentInstance. La clave REAL del
+ * flujo de aprobación es module=CONVIVENCIA + entityType='ConvivenciaPeriod'
+ * (ver el submitForApproval del convivencia.controller), por lo que el
+ * generador se registra bajo esa clave Y bajo CONVIVENCIA:'CONVIVENCIA' como
+ * clave normalizada (ambas apuntan al mismo generador para no duplicar
+ * generación).
+ */
+export const PHVA_SOURCE_ENTITY_CONVIVENCIA = 'CONVIVENCIA';
 
 /**
  * Metadatos de aprobación de una instancia documental generada.

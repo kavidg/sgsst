@@ -94,6 +94,21 @@ export function generateRecommendations(results: ProviderComplianceResult[]): Re
     );
   }
 
+  // Regla (FASE 3): Comité de Convivencia (1.1.8) sin cumplimiento completo →
+  // conformar y poner en operación el comité. Consume el resultado real del
+  // provider (que a su vez consume complianceStatus del dominio: fuente única
+  // de verdad; PENDING nunca es 100).
+  const convivencia = results.find((result) => result.module === 'convivencia');
+  if (convivencia && convivencia.percentage < 100) {
+    push(
+      'convivencia',
+      'Conformar y poner en operación el Comité de Convivencia',
+      `El cumplimiento del Comité de Convivencia Laboral es del ${convivencia.percentage}%. Completar la conformación, aprobación y reuniones del comité (1.1.8).`,
+      FindingPriority.MEDIUM,
+      'do',
+    );
+  }
+
   // Regla: riesgos altos → fortalecer controles.
   const risks = results.find((result) => result.module === 'risks');
   if (risks && risks.findings.some((finding) => finding.priority === FindingPriority.CRITICAL || finding.priority === FindingPriority.HIGH)) {

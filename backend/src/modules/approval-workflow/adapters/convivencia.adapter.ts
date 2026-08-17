@@ -48,13 +48,14 @@ export class ConvivenciaAdapter implements ApprovalAdapter {
    * B) periodId undefined → carga el periodo activo vigente de la empresa.
    */
   async getEntity(companyId: string, periodId?: string) {
+    // Fase 1: findById(companyId, periodId) valida pertenencia en el dominio
+    // (una entidad de otra empresa se comporta como NotFound).
     const period = periodId
-      ? await this.convivenciaService.findById(new Types.ObjectId(periodId))
+      ? await this.convivenciaService.findById(
+          new Types.ObjectId(companyId),
+          new Types.ObjectId(periodId),
+        )
       : await this.convivenciaService.findCurrent(new Types.ObjectId(companyId));
-
-    if (period.companyId.toString() !== companyId) {
-      throw new NotFoundException('Convivencia period not found');
-    }
 
     return {
       entity: period,
@@ -72,21 +73,24 @@ export class ConvivenciaAdapter implements ApprovalAdapter {
    */
   async applyDecision(ctx: ApplyDecisionContext) {
     const periodId = ctx.entityId.toString();
-    const period = await this.convivenciaService.findById(new Types.ObjectId(periodId));
-    if (period.companyId.toString() !== ctx.companyId.toString()) {
-      throw new NotFoundException('Convivencia period not found');
-    }
+    // Fase 1: findById(companyId, entityId) valida pertenencia en el dominio
+    // (una entidad de otra empresa se comporta como NotFound). Se conserva
+    // como validación temprana explícita: approve/reject también validan.
+    await this.convivenciaService.findById(
+      ctx.companyId,
+      new Types.ObjectId(periodId),
+    );
 
     switch (ctx.decision) {
       case ApprovalDecision.APPROVED: {
         const userEmail =
           this.signatureValue(ctx, 'signerEmail') ?? ctx.actor.email ?? '';
         const role = this.signatureValue(ctx, 'signerRole') ?? ctx.actor.role ?? 'manager';
-        return this.convivenciaService.approve(periodId, userEmail, role);
+        return this.convivenciaService.approve(ctx.companyId, periodId, userEmail, role);
       }
       case ApprovalDecision.REJECTED: {
         const reason = ctx.reason ?? ctx.comments ?? 'Rechazado';
-        return this.convivenciaService.reject(periodId, reason, ctx.actor.email ?? 'system');
+        return this.convivenciaService.reject(ctx.companyId, periodId, reason, ctx.actor.email ?? 'system');
       }
       case ApprovalDecision.ADJUSTMENTS_REQUESTED:
         throw new BadRequestException(

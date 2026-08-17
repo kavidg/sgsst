@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { RequestWithUser } from '../auth/auth.types';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
@@ -17,6 +17,15 @@ export class CopasstController {
     private readonly copasstService: CopasstService,
     private readonly approvalWorkflowService: ApprovalWorkflowService,
   ) {}
+
+  /**
+   * companyId del CONTEXTO AUTENTICADO (CompanyAccessGuard) para el scoping
+   * tenant de los endpoints por periodId (F7B-10.6-D). Nunca se confía en
+   * companyId enviado por el cliente (body/headers).
+   */
+  private companyIdOf(req: RequestWithUser): Types.ObjectId {
+    return new Types.ObjectId(req.companyId as unknown as string);
+  }
 
   // ─── SUMMARY ───
   @Get('summary')
@@ -44,16 +53,22 @@ export class CopasstController {
   @Patch('periods/:periodId')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin')
-  updatePeriod(@Param('periodId') periodId: string, @Body() dto: Partial<{ periodName: string; startDate: string; endDate: string; status: string }>) {
-    return this.copasstService.updatePeriod(periodId, dto);
+  updatePeriod(@Req() req: RequestWithUser, @Param('periodId') periodId: string, @Body() dto: Partial<{
+    periodName: string; startDate: string; endDate: string; status: string;
+    // F7B-10.6-C: configuración electoral mínima (opcional, backward-compatible).
+    electionState: 'NOT_STARTED' | 'OPEN' | 'CLOSED'; votingOpenAt: string; votingClosedAt: string;
+  }>) {
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.updatePeriod(this.companyIdOf(req), periodId, dto);
   }
 
   // ─── MEMBERS ───
   @Get('periods/:periodId/members')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin', 'manager', 'member')
-  getMembers(@Param('periodId') periodId: string) {
-    return this.copasstService.getMembers(periodId);
+  getMembers(@Req() req: RequestWithUser, @Param('periodId') periodId: string) {
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.getMembers(this.companyIdOf(req), periodId);
   }
 
   @Post('periods/:periodId/members')
@@ -63,14 +78,16 @@ export class CopasstController {
     userId: string; userName: string; committeeRole: string;
     representationType: string; principalType: string; startDate: string;
   }) {
-    return this.copasstService.addMember(periodId, dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.addMember(this.companyIdOf(req), periodId, dto, req.user?.email ?? 'system');
   }
 
   @Delete('periods/:periodId/members/:index')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin')
   removeMember(@Param('periodId') periodId: string, @Param('index') index: string, @Req() req: RequestWithUser) {
-    return this.copasstService.removeMember(periodId, parseInt(index), req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.removeMember(this.companyIdOf(req), periodId, parseInt(index), req.user?.email ?? 'system');
   }
 
   // ─── REGISTRATION CAMPAIGN ───
@@ -80,7 +97,8 @@ export class CopasstController {
   startCampaign(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: {
     openingDate: string; closingDate: string; includedDepartments?: string[]; requirements?: string[];
   }) {
-    return this.copasstService.startRegistrationCampaign(periodId, dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.startRegistrationCampaign(this.companyIdOf(req), periodId, dto, req.user?.email ?? 'system');
   }
 
   @Get('campaign/:token')
@@ -103,7 +121,8 @@ export class CopasstController {
   reviewCandidate(@Param('periodId') periodId: string, @Param('index') index: string, @Req() req: RequestWithUser, @Body() dto: {
     adminStatus: 'APROBADO' | 'RECHAZADO' | 'INFO_REQUESTED'; adminComment?: string;
   }) {
-    return this.copasstService.reviewCandidate(periodId, parseInt(index), dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.reviewCandidate(this.companyIdOf(req), periodId, parseInt(index), dto, req.user?.email ?? 'system');
   }
 
   // ─── VOTING ───
@@ -111,7 +130,8 @@ export class CopasstController {
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin')
   initVoting(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
-    return this.copasstService.initVoting(periodId, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.initVoting(this.companyIdOf(req), periodId, req.user?.email ?? 'system');
   }
 
   @Post('elections/otp')
@@ -136,7 +156,8 @@ export class CopasstController {
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin')
   autoCreateCommittee(@Param('periodId') periodId: string, @Body() dto: { numPositions: number }, @Req() req: RequestWithUser) {
-    return this.copasstService.autoCreateCommittee(periodId, dto.numPositions, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.autoCreateCommittee(this.companyIdOf(req), periodId, dto.numPositions, req.user?.email ?? 'system');
   }
 
   // ─── MEETINGS ───
@@ -146,14 +167,16 @@ export class CopasstController {
   scheduleMeeting(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: {
     meetingDate: string; agenda: string; topicList?: string[];
   }) {
-    return this.copasstService.scheduleMeeting(periodId, dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.scheduleMeeting(this.companyIdOf(req), periodId, dto, req.user?.email ?? 'system');
   }
 
   @Post('periods/:periodId/meetings/auto-schedule')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin')
   autoScheduleMonthlyMeetings(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
-    return this.copasstService.autoScheduleMonthlyMeetings(periodId, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.autoScheduleMonthlyMeetings(this.companyIdOf(req), periodId, req.user?.email ?? 'system');
   }
 
   @Patch('periods/:periodId/meetings/:index')
@@ -163,7 +186,8 @@ export class CopasstController {
     meetingDate: string; agenda: string; development: string; status: string;
     attendees: string[]; topicList: string[];
   }>) {
-    return this.copasstService.updateMeeting(periodId, parseInt(index), dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.updateMeeting(this.companyIdOf(req), periodId, parseInt(index), dto, req.user?.email ?? 'system');
   }
 
   @Post('periods/:periodId/meetings/:index/complete')
@@ -172,18 +196,19 @@ export class CopasstController {
   completeMeeting(@Param('periodId') periodId: string, @Param('index') index: string, @Req() req: RequestWithUser, @Body() dto: {
     development: string; attendees: string[]; topicList?: string[];
   }) {
-    return this.copasstService.completeMeeting(periodId, parseInt(index), dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.completeMeeting(this.companyIdOf(req), periodId, parseInt(index), dto, req.user?.email ?? 'system');
   }
 
   // ─── COMMITMENTS ───
   @Post('periods/:periodId/commitments')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
-  @Roles('owner', 'admin')
-  addCommitment(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: {
-    description: string; responsibleParty: string; deadline: string;
-    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; meetingId?: string;
+  @Roles('owner', 'admin')  addCommitment(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: {
+    description: string; responsibleParty: string;
+    deadline: string; priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; meetingId?: string;
   }) {
-    return this.copasstService.addCommitment(periodId, dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.addCommitment(this.companyIdOf(req), periodId, dto, req.user?.email ?? 'system');
   }
 
   @Patch('periods/:periodId/commitments/:commitmentId')
@@ -193,7 +218,8 @@ export class CopasstController {
     description: string; responsibleParty: string; deadline: string;
     priority: string; status: string; evidenceUrl: string;
   }>) {
-    return this.copasstService.updateCommitment(periodId, commitmentId, dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.updateCommitment(this.companyIdOf(req), periodId, commitmentId, dto, req.user?.email ?? 'system');
   }
 
   // ─── EVIDENCE ───
@@ -203,14 +229,16 @@ export class CopasstController {
   addEvidence(@Param('periodId') periodId: string, @Req() req: RequestWithUser, @Body() dto: {
     type: string; title: string; fileName: string; fileUrl: string; meetingId?: string;
   }) {
-    return this.copasstService.addEvidence(periodId, dto, req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.addEvidence(this.companyIdOf(req), periodId, dto, req.user?.email ?? 'system');
   }
 
   @Delete('periods/:periodId/evidence/:index')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin')
   removeEvidence(@Param('periodId') periodId: string, @Param('index') index: string, @Req() req: RequestWithUser) {
-    return this.copasstService.removeEvidence(periodId, parseInt(index), req.user?.email ?? 'system');
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.removeEvidence(this.companyIdOf(req), periodId, parseInt(index), req.user?.email ?? 'system');
   }
 
   // ─── APPROVAL ───
@@ -219,7 +247,8 @@ export class CopasstController {
   @Roles('owner', 'admin')
   async submitForApproval(@Param('periodId') periodId: string, @Req() req: RequestWithUser) {
     const userEmail = req.user?.email ?? 'system';
-    const period = await this.copasstService.submitForApproval(periodId, userEmail);
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    const period = await this.copasstService.submitForApproval(this.companyIdOf(req), periodId, userEmail);
 
     // Crear la solicitud de aprobación en el Approval Workflow Core.
     await this.approvalWorkflowService.createRequest(
@@ -299,21 +328,24 @@ export class CopasstController {
   }
 
   /**
-   * Resuelve el companyId: lo toma del request (guardias) o, como fallback,
-   * lo lee del periodo para mantener consistencia en los tres endpoints.
+   * Resuelve el companyId desde el CONTEXTO AUTENTICADO únicamente
+   * (F7B-10.6-D). Los guardias (FirebaseAuthGuard + CompanyAccessGuard)
+   * siempre poblan req.companyId; si no está presente, falla de forma
+   * segura en lugar de resolver el tenant desde el periodo (evita el read
+   * cross-tenant de periodId ajeno).
    */
-  private async resolveCompanyId(req: RequestWithUser, periodId: string): Promise<string> {
+  private async resolveCompanyId(req: RequestWithUser, _periodId: string): Promise<string> {
     if (req.companyId) return req.companyId.toString();
-    const period = await this.copasstService.findById(new Types.ObjectId(periodId));
-    return period.companyId.toString();
+    throw new NotFoundException('Periodo no encontrado');
   }
 
   // ─── AUDIT ───
   @Get('periods/:periodId/audit')
   @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
   @Roles('owner', 'admin', 'manager', 'member')
-  getAuditHistory(@Param('periodId') periodId: string) {
-    return this.copasstService.getAuditHistory(periodId);
+  getAuditHistory(@Req() req: RequestWithUser, @Param('periodId') periodId: string) {
+    // F7B-10.6-D: query tenant-scoped por req.companyId.
+    return this.copasstService.getAuditHistory(this.companyIdOf(req), periodId);
   }
 
   // ─── DASHBOARD ───

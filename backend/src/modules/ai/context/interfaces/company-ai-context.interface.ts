@@ -145,6 +145,95 @@ export interface CompanyAIContextCopasstTraining {
 }
 
 /**
+ * Miembro del Comité de Convivencia Laboral dentro del contexto IA (1.1.8).
+ *
+ * Fuente: datos reales del ConvivenciaPeriod vigente (leído por
+ * ConvivenciaService.findCurrent, scoped por companyId). La IA NO recalcula
+ * conformación ni estados: consume el snapshot real del dominio. Lista
+ * limitada al máximo del contexto y sin PII innecesaria (sin documentos,
+ * teléfonos ni datos de contacto).
+ */
+export interface CompanyAIContextConvivenciaMember {
+  /** Identificador de usuario del miembro (solo si el contexto lo permite). */
+  userId: string;
+  name: string;
+  /** Rol dentro del comité (PRESIDENTE / SECRETARIO / PRINCIPAL / SUPLENTE). */
+  committeeRole: string;
+  /** Tipo de representación (EMPLEADOR / TRABAJADOR). */
+  representationType: string;
+  /** Estado del miembro en el periodo (ACTIVO / INACTIVO). */
+  status: string;
+}
+
+/**
+ * Estado real del Comité de Convivencia Laboral (1.1.8) dentro del contexto IA.
+ *
+ * `complianceStatus`, `complianceReason`, `percentage`, `metCriteria` y
+ * `missingCriteria` provienen EXCLUSIVAMENTE de
+ * ConvivenciaService.getComplianceSnapshot() (fuente única de verdad del
+ * dominio — Fase 2). La IA NO reimplementa resolveCompliance() ni recalcula
+ * el porcentaje: PENDING nunca se presenta como 100%.
+ *
+ * Los casos confidenciales se representan SOLO con conteos agregados
+ * (caseCount/openCaseCount/closedCaseCount): NUNCA se envían nombres,
+ * descripciones, evidencias ni contenido sensible a la IA.
+ *
+ * Listas limitadas (miembros y reuniones hasta el máximo del contexto) sin
+ * URLs de storage, sin secureToken/OTP, sin documentos privados y sin PII
+ * innecesaria.
+ */
+export interface CompanyAIContextConvivencia {
+  /** true si la empresa tiene un periodo de convivencia vigente (1.1.8). */
+  available: boolean;
+  /** Discriminador del estándar: '1.1.8'. Null si la empresa no tiene periodo. */
+  itemCode: string | null;
+  /** Estado de compliance del dominio (getComplianceSnapshot). Null si no hay periodo. */
+  complianceStatus: 'COMPLIES' | 'PENDING' | 'NON_COMPLIANT' | null;
+  /** Razón/observación de compliance del dominio. Null si no hay periodo. */
+  complianceReason: string | null;
+  /** Progreso 0-100 coherente con complianceStatus (COMPLIES→100, PENDING→25/50/75, NON_COMPLIANT→0). */
+  percentage: number;
+  /** true si la empresa está exenta (requiresConvivencia === false). */
+  exempt: boolean;
+  /** Condiciones de dominio presentes (etiquetas legibles del snapshot). */
+  metCriteria: string[];
+  /** Condiciones de dominio ausentes (etiquetas legibles del snapshot). */
+  missingCriteria: string[];
+  /** Estado real del periodo (ACTIVO / PROXIMO_A_VENCER / VENCIDO / ARCHIVADO). */
+  periodStatus: string;
+  /** Estado real de aprobación del periodo. */
+  approvalStatus: string;
+  /** Miembros registrados en el periodo (conteo real). */
+  memberCount: number;
+  /** Reuniones registradas (conteo real). */
+  meetingCount: number;
+  /** Reuniones con status 'CERRADA' (mismo concepto de "reunión realizada" del dominio). */
+  completedMeetingCount: number;
+  /** Evidencias registradas en evidence[] (conteo real del snapshot). */
+  evidenceCount: number;
+  /** Compromisos/planes de acción registrados (conteo real). */
+  commitmentCount: number;
+  /** Compromisos por estado (conteos agregados, sin responsables ni contenido). */
+  commitmentStatusCounts: {
+    open: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    cancelled: number;
+  };
+  /** Casos confidenciales — SOLO conteos agregados (nunca contenido sensible). */
+  cases: {
+    total: number;
+    open: number;
+    closed: number;
+  };
+  /** Miembros (limitados al máximo del contexto) — sin PII innecesaria. */
+  members: CompanyAIContextConvivenciaMember[];
+  /** Reuniones (limitadas) — solo fecha y estado, sin actas ni URLs. */
+  meetings: { meetingDate: string | null; status: string }[];
+}
+
+/**
  * Contexto operativo central de una empresa para los Engines IA y el futuro Copiloto.
  *
  * Se construye con datos REALES del sistema (sin información ficticia) y queda
@@ -160,4 +249,6 @@ export interface CompanyAIContext {
   activities: CompanyAIContextActivities;
   /** Estado real de la Capacitación COPASST (1.1.7), reutilizando el dominio. */
   copasstTraining: CompanyAIContextCopasstTraining;
+  /** Estado real del Comité de Convivencia Laboral (1.1.8), reutilizando el dominio. */
+  convivencia: CompanyAIContextConvivencia;
 }

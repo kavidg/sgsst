@@ -17,6 +17,9 @@ export enum DocumentSourceModule {
   PHVA_ADVANCED = 'PHVA_ADVANCED',
   DOCUMENT_MANAGEMENT = 'DOCUMENT_MANAGEMENT',
   TEMPLATES = 'TEMPLATES',
+  // Fase 5 (1.1.8): el Comité de Convivencia genera sus documentos con su
+  // propio discriminador de módulo (mismo patrón de trazabilidad que PHVA).
+  CONVIVENCIA = 'CONVIVENCIA',
   OTHER = 'OTHER',
 }
 

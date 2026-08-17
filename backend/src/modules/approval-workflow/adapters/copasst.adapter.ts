@@ -82,11 +82,23 @@ export class CopasstAdapter implements ApprovalAdapter {
         const userEmail =
           this.signatureValue(ctx, 'signerEmail') ?? ctx.actor.email ?? '';
         const role = this.signatureValue(ctx, 'signerRole') ?? ctx.actor.role ?? 'manager';
-        return this.copasstService.approve(periodId, userEmail, role);
+        // F7B-10.6-D: companyId del contexto del motor (verificado contra el
+        // periodo arriba); el service vuelve a scope por _id + companyId.
+        return this.copasstService.approve(
+          new Types.ObjectId(ctx.companyId.toString()),
+          periodId,
+          userEmail,
+          role,
+        );
       }
       case ApprovalDecision.REJECTED: {
         const reason = ctx.reason ?? ctx.comments ?? 'Rechazado';
-        return this.copasstService.reject(periodId, reason, ctx.actor.email ?? 'system');
+        return this.copasstService.reject(
+          new Types.ObjectId(ctx.companyId.toString()),
+          periodId,
+          reason,
+          ctx.actor.email ?? 'system',
+        );
       }
       case ApprovalDecision.ADJUSTMENTS_REQUESTED:
         throw new BadRequestException(

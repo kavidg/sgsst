@@ -4,6 +4,7 @@ import { EvaluationsModule } from '../../evaluations/evaluations.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { AnnualWorkPlanModule } from '../annual-work-plan/annual-work-plan.module';
 import { AuthModule } from '../auth/auth.module';
+import { ConvivenciaModule } from '../convivencia/convivencia.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
 import { DocumentManagementModule } from '../document-management/document-management.module';
 import { IncidentsModule } from '../incidents/incidents.module';
@@ -19,6 +20,7 @@ import { ComplianceEngineController } from './compliance-engine.controller';
 import { ComplianceEngineService } from './compliance-engine.service';
 import { AlertsProvider } from './providers/alerts.provider';
 import { AnnualWorkPlanProvider } from './providers/annual-work-plan.provider';
+import { ConvivenciaProvider } from './providers/convivencia.provider';
 import { CopasstTrainingProvider } from './providers/copasst-training.provider';
 import { DashboardProvider } from './providers/dashboard.provider';
 import { DocumentsProvider } from './providers/documents.provider';
@@ -52,6 +54,9 @@ import { TrainingsProvider } from './providers/trainings.provider';
     // FASE 6: provider de cumplimiento 1.1.7 (Capacitación COPASST) que
     // reutiliza PhvaAdvancedCopasstTrainingService (entidad + cobertura real).
     PhvaAdvancedModule,
+    // FASE 3: provider de cumplimiento 1.1.8 (Comité de Convivencia) que
+    // consume el snapshot de cumplimiento del dominio (fuente única de verdad).
+    ConvivenciaModule,
   ],
   controllers: [ComplianceEngineController],
   providers: [
@@ -69,6 +74,7 @@ import { TrainingsProvider } from './providers/trainings.provider';
     DashboardProvider,
     InitialEvaluationProvider,
     CopasstTrainingProvider,
+    ConvivenciaProvider,
   ],
   // Exportado para que ComplianceTimelineModule pueda reutilizar getOverview()
   // como fuente única de datos del timeline.

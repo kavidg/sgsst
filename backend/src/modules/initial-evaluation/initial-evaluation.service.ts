@@ -5,7 +5,11 @@ import { Model, Types } from 'mongoose';
 import { AlertsService } from '../alerts/alerts.service';
 import { AlertSeverity } from '../alerts/schemas/alert.schema';
 import { Company, CompanyDocument } from '../companies/schemas/company.schema';
-import { CopasstPeriod, CopasstPeriodDocument } from '../committee-engine/schemas/copasst.schema';
+// F7B-9A: schema canónico de COPASST (modules/copasst). Eliminada la dependencia
+// del schema legacy de committee-engine (desacoplamiento F7B-8). Misma colección
+// copasst_periods; el schema canónico es superset compatible con la lectura actual
+// (findOne por companyId/status + members).
+import { CopasstPeriod, CopasstPeriodDocument } from '../copasst/schemas/copasst.schema';
 import { PhvaAdvancedResponsableSst, PhvaAdvancedResponsableSstDocument, ResponsableSstComplianceStatus } from '../phva-advanced/schemas/phva-advanced-responsable-sst.schema';
 import { SstObjectives, SstObjectivesDocument } from '../phva-advanced/schemas/phva-advanced-sst-objective.schema';
 import { SstPolicy, SstPolicyDocument, SstPolicyStatus } from '../phva-advanced/schemas/phva-advanced-sst-policy.schema';

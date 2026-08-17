@@ -19,7 +19,11 @@ import { AlertsModule } from './modules/alerts/alerts.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { PhvaAdvancedModule } from './modules/phva-advanced/phva-advanced.module';
 import { CopasstModule } from './modules/copasst/copasst.module';
-import { CommitteeEngineModule } from './modules/committee-engine/committee-engine.module';
+// F7B-9B/9E: CommitteeEngineModule (legacy) retirado del registro de NestJS
+// (F7B-9B) y eliminado físicamente del repositorio (F7B-9E). Sus endpoints
+// /committee-engine/* ya no existen (superficie legacy con OTP Math.random,
+// otpPreview, IDOR y resultados con PII). La implementación segura de
+// CONVIVENCIA vive en ConvivenciaModule (/convivencia/*).
 import { ComplianceCredentialsModule } from './modules/compliance-credentials/compliance-credentials.module';
 import { InitialEvaluationModule } from './modules/initial-evaluation/initial-evaluation.module';
 import { AnnualWorkPlanModule } from './modules/annual-work-plan/annual-work-plan.module';
@@ -77,7 +81,6 @@ import { DocumentGenerationModule } from './modules/document-generation/document
     TemplatesModule,
     PhvaAdvancedModule,
     CopasstModule,
-    CommitteeEngineModule,
     ComplianceCredentialsModule,
     InitialEvaluationModule,
     AnnualWorkPlanModule,

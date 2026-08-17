@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   ConvivenciaPeriodModel,
+  ConvivenciaComplianceSnapshotModel,
+  ConvivenciaComplianceStatus,
+  ConvivenciaDocumentModel,
   fetchConvivenciaSummary,
+  fetchConvivenciaCompliance,
+  fetchConvivenciaDocuments,
+  generateConvivenciaConstitution,
+  generateConvivenciaComplianceReport,
   addConvivenciaMember,
   removeConvivenciaMember,
   startConvivenciaCampaign,
@@ -27,10 +34,34 @@ import {
   fetchEmployees,
   EmployeeModel,
 } from '../api';
-import { AdvancedPageLayout, AdvancedHeader, AdvancedKpiGrid } from '../components/advanced-layout';
+import { AdvancedPageLayout, AdvancedHeader, AdvancedKpiGrid, AdvancedProgressBar } from '../components/advanced-layout';
 import { Button } from '../components/ui/Button';
 
-type TabId = 'overview' | 'members' | 'candidates' | 'voting' | 'meetings' | 'action-plans' | 'cases' | 'evidence' | 'history';
+type TabId = 'overview' | 'members' | 'candidates' | 'voting' | 'meetings' | 'action-plans' | 'cases' | 'evidence' | 'documents' | 'history';
+
+// F7B-7: códigos documentales canónicos 1.1.8 (mismo contrato del backend, Fase 5).
+const DOC_CODE_CONSTITUTION = 'PHVA-1.1.8-ACTA';
+const DOC_CODE_COMPLIANCE = 'PHVA-1.1.8-COMP';
+
+/**
+ * F7B-7: clasifica un documento 1.1.8 por su documentCode (fuente canónica).
+ * El código identifica el TIPO documental de forma estable (independiente de
+ * fileUrl/regeneraciones). Para instancias legacy sin código (null) usa un
+ * fallback controlado con la URL del acta: no se rompe la clasificación
+ * existente y jamás se asume un tipo que el backend no declaró.
+ */
+const documentKind = (
+  doc: ConvivenciaDocumentModel,
+  period: ConvivenciaPeriodModel | null,
+): 'constitution' | 'compliance' => {
+  if (doc.documentCode === DOC_CODE_CONSTITUTION) return 'constitution';
+  if (doc.documentCode === DOC_CODE_COMPLIANCE) return 'compliance';
+  // Legacy (sin documentCode): el acta es el único documento vinculado al periodo.
+  if (period?.constitutionMinutesPdfUrl && doc.fileUrl === period.constitutionMinutesPdfUrl) {
+    return 'constitution';
+  }
+  return 'compliance';
+};
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'overview', label: '📋 Resumen' },
@@ -41,6 +72,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'action-plans', label: '🎯 Planes de Acción' },
   { id: 'cases', label: '🔒 Casos' },
   { id: 'evidence', label: '📎 Evidencias' },
+  { id: 'documents', label: '📄 Documentos' },
   { id: 'history', label: '🕓 Historial' },
 ];
 
@@ -57,6 +89,11 @@ export default function ConvivenciaManagementPage({ token, role }: { token: stri
   const [dashboard, setDashboard] = useState<any>(null);
   const [results, setResults] = useState<any>(null);
   const [audit, setAudit] = useState<any[]>([]);
+  // Fase 6 (1.1.8) — estado de cumplimiento entregado por el backend (read-only)
+  // y trazabilidad documental (Fase 5). El frontend NO recalcula nada.
+  const [compliance, setCompliance] = useState<ConvivenciaComplianceSnapshotModel | null>(null);
+  const [documents, setDocuments] = useState<ConvivenciaDocumentModel[]>([]);
+  const [generating, setGenerating] = useState<string | null>(null);
 
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
@@ -71,6 +108,9 @@ export default function ConvivenciaManagementPage({ token, role }: { token: stri
 
   const canApprove = role === 'owner' || role === 'manager';
   const isAdmin = role === 'owner' || role === 'admin';
+  // Roles autorizados por el backend para generar documentos 1.1.8
+  // (owner, admin, manager).
+  const canGenerateDocuments = isAdmin || canApprove;
 
   const loadAll = useCallback(async () => {
     if (!token) return;
@@ -86,12 +126,19 @@ export default function ConvivenciaManagementPage({ token, role }: { token: stri
       setEmployees(empData);
       setDashboard(dash);
       if (summary.period?._id) {
-        const [res, aud] = await Promise.all([
-          fetchConvivenciaResults(summary.period._id).catch(() => null),
+        const [res, aud, snap, docs] = await Promise.all([
+          fetchConvivenciaResults(summary.period._id, token).catch(() => null),
           fetchConvivenciaAudit(token, summary.period._id).catch(() => []),
+          fetchConvivenciaCompliance(token).catch(() => null),
+          fetchConvivenciaDocuments(token, summary.period._id).catch(() => ({ documents: [] })),
         ]);
         setResults(res);
         setAudit(aud);
+        setCompliance(snap);
+        setDocuments(docs?.documents ?? []);
+      } else {
+        setCompliance(null);
+        setDocuments([]);
       }
     } catch { notify('Error al cargar datos'); }
     finally { setLoading(false); }
@@ -107,6 +154,20 @@ export default function ConvivenciaManagementPage({ token, role }: { token: stri
     if (status === 'ARCHIVADO' || status === 'ARCHIVED') return '📦 Archivado';
     if (status === 'VENCIDO') return '⚠️ Vencido';
     return '📝 Borrador';
+  };
+
+  // Fase 6 (1.1.8): presentación del estado de cumplimiento EXCLUSIVAMENTE
+  // como lo entrega el backend (snapshot del dominio). El frontend no infiere
+  // COMPLIES/PENDING/NON_COMPLIANT a partir de miembros, reuniones o evidencias.
+  const complianceBadge = (status?: ConvivenciaComplianceStatus) => {
+    if (status === 'COMPLIES') return { text: '✅ Cumple', cls: 'advanced-management__badge--success' };
+    if (status === 'NON_COMPLIANT') return { text: '❌ No cumple', cls: 'advanced-management__badge--danger' };
+    return { text: '⏳ Pendiente', cls: 'advanced-management__badge--warning' };
+  };
+  const complianceVariant = (status?: ConvivenciaComplianceStatus) => {
+    if (status === 'COMPLIES') return 'success' as const;
+    if (status === 'NON_COMPLIANT') return 'danger' as const;
+    return 'warning' as const;
   };
 
   return (
@@ -187,6 +248,52 @@ export default function ConvivenciaManagementPage({ token, role }: { token: stri
               ]}
               columns={3}
             />
+
+            {/* Fase 6 (1.1.8) — Cumplimiento 1.1.8: estado REAL del backend
+                (GET /convivencia/compliance). Se muestra tal cual; NO se calcula
+                en el frontend. */}
+            {compliance && (
+              <div className="card" style={{ padding: '1rem', marginTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.5rem' }}>
+                  <h4 style={{ margin: 0 }}>📈 Cumplimiento 1.1.8 — Comité de Convivencia</h4>
+                  <span className={`advanced-management__badge ${complianceBadge(compliance.complianceStatus).cls}`}>
+                    {compliance.exempt ? '✅ Exento' : complianceBadge(compliance.complianceStatus).text}
+                  </span>
+                </div>
+                {compliance.complianceReason && (
+                  <p className="muted" style={{ marginTop: '.5rem', marginBottom: '.75rem' }}>{compliance.complianceReason}</p>
+                )}
+                <p className="muted" style={{ fontSize: '.85rem', marginBottom: '.5rem' }}>
+                  Periodo: {statusBadge(compliance.periodStatus)} · Aprobación:{' '}
+                  {compliance.approvalStatus ? statusBadge(compliance.approvalStatus) : '—'}
+                </p>
+                <AdvancedProgressBar
+                  value={compliance.percentage}
+                  label={`Progreso del estándar`}
+                  variant={complianceVariant(compliance.complianceStatus)}
+                  size="lg"
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                  <div>
+                    <p style={{ fontWeight: 600, marginBottom: '.35rem', color: '#166534' }}>✅ Criterios cumplidos</p>
+                    {compliance.metCriteria.length === 0 ? (
+                      <p className="muted">—</p>
+                    ) : compliance.metCriteria.map((c) => (
+                      <p key={c} className="muted" style={{ margin: '.15rem 0' }}>· {c}</p>
+                    ))}
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: 600, marginBottom: '.35rem', color: '#92400e' }}>⏳ Criterios pendientes</p>
+                    {compliance.missingCriteria.length === 0 ? (
+                      <p className="muted">—</p>
+                    ) : compliance.missingCriteria.map((c) => (
+                      <p key={c} className="muted" style={{ margin: '.15rem 0' }}>· {c}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
               <div className="card" style={{ padding: '1rem' }}>
                 <h4>🏢 Empresa</h4>
@@ -313,7 +420,10 @@ export default function ConvivenciaManagementPage({ token, role }: { token: stri
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ margin: 0 }}>🗳️ Votación</h3>
-              {isAdmin && results && results.winners?.length === 0 && <Button type="button" onClick={async () => { if (!period?._id) return; setLoading(true); try { await initConvivenciaVoting(token, period._id); notify('Votación iniciada'); await loadAll(); } catch (e: any) { notify('Error'); } setLoading(false); }}>🗳️ Iniciar votación</Button>}
+              {/* F7B-4: los resultados solo se entregan con la elección CLOSED;
+                  el botón de iniciar se basa en el electionState real (F7B-3) y
+                  ya NO depende de los resultados (nulos hasta el cierre). */}
+              {isAdmin && period?.electionState === 'NOT_STARTED' && <Button type="button" onClick={async () => { if (!period?._id) return; setLoading(true); try { await initConvivenciaVoting(token, period._id); notify('Votación iniciada'); await loadAll(); } catch (e: any) { notify('Error'); } setLoading(false); }}>🗳️ Iniciar votación</Button>}
             </div>
             {results && (
               <><AdvancedKpiGrid items={[{ label: 'Votos', value: results.totalVotes ?? 0 }, { label: 'Participación', value: results.participation ? `${Math.round(results.participation)}%` : '0%', variant: results.participation > 50 ? 'success' : 'warning' }, { label: 'Candidatos', value: results.ranking?.length ?? 0 }, { label: 'Ganadores', value: results.winners?.length ?? 0 }]} columns={4} />
@@ -402,6 +512,131 @@ export default function ConvivenciaManagementPage({ token, role }: { token: stri
                     <td>{isAdmin && <Button type="button" variant="danger" onClick={async () => { if (!period._id) return; try { await removeConvivenciaEvidence(token, period._id, i); notify('Evidencia eliminada'); await loadAll(); } catch (e: any) { notify('Error'); } }}>🗑</Button>}</td>
                   </tr>
                 ))}</tbody></table></div>
+            )}
+          </>
+        )}
+
+        {/* ═══ DOCUMENTS (Fase 5/6, 1.1.8) ═══ */}
+        {activeTab === 'documents' && (
+          <>
+            <h3>📄 Documentos — Comité de Convivencia (1.1.8)</h3>
+            <p className="muted">
+              Documentos generados por el motor documental del sistema. El contenido proviene de los datos
+              reales del comité; el reporte de cumplimiento refleja el estado entregado por el backend.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+              {/* Acta de conformación */}
+              <div className="card" style={{ padding: '1rem' }}>
+                <h4>📜 Acta de conformación del Comité</h4>
+                {period?.constitutionMinutesPdfUrl ? (
+                  <>
+                    <span className="advanced-management__badge advanced-management__badge--success">✅ Disponible</span>
+                    <p className="muted" style={{ marginTop: '.5rem' }}>Documento generado por el sistema.</p>
+                    <div className="actions" style={{ marginTop: '.75rem' }}>
+                      <Button type="button" variant="secondary" onClick={() => window.open(period.constitutionMinutesPdfUrl, '_blank')}>👁 Ver acta</Button>
+                      <Button type="button" variant="ghost" onClick={() => { const a = document.createElement('a'); a.href = period.constitutionMinutesPdfUrl!; a.download = 'acta-conformacion-comite-convivencia.docx'; a.click(); }}>⬇ Descargar</Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="advanced-management__badge advanced-management__badge--warning">⏳ Pendiente de generación</span>
+                    <p className="muted" style={{ marginTop: '.5rem' }}>El acta se genera automáticamente al aprobar el comité, o manualmente desde aquí.</p>
+                    {canGenerateDocuments && (
+                      <div className="actions" style={{ marginTop: '.75rem' }}>
+                        <Button
+                          type="button"
+                          disabled={generating === 'constitution' || !period?._id}
+                          onClick={async () => {
+                            if (!period?._id) return;
+                            setGenerating('constitution');
+                            try {
+                              await generateConvivenciaConstitution(token, period._id);
+                              notify('✅ Acta generada correctamente');
+                              await loadAll();
+                            } catch (e: any) { notify('Error: ' + (e.message || '')); }
+                            setGenerating(null);
+                          }}
+                        >{generating === 'constitution' ? 'Generando…' : '⚙️ Generar acta'}</Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Reporte de cumplimiento */}
+              <div className="card" style={{ padding: '1rem' }}>
+                <h4>📊 Reporte de cumplimiento 1.1.8</h4>
+                {/* F7B-7: el reporte se identifica por documentCode canónico
+                    (PHVA-1.1.8-COMP); las instancias legacy sin código se
+                    clasifican con el fallback controlado. Ya no se depende de
+                    comparar fileUrl para identificar el tipo documental. */}
+                {(() => {
+                  const report = documents
+                    .filter((doc) => documentKind(doc, period) !== 'constitution')
+                    .sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime())[0];
+                  return report ? (
+                    <>
+                      <span className="advanced-management__badge advanced-management__badge--success">✅ Disponible</span>
+                      <p className="muted" style={{ marginTop: '.5rem' }}>
+                        Generado el {new Date(report.generatedAt).toLocaleString()} · v{report.version}
+                      </p>
+                      <div className="actions" style={{ marginTop: '.75rem' }}>
+                        <Button type="button" variant="secondary" onClick={() => window.open(report.fileUrl, '_blank')}>👁 Ver reporte</Button>
+                        <Button type="button" variant="ghost" onClick={() => { const a = document.createElement('a'); a.href = report.fileUrl; a.download = 'reporte-cumplimiento-convivencia.docx'; a.click(); }}>⬇ Descargar</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="advanced-management__badge advanced-management__badge--warning">⏳ Pendiente de generación</span>
+                      <p className="muted" style={{ marginTop: '.5rem' }}>El reporte consume el estado de cumplimiento real del comité.</p>
+                      {canGenerateDocuments && (
+                        <div className="actions" style={{ marginTop: '.75rem' }}>
+                          <Button
+                            type="button"
+                            disabled={generating === 'compliance-report' || !period?._id}
+                            onClick={async () => {
+                              if (!period?._id) return;
+                              setGenerating('compliance-report');
+                              try {
+                                await generateConvivenciaComplianceReport(token, period._id);
+                                notify('✅ Reporte generado correctamente');
+                                await loadAll();
+                              } catch (e: any) { notify('Error: ' + (e.message || '')); }
+                              setGenerating(null);
+                            }}
+                          >{generating === 'compliance-report' ? 'Generando…' : '⚙️ Generar reporte'}</Button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Trazabilidad documental */}
+            {documents.length > 0 && (
+              <div className="responsive-table" style={{ marginTop: '1rem' }}>
+                <h4>Historial de documentos generados</h4>
+                <table className="table">
+                  <thead><tr><th>Documento</th><th>Versión</th><th>Estado</th><th>Generado</th><th>Acción</th></tr></thead>
+                  <tbody>
+                    {documents.map((doc) => (
+                      <tr key={doc.id}>
+                        <td>{documentKind(doc, period) === 'constitution' ? 'Acta de conformación' : 'Reporte de cumplimiento 1.1.8'}</td>
+                        <td>v{doc.version}</td>
+                        <td><span className="advanced-management__badge">{doc.status}</span></td>
+                        <td>{new Date(doc.generatedAt).toLocaleString()}</td>
+                        <td>
+                          <div className="actions" style={{ flexWrap: 'nowrap' }}>
+                            <Button type="button" variant="secondary" onClick={() => window.open(doc.fileUrl, '_blank')}>👁 Ver</Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </>
         )}

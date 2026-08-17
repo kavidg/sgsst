@@ -67,7 +67,9 @@ export interface ApprovalDocumentRegistryKey {
  *   real PHVA_ADVANCED:'PhvaAdvancedResourceAssignment' + alias
  *   PHVA_ADVANCED:'RESOURCE_ASSIGNMENT'), SST_POLICY (Fase 6, clave real
  *   PHVA_ADVANCED:'PhvaAdvancedSstPolicy' + alias PHVA_ADVANCED:'SST_POLICY')
- *   y CONVIVENCIA (fases posteriores).
+ *   y CONVIVENCIA (Fase 5, clave real CONVIVENCIA:'ConvivenciaPeriod' + alias
+ *   CONVIVENCIA:'CONVIVENCIA'). F7B-14 confirma que la integración documental
+ *   de 1.1.8 está completa (ya no "fases posteriores").
  */
 export interface ApprovalDocumentGenerator {
   /** Módulo al que pertenece la entidad aprobada (clave canónica). */

@@ -20,7 +20,13 @@ export const INTENT_RULES: readonly IntentRule[] = [
     // Fase 7 (1.1.7): 'copasst' cubre las consultas de capacitación/integrantes/
     // cobertura del COPASST y las enruta al engine de cumplimiento, que consume
     // los findings reales de 1.1.7 vía el Compliance Engine (sin engine nuevo).
-    keywords: ['estandar', 'estandares', 'cumplimiento sgsst', 'cumplimiento del sg sst', 'compliance', 'autoevaluacion', 'nivel de cumplimiento', 'copasst'],
+    // Fase 4 (1.1.8): 'convivencia'/'comite de convivencia' enrutan las consultas
+    // del Comité de Convivencia Laboral (estado, conformación, reuniones,
+    // hallazgos, recomendaciones) al engine de cumplimiento, que consume el
+    // snapshot del dominio 1.1.8 vía el Compliance Engine (sin engine nuevo).
+    // La regla está PRIMERO a propósito: 'convivencia' gana sobre 'documento'/
+    // 'actividad' para que toda consulta 1.1.8 use los datos del dominio.
+    keywords: ['estandar', 'estandares', 'cumplimiento sgsst', 'cumplimiento del sg sst', 'compliance', 'autoevaluacion', 'nivel de cumplimiento', 'copasst', 'convivencia', 'comite de convivencia'],
   },
   {
     engine: 'indicators',

@@ -1697,12 +1697,6 @@ export const fetchCopasstDashboard = (token: string) => apiFetch<{
   totalMembers: number; periodName: string;
 }>('/copasst/dashboard', token, { method: 'GET' });
 
-export interface CommitteePeriodModel extends Omit<CopasstPeriodModel, 'commitments'> { committeeType?: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER'; regulations?: Array<Record<string, unknown>>; confidentiality?: Array<Record<string, unknown>>; commitments?: Array<Record<string, unknown>>; }
-export const fetchCommitteeCurrent = (token: string, committeeType: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER') => apiFetch<CommitteePeriodModel>(`/committee-engine/${committeeType}/current`, token, { method: 'GET' });
-export const createCommitteePeriod = (token: string, payload: { periodName: string; startDate: string; committeeType: 'COPASST'|'CONVIVENCIA'|'BRIGADA'|'OTHER' }) => apiFetch<CommitteePeriodModel>('/committee-engine/periods', token, { method: 'POST', body: JSON.stringify(payload) });
-export const addCommitteeMember = (token: string, periodId: string, payload: { userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string }) => apiFetch<CommitteePeriodModel>(`/committee-engine/periods/${periodId}/members`, token, { method: 'POST', body: JSON.stringify(payload) });
-export const fetchCommitteeResults = (periodId: string) => apiFetch<{ totalVotes:number; participation:number; winners:any[]; alternates:any[] }>(`/committee-engine/periods/${periodId}/results`, '', { method: 'GET' });
-
 export type SstPolicyStatus = 'Borrador' | 'Pendiente aprobación' | 'Aprobado' | 'Vencido' | 'Archivado';
 export type PolicySignatureStatus = 'Pendiente firma' | 'Firmado' | 'Rechazado';
 export type PolicySocializationStatus = 'Pendiente' | 'Leído' | 'Firmado digitalmente';
@@ -4309,6 +4303,11 @@ export interface ConvivenciaPeriodModel {
   totalEmployees?: number;
   requiresConvivencia?: boolean;
   constitutionMinutesPdfUrl?: string;
+  // Fase 2 (1.1.8) — estado de cumplimiento calculado por el DOMINIO
+  // (resolveCompliance). El frontend SOLO lo muestra, nunca lo recalcula.
+  itemCode?: string;
+  complianceStatus?: ConvivenciaComplianceStatus;
+  complianceReason?: string;
   members: Array<{ userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string; endDate: string; status: string }>;
   candidateExtended: Array<{
     name: string; document: string; phone: string; area: string; position: string;
@@ -4332,10 +4331,75 @@ export interface ConvivenciaPeriodModel {
     closureDate?: string;
   }>;
   auditHistory: Array<{ action: string; createdBy: string; createdAt: string; data: string }>;
+  // F7B-3 (1.1.8): estado persistido de la elección (NOT_STARTED | OPEN | CLOSED).
+  electionState?: 'NOT_STARTED'|'OPEN'|'CLOSED';
 }
 
 export const fetchConvivenciaCurrent = (token: string) => apiFetch<ConvivenciaPeriodModel>('/convivencia/current', token, { method: 'GET' });
 export const fetchConvivenciaSummary = (token: string) => apiFetch<{ period: ConvivenciaPeriodModel; totalEmployees: number; requiresConvivencia: boolean }>('/convivencia/summary', token, { method: 'GET' });
+
+/** Estado de cumplimiento 1.1.8 calculado por el dominio (mismo patrón que CopasstTrainingComplianceStatus). */
+export type ConvivenciaComplianceStatus = 'COMPLIES'|'PENDING'|'NON_COMPLIANT';
+
+/**
+ * Snapshot de cumplimiento 1.1.8 (Fase 2/6). Read-only; la FUENTE ÚNICA de
+ * verdad es ConvivenciaService.getComplianceSnapshot(companyId) en el backend.
+ * El frontend muestra estos campos tal cual, sin recalcular nada.
+ */
+export interface ConvivenciaComplianceSnapshotModel {
+  complianceStatus: ConvivenciaComplianceStatus;
+  complianceReason: string;
+  percentage: number;
+  exempt: boolean;
+  metCriteria: string[];
+  missingCriteria: string[];
+  periodStatus: string;
+  approvalStatus?: string;
+  evidenceCount: number;
+}
+
+/** Fase 6 (1.1.8): GET /convivencia/compliance (read-only, companyId del contexto). */
+export const fetchConvivenciaCompliance = (token: string) =>
+  apiFetch<ConvivenciaComplianceSnapshotModel>('/convivencia/compliance', token, { method: 'GET' });
+
+/** Documento generado listado por GET /convivencia/periods/:periodId/documents (Fase 5). */
+export interface ConvivenciaDocumentModel {
+  id: string;
+  version: number;
+  status: string;
+  /**
+   * F7B-7: código documental canónico del tipo de documento
+   * ('PHVA-1.1.8-ACTA' / 'PHVA-1.1.8-COMP'). null explícito para instancias
+   * legacy creadas antes de F7B-7 (nunca se inventa un código).
+   */
+  documentCode?: string | null;
+  fileUrl: string;
+  storagePath: string;
+  generatedAt: string;
+}
+
+/** Resultado de una generación documental de 1.1.8 (Fase 5). */
+export interface ConvivenciaDocumentResultModel {
+  document: {
+    instanceId?: string;
+    fileUrl: string;
+    storagePath: string;
+    version: number;
+  };
+  reused: boolean;
+}
+
+/** Fase 5/6: genera el Acta de conformación del Comité (1.1.8). */
+export const generateConvivenciaConstitution = (token: string, periodId: string) =>
+  apiFetch<ConvivenciaDocumentResultModel>(`/convivencia/periods/${periodId}/documents/constitution`, token, { method: 'POST' });
+
+/** Fase 5/6: genera el Reporte de cumplimiento 1.1.8 (consume el snapshot del dominio). */
+export const generateConvivenciaComplianceReport = (token: string, periodId: string) =>
+  apiFetch<ConvivenciaDocumentResultModel>(`/convivencia/periods/${periodId}/documents/compliance-report`, token, { method: 'POST' });
+
+/** Fase 5/6: lista la trazabilidad documental 1.1.8 de la empresa (scoped por companyId). */
+export const fetchConvivenciaDocuments = (token: string, periodId: string) =>
+  apiFetch<{ documents: ConvivenciaDocumentModel[] }>(`/convivencia/periods/${periodId}/documents`, token, { method: 'GET' });
 export const createConvivenciaPeriod = (token: string, payload: { periodName: string; startDate: string }) => apiFetch<ConvivenciaPeriodModel>('/convivencia/periods', token, { method: 'POST', body: JSON.stringify(payload) });
 export const addConvivenciaMember = (token: string, periodId: string, payload: { userId: string; userName: string; committeeRole: string; representationType: string; principalType: string; startDate: string }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/members`, token, { method: 'POST', body: JSON.stringify(payload) });
 export const removeConvivenciaMember = (token: string, periodId: string, index: number) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/members/${index}`, token, { method: 'DELETE' });
@@ -4344,7 +4408,28 @@ export const reviewConvivenciaCandidate = (token: string, periodId: string, inde
 export const initConvivenciaVoting = (token: string, periodId: string) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/voting/init`, token, { method: 'POST' });
 export const sendConvivenciaOtp = (payload: { electionId: string; document: string; phone: string }) => apiFetch<{ sent: boolean }>('/convivencia/elections/otp', '', { method: 'POST', body: JSON.stringify(payload) });
 export const voteConvivencia = (payload: { electionId: string; document: string; phone: string; otpCode: string; candidateDocument: string; ipAddress?: string; device?: string }) => apiFetch('/convivencia/elections/vote', '', { method: 'POST', body: JSON.stringify(payload) });
-export const fetchConvivenciaResults = (periodId: string) => apiFetch<{ totalVotes:number; participation:number; winners:any[]; alternates:any[]; ranking?: any[] }>(`/convivencia/periods/${periodId}/results`, '', { method: 'GET' });
+/** Entrada de resultados electorales 1.1.8 (F7B-4): solo campos públicos. */
+export interface ConvivenciaResultsEntryModel {
+  rank: number;
+  name: string;
+  votes: number;
+  status: string;
+}
+
+/**
+ * Resultados electorales 1.1.8 (F7B-4). Endpoint administrativo protegido:
+ * requiere token de autenticación y NO expone PII (document/phone/votesExtended).
+ */
+export interface ConvivenciaResultsModel {
+  totalVotes: number;
+  totalEmployees: number;
+  participation: number;
+  winners: ConvivenciaResultsEntryModel[];
+  alternates: ConvivenciaResultsEntryModel[];
+  ranking: ConvivenciaResultsEntryModel[];
+}
+export const fetchConvivenciaResults = (periodId: string, token: string) =>
+  apiFetch<ConvivenciaResultsModel>(`/convivencia/periods/${periodId}/results`, token, { method: 'GET' });
 export const autoCreateConvivenciaCommittee = (token: string, periodId: string, numPositions: number) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/auto-committee`, token, { method: 'POST', body: JSON.stringify({ numPositions }) });
 export const scheduleConvivenciaMeeting = (token: string, periodId: string, payload: { meetingDate: string; agenda: string; topicList?: string[] }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/meetings`, token, { method: 'POST', body: JSON.stringify(payload) });
 export const autoScheduleConvivenciaMeetings = (token: string, periodId: string) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/meetings/auto-schedule`, token, { method: 'POST' });

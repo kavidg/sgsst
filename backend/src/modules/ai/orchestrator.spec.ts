@@ -81,6 +81,26 @@ describe('intent-router', () => {
     assert.equal(resolveEngineName('¿qué actividades de capacitación del copasst están pendientes?'), 'compliance');
   });
 
+  it('enruta consultas del Comité de Convivencia Laboral (1.1.8) a compliance', () => {
+    assert.equal(resolveEngineName('¿Cómo está el Comité de Convivencia?'), 'compliance');
+    assert.equal(resolveEngineName('¿Cumplimos el estándar 1.1.8?'), 'compliance');
+    assert.equal(resolveEngineName('¿Qué nos falta para cumplir convivencia?'), 'compliance');
+    assert.equal(resolveEngineName('¿Cuántas reuniones del comité de convivencia se han realizado?'), 'compliance');
+    assert.equal(resolveEngineName('¿Cómo está la conformación del Comité de Convivencia?'), 'compliance');
+    assert.equal(resolveEngineName('¿Qué hallazgos tenemos sobre convivencia?'), 'compliance');
+    assert.equal(resolveEngineName('¿Qué recomendaciones hay para el comité de convivencia?'), 'compliance');
+  });
+
+  it('no captura consultas de otros estándares con la palabra convivencia (COPASST y capacitación siguen intactos)', () => {
+    // La regla 'convivencia' no debe alterar el routing de COPASST (1.1.6/1.1.7),
+    // capacitación (1.2.1) ni de documentos/planes.
+    assert.equal(resolveEngineName('¿Cómo está la capacitación del COPASST?'), 'compliance');
+    assert.equal(resolveEngineName('¿qué integrantes del copasst están pendientes?'), 'compliance');
+    assert.equal(resolveEngineName('¿cómo va el plan anual?'), 'phva');
+    assert.equal(resolveEngineName('¿qué documentos están vencidos?'), 'documents');
+    assert.equal(resolveEngineName('¿existen alertas críticas?'), 'alerts');
+  });
+
   it('retorna null cuando ninguna regla coincide', () => {
     assert.equal(resolveEngineName('hola mundo'), null);
   });

@@ -51,6 +51,12 @@ import {
   COPASST_TRAINING_COMPLIANCE_VARIABLES,
   COPASST_TRAINING_REPORT_VARIABLES,
 } from '../system-templates/copasst-training.templates';
+import {
+  buildConvivenciaComplianceDocx,
+  buildConvivenciaConstitutionDocx,
+  CONVIVENCIA_COMPLIANCE_VARIABLES,
+  CONVIVENCIA_TEMPLATE_VARIABLES,
+} from '../system-templates/convivencia.template';
 
 /**
  * SystemTemplateService: gestiona las plantillas de sistema del Document
@@ -367,6 +373,39 @@ export class SystemTemplateService {
   }
 
   /**
+   * Devuelve la plantilla de sistema del Acta de conformación del Comité de
+   * Convivencia (PHVA 1.1.8, Fase 5), creándola (y subiendo su DOCX base) la
+   * primera vez. Reutiliza el patrón find-or-create del motor.
+   */
+  async ensureConvivenciaConstitutionTemplate(): Promise<DocumentTemplateDocument> {
+    return this.ensureConvivenciaTemplate({
+      documentType: DocumentTemplateType.PHVA_CONVIVENCIA,
+      name: 'Acta de conformación del Comité de Convivencia (PHVA 1.1.8)',
+      description:
+        'Acta de conformación del Comité de Convivencia Laboral según el estándar 1.1.8.',
+      variables: CONVIVENCIA_TEMPLATE_VARIABLES,
+      buildDocx: buildConvivenciaConstitutionDocx,
+      filename: 'convivencia-constitution-template.docx',
+    });
+  }
+
+  /**
+   * Devuelve la plantilla de sistema del Reporte de cumplimiento del Comité
+   * de Convivencia (PHVA 1.1.8, Fase 5), creándola la primera vez.
+   */
+  async ensureConvivenciaComplianceTemplate(): Promise<DocumentTemplateDocument> {
+    return this.ensureConvivenciaTemplate({
+      documentType: DocumentTemplateType.PHVA_CONVIVENCIA,
+      name: 'Reporte de cumplimiento — Comité de Convivencia (PHVA 1.1.8)',
+      description:
+        'Reporte de cumplimiento del Comité de Convivencia Laboral (estándar 1.1.8). Consume el snapshot del dominio.',
+      variables: CONVIVENCIA_COMPLIANCE_VARIABLES,
+      buildDocx: buildConvivenciaComplianceDocx,
+      filename: 'convivencia-compliance-template.docx',
+    });
+  }
+
+  /**
    * Carga una plantilla de sistema por id validando que sea SYSTEM (no se
    * permite resolver plantillas de empresa por este acceso).
    */
@@ -404,6 +443,54 @@ export class SystemTemplateService {
       docxBuffer,
       params.filename,
       'system-templates/phva-advanced',
+    );
+
+    return this.templateModel.create({
+      name: params.name,
+      description: params.description,
+      documentType: params.documentType,
+      format: RendererFormat.DOCX,
+      source: DocumentTemplateSource.SYSTEM,
+      variables: params.variables,
+      storageUrl: upload.storagePath,
+      version: 1,
+      active: true,
+    });
+  }
+
+  /**
+   * Implementación compartida find-or-create de las plantillas del Comité de
+   * Convivencia (PHVA 1.1.8, Fase 5). Todas comparten el mismo documentType
+   * PHVA_CONVIVENCIA, por lo que la distinción real entre acta y reporte se
+   * hace por `name` (nombre de plantilla único, clave de find-or-create).
+   */
+  private async ensureConvivenciaTemplate(params: {
+    documentType: DocumentTemplateType;
+    name: string;
+    description: string;
+    variables: string[];
+    buildDocx: () => Buffer;
+    filename: string;
+  }): Promise<DocumentTemplateDocument> {
+    const existing = await this.templateModel
+      .findOne({
+        name: params.name,
+        documentType: params.documentType,
+        source: DocumentTemplateSource.SYSTEM,
+        active: true,
+        companyId: { $exists: false },
+      })
+      .exec();
+
+    if (existing) {
+      return existing;
+    }
+
+    const docxBuffer = params.buildDocx();
+    const upload = await this.storageService.upload(
+      docxBuffer,
+      params.filename,
+      'system-templates/convivencia',
     );
 
     return this.templateModel.create({

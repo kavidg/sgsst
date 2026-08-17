@@ -143,6 +143,17 @@ describe('DocumentInstance schema', () => {
     assert.equal(options.unique, true);
     assert.equal(options.sparse, true);
   });
+
+  it('F7B7-01: define documentCode como campo opcional (trazabilidad documental)', () => {
+    const path = DocumentInstanceSchema.path('documentCode') as unknown as {
+      isRequired?: boolean;
+      options?: { trim?: boolean };
+    };
+    assert.ok(path, 'documentCode debe existir en DocumentInstance');
+    // Opcional: las instancias legacy (anteriores a F7B-7) no tienen el campo
+    // (isRequired es undefined para campos sin required en Mongoose).
+    assert.ok(!path.isRequired, 'documentCode no debe ser requerido');
+  });
 });
 
 describe('StorageService (mock)', () => {
@@ -632,6 +643,170 @@ describe('DocumentGenerationService.generateDocument', () => {
     // El reintento publica la instancia existente (no se regenera).
     assert.equal(published.length, 1);
     assert.equal((published[0] as { fileUrl: string }).fileUrl, existing.fileUrl);
+  });
+
+  // ─────────────────────────────────────────────
+  // F7B-7 — TRAZABILIDAD DOCUMENTAL (documentCode)
+  // ─────────────────────────────────────────────
+
+  it('F7B7-01: la instancia nueva persiste el documentCode desde context.document.code', async () => {
+    const template = buildTemplate();
+    const { service, createdInstances } = buildService({ template });
+
+    await service.generateDocument({
+      companyId: new Types.ObjectId(COMPANY_ID),
+      templateId: TEMPLATE_ID,
+      sourceModule: DocumentSourceModule.CONVIVENCIA,
+      sourceEntity: 'CONVIVENCIA',
+      context: { company: { name: 'ACME' }, document: { code: 'PHVA-1.1.8-ACTA' } },
+    });
+
+    assert.equal(
+      (createdInstances[0] as { documentCode?: string }).documentCode,
+      'PHVA-1.1.8-ACTA',
+    );
+  });
+
+  it('F7B7-02: el documentCode proviene del contexto del servidor, nunca del request', async () => {
+    const template = buildTemplate();
+    const { service, createdInstances } = buildService({ template });
+
+    // El request intenta colar un documentCode ajeno: el contrato no lo acepta
+    // y el motor solo lee context.document.code (construido por el dominio).
+    await service.generateDocument({
+      companyId: new Types.ObjectId(COMPANY_ID),
+      templateId: TEMPLATE_ID,
+      documentCode: 'FAKE-SUPPLIED-BY-USER',
+      context: { document: { code: 'PHVA-1.1.8-COMP' } },
+    } as never);
+
+    assert.equal(
+      (createdInstances[0] as { documentCode?: string }).documentCode,
+      'PHVA-1.1.8-COMP',
+    );
+  });
+
+  it('F7B7-03/12/13: versiones distintas y regeneraciones conservan el mismo documentCode', async () => {
+    const base = {
+      companyId: new Types.ObjectId(COMPANY_ID),
+      templateId: TEMPLATE_ID,
+      context: { document: { code: 'PHVA-1.1.8-ACTA' } },
+    };
+
+    const v1 = buildService({ template: buildTemplate({ version: 1 }) });
+    await v1.service.generateDocument(base);
+    // Regeneración del mismo documento (misma plantilla, mismo código).
+    const v2 = buildService({ template: buildTemplate({ version: 2 }) });
+    await v2.service.generateDocument(base);
+
+    assert.equal(
+      (v1.createdInstances[0] as { documentCode?: string; version: number }).documentCode,
+      'PHVA-1.1.8-ACTA',
+    );
+    // v1 y v2 conservan el MISMO código documental.
+    assert.equal(
+      (v2.createdInstances[0] as { documentCode?: string; version: number }).documentCode,
+      'PHVA-1.1.8-ACTA',
+    );
+    // La versión NO forma parte del documentCode.
+    assert.equal((v2.createdInstances[0] as { version: number }).version, 2);
+  });
+
+  it('F7B7-04: documentos de tipos diferentes reciben códigos diferentes', async () => {
+    const acta = buildService({ template: buildTemplate() });
+    const reporte = buildService({ template: buildTemplate() });
+    const base = { companyId: new Types.ObjectId(COMPANY_ID), templateId: TEMPLATE_ID };
+
+    await acta.service.generateDocument({
+      ...base,
+      context: { document: { code: 'PHVA-1.1.8-ACTA' } },
+    });
+    await reporte.service.generateDocument({
+      ...base,
+      context: { document: { code: 'PHVA-1.1.8-COMP' } },
+    });
+
+    assert.notEqual(
+      (acta.createdInstances[0] as { documentCode?: string }).documentCode,
+      (reporte.createdInstances[0] as { documentCode?: string }).documentCode,
+    );
+  });
+
+  it('F7B7-06: la serialización JSON de la instancia contiene documentCode', async () => {
+    const template = buildTemplate();
+    const { service, createdInstances } = buildService({ template });
+
+    await service.generateDocument({
+      companyId: new Types.ObjectId(COMPANY_ID),
+      templateId: TEMPLATE_ID,
+      context: { document: { code: 'PHVA-1.1.8-ACTA' } },
+    });
+
+    const created = createdInstances[0] as { documentCode?: string };
+    assert.equal(created.documentCode, 'PHVA-1.1.8-ACTA');
+    // El JSON del documento persistido conserva el código: el contrato expone
+    // el tipo documental sin depender de fileUrl ni storagePath.
+    const serialized = JSON.stringify({ ...created, _id: new Types.ObjectId().toString() });
+    assert.ok(serialized.includes('PHVA-1.1.8-ACTA'));
+  });
+
+  it('F7B7-08: la derivación del código es determinista (misma entrada → mismo código)', async () => {
+    const context = { document: { code: 'PHVA-1.1.7-CERT' } };
+    const base = { companyId: new Types.ObjectId(COMPANY_ID), templateId: TEMPLATE_ID, context };
+    const first = buildService({ template: buildTemplate() });
+    const second = buildService({ template: buildTemplate() });
+
+    await first.service.generateDocument(base);
+    await second.service.generateDocument(base);
+
+    assert.equal(
+      (first.createdInstances[0] as { documentCode?: string }).documentCode,
+      'PHVA-1.1.7-CERT',
+    );
+    assert.equal(
+      (second.createdInstances[0] as { documentCode?: string }).documentCode,
+      'PHVA-1.1.7-CERT',
+    );
+  });
+
+  it('F7B7-09: sin código derivable NO se inventa un documentCode', async () => {
+    const template = buildTemplate();
+    const { service, createdInstances } = buildService({ template });
+
+    // Contexto sin document.code (p.ej. plantilla legada).
+    await service.generateDocument({
+      companyId: new Types.ObjectId(COMPANY_ID),
+      templateId: TEMPLATE_ID,
+      context: { company: { name: 'ACME' } },
+    });
+    // Sin contexto alguno.
+    const plain = buildService({ template });
+    await plain.service.generateDocument({
+      companyId: new Types.ObjectId(COMPANY_ID),
+      templateId: TEMPLATE_ID,
+    });
+
+    assert.equal((createdInstances[0] as { documentCode?: string }).documentCode, undefined);
+    assert.equal((plain.createdInstances[0] as { documentCode?: string }).documentCode, undefined);
+  });
+
+  it('F7B7-15: el usuario no puede suplantar el tipo documental con un código suministrado', async () => {
+    const template = buildTemplate();
+    const { service, createdInstances } = buildService({ template });
+
+    // Incluso un código 'legítimo' colado a nivel raíz del request NO puede
+    // sobreescribir el código del contexto (única vía de persistencia).
+    await service.generateDocument({
+      companyId: new Types.ObjectId(COMPANY_ID),
+      templateId: TEMPLATE_ID,
+      documentCode: 'PHVA-1.1.8-COMP',
+      context: { document: { code: 'PHVA-1.1.8-ACTA' } },
+    } as never);
+
+    assert.equal(
+      (createdInstances[0] as { documentCode?: string }).documentCode,
+      'PHVA-1.1.8-ACTA',
+    );
   });
 });
 

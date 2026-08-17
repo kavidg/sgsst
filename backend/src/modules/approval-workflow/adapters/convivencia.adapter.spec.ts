@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { NotFoundException } from '@nestjs/common';
 import { Model, Types } from 'mongoose';
 
 import { ConvivenciaAdapter } from './convivencia.adapter';
@@ -66,7 +67,13 @@ function buildConvivenciaService(overrides?: {
   const rejectCalls: unknown[][] = [];
   const period = buildPeriod(overrides?.period);
   const service = {
-    findById: async () => period,
+    // Fase 1: findById(companyId, periodId) valida pertenencia (otra empresa → NotFound).
+    findById: async (companyId: Types.ObjectId) => {
+      if (companyId.toString() !== COMPANY_ID) {
+        throw new NotFoundException('Convivencia period not found');
+      }
+      return period;
+    },
     findCurrent: async () => period,
     approve: async (...args: unknown[]) => {
       approveCalls.push(args);
@@ -80,7 +87,7 @@ function buildConvivenciaService(overrides?: {
       return overrides?.rejectResult ?? {
         ...period,
         approvalStatus: 'REJECTED',
-        rejectionReason: args[1],
+        rejectionReason: args[2],
       };
     },
   } as unknown as ConvivenciaService;
@@ -157,9 +164,10 @@ describe('ConvivenciaAdapter', () => {
 
     assert.equal(approveCalls.length, 1);
     const args = approveCalls[0];
-    assert.equal(args[0], PERIOD_ID);
-    assert.equal(args[1], 'owner@test.com');
-    assert.equal(args[2], 'owner');
+    assert.equal((args[0] as Types.ObjectId).toString(), COMPANY_ID);
+    assert.equal(args[1], PERIOD_ID);
+    assert.equal(args[2], 'owner@test.com');
+    assert.equal(args[3], 'owner');
     assert.equal(
       (result as { approvalStatus: string }).approvalStatus,
       'APPROVED_AND_SIGNED',
@@ -173,8 +181,8 @@ describe('ConvivenciaAdapter', () => {
     await adapter.applyDecision(buildContext({ decision: ApprovalDecision.APPROVED }));
 
     assert.equal(approveCalls.length, 1);
-    assert.equal(approveCalls[0][1], 'manager@test.com');
-    assert.equal(approveCalls[0][2], 'manager');
+    assert.equal(approveCalls[0][2], 'manager@test.com');
+    assert.equal(approveCalls[0][3], 'manager');
   });
 
   it('funciona con actor identificado solo por firebaseUid (sin ObjectId)', async () => {
@@ -192,8 +200,8 @@ describe('ConvivenciaAdapter', () => {
     );
 
     assert.equal(approveCalls.length, 1);
-    assert.equal(approveCalls[0][1], 'manager@test.com');
-    assert.equal(approveCalls[0][2], 'manager');
+    assert.equal(approveCalls[0][2], 'manager@test.com');
+    assert.equal(approveCalls[0][3], 'manager');
   });
 
   it('rechaza el periodo reutilizando ConvivenciaService.reject', async () => {
@@ -209,9 +217,10 @@ describe('ConvivenciaAdapter', () => {
 
     assert.equal(rejectCalls.length, 1);
     const args = rejectCalls[0];
-    assert.equal(args[0], PERIOD_ID);
-    assert.equal(args[1], 'Falta acta de elección');
-    assert.equal(args[2], 'manager@test.com');
+    assert.equal((args[0] as Types.ObjectId).toString(), COMPANY_ID);
+    assert.equal(args[1], PERIOD_ID);
+    assert.equal(args[2], 'Falta acta de elección');
+    assert.equal(args[3], 'manager@test.com');
     assert.equal((result as { approvalStatus: string }).approvalStatus, 'REJECTED');
   });
 
@@ -400,7 +409,7 @@ describe('Integración ApprovalWorkflowService + ConvivenciaAdapter', () => {
     );
 
     assert.equal(rejectCalls.length, 1);
-    assert.equal(rejectCalls[0][1], 'Falta acta de elección');
+    assert.equal(rejectCalls[0][2], 'Falta acta de elección');
     assert.equal(result.request?.status, ApprovalStatus.REJECTED);
     assert.equal(events.length, 2);
     assert.equal((events[0] as { action: string }).action, 'CREATED');

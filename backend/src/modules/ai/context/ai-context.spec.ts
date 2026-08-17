@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Model } from 'mongoose';
+import { NotFoundException } from '@nestjs/common';
 
 import { ActivityStatus } from '../../annual-work-plan/schemas/plan-activity.schema';
 import { AnnualWorkPlanService } from '../../annual-work-plan/services/annual-work-plan.service';
 import { Company, CompanyDocument } from '../../companies/schemas/company.schema';
 import { ComplianceEngineService } from '../../compliance-engine/compliance-engine.service';
+import { ConvivenciaService } from '../../convivencia/convivencia.service';
 import { DocumentStatus } from '../../document-management/schemas/document-master.schema';
 import { DocumentMasterService } from '../../document-management/services/document-master.service';
 import { PhvaAnalysisService } from '../../phva/phva-analysis.service';
@@ -28,6 +30,11 @@ function stubIsSessionExecuted(session: { status?: string; completionDate?: unkn
   return session.status === 'Ejecutada' || Boolean(session.completionDate);
 }
 
+/** Excepción de dominio real: empresa sin periodo de convivencia vigente. */
+function noPeriodError(): NotFoundException {
+  return new NotFoundException('No existe un periodo activo para esta empresa');
+}
+
 function buildService(overrides?: {
   company?: unknown;
   overview?: unknown;
@@ -35,6 +42,7 @@ function buildService(overrides?: {
   documents?: unknown[];
   activities?: unknown[];
   copasstTraining?: { record?: unknown; coverage?: unknown };
+  convivencia?: { snapshot?: unknown; period?: unknown };
 }): AiContextService {
   const companyModel = {
     // Sin async: findById() debe devolver el objeto encadenable (Query) para .exec().
@@ -59,6 +67,18 @@ function buildService(overrides?: {
     calculateCoverage: async () => overrides?.copasstTraining?.coverage ?? DEFAULT_COVERAGE,
     isSessionExecuted: stubIsSessionExecuted,
   } as unknown as PhvaAdvancedCopasstTrainingService;
+  // Sin override: el dominio lanza NotFound (empresa sin periodo vigente), lo
+  // que debe producir available: false sin romper el contexto.
+  const convivenciaService = {
+    getComplianceSnapshot: async () => {
+      if (overrides?.convivencia === undefined) throw noPeriodError();
+      return overrides.convivencia.snapshot;
+    },
+    findCurrent: async () => {
+      if (overrides?.convivencia === undefined) throw noPeriodError();
+      return overrides.convivencia.period;
+    },
+  } as unknown as ConvivenciaService;
 
   return new AiContextService(
     companyModel,
@@ -67,6 +87,7 @@ function buildService(overrides?: {
     documentMasterService,
     annualWorkPlanService,
     copasstTrainingService,
+    convivenciaService,
   );
 }
 
@@ -162,6 +183,21 @@ describe('AiContextService.buildCompanyContext', () => {
     assert.equal(context.copasstTraining.evaluations.attempts, 0);
     assert.equal(context.copasstTraining.evidences.structuredCount, 0);
     assert.equal(context.copasstTraining.trend, null);
+
+    // 1.1.8 sin periodo: sección disponible con available: false (contrato válido).
+    assert.equal(context.convivencia.available, false);
+    assert.equal(context.convivencia.itemCode, null);
+    assert.equal(context.convivencia.complianceStatus, null);
+    assert.equal(context.convivencia.percentage, 0);
+    assert.equal(context.convivencia.exempt, false);
+    assert.deepEqual(context.convivencia.missingCriteria, []);
+    assert.equal(context.convivencia.memberCount, 0);
+    assert.equal(context.convivencia.meetingCount, 0);
+    assert.equal(context.convivencia.completedMeetingCount, 0);
+    assert.equal(context.convivencia.evidenceCount, 0);
+    assert.deepEqual(context.convivencia.cases, { total: 0, open: 0, closed: 0 });
+    assert.deepEqual(context.convivencia.members, []);
+    assert.deepEqual(context.convivencia.meetings, []);
   });
 
   it('incorpora la información real de 1.1.7 (cobertura, sesiones, miembros, evaluaciones, evidencias)', async () => {
@@ -351,6 +387,7 @@ describe('AiContextService.buildCompanyContext', () => {
       { findAll: async () => [] } as unknown as DocumentMasterService,
       { findCurrent: async () => null, getActivities: async () => [] } as unknown as AnnualWorkPlanService,
       copasstTrainingService,
+      { getComplianceSnapshot: async () => { throw noPeriodError(); }, findCurrent: async () => { throw noPeriodError(); } } as unknown as ConvivenciaService,
     );
 
     const contextA = await service.buildCompanyContext(COMPANY_ID);
@@ -416,6 +453,14 @@ describe('AiContextService.buildCompanyContext', () => {
       calculateCoverage: async () => DEFAULT_COVERAGE,
       isSessionExecuted: stubIsSessionExecuted,
     } as unknown as PhvaAdvancedCopasstTrainingService;
+    const convivenciaService = {
+      getComplianceSnapshot: async () => {
+        throw new Error('convivencia down');
+      },
+      findCurrent: async () => {
+        throw new Error('convivencia down');
+      },
+    } as unknown as ConvivenciaService;
 
     const service = new AiContextService(
       companyModel,
@@ -424,6 +469,7 @@ describe('AiContextService.buildCompanyContext', () => {
       documentMasterService,
       annualWorkPlanService,
       copasstTrainingService,
+      convivenciaService,
     );
 
     const context = await service.buildCompanyContext(COMPANY_ID);
@@ -442,6 +488,12 @@ describe('AiContextService.buildCompanyContext', () => {
     assert.equal(context.copasstTraining.itemCode, null);
     assert.equal(context.copasstTraining.coverage.percentage, 0);
     assert.deepEqual(context.copasstTraining.members, []);
+
+    // El módulo 1.1.8 caído tampoco rompe el contexto: available: false.
+    assert.equal(context.convivencia.available, false);
+    assert.equal(context.convivencia.percentage, 0);
+    assert.deepEqual(context.convivencia.members, []);
+    assert.deepEqual(context.convivencia.meetings, []);
   });
 
   it('detecta documentos pendientes y estado AL_DIA cuando no hay vencidos', async () => {
@@ -459,5 +511,375 @@ describe('AiContextService.buildCompanyContext', () => {
     assert.deepEqual(context.documents.pending, []);
     assert.deepEqual(context.documents.expired, []);
     assert.equal(context.documents.generalStatus, 'AL_DIA');
+  });
+
+  // ─────────────────────────────────────────────
+  // FASE 4 (1.1.8) — sección convivencia del CompanyAIContext
+  // ─────────────────────────────────────────────
+
+  const PERIOD_COMPLIES = {
+    itemCode: '1.1.8',
+    periodName: 'Comité 2026',
+    status: 'ACTIVO',
+    approvalStatus: 'APPROVED_AND_SIGNED',
+    members: [{ userId: '64b000000000000000000002', userName: 'Ana López', committeeRole: 'PRESIDENTE', representationType: 'EMPLEADOR', status: 'ACTIVO' }],
+    meetings: [{ meetingDate: new Date('2026-01-10'), status: 'CERRADA' }],
+    commitments: [],
+    cases: [],
+    evidence: [],
+  };
+
+  function buildSnapshot(overrides?: Record<string, unknown>): Record<string, unknown> {
+    return {
+      complianceStatus: 'PENDING',
+      complianceReason: 'Avance parcial del Comité de Convivencia: falta aprobación del periodo.',
+      percentage: 50,
+      exempt: false,
+      metCriteria: ['Periodo activo', 'Miembros conformados'],
+      missingCriteria: ['Comité aprobado', 'Reuniones realizadas'],
+      periodStatus: 'ACTIVO',
+      approvalStatus: 'DRAFT',
+      evidenceCount: 0,
+      ...overrides,
+    };
+  }
+
+  it('AI1 — empresa con periodo: la sección convivencia está disponible con datos reales', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: { snapshot: buildSnapshot(), period: PERIOD_COMPLIES },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.convivencia.available, true);
+    assert.equal(context.convivencia.itemCode, '1.1.8');
+    assert.equal(context.convivencia.complianceStatus, 'PENDING');
+    assert.equal(context.convivencia.percentage, 50);
+    assert.equal(context.convivencia.periodStatus, 'ACTIVO');
+    assert.equal(context.convivencia.memberCount, 1);
+    assert.equal(context.convivencia.meetingCount, 1);
+    assert.equal(context.convivencia.completedMeetingCount, 1);
+  });
+
+  it('AI2 — empresa sin periodo: contexto controlado con available: false y sin error', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Nueva', standardsType: '7' },
+      // Sin convivencia: el dominio lanza NotFound → sección por defecto.
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.convivencia.available, false);
+    assert.equal(context.convivencia.complianceStatus, null);
+    assert.equal(context.convivencia.percentage, 0);
+    assert.deepEqual(context.convivencia.members, []);
+    assert.deepEqual(context.convivencia.meetings, []);
+  });
+
+  it('AI3 — estado COMPLIES: el contexto refleja COMPLIES y 100%', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: {
+        snapshot: buildSnapshot({
+          complianceStatus: 'COMPLIES',
+          complianceReason: 'Comité conformado, aprobado y operando.',
+          percentage: 100,
+          metCriteria: ['Periodo activo', 'Comité aprobado', 'Miembros conformados', 'Reuniones realizadas'],
+          missingCriteria: [],
+          approvalStatus: 'APPROVED_AND_SIGNED',
+        }),
+        period: PERIOD_COMPLIES,
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.convivencia.complianceStatus, 'COMPLIES');
+    assert.equal(context.convivencia.percentage, 100);
+    assert.deepEqual(context.convivencia.missingCriteria, []);
+    assert.equal(context.convivencia.approvalStatus, 'APPROVED_AND_SIGNED');
+  });
+
+  it('AI4 — estado PENDING: el contexto refleja PENDING y el porcentaje real del snapshot', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: { snapshot: buildSnapshot(), period: PERIOD_COMPLIES },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.convivencia.complianceStatus, 'PENDING');
+    assert.equal(context.convivencia.percentage, 50);
+    assert.deepEqual(context.convivencia.missingCriteria, ['Comité aprobado', 'Reuniones realizadas']);
+    // Coherencia: el porcentaje viene del snapshot (nunca recalculado por la IA).
+    assert.notEqual(context.convivencia.percentage, 100);
+  });
+
+  it('AI5 — estado NON_COMPLIANT: el contexto refleja NON_COMPLIANT y 0%', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: {
+        snapshot: buildSnapshot({
+          complianceStatus: 'NON_COMPLIANT',
+          complianceReason: 'Sin información funcional registrada.',
+          percentage: 0,
+          metCriteria: [],
+          missingCriteria: ['Periodo activo', 'Comité aprobado', 'Miembros conformados', 'Reuniones realizadas'],
+        }),
+        period: { ...PERIOD_COMPLIES, members: [], meetings: [] },
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.convivencia.complianceStatus, 'NON_COMPLIANT');
+    assert.equal(context.convivencia.percentage, 0);
+    assert.equal(context.convivencia.memberCount, 0);
+    assert.equal(context.convivencia.completedMeetingCount, 0);
+  });
+
+  it('AI6 — exención: el contexto refleja exempt + COMPLIES + 100%', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: {
+        snapshot: buildSnapshot({
+          complianceStatus: 'COMPLIES',
+          complianceReason: 'Empresa exenta de Comité de Convivencia Laboral.',
+          percentage: 100,
+          exempt: true,
+          metCriteria: ['Empresa exenta'],
+          missingCriteria: [],
+        }),
+        period: { ...PERIOD_COMPLIES, members: [], meetings: [] },
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.convivencia.exempt, true);
+    assert.equal(context.convivencia.complianceStatus, 'COMPLIES');
+    assert.equal(context.convivencia.percentage, 100);
+    assert.equal(context.convivencia.memberCount, 0);
+  });
+
+  it('AI7 — coherencia real: el contexto replica exactamente el snapshot del dominio (sin recalcular)', async () => {
+    // El periodo en bruto sugiere condiciones completas, pero el snapshot del
+    // dominio (fuente de verdad) dice PENDING 50: la IA NO debe recalcular.
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: { snapshot: buildSnapshot(), period: PERIOD_COMPLIES },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    // Aunque members+meeting CERRADA estén presentes, el estado y porcentaje
+    // son EXACTAMENTE los del snapshot (PENDING 50), no un recálculo.
+    assert.equal(context.convivencia.complianceStatus, 'PENDING');
+    assert.equal(context.convivencia.percentage, 50);
+    assert.equal(context.convivencia.memberCount, 1);
+    assert.equal(context.convivencia.completedMeetingCount, 1);
+    assert.deepEqual(context.convivencia.missingCriteria, ['Comité aprobado', 'Reuniones realizadas']);
+  });
+
+  it('AI8 — multi-tenancy: cada empresa solo ve su propio periodo de convivencia', async () => {
+    const companyA = COMPANY_ID;
+    const companyB = '64b0000000000000000000ff';
+    const convivenciaService = {
+      getComplianceSnapshot: async (companyId: { toString(): string }) => {
+        if (companyId.toString() === companyA) {
+          return buildSnapshot({ complianceStatus: 'COMPLIES', percentage: 100 });
+        }
+        if (companyId.toString() === companyB) {
+          return buildSnapshot({ complianceStatus: 'PENDING', percentage: 25, complianceReason: 'Periodo B pendiente' });
+        }
+        throw noPeriodError();
+      },
+      findCurrent: async (companyId: { toString(): string }) => {
+        if (companyId.toString() === companyA) {
+          return { ...PERIOD_COMPLIES, periodName: 'Comité A' };
+        }
+        if (companyId.toString() === companyB) {
+          return { ...PERIOD_COMPLIES, periodName: 'Comité B', members: [] };
+        }
+        throw noPeriodError();
+      },
+    } as unknown as ConvivenciaService;
+    const companyModel = {
+      findById: () => ({ exec: async () => ({ _id: COMPANY_ID, name: 'Empresa', standardsType: '60' }) }),
+    } as unknown as Model<CompanyDocument>;
+    const service = new AiContextService(
+      companyModel,
+      { getOverview: async () => null } as unknown as ComplianceEngineService,
+      { analyzeCompanyPHVA: async () => null } as unknown as PhvaAnalysisService,
+      { findAll: async () => [] } as unknown as DocumentMasterService,
+      { findCurrent: async () => null, getActivities: async () => [] } as unknown as AnnualWorkPlanService,
+      { findByCompany: async () => null, calculateCoverage: async () => DEFAULT_COVERAGE, isSessionExecuted: stubIsSessionExecuted } as unknown as PhvaAdvancedCopasstTrainingService,
+      convivenciaService,
+    );
+
+    const contextA = await service.buildCompanyContext(companyA);
+    const contextB = await service.buildCompanyContext(companyB);
+    const contextC = await service.buildCompanyContext('64b0000000000000000000aa');
+
+    // A → solo información de A.
+    assert.equal(contextA.convivencia.available, true);
+    assert.equal(contextA.convivencia.periodStatus, 'ACTIVO');
+    assert.equal(contextA.convivencia.complianceStatus, 'COMPLIES');
+    // B → solo información de B.
+    assert.equal(contextB.convivencia.available, true);
+    assert.equal(contextB.convivencia.complianceStatus, 'PENDING');
+    assert.equal(contextB.convivencia.complianceReason, 'Periodo B pendiente');
+    // Empresa sin periodo → available: false, sin fuga ni error.
+    assert.equal(contextC.convivencia.available, false);
+    assert.equal(contextC.convivencia.complianceStatus, null);
+  });
+
+  it('AI9 — casos confidenciales: el contexto solo expone conteos agregados, nunca contenido', async () => {
+    const periodWithCases = {
+      ...PERIOD_COMPLIES,
+      cases: [
+        {
+          caseNumber: 'CC-2026-0001',
+          isAnonymous: false,
+          complainantName: 'María Secreta',
+          respondentName: 'Pedro Confidencial',
+          description: 'Situación delicada de acoso laboral con detalles íntimos',
+          evidence: ['evidencia-sensible.pdf'],
+          status: 'PENDING',
+        },
+        {
+          caseNumber: 'CC-2026-0002',
+          isAnonymous: true,
+          complainantName: 'Anónimo',
+          respondentName: 'Otro Confidencial',
+          description: 'Otro detalle reservado',
+          evidence: [],
+          status: 'CLOSED',
+        },
+      ],
+    };
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: { snapshot: buildSnapshot(), period: periodWithCases },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+    const serialized = JSON.stringify(context.convivencia);
+
+    // Solo conteos: total 2, abiertos 1, cerrados 1.
+    assert.deepEqual(context.convivencia.cases, { total: 2, open: 1, closed: 1 });
+    // Ningún contenido sensible del caso llega al contexto.
+    assert.ok(!serialized.includes('María Secreta'));
+    assert.ok(!serialized.includes('Pedro Confidencial'));
+    assert.ok(!serialized.includes('acoso laboral'));
+    assert.ok(!serialized.includes('evidencia-sensible.pdf'));
+    assert.ok(!serialized.includes('CC-2026-0001'));
+  });
+
+  it('AI10 — límites: las listas de miembros y reuniones respetan el máximo del contexto (10)', async () => {
+    const members = Array.from({ length: 14 }, (_, index) => ({
+      userId: `64b0000000000000000000${String(index + 2).padStart(2, '0')}`,
+      userName: `Miembro ${index + 1}`,
+      committeeRole: 'PRINCIPAL',
+      representationType: 'TRABAJADOR',
+      status: 'ACTIVO',
+    }));
+    const meetings = Array.from({ length: 14 }, (_, index) => ({
+      meetingDate: new Date(2026, 0, index + 1),
+      status: index % 2 === 0 ? 'CERRADA' : 'PROGRAMADA',
+    }));
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: {
+        snapshot: buildSnapshot(),
+        period: { ...PERIOD_COMPLIES, members, meetings },
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    // Conteos globales reales, listas limitadas a 10.
+    assert.equal(context.convivencia.memberCount, 14);
+    assert.equal(context.convivencia.meetingCount, 14);
+    assert.equal(context.convivencia.completedMeetingCount, 7);
+    assert.equal(context.convivencia.members.length, 10);
+    assert.equal(context.convivencia.meetings.length, 10);
+  });
+
+  it('AI11 — sin URLs privadas: el contexto no expone fileUrl, secureToken, OTP ni storage', async () => {
+    const periodWithSecrets = {
+      ...PERIOD_COMPLIES,
+      evidence: [{ type: 'PDF', title: 'Acta', fileName: 'acta.pdf', fileUrl: 'https://storage.example.com/acta.pdf' }],
+      registrationCampaign: { secureToken: 'TOKEN-SECRETO-ABC', isActive: true },
+      members: [
+        {
+          userId: '64b000000000000000000002',
+          userName: 'Ana López',
+          committeeRole: 'PRESIDENTE',
+          representationType: 'EMPLEADOR',
+          status: 'ACTIVO',
+          phone: '3001234567',
+        },
+      ],
+      meetings: [
+        { meetingDate: new Date('2026-01-10'), status: 'CERRADA', minutesPdfUrl: 'https://storage.example.com/acta-min.pdf' },
+      ],
+    };
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: {
+        snapshot: buildSnapshot({ evidenceCount: 1 }),
+        period: periodWithSecrets,
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+    const serialized = JSON.stringify(context.convivencia);
+
+    // Conteo de evidencias sí (agregado), pero ninguna URL/token/OTP/PII.
+    assert.equal(context.convivencia.evidenceCount, 1);
+    assert.ok(!serialized.includes('https://'));
+    assert.ok(!serialized.includes('secureToken'));
+    assert.ok(!serialized.includes('TOKEN-SECRETO'));
+    assert.ok(!serialized.includes('otp'));
+    assert.ok(!serialized.includes('3001234567'));
+    assert.ok(!serialized.includes('acta.pdf'));
+    // Miembros solo con campos seguros.
+    assert.deepEqual(Object.keys(context.convivencia.members[0]).sort(), ['committeeRole', 'name', 'representationType', 'status', 'userId']);
+  });
+
+  it('AI14 — no segunda fuente: el contexto consume el snapshot sin reimplementar la regla de compliance', async () => {
+    // El periodo en bruto cumple todas las condiciones (activo, aprobado,
+    // miembros, reunión CERRADA), pero el snapshot dice NON_COMPLIANT 0:
+    // la IA debe replicar el snapshot tal cual (fuente de verdad), nunca
+    // recomputar un estado propio.
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      convivencia: {
+        snapshot: buildSnapshot({
+          complianceStatus: 'NON_COMPLIANT',
+          complianceReason: 'Sin información funcional registrada.',
+          percentage: 0,
+          metCriteria: [],
+          missingCriteria: ['Periodo activo', 'Comité aprobado', 'Miembros conformados', 'Reuniones realizadas'],
+        }),
+        period: {
+          ...PERIOD_COMPLIES,
+          approvalStatus: 'APPROVED_AND_SIGNED',
+          members: [{ userId: '64b000000000000000000002', userName: 'Ana López', committeeRole: 'PRESIDENTE', representationType: 'EMPLEADOR', status: 'ACTIVO' }],
+          meetings: [{ meetingDate: new Date('2026-01-10'), status: 'CERRADA' }],
+        },
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.convivencia.complianceStatus, 'NON_COMPLIANT');
+    assert.equal(context.convivencia.percentage, 0);
+    assert.deepEqual(context.convivencia.metCriteria, []);
+    // Los conteos reales sí se reflejan (son datos del periodo, no cumplimiento).
+    assert.equal(context.convivencia.memberCount, 1);
+    assert.equal(context.convivencia.completedMeetingCount, 1);
   });
 });

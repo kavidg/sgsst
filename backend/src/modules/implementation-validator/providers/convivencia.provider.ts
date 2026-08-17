@@ -10,12 +10,21 @@ import {
 
 /**
  * Valida el paso `convivencia_committee` del Centro de Implementación usando
- * el periodo del Comité de Convivencia real de la empresa:
+ * la FUENTE ÚNICA DE VERDAD del dominio 1.1.8 (Fase 3).
  *
- * - Comité activo/vigente (status ACTIVO o PROXIMO_A_VENCER).
- * - Estado aprobado (APPROVED / APPROVED_AND_SIGNED).
- * - Miembros conformados.
- * - O excepción justificada (requiresConvivencia === false).
+ * Consume ConvivenciaService.getComplianceSnapshot() (que refleja
+ * `complianceStatus`/`complianceReason` resueltos por resolveCompliance en el
+ * dominio) y lo traduce al contrato del wizard:
+ *
+ * - COMPLIES          → 100 / COMPLETED.
+ * - NON_COMPLIANT     → 0 / PENDING.
+ * - PENDING           → 25-75 / IN_PROGRESS (nunca implementado por completo).
+ * - requiresConvivencia === false (exención) → 100 / COMPLETED sin criterios
+ *   pendientes.
+ *
+ * NO duplica la regla de cumplimiento: el estado y el progreso provienen del
+ * snapshot del dominio (resolveCompliance sigue siendo la única fuente de
+ * verdad del estado de cumplimiento).
  */
 @Injectable()
 export class ConvivenciaProvider implements WizardValidationProvider {
@@ -25,55 +34,48 @@ export class ConvivenciaProvider implements WizardValidationProvider {
 
   async getValidation(companyId: string): Promise<ProviderValidationResult> {
     try {
-      const period = await this.convivenciaService.findCurrent(
+      const snapshot = await this.convivenciaService.getComplianceSnapshot(
         new Types.ObjectId(companyId),
       );
 
       // Excepción justificada: la empresa no requiere comité de convivencia.
-      if (period.requiresConvivencia === false) {
+      if (snapshot.exempt) {
         return {
           stepId: this.stepId,
           percentage: 100,
           status: 'COMPLETED',
           details: 'Empresa exenta de Comité de Convivencia (justificado)',
-          criteria: ['Comité activo', 'Estado aprobado', 'Miembros conformados'],
+          criteria: [
+            'Comité activo',
+            'Estado aprobado',
+            'Miembros conformados',
+            'Reuniones realizadas',
+          ],
           pendingCriteria: [],
-          data: { exempt: true },
+          data: {
+            exempt: true,
+            complianceStatus: snapshot.complianceStatus,
+            percentage: 100,
+          },
         };
       }
 
-      let percentage = 0;
-      const active =
-        period.status === 'ACTIVO' || period.status === 'PROXIMO_A_VENCER';
-      if (active) percentage += 40;
-
-      const approved =
-        period.approvalStatus === 'APPROVED' ||
-        period.approvalStatus === 'APPROVED_AND_SIGNED';
-      if (approved) percentage += 30;
-
-      const members = period.members ?? [];
-      if (members.length > 0) percentage += 30;
-
-      percentage = Math.max(0, Math.min(100, percentage));
+      const percentage = snapshot.percentage;
+      const status = deriveStepStatus(percentage);
 
       return {
         stepId: this.stepId,
         percentage,
-        status: deriveStepStatus(percentage),
-        details: `Comité de Convivencia ${period.periodName}: ${period.status} / ${period.approvalStatus} · ${members.length} miembros`,
-        criteria: ['Comité activo', 'Estado aprobado', 'Miembros conformados'],
-        pendingCriteria: [
-          ...(active ? [] : ['Activar el periodo del comité']),
-          ...(approved ? [] : ['Completar aprobación del periodo']),
-          ...(members.length > 0 ? [] : ['Conformar miembros del comité']),
-        ],
+        status,
+        details: `Comité de Convivencia: ${snapshot.complianceStatus} — ${snapshot.complianceReason}`,
+        criteria: snapshot.metCriteria,
+        pendingCriteria: snapshot.missingCriteria,
         data: {
-          active,
-          approved,
-          members: members.length,
-          status: period.status,
-          approvalStatus: period.approvalStatus,
+          complianceStatus: snapshot.complianceStatus,
+          exempt: false,
+          percentage,
+          metCriteria: snapshot.metCriteria,
+          missingCriteria: snapshot.missingCriteria,
         },
       };
     } catch {

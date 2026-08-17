@@ -169,6 +169,17 @@ export class CopasstPeriod {
   @Prop({ type: Object }) rejectedBy?: { userId: string; email: string; role: string; reason: string; timestamp: string };
   @Prop({ type: Types.ObjectId }) updatedBy?: Types.ObjectId;
   @Prop({ default: 0 }) totalEmployees!: number;
+  // F7B-10.6-C — Estado electoral explícito y control temporal del flujo COPASST.
+  // Responsabilidades SEPARADAS de CopasstPeriod.status (estado administrativo
+  // del periodo): electionState controla el ciclo electoral (OTP, voto,
+  // resultados, registro público). El estado efectivo se deriva de forma
+  // determinista a partir de este valor + las fechas (nunca se escribe desde
+  // un GET).
+  @Prop({ enum: ['NOT_STARTED', 'OPEN', 'CLOSED'], default: 'NOT_STARTED' }) electionState!: string;
+  /** Apertura de la ventana de votación (límite temporal, no requiere escritura). */
+  @Prop() votingOpenAt?: Date;
+  /** Cierre de la ventana de votación (límite temporal, no requiere escritura). */
+  @Prop() votingClosedAt?: Date;
   @Prop({ default: true }) requiresCopasst!: boolean;
   @Prop({ default: '' }) constitutionMinutesPdfUrl!: string;
 

@@ -3,6 +3,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AnnualWorkPlanModule } from '../../annual-work-plan/annual-work-plan.module';
 import { Company, CompanySchema } from '../../companies/schemas/company.schema';
 import { ComplianceEngineModule } from '../../compliance-engine/compliance-engine.module';
+// Fase 4 (1.1.8): expone ConvivenciaService (dominio del Comité de Convivencia
+// Laboral) para alimentar la sección convivencia del contexto.
+import { ConvivenciaModule } from '../../convivencia/convivencia.module';
 import { DocumentManagementModule } from '../../document-management/document-management.module';
 import { PhvaModule } from '../../phva/phva.module';
 // Fase 7 (1.1.7): expone PhvaAdvancedCopasstTrainingService (dominio de
@@ -29,6 +32,9 @@ import { AiContextService } from './ai-context.service';
     // Fase 7 (1.1.7): módulo de dominio de la Capacitación COPASST. El grafo
     // no genera ciclos (PhvaAdvancedModule no depende de AiContextModule).
     PhvaAdvancedModule,
+    // Fase 4 (1.1.8): módulo de dominio del Comité de Convivencia. El grafo no
+    // genera ciclos (ConvivenciaModule no depende de AiContextModule).
+    ConvivenciaModule,
   ],
   providers: [AiContextService],
   exports: [AiContextService],

@@ -8,6 +8,7 @@ import { IntelligentFinding } from './interfaces/intelligent-finding.interface';
 import { ComplianceProvider, ProviderComplianceResult } from './providers/compliance-provider.interface';
 import { AlertsProvider } from './providers/alerts.provider';
 import { AnnualWorkPlanProvider } from './providers/annual-work-plan.provider';
+import { ConvivenciaProvider } from './providers/convivencia.provider';
 import { CopasstTrainingProvider } from './providers/copasst-training.provider';
 import { DashboardProvider } from './providers/dashboard.provider';
 import { DocumentsProvider } from './providers/documents.provider';
@@ -49,6 +50,7 @@ export class ComplianceEngineService {
     private readonly dashboardProvider: DashboardProvider,
     private readonly initialEvaluationProvider: InitialEvaluationProvider,
     private readonly copasstTrainingProvider: CopasstTrainingProvider,
+    private readonly convivenciaProvider: ConvivenciaProvider,
   ) {
     this.providers = [
       this.evaluationsProvider,
@@ -63,6 +65,9 @@ export class ComplianceEngineService {
       this.dashboardProvider,
       this.initialEvaluationProvider,
       this.copasstTrainingProvider,
+      // FASE 3: 1.1.8 — Comité de Convivencia (consume el dominio como fuente
+      // única de verdad; ver ConvivenciaProvider).
+      this.convivenciaProvider,
     ];
   }
 

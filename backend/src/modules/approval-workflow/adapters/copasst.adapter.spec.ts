@@ -81,7 +81,8 @@ function buildCopasstService(overrides?: {
       return overrides?.rejectResult ?? {
         ...period,
         approvalStatus: 'REJECTED',
-        rejectionReason: args[1],
+        // F7B-10.6-D: la firma es approve/reject(companyId, periodId, ...).
+        rejectionReason: args[2],
       };
     },
   } as unknown as CopasstService;
@@ -158,9 +159,11 @@ describe('CopasstAdapter', () => {
 
     assert.equal(approveCalls.length, 1);
     const args = approveCalls[0];
-    assert.equal(args[0], PERIOD_ID);
-    assert.equal(args[1], 'owner@test.com');
-    assert.equal(args[2], 'owner');
+    // F7B-10.6-D: approve(companyId, periodId, email, role).
+    assert.equal(args[0]?.toString(), COMPANY_ID);
+    assert.equal(args[1], PERIOD_ID);
+    assert.equal(args[2], 'owner@test.com');
+    assert.equal(args[3], 'owner');
     assert.equal(
       (result as { approvalStatus: string }).approvalStatus,
       'APPROVED_AND_SIGNED',
@@ -174,8 +177,9 @@ describe('CopasstAdapter', () => {
     await adapter.applyDecision(buildContext({ decision: ApprovalDecision.APPROVED }));
 
     assert.equal(approveCalls.length, 1);
-    assert.equal(approveCalls[0][1], 'manager@test.com');
-    assert.equal(approveCalls[0][2], 'manager');
+    // F7B-10.6-D: [0]=companyId, [1]=periodId, [2]=email, [3]=role.
+    assert.equal(approveCalls[0][2], 'manager@test.com');
+    assert.equal(approveCalls[0][3], 'manager');
   });
 
   it('funciona con actor identificado solo por firebaseUid (sin ObjectId)', async () => {
@@ -193,8 +197,9 @@ describe('CopasstAdapter', () => {
     );
 
     assert.equal(approveCalls.length, 1);
-    assert.equal(approveCalls[0][1], 'manager@test.com');
-    assert.equal(approveCalls[0][2], 'manager');
+    // F7B-10.6-D: [0]=companyId, [1]=periodId, [2]=email, [3]=role.
+    assert.equal(approveCalls[0][2], 'manager@test.com');
+    assert.equal(approveCalls[0][3], 'manager');
   });
 
   it('rechaza el periodo reutilizando CopasstService.reject', async () => {
@@ -210,9 +215,11 @@ describe('CopasstAdapter', () => {
 
     assert.equal(rejectCalls.length, 1);
     const args = rejectCalls[0];
-    assert.equal(args[0], PERIOD_ID);
-    assert.equal(args[1], 'Falta acta de constitución');
-    assert.equal(args[2], 'manager@test.com');
+    // F7B-10.6-D: reject(companyId, periodId, reason, email).
+    assert.equal(args[0]?.toString(), COMPANY_ID);
+    assert.equal(args[1], PERIOD_ID);
+    assert.equal(args[2], 'Falta acta de constitución');
+    assert.equal(args[3], 'manager@test.com');
     assert.equal((result as { approvalStatus: string }).approvalStatus, 'REJECTED');
   });
 

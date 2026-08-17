@@ -13,6 +13,8 @@ import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
 import { CopasstController } from './copasst.controller';
 import { CopasstService } from './copasst.service';
 import { CopasstPeriod, CopasstPeriodSchema } from './schemas/copasst.schema';
+import { OtpRateLimitModule } from '../otp-rate-limit/otp-rate-limit.module';
+import { OtpChallengeModule } from '../otp-challenge/otp-challenge.module';
 
 @Module({
   imports: [
@@ -21,6 +23,10 @@ import { CopasstPeriod, CopasstPeriodSchema } from './schemas/copasst.schema';
     AlertsModule,
     CommunicationModule,
     forwardRef(() => ApprovalWorkflowModule),
+    OtpRateLimitModule,
+    // F7B-10.6-D: store OTP COMPARTIDO en MongoDB (desafíos; separado del
+    // rate-limit de solicitudes).
+    OtpChallengeModule,
     MongooseModule.forFeature([
       { name: CopasstPeriod.name, schema: CopasstPeriodSchema },
       { name: User.name, schema: UserSchema },

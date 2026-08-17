@@ -24,6 +24,9 @@ import { InitialEvaluationAdapter } from './adapters/initial-evaluation.adapter'
 import { ResponsibilityMatrixAdapter } from './adapters/responsibility-matrix.adapter';
 import { CopasstAdapter } from './adapters/copasst.adapter';
 import { ConvivenciaAdapter } from './adapters/convivencia.adapter';
+// Fase 5 (1.1.8): generador documental del Comité de Convivencia (acta de
+// conformación post-aprobación). Provisto y exportado por ConvivenciaModule.
+import { ConvivenciaDocumentGenerator } from '../convivencia/convivencia-document.generator';
 import { PhvaAdvancedAdapter } from './adapters/phva-advanced.adapter';
 import { ResourceAssignmentHandler } from './adapters/handlers/resource-assignment.handler';
 import { TrainingManagementHandler } from './adapters/handlers/training-management.handler';
@@ -167,6 +170,10 @@ import {
       // PHVA_ADVANCED:'COPASST_TRAINING' declarado en el propio generador).
       // Fase 5: activo — genera el Informe de capacitación cuando 1.1.7 se
       // aprueba (ApprovalDocumentGenerationListener).
+      // Fase 5 (1.1.8): ConvivenciaDocumentGenerator (clave real
+      // CONVIVENCIA:'ConvivenciaPeriod' + alias CONVIVENCIA:'CONVIVENCIA'
+      // declarado en el propio generador). Genera el acta de conformación
+      // cuando 1.1.8 se aprueba.
       inject: [
         ResponsibleSgsstDocumentGenerator,
         CopasstDocumentGenerator,
@@ -174,6 +181,7 @@ import {
         ResourceAssignmentDocumentGenerator,
         SstPolicyDocumentGenerator,
         CopasstTrainingDocumentGenerator,
+        ConvivenciaDocumentGenerator,
       ],
     },
   ],
