@@ -13,7 +13,8 @@ import { ApproveMatrixDto, GenerateMatrixDto, ReorderItemsDto, ResponsibilityIte
 import { AcceptResponsibilityDto, AssignResponsibilityBatchDto, CreateAcceptanceCycleDto, RejectResponsibilityDto, RequestCorrectionDto, ResolveCorrectionDto, SendReminderDto } from './dto/responsibility-acceptance.dto';
 import { ResponsibilityMatrixService } from './responsibility-matrix.service';
 
-interface RequestWithUser extends Request { user?: { _id: string; email: string; role: string }; }
+// AUDIT-9: importar RequestWithUser global que incluye companyId de CompanyAccessGuard.
+import { RequestWithUser } from '../auth/auth.types';
 
 @Controller('responsibility-matrix')
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
@@ -24,9 +25,11 @@ export class ResponsibilityMatrixController {
   ) {}
 
   private resolveCompanyId(request: RequestWithUser): Types.ObjectId {
-    const companyId = (request as any).companyId || (request.headers as any)['x-company-id'];
+    // AUDIT-9: CompanyAccessGuard ya validó membresía y seteó request.companyId.
+    // NO usar fallback a headers — el header es client-controlled.
+    const companyId = request.companyId;
     if (!companyId) throw new Error('Company ID no encontrado');
-    return new Types.ObjectId(companyId);
+    return companyId;
   }
 
   @Get()

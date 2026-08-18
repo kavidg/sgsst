@@ -4,6 +4,8 @@ import { EvaluationsModule } from '../../evaluations/evaluations.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { AnnualWorkPlanModule } from '../annual-work-plan/annual-work-plan.module';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { ConvivenciaModule } from '../convivencia/convivencia.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
 import { DocumentManagementModule } from '../document-management/document-management.module';
@@ -36,8 +38,8 @@ import { TrainingsProvider } from './providers/trainings.provider';
   imports: [
     AuthModule,
     MongooseModule.forFeature([
-      // Schema de User requerido por RolesGuard para validar permisos.
       { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
       // Schema de InitialEvaluation requerido por InitialEvaluationProvider.
       { name: InitialEvaluation.name, schema: InitialEvaluationSchema },
     ]),
@@ -62,6 +64,7 @@ import { TrainingsProvider } from './providers/trainings.provider';
   providers: [
     ComplianceEngineService,
     RolesGuard,
+    CompanyAccessGuard,
     EvaluationsProvider,
     AnnualWorkPlanProvider,
     IncidentsProvider,

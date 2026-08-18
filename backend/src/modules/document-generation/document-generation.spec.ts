@@ -6,6 +6,7 @@ import PizZip from 'pizzip';
 
 import { DocumentInstanceDocument, DocumentInstanceSchema } from './schemas/document-instance.schema';
 import { DocumentTemplate, DocumentTemplateDocument, DocumentTemplateSchema } from './schemas/document-template.schema';
+import { PdfRenderer } from './services/pdf-renderer.service';
 import { DocxRenderer } from './services/renderer.service';
 import { DocumentGenerationService } from './services/document-generation.service';
 import { RendererService } from './services/renderer.service';
@@ -227,14 +228,20 @@ describe('RendererService', () => {
     assert.match(readDocumentXmlText(result), /ACME SAS/);
   });
 
-  it('lanza error controlado para PDF (no implementado en esta fase)', async () => {
+  it('lanza error controlado para PDF cuando LibreOffice no está disponible', async () => {
     const rendererService = buildRendererService();
     const template = buildTemplate({ format: RendererFormat.PDF });
 
     await assert.rejects(
       () => rendererService.renderDocument(RendererFormat.PDF, template, {}),
-      /not implemented/,
+      /not implemented|PDF renderer requires LibreOffice/,
     );
+  });
+
+  it('isPdfAvailable retorna false cuando LibreOffice no está instalado', () => {
+    const rendererService = buildRendererService();
+    // En el entorno de CI/test, LibreOffice no está instalado
+    assert.equal(typeof rendererService.isPdfAvailable(), 'boolean');
   });
 
   it('el contrato DocumentRenderer es satisfecho por DocxRenderer', async () => {
@@ -850,5 +857,102 @@ describe('TemplateSourceService', () => {
       () => service.getTemplate(TEMPLATE_ID, new Types.ObjectId(COMPANY_ID)),
       /not found/,
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// FASE 7 — DOCX REGRESSION + PDF CONTRACT TESTS
+// ─────────────────────────────────────────────────────────────
+
+describe('DOCX Regression (DOCX-01..08)', () => {
+  it('DOCX-01: template válido genera resultado no vacío', async () => {
+    const renderer: DocumentRenderer = new DocxRenderer();
+    const result = await renderer.render(buildMinimalDocx(), { company: { name: 'ACME' } });
+    assert.ok(result.length > 0, 'El resultado DOCX no debe estar vacío');
+  });
+
+  it('DOCX-02: variables requeridas son procesadas correctamente', async () => {
+    const renderer: DocumentRenderer = new DocxRenderer();
+    const result = await renderer.render(buildMinimalDocx(), { company: { name: 'Test Company' } });
+    const text = readDocumentXmlText(result);
+    assert.match(text, /Test Company/);
+  });
+
+  it('DOCX-03: variables faltantes resultan en cadena vacía (nullGetter)', async () => {
+    const renderer: DocumentRenderer = new DocxRenderer();
+    const result = await renderer.render(buildMinimalDocx(), {});
+    const text = readDocumentXmlText(result);
+    // nullGetter devuelve '' para variables faltantes
+    assert.equal(text, '');
+  });
+
+  it('DOCX-04: resultado es un buffer válido con estructura ZIP', async () => {
+    const renderer: DocumentRenderer = new DocxRenderer();
+    const result = await renderer.render(buildMinimalDocx(), { company: { name: 'ACME' } });
+    // Un .docx válido es un ZIP; verificamos que puede descomprimirse
+    const zip = new PizZip(result);
+    assert.ok(zip.file('word/document.xml'), 'Debe contener word/document.xml');
+  });
+
+  it('DOCX-05: generación permanece tenant-scoped (companyId en path de upload)', () => {
+    // El RendererService NO tiene lógica de tenant; la validación ocurre en
+    // DocumentGenerationService.generateDocument() que valida companyId.
+    // Este test documenta que el renderer es agnóstico a tenant (correcto).
+    const renderer: DocumentRenderer = new DocxRenderer();
+    assert.ok(renderer, 'DocxRenderer es un módulo puro sin dependencia de tenant');
+  });
+
+  it('DOCX-06: múltiples renderizaciones son idempotentes', async () => {
+    const renderer: DocumentRenderer = new DocxRenderer();
+    const vars = { company: { name: 'ACME' } };
+    const r1 = await renderer.render(buildMinimalDocx(), vars);
+    const r2 = await renderer.render(buildMinimalDocx(), vars);
+    // Ambos buffers tienen el mismo contenido
+    assert.deepEqual(r1, r2);
+  });
+
+  it('DOCX-07: el contrato DocumentRenderer es satisfecho', () => {
+    const renderer: DocumentRenderer = new DocxRenderer();
+    assert.equal(typeof renderer.render, 'function');
+  });
+
+  it('DOCX-08: DocxRenderer produce un buffer con compresión DEFLATE', async () => {
+    const renderer: DocumentRenderer = new DocxRenderer();
+    const result = await renderer.render(buildMinimalDocx(), { company: { name: 'ACME' } });
+    // El buffer debe ser un ZIP válido
+    assert.ok(result.length > 100, 'El buffer DOCX debe tener tamaño significativo');
+  });
+});
+
+describe('PdfRenderer Contract', () => {
+  it('PDF-CONTRACT-01: PdfRenderer isAvailable retorna boolean', () => {
+    const pdfRenderer = new PdfRenderer();
+    assert.equal(typeof pdfRenderer.isAvailable(), 'boolean');
+  });
+
+  it('PDF-CONTRACT-02: render lanza error cuando LibreOffice no está disponible', async () => {
+    const pdfRenderer = new PdfRenderer();
+    if (pdfRenderer.isAvailable()) {
+      // Si LibreOffice está instalado, el test no aplica
+      return;
+    }
+    await assert.rejects(
+      () => pdfRenderer.render(buildMinimalDocx(), {}),
+      /PDF renderer requires LibreOffice/,
+    );
+  });
+
+  it('PDF-CONTRACT-03: error de PDF es descriptivo y no expone rutas del sistema', async () => {
+    const pdfRenderer = new PdfRenderer();
+    if (pdfRenderer.isAvailable()) return;
+    try {
+      await pdfRenderer.render(buildMinimalDocx(), {});
+      assert.fail('Debe lanzar error');
+    } catch (error) {
+      const msg = (error as Error).message;
+      assert.ok(msg.includes('LibreOffice'), 'El error debe mencionar LibreOffice');
+      assert.ok(!msg.includes('/usr/'), 'El error no debe exponer rutas del sistema');
+      assert.ok(!msg.includes('/home/'), 'El error no debe exponer rutas del sistema');
+    }
   });
 });

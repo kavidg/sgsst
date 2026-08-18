@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { ComplianceEngineModule } from '../compliance-engine/compliance-engine.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -10,14 +12,14 @@ import { ComplianceActionEngineService } from './compliance-action-engine.servic
 @Module({
   imports: [
     AuthModule,
-    // ComplianceEngineModule exporta ComplianceEngineService: única fuente
-    // del ComplianceOverviewDto que alimenta al Action Generator.
     ComplianceEngineModule,
-    // Schema de User requerido por RolesGuard para validar permisos.
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
+    ]),
   ],
   controllers: [ComplianceActionEngineController],
-  providers: [ComplianceActionEngineService, RolesGuard],
+  providers: [ComplianceActionEngineService, RolesGuard, CompanyAccessGuard],
   exports: [ComplianceActionEngineService],
 })
 export class ComplianceActionEngineModule {}

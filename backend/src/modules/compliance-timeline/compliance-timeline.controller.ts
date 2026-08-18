@@ -1,69 +1,63 @@
 import {
-  BadRequestException,
   Controller,
   Get,
-  Param,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { Types } from 'mongoose';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
+import { RequestWithUser } from '../auth/auth.types';
 import { ComplianceTimelineService } from './compliance-timeline.service';
 import { ComplianceSnapshotDto } from './dto/compliance-snapshot.dto';
 import { MonthlyTrendPointDto } from './dto/monthly-trend.dto';
 
 @Controller('compliance-timeline')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class ComplianceTimelineController {
   constructor(private readonly complianceTimelineService: ComplianceTimelineService) {}
+
+  private getCompanyId(request: RequestWithUser): string {
+    return request.companyId?.toString() ?? '';
+  }
 
   /**
    * Devuelve todos los snapshots de cumplimiento de una empresa.
    */
-  @Get('company/:companyId')
+  @Get()
   @Roles('owner', 'admin', 'manager')
-  async getTimeline(@Param('companyId') companyId: string): Promise<ComplianceSnapshotDto[]> {
-    this.assertValidCompanyId(companyId);
-    return this.complianceTimelineService.getTimeline(companyId);
+  async getTimeline(@Req() request: RequestWithUser): Promise<ComplianceSnapshotDto[]> {
+    return this.complianceTimelineService.getTimeline(this.getCompanyId(request));
   }
 
   /**
    * Devuelve el snapshot de cumplimiento más reciente de una empresa.
    */
-  @Get('company/:companyId/latest')
+  @Get('latest')
   @Roles('owner', 'admin', 'manager')
-  async getLatest(@Param('companyId') companyId: string): Promise<ComplianceSnapshotDto | null> {
-    this.assertValidCompanyId(companyId);
-    return this.complianceTimelineService.getLatest(companyId);
+  async getLatest(@Req() request: RequestWithUser): Promise<ComplianceSnapshotDto | null> {
+    return this.complianceTimelineService.getLatest(this.getCompanyId(request));
   }
 
   /**
    * Devuelve la tendencia mensual de cumplimiento de una empresa.
    */
-  @Get('company/:companyId/trend')
+  @Get('trend')
   @Roles('owner', 'admin', 'manager')
   async getMonthlyTrend(
-    @Param('companyId') companyId: string,
+    @Req() request: RequestWithUser,
   ): Promise<MonthlyTrendPointDto[]> {
-    this.assertValidCompanyId(companyId);
-    return this.complianceTimelineService.getMonthlyTrend(companyId);
+    return this.complianceTimelineService.getMonthlyTrend(this.getCompanyId(request));
   }
 
   /**
    * Crea (o actualiza) el snapshot de cumplimiento del día para una empresa.
    */
-  @Post('company/:companyId/snapshot')
+  @Post('snapshot')
   @Roles('owner', 'admin', 'manager')
-  async createSnapshot(@Param('companyId') companyId: string): Promise<ComplianceSnapshotDto> {
-    this.assertValidCompanyId(companyId);
-    return this.complianceTimelineService.createSnapshot(companyId);
-  }
-
-  private assertValidCompanyId(companyId: string): void {
-    if (!Types.ObjectId.isValid(companyId)) {
-      throw new BadRequestException('Invalid companyId');
-    }
+  async createSnapshot(@Req() request: RequestWithUser): Promise<ComplianceSnapshotDto> {
+    return this.complianceTimelineService.createSnapshot(this.getCompanyId(request));
   }
 }

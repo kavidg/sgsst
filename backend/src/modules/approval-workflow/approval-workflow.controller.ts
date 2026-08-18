@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { RequestWithUser } from '../auth/auth.types';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserDocument } from '../users/schemas/user.schema';
@@ -16,12 +17,11 @@ import { buildApprovalActor } from './helpers/approval-actor.helper';
 /**
  * Controlador del Approval Workflow Core.
  *
- * Fase 0: expone endpoints NUEVOS del motor de aprobaciones. No modifica ni
- * reemplaza ningún endpoint existente de los módulos actuales (los adapters
- * llegarán en fases posteriores).
+ * AUDIT-13: Migrado de @Param('companyId') a request.companyId con
+ * CompanyAccessGuard para garantizar tenant isolation.
  */
 @Controller('approval-workflow')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class ApprovalWorkflowController {
   constructor(
     private readonly service: ApprovalWorkflowService,
@@ -29,67 +29,69 @@ export class ApprovalWorkflowController {
     private readonly userModel: Model<UserDocument>,
   ) {}
 
+  private getCompanyId(request: RequestWithUser): string {
+    return request.companyId?.toString() ?? '';
+  }
+
   /**
    * Crea una solicitud de aprobación para una entidad de la empresa.
    */
-  @Post('company/:companyId/requests')
+  @Post('requests')
   @Roles('owner', 'admin', 'manager')
   async createRequest(
-    @Param('companyId') companyId: string,
-    @Body() dto: CreateRequestDto,
     @Req() request: RequestWithUser,
+    @Body() dto: CreateRequestDto,
   ) {
-    return this.service.createRequest(companyId, dto, await this.buildActor(request));
+    return this.service.createRequest(this.getCompanyId(request), dto, await this.buildActor(request));
   }
 
   /**
    * Decide sobre una solicitud pendiente (aprobar, rechazar o solicitar ajustes).
    */
-  @Post('company/:companyId/requests/:requestId/decide')
+  @Post('requests/:requestId/decide')
   @Roles('owner', 'admin', 'manager')
   async decideRequest(
-    @Param('companyId') companyId: string,
+    @Req() request: RequestWithUser,
     @Param('requestId') requestId: string,
     @Body() dto: DecideRequestDto,
-    @Req() request: RequestWithUser,
   ) {
-    return this.service.decideRequest(companyId, requestId, dto, await this.buildActor(request));
+    return this.service.decideRequest(this.getCompanyId(request), requestId, dto, await this.buildActor(request));
   }
 
   /**
    * Devuelve el detalle de una solicitud de aprobación.
    */
-  @Get('company/:companyId/requests/:requestId')
+  @Get('requests/:requestId')
   @Roles('owner', 'admin', 'manager')
   async getRequest(
-    @Param('companyId') companyId: string,
+    @Req() request: RequestWithUser,
     @Param('requestId') requestId: string,
   ) {
-    return this.service.getRequest(companyId, requestId);
+    return this.service.getRequest(this.getCompanyId(request), requestId);
   }
 
   /**
    * Bandeja de solicitudes pendientes de una empresa.
    */
-  @Get('company/:companyId/pending')
+  @Get('pending')
   @Roles('owner', 'admin', 'manager', 'member')
   async getPending(
-    @Param('companyId') companyId: string,
+    @Req() request: RequestWithUser,
     @Query() query: PendingRequestsDto,
   ) {
-    return this.service.getPending(companyId, query);
+    return this.service.getPending(this.getCompanyId(request), query);
   }
 
   /**
    * Historial de eventos de una solicitud (append-only).
    */
-  @Get('company/:companyId/requests/:requestId/history')
+  @Get('requests/:requestId/history')
   @Roles('owner', 'admin', 'manager', 'member')
   async getHistory(
-    @Param('companyId') companyId: string,
+    @Req() request: RequestWithUser,
     @Param('requestId') requestId: string,
   ) {
-    return this.service.getHistory(companyId, requestId);
+    return this.service.getHistory(this.getCompanyId(request), requestId);
   }
 
   /**

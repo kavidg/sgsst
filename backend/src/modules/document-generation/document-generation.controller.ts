@@ -1,11 +1,13 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { Types } from 'mongoose';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
 import { DocumentGenerationService } from './services/document-generation.service';
 import { DocumentSourceModule, VariableContext } from './types/document-generation.types';
+import { RequestWithUser } from '../auth/auth.types';
 
 /**
  * Controller del Document Generation Engine.
@@ -14,7 +16,7 @@ import { DocumentSourceModule, VariableContext } from './types/document-generati
  * endpoint de generación mínimo (sin integración con PHVA ni Approval Workflow).
  */
 @Controller('document-generation')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class DocumentGenerationController {
   constructor(private readonly documentGenerationService: DocumentGenerationService) {}
 
@@ -35,15 +37,15 @@ export class DocumentGenerationController {
    */
   @Post('generate')
   @Roles('owner', 'admin', 'manager')
-  async generate(@Req() request: Request, @Body() body: GenerateDocumentBody) {
-    const companyId = request.headers['x-company-id'] as string | undefined;
-
-    if (!companyId) {
-      throw new BadRequestException('Missing x-company-id header');
+  async generate(@Req() request: RequestWithUser, @Body() body: GenerateDocumentBody) {
+    // AUDIT-8: CompanyAccessGuard valida membresía y setea request.companyId.
+    // El header x-company-id NO puede usarse como autoridad de tenant.
+    if (!request.companyId) {
+      throw new BadRequestException('Missing company context');
     }
 
     return this.documentGenerationService.generateDocument({
-      companyId: this.toObjectId(companyId),
+      companyId: request.companyId,
       templateId: body.templateId,
       sourceModule: body.sourceModule ?? DocumentSourceModule.OTHER,
       sourceEntity: body.sourceEntity ?? 'GENERIC',
@@ -62,18 +64,17 @@ export class DocumentGenerationController {
   @Get('phva/:entity/:id')
   @Roles('owner', 'admin', 'manager')
   async getPhvaDocument(
-    @Req() request: Request,
+    @Req() request: RequestWithUser,
     @Param('entity') entity: string,
     @Param('id') id: string,
   ) {
-    const companyId = request.headers['x-company-id'] as string | undefined;
-
-    if (!companyId) {
-      throw new BadRequestException('Missing x-company-id header');
+    // AUDIT-8: CompanyAccessGuard valida membresía y setea request.companyId.
+    if (!request.companyId) {
+      throw new BadRequestException('Missing company context');
     }
 
     const instances = await this.documentGenerationService.getInstancesBySource({
-      companyId: this.toObjectId(companyId),
+      companyId: request.companyId,
       sourceModule: DocumentSourceModule.PHVA_ADVANCED,
       sourceEntity: entity,
       sourceEntityId: this.toObjectId(id),

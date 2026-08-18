@@ -1,207 +1,235 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Headers, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { CommunicationService } from './communication.service';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { Roles } from '../questions/roles.decorator';
+import { RolesGuard } from '../questions/roles.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { RequestWithUser } from '../auth/auth.types';
 
 @Controller('communication')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class CommunicationController {
   constructor(private readonly service: CommunicationService) {}
 
-  private getCompanyId(@Headers('x-company-id') companyId: string): string {
-    return companyId;
-  }
-
   // ========== DASHBOARD ==========
   @Get('dashboard')
-  getDashboard(@Headers('x-company-id') companyId: string) {
-    return this.service.getDashboard('', this.getCompanyId(companyId));
+  @Roles('owner', 'admin', 'manager')
+  getDashboard(@Req() request: RequestWithUser) {
+    return this.service.getDashboard('', request.companyId?.toString() ?? '');
   }
 
   @Get('auto-compliance')
-  getAutoCompliance(@Headers('x-company-id') companyId: string) {
-    return this.service.getAutoCompliance(this.getCompanyId(companyId));
+  @Roles('owner', 'admin', 'manager')
+  getAutoCompliance(@Req() request: RequestWithUser) {
+    return this.service.getAutoCompliance(request.companyId?.toString() ?? '');
   }
 
   // ========== COMMUNICATIONS ==========
   @Post()
-  create(@Headers('x-company-id') companyId: string, @CurrentUser() user: any, @Body() body: any) {
-    return this.service.createComm('', this.getCompanyId(companyId), user?.uid || '', user?.email || '', body);
+  @Roles('owner', 'admin', 'manager')
+  create(@Req() request: RequestWithUser, @CurrentUser() user: any, @Body() body: any) {
+    return this.service.createComm('', request.companyId?.toString() ?? '', user?.uid || '', user?.email || '', body);
   }
 
   @Get()
-  findAll(@Headers('x-company-id') companyId: string) {
-    return this.service.findAllComms(this.getCompanyId(companyId));
+  @Roles('owner', 'admin', 'manager')
+  findAll(@Req() request: RequestWithUser) {
+    return this.service.findAllComms(request.companyId?.toString() ?? '');
   }
 
   @Get(':id')
-  findOne(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.findCommById(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  findOne(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.findCommById(request.companyId?.toString() ?? '', id);
   }
 
   @Patch(':id')
-  update(@Headers('x-company-id') companyId: string, @Param('id') id: string, @Body() body: any) {
-    return this.service.updateComm(this.getCompanyId(companyId), id, body);
+  @Roles('owner', 'admin', 'manager')
+  update(@Req() request: RequestWithUser, @Param('id') id: string, @Body() body: any) {
+    return this.service.updateComm(request.companyId?.toString() ?? '', id, body);
   }
 
   @Post(':id/publish')
-  publish(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.publishComm('', this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  publish(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.publishComm('', request.companyId?.toString() ?? '', id);
   }
 
   @Post(':id/archive')
-  archive(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.archiveComm(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  archive(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.archiveComm(request.companyId?.toString() ?? '', id);
   }
 
   @Delete(':id')
-  delete(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.deleteComm(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  delete(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.deleteComm(request.companyId?.toString() ?? '', id);
   }
 
   // ========== RECIPIENTS ==========
   @Get(':id/recipients')
-  getRecipients(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.getRecipients(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  getRecipients(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.getRecipients(request.companyId?.toString() ?? '', id);
   }
 
   @Post(':id/recipients')
-  addRecipients(@Headers('x-company-id') companyId: string, @Param('id') id: string, @Body('employeeIds') employeeIds: string[]) {
-    return this.service.addRecipients(this.getCompanyId(companyId), id, employeeIds);
+  @Roles('owner', 'admin', 'manager')
+  addRecipients(@Req() request: RequestWithUser, @Param('id') id: string, @Body('employeeIds') employeeIds: string[]) {
+    return this.service.addRecipients(request.companyId?.toString() ?? '', id, employeeIds);
   }
 
   // ========== READ RECEIPTS ==========
   @Post(':id/read')
   registerRead(
-    @Headers('x-company-id') companyId: string,
+    @Req() request: RequestWithUser,
     @Param('id') id: string,
     @Body('employeeId') employeeId: string,
     @Body('employeeName') employeeName: string,
   ) {
-    return this.service.registerRead(this.getCompanyId(companyId), id, employeeId, employeeName);
+    return this.service.registerRead(request.companyId?.toString() ?? '', id, employeeId, employeeName);
   }
 
   @Get(':id/read-receipts')
-  getReadReceipts(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.getReadReceipts(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  getReadReceipts(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.getReadReceipts(request.companyId?.toString() ?? '', id);
   }
 
   // ========== SIGNATURES ==========
   @Post(':id/sign')
   addSignature(
-    @Headers('x-company-id') companyId: string,
+    @Req() request: RequestWithUser,
     @Param('id') id: string,
     @Body() body: { employeeId: string; employeeName: string; employeeEmail: string; signatureHash?: string; signatureUrl?: string; comments?: string },
   ) {
-    return this.service.addSignature(this.getCompanyId(companyId), id, body.employeeId, body.employeeName, body.employeeEmail, body);
+    return this.service.addSignature(request.companyId?.toString() ?? '', id, body.employeeId, body.employeeName, body.employeeEmail, body);
   }
 
   @Get(':id/signatures')
-  getSignatures(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.getSignatures(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  getSignatures(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.getSignatures(request.companyId?.toString() ?? '', id);
   }
 
   // ========== CAMPAIGNS ==========
   @Post('campaigns')
-  createCampaign(@Headers('x-company-id') companyId: string, @Body() body: any) {
-    return this.service.createCampaign(this.getCompanyId(companyId), body);
+  @Roles('owner', 'admin', 'manager')
+  createCampaign(@Req() request: RequestWithUser, @Body() body: any) {
+    return this.service.createCampaign(request.companyId?.toString() ?? '', body);
   }
 
   @Get('campaigns')
-  findAllCampaigns(@Headers('x-company-id') companyId: string) {
-    return this.service.findAllCampaigns(this.getCompanyId(companyId));
+  @Roles('owner', 'admin', 'manager')
+  findAllCampaigns(@Req() request: RequestWithUser) {
+    return this.service.findAllCampaigns(request.companyId?.toString() ?? '');
   }
 
   @Patch('campaigns/:id')
-  updateCampaign(@Headers('x-company-id') companyId: string, @Param('id') id: string, @Body() body: any) {
-    return this.service.updateCampaign(this.getCompanyId(companyId), id, body);
+  @Roles('owner', 'admin', 'manager')
+  updateCampaign(@Req() request: RequestWithUser, @Param('id') id: string, @Body() body: any) {
+    return this.service.updateCampaign(request.companyId?.toString() ?? '', id, body);
   }
 
   @Delete('campaigns/:id')
-  deleteCampaign(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.deleteCampaign(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  deleteCampaign(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.deleteCampaign(request.companyId?.toString() ?? '', id);
   }
 
   // ========== SURVEYS ==========
   @Post('surveys')
-  createSurvey(@Headers('x-company-id') companyId: string, @Body() body: any) {
-    return this.service.createSurvey(this.getCompanyId(companyId), body);
+  @Roles('owner', 'admin', 'manager')
+  createSurvey(@Req() request: RequestWithUser, @Body() body: any) {
+    return this.service.createSurvey(request.companyId?.toString() ?? '', body);
   }
 
   @Get('surveys')
-  findAllSurveys(@Headers('x-company-id') companyId: string) {
-    return this.service.findAllSurveys(this.getCompanyId(companyId));
+  @Roles('owner', 'admin', 'manager')
+  findAllSurveys(@Req() request: RequestWithUser) {
+    return this.service.findAllSurveys(request.companyId?.toString() ?? '');
   }
 
   @Patch('surveys/:id')
-  updateSurvey(@Headers('x-company-id') companyId: string, @Param('id') id: string, @Body() body: any) {
-    return this.service.updateSurvey(this.getCompanyId(companyId), id, body);
+  @Roles('owner', 'admin', 'manager')
+  updateSurvey(@Req() request: RequestWithUser, @Param('id') id: string, @Body() body: any) {
+    return this.service.updateSurvey(request.companyId?.toString() ?? '', id, body);
   }
 
   @Delete('surveys/:id')
-  deleteSurvey(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.deleteSurvey(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  deleteSurvey(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.deleteSurvey(request.companyId?.toString() ?? '', id);
   }
 
   @Post('surveys/:id/respond')
-  submitSurveyResponse(@Headers('x-company-id') companyId: string, @Param('id') surveyId: string, @Body() body: any) {
-    return this.service.submitSurveyResponse(this.getCompanyId(companyId), { ...body, surveyId });
+  submitSurveyResponse(@Req() request: RequestWithUser, @Param('id') surveyId: string, @Body() body: any) {
+    return this.service.submitSurveyResponse(request.companyId?.toString() ?? '', { ...body, surveyId });
   }
 
   @Get('surveys/:id/results')
-  getSurveyResults(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.getSurveyResults(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  getSurveyResults(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.getSurveyResults(request.companyId?.toString() ?? '', id);
   }
 
   @Get('surveys/:id/stats')
-  getSurveyStats(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.getSurveyStats(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  getSurveyStats(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.getSurveyStats(request.companyId?.toString() ?? '', id);
   }
 
   // ========== MAILBOX ==========
   @Post('mailbox')
-  createMailbox(@Headers('x-company-id') companyId: string, @Body() body: any) {
-    return this.service.createMailboxEntry(this.getCompanyId(companyId), body, body.employeeId);
+  createMailbox(@Req() request: RequestWithUser, @Body() body: any) {
+    return this.service.createMailboxEntry(request.companyId?.toString() ?? '', body, body.employeeId);
   }
 
   @Get('mailbox')
-  findAllMailbox(@Headers('x-company-id') companyId: string, @Query('status') status?: string) {
-    return this.service.findAllMailbox(this.getCompanyId(companyId), status);
+  @Roles('owner', 'admin', 'manager')
+  findAllMailbox(@Req() request: RequestWithUser, @Query('status') status?: string) {
+    return this.service.findAllMailbox(request.companyId?.toString() ?? '', status);
   }
 
   @Post('mailbox/:id/respond')
   respondMailbox(
-    @Headers('x-company-id') companyId: string,
+    @Req() request: RequestWithUser,
     @Param('id') id: string,
     @Body('response') response: string,
     @Body('respondedBy') respondedBy: string,
   ) {
-    return this.service.respondMailbox(this.getCompanyId(companyId), id, response, respondedBy);
+    return this.service.respondMailbox(request.companyId?.toString() ?? '', id, response, respondedBy);
   }
 
   @Delete('mailbox/:id')
-  deleteMailbox(@Headers('x-company-id') companyId: string, @Param('id') id: string) {
-    return this.service.deleteMailboxEntry(this.getCompanyId(companyId), id);
+  @Roles('owner', 'admin', 'manager')
+  deleteMailbox(@Req() request: RequestWithUser, @Param('id') id: string) {
+    return this.service.deleteMailboxEntry(request.companyId?.toString() ?? '', id);
   }
 
   // ========== HISTORY ==========
   @Get('history')
+  @Roles('owner', 'admin', 'manager')
   getHistory(
-    @Headers('x-company-id') companyId: string,
+    @Req() request: RequestWithUser,
     @Query('limit') limit?: string,
     @Query('skip') skip?: string,
   ) {
-    return this.service.getHistory(this.getCompanyId(companyId), Number(limit) || 100, Number(skip) || 0);
+    return this.service.getHistory(request.companyId?.toString() ?? '', Number(limit) || 100, Number(skip) || 0);
   }
 
   @Get('history/:entityType/:entityId')
+  @Roles('owner', 'admin', 'manager')
   getEntityHistory(@Param('entityType') entityType: string, @Param('entityId') entityId: string) {
     return this.service.getEntityHistory(entityType, entityId);
   }
 
   // ========== ALERTS ==========
   @Post('check-alerts')
-  checkAlerts(@Headers('x-company-id') companyId: string) {
-    return this.service.checkAlerts(this.getCompanyId(companyId));
+  @Roles('owner', 'admin', 'manager')
+  checkAlerts(@Req() request: RequestWithUser) {
+    return this.service.checkAlerts(request.companyId?.toString() ?? '');
   }
 }

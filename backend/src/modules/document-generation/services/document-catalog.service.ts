@@ -98,10 +98,15 @@ export class DocumentCatalogService {
    * + historial de versiones de la misma entidad de origen (sin duplicar
    * información: cada versión es una DocumentInstance real).
    */
-  async getById(id: string): Promise<DocumentCatalogDetail> {
+  async getById(id: string, companyId?: Types.ObjectId): Promise<DocumentCatalogDetail> {
     const instanceId = this.toObjectId(id, 'id');
     const instance = await this.instanceModel.findById(instanceId).exec();
     if (!instance) {
+      throw new NotFoundException('Document instance not found');
+    }
+
+    // AUDIT-8: tenant isolation — si se proporciona companyId, verificar pertenencia.
+    if (companyId && instance.companyId.toString() !== companyId.toString()) {
       throw new NotFoundException('Document instance not found');
     }
 

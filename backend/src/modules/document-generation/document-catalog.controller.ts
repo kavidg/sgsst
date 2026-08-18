@@ -1,7 +1,10 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
+import { RequestWithUser } from '../auth/auth.types';
 import { DocumentCatalogQueryDto } from './dto/document-catalog-query.dto';
 import { DocumentCatalogService } from './services/document-catalog.service';
 
@@ -22,7 +25,7 @@ import { DocumentCatalogService } from './services/document-catalog.service';
  * Templates ni Schemas.
  */
 @Controller('document-generation')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class DocumentCatalogController {
   constructor(private readonly documentCatalogService: DocumentCatalogService) {}
 
@@ -32,8 +35,13 @@ export class DocumentCatalogController {
    */
   @Get('catalog')
   @Roles('owner', 'admin', 'manager')
-  catalog(@Query() query: DocumentCatalogQueryDto) {
-    return this.documentCatalogService.list(query);
+  catalog(@Req() request: RequestWithUser, @Query() query: DocumentCatalogQueryDto) {
+    // AUDIT-8: CompanyAccessGuard valida membresía y setea request.companyId.
+    // Se fuerza el filtro por empresa del usuario autenticado.
+    return this.documentCatalogService.list({
+      ...query,
+      companyId: request.companyId?.toString() ?? query.companyId,
+    });
   }
 
   /**
@@ -42,10 +50,14 @@ export class DocumentCatalogController {
   @Get('catalog/company/:companyId')
   @Roles('owner', 'admin', 'manager')
   catalogByCompany(
+    @Req() request: RequestWithUser,
     @Param('companyId') companyId: string,
     @Query() query: DocumentCatalogQueryDto,
   ) {
-    return this.documentCatalogService.listByCompany(companyId, query);
+    // AUDIT-8: CompanyAccessGuard valida membresía.
+    // Se ignora el companyId de la URL y se usa el del usuario autenticado.
+    const effectiveCompanyId = request.companyId?.toString() ?? companyId;
+    return this.documentCatalogService.listByCompany(effectiveCompanyId, query);
   }
 
   /**
@@ -54,7 +66,9 @@ export class DocumentCatalogController {
    */
   @Get('catalog/:id')
   @Roles('owner', 'admin', 'manager')
-  catalogDetail(@Param('id') id: string) {
-    return this.documentCatalogService.getById(id);
+  catalogDetail(@Req() request: RequestWithUser, @Param('id') id: string) {
+    // AUDIT-8: CompanyAccessGuard valida membresía.
+    // El servicio getById debe verificar que el documento pertenece a la empresa.
+    return this.documentCatalogService.getById(id, request.companyId);
   }
 }

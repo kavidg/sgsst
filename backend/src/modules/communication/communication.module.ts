@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
+import { RolesGuard } from '../questions/roles.guard';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
+import { UsersModule } from '../users/users.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { CommunicationController } from './communication.controller';
 import { CommunicationService } from './communication.service';
@@ -19,6 +24,7 @@ import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
 @Module({
   imports: [
     AuthModule,
+    UsersModule,
     AlertsModule,
     MongooseModule.forFeature([
       { name: Communication.name, schema: CommunicationSchema },
@@ -31,10 +37,12 @@ import { Employee, EmployeeSchema } from '../employees/schemas/employee.schema';
       { name: CommunicationMailbox.name, schema: CommunicationMailboxSchema },
       { name: CommunicationHistory.name, schema: CommunicationHistorySchema },
       { name: Employee.name, schema: EmployeeSchema },
+      { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),
   ],
   controllers: [CommunicationController],
-  providers: [CommunicationService, AutoCommunicationService],
+  providers: [CommunicationService, AutoCommunicationService, RolesGuard, CompanyAccessGuard],
   exports: [CommunicationService, AutoCommunicationService],
 })
 export class CommunicationModule {}

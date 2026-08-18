@@ -3,8 +3,10 @@
  * Compliance Action Engine para el Dashboard Inteligente.
  *
  * Endpoints consumidos:
- * - GET /compliance-engine/company/:companyId/overview
- * - GET /compliance-action-engine/company/:companyId/recommendations
+ * - GET /compliance-engine/overview
+ * - GET /compliance-action-engine/recommendations
+ *
+ * AUDIT-16: URLs simplificadas — backend usa CompanyAccessGuard + request.companyId.
  *
  * Tipado estricto, sin any.
  */
@@ -46,10 +48,10 @@ async function engineFetch<T>(path: string, token: string): Promise<T> {
  */
 export function getOverview(
   token: string,
-  companyId: string,
+  _companyId: string, // AUDIT-16: kept for API compatibility, backend uses request.companyId
 ): Promise<ComplianceDashboardData> {
   return engineFetch<ComplianceDashboardData>(
-    `/compliance-engine/company/${encodeURIComponent(companyId)}/overview`,
+    '/compliance-engine/overview',
     token,
   );
 }
@@ -59,10 +61,10 @@ export function getOverview(
  */
 export function getRecommendations(
   token: string,
-  companyId: string,
+  _companyId: string, // AUDIT-16: kept for API compatibility, backend uses request.companyId
 ): Promise<DashboardRecommendation[]> {
   return engineFetch<DashboardRecommendation[]>(
-    `/compliance-action-engine/company/${encodeURIComponent(companyId)}/recommendations`,
+    '/compliance-action-engine/recommendations',
     token,
   );
 }

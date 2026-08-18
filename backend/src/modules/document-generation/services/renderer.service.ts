@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { DocumentRenderer, RenderableTemplate, RendererFormat } from '../types/renderer.types';
 import { StorageService } from './storage.service';
+import { PdfRenderer } from './pdf-renderer.service';
 
 /**
  * Renderer DOCX basado en docxtemplater + PizZip.
@@ -73,11 +74,32 @@ export class DocxRenderer implements DocumentRenderer {
  */
 @Injectable()
 export class RendererService {
-  private readonly renderers: Partial<Record<RendererFormat, DocumentRenderer>> = {
-    [RendererFormat.DOCX]: new DocxRenderer(),
-  };
+  private readonly logger = new Logger(RendererService.name);
+  private readonly renderers: Partial<Record<RendererFormat, DocumentRenderer>>;
+  private readonly pdfRenderer: PdfRenderer;
 
-  constructor(private readonly storageService: StorageService) {}
+  constructor(private readonly storageService: StorageService) {
+    this.pdfRenderer = new PdfRenderer();
+    this.renderers = {
+      [RendererFormat.DOCX]: new DocxRenderer(),
+    };
+
+    // FASE 7 — PDF: se registra el renderer solo si LibreOffice está disponible.
+    // Si no está instalado, el sistema continúa funcionando con DOCX.
+    if (this.pdfRenderer.isAvailable()) {
+      this.renderers[RendererFormat.PDF] = this.pdfRenderer;
+      this.logger.log('PDF renderer registered (LibreOffice found)');
+    } else {
+      this.logger.warn('PDF renderer NOT available: LibreOffice not found. Only DOCX generation is supported.');
+    }
+  }
+
+  /**
+   * Indica si el renderer PDF está disponible en el sistema.
+   */
+  isPdfAvailable(): boolean {
+    return this.pdfRenderer.isAvailable();
+  }
 
   /**
    * Renderiza una plantilla aplicando las variables resueltas.

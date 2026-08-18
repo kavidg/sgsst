@@ -1,10 +1,13 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { RolesGuard } from '../questions/roles.guard';
 import { TemplatesModule } from '../templates/templates.module';
 import { UsersModule } from '../users/users.module';
 import { Company, CompanySchema } from '../companies/schemas/company.schema';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
 // Fase 8.2.A — publicación automática Approval → DocumentMaster: el
 // DocumentGenerationService publica la instancia aprobada en Gestión
 // Documental vía DocumentPublicationService. forwardRef por el ciclo de
@@ -48,6 +51,9 @@ import { VariableResolverService } from './services/variable-resolver.service';
       // Fase 6.5 — Document Catalog: Company para resolver companyName en el
       // ViewModel del catálogo (consulta principal sigue siendo DocumentInstance).
       { name: Company.name, schema: CompanySchema },
+      // AUDIT-8 — CompanyAccessGuard requiere User y CompanyUser para validar membresía.
+      { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),
   ],
   controllers: [DocumentGenerationController, DocumentCatalogController],
@@ -62,6 +68,7 @@ import { VariableResolverService } from './services/variable-resolver.service';
     // Fase 6.5 — catálogo único de consulta documental.
     DocumentCatalogService,
     RolesGuard,
+    CompanyAccessGuard,
   ],
   exports: [
     DocumentGenerationService,

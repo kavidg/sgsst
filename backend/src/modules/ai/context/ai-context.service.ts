@@ -1,10 +1,17 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { AbsenteeismService } from '../../absenteeism/absenteeism.service';
 import { ActivityStatus } from '../../annual-work-plan/schemas/plan-activity.schema';
 import { AnnualWorkPlanService } from '../../annual-work-plan/services/annual-work-plan.service';
 import { Company, CompanyDocument } from '../../companies/schemas/company.schema';
 import { ComplianceEngineService } from '../../compliance-engine/compliance-engine.service';
+import { DashboardService } from '../../dashboard/dashboard.service';
+import { IncidentsService } from '../../incidents/incidents.service';
+import { InitialEvaluationService } from '../../initial-evaluation/initial-evaluation.service';
+import { StandardEvaluationStatus } from '../../initial-evaluation/schemas/initial-evaluation.schema';
+import { InspectionsService } from '../../inspections/inspections.service';
+import { TrainingsService } from '../../trainings/trainings.service';
 import { ConvivenciaComplianceSnapshot, ConvivenciaService } from '../../convivencia/convivencia.service';
 import {
   CONVIVENCIA_ITEM_CODE,
@@ -21,10 +28,16 @@ import {
 import { PhvaAdvancedCopasstTrainingDocument } from '../../phva-advanced/schemas/phva-advanced-copasst-training.schema';
 import {
   CompanyAIContext,
+  CompanyAIContextAbsenteeism,
   CompanyAIContextActivities,
+  CompanyAIContextAudits,
   CompanyAIContextConvivencia,
   CompanyAIContextCopasstTraining,
   CompanyAIContextDocuments,
+  CompanyAIContextIncidents,
+  CompanyAIContextIndicators,
+  CompanyAIContextInitialEvaluation,
+  CompanyAIContextPrograms,
 } from './interfaces/company-ai-context.interface';
 
 /** Límite de elementos por lista para mantener el contexto compacto y legible. */
@@ -63,6 +76,14 @@ export class AiContextService {
     // Fase 4 (1.1.8): service de dominio del Comité de Convivencia. El contexto
     // NO recalcula compliance: consume getComplianceSnapshot() (única fuente).
     private readonly convivenciaService: ConvivenciaService,
+    // AUDIT-5: services reales de los dominios operativos. El contexto SOLO
+    // agrega (nunca recalcula ni duplica la lógica de negocio de cada dominio).
+    private readonly initialEvaluationService: InitialEvaluationService,
+    private readonly dashboardService: DashboardService,
+    private readonly incidentsService: IncidentsService,
+    private readonly absenteeismService: AbsenteeismService,
+    private readonly trainingsService: TrainingsService,
+    private readonly inspectionsService: InspectionsService,
   ) {}
 
   /**
@@ -80,16 +101,35 @@ export class AiContextService {
     // pendientes por fase (sin duplicar código) y no modifica contratos existentes.
     // Si el rendimiento lo exige, PhvaAnalysisService podría aceptar el overview ya
     // agregado como parámetro opcional en una fase futura.
-    const [company, overview, phva, documents, activities, copasstTraining, convivencia] =
-      await Promise.all([
-        this.safeFindCompany(companyId),
-        this.safeGetOverview(companyId),
-        this.safeGetPhva(companyId),
-        this.safeGetDocuments(companyObjectId),
-        this.safeGetActivities(companyObjectId),
-        this.safeGetCopasstTraining(companyObjectId),
-        this.safeGetConvivencia(companyObjectId),
-      ]);
+    const [
+      company,
+      overview,
+      phva,
+      documents,
+      activities,
+      copasstTraining,
+      convivencia,
+      initialEvaluation,
+      indicators,
+      incidents,
+      absenteeism,
+      programs,
+      audits,
+    ] = await Promise.all([
+      this.safeFindCompany(companyId),
+      this.safeGetOverview(companyId),
+      this.safeGetPhva(companyId),
+      this.safeGetDocuments(companyObjectId),
+      this.safeGetActivities(companyObjectId),
+      this.safeGetCopasstTraining(companyObjectId),
+      this.safeGetConvivencia(companyObjectId),
+      this.safeGetInitialEvaluation(companyObjectId),
+      this.safeGetIndicators(companyObjectId),
+      this.safeGetIncidents(companyObjectId),
+      this.safeGetAbsenteeism(companyObjectId),
+      this.safeGetPrograms(companyObjectId),
+      this.safeGetAudits(companyObjectId),
+    ]);
 
     return {
       company: {
@@ -109,6 +149,13 @@ export class AiContextService {
       activities: this.buildActivitiesContext(activities),
       copasstTraining: this.buildCopasstTrainingContext(copasstTraining),
       convivencia: this.buildConvivenciaContext(convivencia),
+      // AUDIT-5: dominios operativos con datos reales (agregados sin PII).
+      initialEvaluation: this.buildInitialEvaluationContext(initialEvaluation),
+      indicators: this.buildIndicatorsContext(indicators),
+      incidents: this.buildIncidentsContext(incidents),
+      absenteeism: this.buildAbsenteeismContext(absenteeism),
+      programs: this.buildProgramsContext(programs),
+      audits: this.buildAuditsContext(audits),
     };
   }
 
@@ -214,6 +261,229 @@ export class AiContextService {
       this.logger.debug(`Comité de Convivencia (1.1.8) no disponible: ${this.errorMessage(error)}`);
       return null;
     }
+  }
+
+  /** Evaluación inicial real (AUDIT-5): lectura pura vía el service del dominio. */
+  private async safeGetInitialEvaluation(companyObjectId: Types.ObjectId) {
+    try {
+      return await this.initialEvaluationService.findCurrent(companyObjectId);
+    } catch (error) {
+      this.logger.debug(`Evaluación inicial no disponible: ${this.errorMessage(error)}`);
+      return null;
+    }
+  }
+
+  /** Indicadores agregados reales del dashboard (AUDIT-5). */
+  private async safeGetIndicators(companyObjectId: Types.ObjectId) {
+    try {
+      return await this.dashboardService.getCompanyStats(companyObjectId);
+    } catch (error) {
+      this.logger.debug(`Indicadores no disponibles: ${this.errorMessage(error)}`);
+      return null;
+    }
+  }
+
+  /** Incidentes reales del tenant (AUDIT-5): agrega SIN PII (nunca employeeId/descripción). */
+  private async safeGetIncidents(companyObjectId: Types.ObjectId) {
+    try {
+      return await this.incidentsService.findAll(companyObjectId);
+    } catch (error) {
+      this.logger.debug(`Incidentes no disponibles: ${this.errorMessage(error)}`);
+      return [];
+    }
+  }
+
+  /** Ausentismo real del tenant (AUDIT-5): stats + registros recientes sin PII. */
+  private async safeGetAbsenteeism(companyObjectId: Types.ObjectId) {
+    try {
+      const [stats, records] = await Promise.all([
+        this.absenteeismService.getCompanyStats(companyObjectId.toString()),
+        this.absenteeismService.findAllByCompany(companyObjectId.toString()),
+      ]);
+      return { stats, records };
+    } catch (error) {
+      this.logger.debug(`Ausentismo no disponible: ${this.errorMessage(error)}`);
+      return null;
+    }
+  }
+
+  /** Capacitaciones reales del tenant (AUDIT-5): agrega sin PII (sin instructores ni listas). */
+  private async safeGetPrograms(companyObjectId: Types.ObjectId) {
+    try {
+      return await this.trainingsService.findAll(companyObjectId);
+    } catch (error) {
+      this.logger.debug(`Programas no disponibles: ${this.errorMessage(error)}`);
+      return [];
+    }
+  }
+
+  /** Inspecciones/auditorías reales del tenant (AUDIT-5): títulos y estados sin notas. */
+  private async safeGetAudits(companyObjectId: Types.ObjectId) {
+    try {
+      return await this.inspectionsService.findAll(companyObjectId);
+    } catch (error) {
+      this.logger.debug(`Auditorías no disponibles: ${this.errorMessage(error)}`);
+      return [];
+    }
+  }
+
+  /** Sección de evaluación inicial (AUDIT-5): agregados reales, sin hallazgos completos. */
+  private buildInitialEvaluationContext(
+    evaluation: {
+      status?: string;
+      overallCompliance?: number;
+      standards?: Array<{ status?: string }>;
+      findings?: unknown[];
+      actionPlan?: unknown[];
+    } | null,
+  ): CompanyAIContextInitialEvaluation {
+    if (!evaluation) {
+      return {
+        available: false,
+        status: null,
+        overallCompliance: 0,
+        totalStandards: 0,
+        evaluated: 0,
+        compliant: 0,
+        nonCompliant: 0,
+        findings: 0,
+        actionItems: 0,
+      };
+    }
+    const standards = evaluation.standards ?? [];
+    const compliant = standards.filter(
+      (standard) => standard.status === StandardEvaluationStatus.COMPLIES,
+    ).length;
+    const nonCompliant = standards.filter(
+      (standard) => standard.status === StandardEvaluationStatus.DOES_NOT_COMPLY,
+    ).length;
+    return {
+      available: true,
+      status: evaluation.status ?? null,
+      overallCompliance: evaluation.overallCompliance ?? 0,
+      totalStandards: standards.length,
+      evaluated: standards.length,
+      compliant,
+      nonCompliant,
+      findings: (evaluation.findings ?? []).length,
+      actionItems: (evaluation.actionPlan ?? []).length,
+    };
+  }
+
+  /** Sección de indicadores (AUDIT-5): agrega el DashboardStats real del tenant. */
+  private buildIndicatorsContext(
+    stats: {
+      employees: number;
+      incidents: number;
+      trainings: number;
+      compliance: number;
+      highRisks: number;
+    } | null,
+  ): CompanyAIContextIndicators {
+    return {
+      employees: stats?.employees ?? 0,
+      incidents: stats?.incidents ?? 0,
+      trainings: stats?.trainings ?? 0,
+      compliance: stats?.compliance ?? 0,
+      highRisks: stats?.highRisks ?? 0,
+    };
+  }
+
+  /** Sección de accidentalidad (AUDIT-5): agregados sin employeeId ni descripción. */
+  private buildIncidentsContext(
+    incidents: Array<{ type: string; severity: string; date?: Date; status: string }>,
+  ): CompanyAIContextIncidents {
+    const open = incidents.filter(
+      (incident) => incident.status.toLowerCase() !== 'cerrado',
+    ).length;
+    const severityMap = new Map<string, number>();
+    for (const incident of incidents) {
+      severityMap.set(
+        incident.severity,
+        (severityMap.get(incident.severity) ?? 0) + 1,
+      );
+    }
+    return {
+      total: incidents.length,
+      open,
+      severitySummary: Array.from(severityMap.entries()).map(([severity, count]) => ({
+        severity,
+        count,
+      })),
+      recent: incidents.slice(0, MAX_ITEMS_PER_LIST).map((incident) => ({
+        type: incident.type,
+        severity: incident.severity,
+        date: incident.date ? this.toDate(incident.date).toISOString() : null,
+        status: incident.status,
+      })),
+    };
+  }
+
+  /** Sección de ausentismo (AUDIT-5): agregados sin userId/descripción/soporte. */
+  private buildAbsenteeismContext(data: {
+    stats: { totalDiasPerdidos: number; totalCasos: number; promedioDias: number };
+    records: Array<{ tipo: string; fechaInicio?: Date; dias: number }>;
+  } | null): CompanyAIContextAbsenteeism {
+    if (!data) {
+      return { total: 0, totalDaysLost: 0, averageDays: 0, causes: [], recent: [] };
+    }
+    const causeMap = new Map<string, number>();
+    for (const record of data.records) {
+      causeMap.set(record.tipo, (causeMap.get(record.tipo) ?? 0) + 1);
+    }
+    return {
+      total: data.stats.totalCasos,
+      totalDaysLost: data.stats.totalDiasPerdidos,
+      averageDays: data.stats.promedioDias,
+      causes: Array.from(causeMap.entries()).map(([type, count]) => ({ type, count })),
+      recent: data.records.slice(0, MAX_ITEMS_PER_LIST).map((record) => ({
+        type: record.tipo,
+        startDate: record.fechaInicio ? this.toDate(record.fechaInicio).toISOString() : null,
+        days: record.dias,
+      })),
+    };
+  }
+
+  /** Sección de programas/capacitaciones (AUDIT-5): agregados sin PII. */
+  private buildProgramsContext(
+    programs: Array<{
+      topic: string;
+      date?: Date;
+      attendanceControl?: { initialListUrl?: string; finalListUrl?: string };
+    }>,
+  ): CompanyAIContextPrograms {
+    const withAttendanceControl = programs.filter(
+      (program) =>
+        program.attendanceControl &&
+        (program.attendanceControl.initialListUrl || program.attendanceControl.finalListUrl),
+    ).length;
+    return {
+      total: programs.length,
+      withAttendanceControl,
+      recent: programs.slice(0, MAX_ITEMS_PER_LIST).map((program) => ({
+        topic: program.topic,
+        date: program.date ? this.toDate(program.date).toISOString() : null,
+      })),
+    };
+  }
+
+  /** Sección de inspecciones/auditorías (AUDIT-5): agregados sin responsables ni notas. */
+  private buildAuditsContext(
+    audits: Array<{ title: string; status: string; plannedDate?: Date; completedDate?: Date }>,
+  ): CompanyAIContextAudits {
+    // Sin double-count: completado = no pendiente (completedDate es metadata).
+    const pending = audits.filter((audit) => audit.status === 'pendiente').length;
+    const completed = audits.length - pending;
+    return {
+      total: audits.length,
+      pending,
+      completed,
+      recent: audits.slice(0, MAX_ITEMS_PER_LIST).map((audit) => ({
+        title: audit.title,
+        status: audit.status,
+        plannedDate: audit.plannedDate ? this.toDate(audit.plannedDate).toISOString() : null,
+      })),
+    };
   }
 
   private buildDocumentsContext(

@@ -95,8 +95,9 @@ export class DocumentManagementController {
 
   @Get(':id')
   @Roles('owner', 'admin', 'manager', 'member')
-  async findOne(@Param('id') id: string) {
-    return this.documentService.findById(new Types.ObjectId(id));
+  async findOne(@Req() request: RequestWithUser, @Param('id') id: string) {
+    const companyId = this.resolveCompanyId(request);
+    return this.documentService.findById(new Types.ObjectId(id), companyId);
   }
 
   @Get('code/:code')

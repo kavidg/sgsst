@@ -1,39 +1,33 @@
 import {
-  Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards,
+  Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
-import { AuthenticatedUser } from '../auth/auth.types';
+import { Roles } from '../questions/roles.decorator';
+import { RolesGuard } from '../questions/roles.guard';
+import { RequestWithUser } from '../auth/auth.types';
 import { LegalMatrixService } from './legal-matrix.service';
 
-interface RequestWithHeaders extends Request {
-  headers: { authorization?: string; 'x-company-id'?: string; [key: string]: any };
-  user?: AuthenticatedUser;
-}
-
 @Controller('legal-matrix')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class LegalMatrixController {
   constructor(private readonly legalMatrixService: LegalMatrixService) {}
-
-  private getCompanyId(request: RequestWithHeaders): string {
-    const header = request.headers['x-company-id'];
-    if (!header || typeof header !== 'string') throw new UnauthorizedException('Missing x-company-id header');
-    return header;
-  }
 
   // ==================== SECTOR TEMPLATES (TAB 2) ====================
 
   @Get('sectors')
+  @Roles('owner', 'admin', 'manager')
   async getAllSectors() { return this.legalMatrixService.getAllSectorTemplates(); }
 
   @Get('sectors/:sector')
+  @Roles('owner', 'admin', 'manager')
   async getSectorRegulations(@Param('sector') sector: string) {
     return this.legalMatrixService.getRegulationsBySector(sector);
   }
 
   @Post('sectors/:sector/regulations')
+  @Roles('owner', 'admin')
   async createRegulationTemplate(
     @Param('sector') sector: string,
     @Body() body: { regulationCode: string; regulationName: string; description?: string },
@@ -42,6 +36,7 @@ export class LegalMatrixController {
   }
 
   @Patch('sectors/regulations/:id')
+  @Roles('owner', 'admin')
   async updateRegulationTemplate(
     @Param('id') id: string,
     @Body() body: { regulationName?: string; description?: string; isActive?: boolean },
@@ -50,101 +45,110 @@ export class LegalMatrixController {
   }
 
   @Delete('sectors/regulations/:id')
+  @Roles('owner', 'admin')
   async deleteRegulationTemplate(@Param('id') id: string) {
     return this.legalMatrixService.deleteRegulationTemplate(id);
   }
 
   @Post('seed')
+  @Roles('owner', 'admin')
   async seedAll() { await this.legalMatrixService.seedAllSectors(); return { message: 'All sectors seeded successfully' }; }
 
   // ==================== COMPANY MATRIX (TAB 1 & 2) ====================
 
   @Get('company/current')
-  async getCurrentCompanyMatrix(@CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.getCompanyMatrix(this.getCompanyId(req));
+  @Roles('owner', 'admin', 'manager')
+  async getCurrentCompanyMatrix(@Req() req: RequestWithUser) {
+    return this.legalMatrixService.getCompanyMatrix(req.companyId?.toString() ?? '');
   }
 
   @Get('company/current/compliance')
-  async getCurrentMatrixCompliance(@CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.getMatrixCompliance(this.getCompanyId(req));
+  @Roles('owner', 'admin', 'manager')
+  async getCurrentMatrixCompliance(@Req() req: RequestWithUser) {
+    return this.legalMatrixService.getMatrixCompliance(req.companyId?.toString() ?? '');
   }
 
   @Patch('company/current/item/:regulationCode')
+  @Roles('owner', 'admin', 'manager')
   async updateCurrentMatrixItem(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders,
+    @Req() req: RequestWithUser,
     @Param('regulationCode') regulationCode: string,
     @Body() body: { status?: string; observation?: string },
+    @CurrentUser() user: any,
   ) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.updateMatrixItemStatus(this.getCompanyId(req), regulationCode, (body.status as any) ?? 'PENDIENTE', body.observation, user.uid);
+    return this.legalMatrixService.updateMatrixItemStatus(req.companyId?.toString() ?? '', regulationCode, (body.status as any) ?? 'PENDIENTE', body.observation, user?.uid);
   }
 
   @Post('company/current/items')
+  @Roles('owner', 'admin', 'manager')
   async addCustomRegulationToCurrent(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders,
+    @Req() req: RequestWithUser,
     @Body() body: { regulationCode: string; regulationName: string; description?: string },
+    @CurrentUser() user: any,
   ) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.addCustomRegulation(this.getCompanyId(req), body.regulationCode, body.regulationName, body.description, user.uid);
+    return this.legalMatrixService.addCustomRegulation(req.companyId?.toString() ?? '', body.regulationCode, body.regulationName, body.description, user?.uid);
   }
 
   @Delete('company/current/item/:regulationCode')
+  @Roles('owner', 'admin', 'manager')
   async removeRegulationFromCurrent(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders,
+    @Req() req: RequestWithUser,
     @Param('regulationCode') regulationCode: string,
   ) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.removeRegulationFromMatrix(this.getCompanyId(req), regulationCode);
+    return this.legalMatrixService.removeRegulationFromMatrix(req.companyId?.toString() ?? '', regulationCode);
   }
 
   // ==================== DASHBOARD (TAB 1) ====================
 
   @Get('dashboard')
-  async getDashboard(@CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.getAdvancedDashboard(this.getCompanyId(req));
+  @Roles('owner', 'admin', 'manager')
+  async getDashboard(@Req() req: RequestWithUser) {
+    return this.legalMatrixService.getAdvancedDashboard(req.companyId?.toString() ?? '');
   }
 
   // ==================== LEGAL REQUIREMENTS (TAB 3) ====================
 
   @Get('requirements')
-  async getRequirements(@Req() req: RequestWithHeaders, @Query('regulationCode') regulationCode?: string) {
-    return this.legalMatrixService.getRequirements(this.getCompanyId(req), regulationCode);
+  @Roles('owner', 'admin', 'manager')
+  async getRequirements(@Req() req: RequestWithUser, @Query('regulationCode') regulationCode?: string) {
+    return this.legalMatrixService.getRequirements(req.companyId?.toString() ?? '', regulationCode);
   }
 
   @Get('requirements/:id')
+  @Roles('owner', 'admin', 'manager')
   async getRequirement(@Param('id') id: string) {
     return this.legalMatrixService.getRequirement(id);
   }
 
   @Post('requirements')
+  @Roles('owner', 'admin', 'manager')
   async createRequirement(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders,
+    @Req() req: RequestWithUser,
     @Body() body: { regulationCode: string; regulationName: string; article?: string; requirement: string; responsibleUser?: string; reviewFrequency?: string },
+    @CurrentUser() user: any,
   ) {
-    if (!user) throw new UnauthorizedException();
     return this.legalMatrixService.createRequirement({
-      companyId: this.getCompanyId(req), ...body, userId: user.uid, userEmail: user.email ?? '',
+      companyId: req.companyId?.toString() ?? '', ...body, userId: user?.uid ?? '', userEmail: user?.email ?? '',
     });
   }
 
   @Patch('requirements/:id')
+  @Roles('owner', 'admin', 'manager')
   async updateRequirement(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Param('id') id: string,
+    @CurrentUser() user: any, @Param('id') id: string,
     @Body() body: { complianceStatus?: string; responsibleUser?: string; reviewFrequency?: string; article?: string; requirement?: string; notes?: string; linkedModules?: any[] },
   ) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.updateRequirement(id, body as any, user.uid, user.email ?? '');
+    return this.legalMatrixService.updateRequirement(id, body as any, user?.uid ?? '', user?.email ?? '');
   }
 
   @Delete('requirements/:id')
+  @Roles('owner', 'admin')
   async deleteRequirement(@Param('id') id: string) {
     return this.legalMatrixService.deleteRequirement(id);
   }
 
   @Post('requirements/:id/link-module')
+  @Roles('owner', 'admin', 'manager')
   async linkModule(
     @Param('id') id: string,
     @Body() body: { module: string; entityId: string; entityName?: string; isCompliant?: boolean },
@@ -155,27 +159,31 @@ export class LegalMatrixController {
   // ==================== EVIDENCE (TAB 4) ====================
 
   @Get('evidence')
-  async getEvidenceByCompany(@Req() req: RequestWithHeaders) {
-    return this.legalMatrixService.getEvidenceByCompany(this.getCompanyId(req));
+  @Roles('owner', 'admin', 'manager')
+  async getEvidenceByCompany(@Req() req: RequestWithUser) {
+    return this.legalMatrixService.getEvidenceByCompany(req.companyId?.toString() ?? '');
   }
 
   @Get('evidence/requirement/:requirementId')
+  @Roles('owner', 'admin', 'manager')
   async getEvidenceByRequirement(@Param('requirementId') requirementId: string) {
     return this.legalMatrixService.getEvidenceByRequirement(requirementId);
   }
 
   @Post('evidence')
+  @Roles('owner', 'admin', 'manager')
   async linkEvidence(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders,
+    @Req() req: RequestWithUser,
     @Body() body: { requirementId: string; documentId?: string; documentName?: string; documentVersion?: string; fileUrl?: string; description: string },
+    @CurrentUser() user: any,
   ) {
-    if (!user) throw new UnauthorizedException();
     return this.legalMatrixService.linkEvidence({
-      companyId: this.getCompanyId(req), ...body, uploadedBy: user.uid,
+      companyId: req.companyId?.toString() ?? '', ...body, uploadedBy: user?.uid ?? '',
     });
   }
 
   @Delete('evidence/:id')
+  @Roles('owner', 'admin')
   async removeEvidence(@Param('id') id: string) {
     return this.legalMatrixService.removeEvidence(id);
   }
@@ -183,26 +191,29 @@ export class LegalMatrixController {
   // ==================== FOLLOW-UP (TAB 5) ====================
 
   @Get('follow-ups')
-  async getFollowUps(@Req() req: RequestWithHeaders) {
-    return this.legalMatrixService.getFollowUpsByCompany(this.getCompanyId(req));
+  @Roles('owner', 'admin', 'manager')
+  async getFollowUps(@Req() req: RequestWithUser) {
+    return this.legalMatrixService.getFollowUpsByCompany(req.companyId?.toString() ?? '');
   }
 
   @Get('follow-ups/requirement/:requirementId')
+  @Roles('owner', 'admin', 'manager')
   async getFollowUpsByRequirement(@Param('requirementId') requirementId: string) {
     return this.legalMatrixService.getFollowUpsByRequirement(requirementId);
   }
 
   @Post('follow-ups')
+  @Roles('owner', 'admin', 'manager')
   async createFollowUp(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders,
+    @Req() req: RequestWithUser,
     @Body() body: { requirementId: string; reviewDate: string; reviewerName?: string; findings?: string; recommendations?: string; complianceResult: string; nextReviewDate?: string },
+    @CurrentUser() user: any,
   ) {
-    if (!user) throw new UnauthorizedException();
     return this.legalMatrixService.createFollowUp({
-      companyId: this.getCompanyId(req),
+      companyId: req.companyId?.toString() ?? '',
       requirementId: body.requirementId,
       reviewDate: new Date(body.reviewDate),
-      reviewer: user.uid,
+      reviewer: user?.uid ?? '',
       reviewerName: body.reviewerName,
       findings: body.findings,
       recommendations: body.recommendations,
@@ -212,70 +223,76 @@ export class LegalMatrixController {
   }
 
   @Post('follow-ups/:id/sign')
+  @Roles('owner', 'admin', 'manager')
   async signFollowUp(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Param('id') id: string,
+    @CurrentUser() user: any, @Param('id') id: string,
     @Body() body: { signedByName: string; signatureHash?: string; signatureUrl?: string },
   ) {
-    if (!user) throw new UnauthorizedException();
     return this.legalMatrixService.signFollowUp(id, {
-      signedBy: user.uid, signedByName: body.signedByName, signatureHash: body.signatureHash, signatureUrl: body.signatureUrl,
+      signedBy: user?.uid ?? '', signedByName: body.signedByName, signatureHash: body.signatureHash, signatureUrl: body.signatureUrl,
     });
   }
 
   // ==================== REGULATORY CHANGES (TAB 6) ====================
 
   @Get('regulatory-changes')
-  async getRegulatoryChanges(@Req() req: RequestWithHeaders, @Query('unreviewed') unreviewed?: string) {
-    return this.legalMatrixService.getRegulatoryChanges(this.getCompanyId(req), unreviewed === 'true');
+  @Roles('owner', 'admin', 'manager')
+  async getRegulatoryChanges(@Req() req: RequestWithUser, @Query('unreviewed') unreviewed?: string) {
+    return this.legalMatrixService.getRegulatoryChanges(req.companyId?.toString() ?? '', unreviewed === 'true');
   }
 
   @Post('regulatory-changes')
+  @Roles('owner', 'admin', 'manager')
   async createRegulatoryChange(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders,
+    @Req() req: RequestWithUser,
     @Body() body: { changeType: string; regulationCode: string; regulationName: string; previousRegulationCode?: string; description?: string; impact: string; effectiveDate: string; source?: string; url?: string },
+    @CurrentUser() user: any,
   ) {
-    if (!user) throw new UnauthorizedException();
     return this.legalMatrixService.createRegulatoryChange({
-      companyId: this.getCompanyId(req), ...body, effectiveDate: new Date(body.effectiveDate),
+      companyId: req.companyId?.toString() ?? '', ...body, effectiveDate: new Date(body.effectiveDate),
     });
   }
 
   @Patch('regulatory-changes/:id/review')
-  async markRegulatoryChangeReviewed(@CurrentUser() user: AuthenticatedUser | undefined, @Param('id') id: string) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.markRegulatoryChangeReviewed(id, user.uid);
+  @Roles('owner', 'admin', 'manager')
+  async markRegulatoryChangeReviewed(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.legalMatrixService.markRegulatoryChangeReviewed(id, user?.uid ?? '');
   }
 
   // ==================== ACTION PLAN (TAB 7) ====================
 
   @Get('action-plans')
-  async getActionPlans(@Req() req: RequestWithHeaders, @Query('requirementId') requirementId?: string) {
-    return this.legalMatrixService.getActionPlans(this.getCompanyId(req), requirementId);
+  @Roles('owner', 'admin', 'manager')
+  async getActionPlans(@Req() req: RequestWithUser, @Query('requirementId') requirementId?: string) {
+    return this.legalMatrixService.getActionPlans(req.companyId?.toString() ?? '', requirementId);
   }
 
   @Post('action-plans')
+  @Roles('owner', 'admin', 'manager')
   async createActionPlan(
-    @CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders,
+    @Req() req: RequestWithUser,
     @Body() body: { requirementId: string; title: string; description?: string; responsibleUser?: string; dueDate?: string },
+    @CurrentUser() user: any,
   ) {
-    if (!user) throw new UnauthorizedException();
     return this.legalMatrixService.createActionPlan({
-      companyId: this.getCompanyId(req),
+      companyId: req.companyId?.toString() ?? '',
       requirementId: body.requirementId,
       title: body.title,
       description: body.description,
       responsibleUser: body.responsibleUser,
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
-      createdBy: user.uid,
+      createdBy: user?.uid ?? '',
     });
   }
 
   @Patch('action-plans/:id')
+  @Roles('owner', 'admin', 'manager')
   async updateActionPlan(@Param('id') id: string, @Body() body: any) {
     return this.legalMatrixService.updateActionPlan(id, body);
   }
 
   @Post('action-plans/:id/sync')
+  @Roles('owner', 'admin', 'manager')
   async syncActionPlan(
     @Param('id') id: string,
     @Body() body: { activityId: string; activityTitle: string },
@@ -286,11 +303,13 @@ export class LegalMatrixController {
   // ==================== HISTORY (TAB 8) ====================
 
   @Get('history')
-  async getHistory(@Req() req: RequestWithHeaders, @Query('limit') limit?: string, @Query('skip') skip?: string) {
-    return this.legalMatrixService.getHistory(this.getCompanyId(req), limit ? parseInt(limit, 10) : 100, skip ? parseInt(skip, 10) : 0);
+  @Roles('owner', 'admin', 'manager')
+  async getHistory(@Req() req: RequestWithUser, @Query('limit') limit?: string, @Query('skip') skip?: string) {
+    return this.legalMatrixService.getHistory(req.companyId?.toString() ?? '', limit ? parseInt(limit, 10) : 100, skip ? parseInt(skip, 10) : 0);
   }
 
   @Get('history/:entityType/:entityId')
+  @Roles('owner', 'admin', 'manager')
   async getEntityHistory(@Param('entityType') entityType: string, @Param('entityId') entityId: string) {
     return this.legalMatrixService.getEntityHistory(entityType, entityId);
   }
@@ -298,42 +317,47 @@ export class LegalMatrixController {
   // ==================== AUTO COMPLIANCE & ALERTS ====================
 
   @Get('auto-compliance')
-  async getAutoCompliance(@CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.evaluateAutoCompliance(this.getCompanyId(req));
+  @Roles('owner', 'admin', 'manager')
+  async getAutoCompliance(@Req() req: RequestWithUser) {
+    return this.legalMatrixService.evaluateAutoCompliance(req.companyId?.toString() ?? '');
   }
 
   @Post('check-alerts')
-  async checkAlerts(@CurrentUser() user: AuthenticatedUser | undefined, @Req() req: RequestWithHeaders) {
-    if (!user) throw new UnauthorizedException();
-    return this.legalMatrixService.checkAndGenerateAlerts(this.getCompanyId(req));
+  @Roles('owner', 'admin', 'manager')
+  async checkAlerts(@Req() req: RequestWithUser) {
+    return this.legalMatrixService.checkAndGenerateAlerts(req.companyId?.toString() ?? '');
   }
 
-  // ==================== PARAM-BASED ROUTES (admin/owner direct access) ====================
+  // ==================== PARAM-BASED ROUTES (FIXED: usa tenant autenticado) ====================
 
   @Get('company/:companyId')
-  async getCompanyMatrix(@Param('companyId') companyId: string) {
-    return this.legalMatrixService.getCompanyMatrix(companyId);
+  @Roles('owner', 'admin', 'manager')
+  async getCompanyMatrix(@Req() req: RequestWithUser) {
+    // AUDIT-9: CompanyAccessGuard ya validó membresía. Se ignora el companyId de la URL.
+    return this.legalMatrixService.getCompanyMatrix(req.companyId?.toString() ?? '');
   }
 
   @Get('company/:companyId/compliance')
-  async getMatrixCompliance(@Param('companyId') companyId: string) {
-    return this.legalMatrixService.getMatrixCompliance(companyId);
+  @Roles('owner', 'admin', 'manager')
+  async getMatrixCompliance(@Req() req: RequestWithUser) {
+    return this.legalMatrixService.getMatrixCompliance(req.companyId?.toString() ?? '');
   }
 
   @Patch('company/:companyId/item/:regulationCode')
+  @Roles('owner', 'admin', 'manager')
   async updateMatrixItem(
-    @Param('companyId') companyId: string, @Param('regulationCode') regulationCode: string,
+    @Req() req: RequestWithUser, @Param('regulationCode') regulationCode: string,
     @Body() body: { status?: string; observation?: string },
   ) {
-    return this.legalMatrixService.updateMatrixItemStatus(companyId, regulationCode, (body.status as any) ?? 'PENDIENTE', body.observation);
+    return this.legalMatrixService.updateMatrixItemStatus(req.companyId?.toString() ?? '', regulationCode, (body.status as any) ?? 'PENDIENTE', body.observation);
   }
 
   @Post('company/:companyId/items')
+  @Roles('owner', 'admin', 'manager')
   async addCustomRegulation(
-    @Param('companyId') companyId: string,
+    @Req() req: RequestWithUser,
     @Body() body: { regulationCode: string; regulationName: string; description?: string },
   ) {
-    return this.legalMatrixService.addCustomRegulation(companyId, body.regulationCode, body.regulationName, body.description);
+    return this.legalMatrixService.addCustomRegulation(req.companyId?.toString() ?? '', body.regulationCode, body.regulationName, body.description);
   }
 }

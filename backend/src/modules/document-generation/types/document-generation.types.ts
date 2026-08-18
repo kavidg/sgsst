@@ -1,5 +1,5 @@
 import { Types } from 'mongoose';
-import { DocumentSourceModule } from './renderer.types';
+import { DocumentSourceModule, RendererFormat } from './renderer.types';
 
 /**
  * Tipos compartidos del Document Generation Engine.
@@ -180,6 +180,8 @@ export interface ResolvedTemplate {
   variables: string[];
   version: number;
   documentType: DocumentTemplateType;
+  /** FASE 7 — Formato de salida del documento (DOCX por defecto). */
+  format?: RendererFormat;
 }
 
 /** Solicitud de generación de una instancia documental. */

@@ -234,11 +234,122 @@ export interface CompanyAIContextConvivencia {
 }
 
 /**
+ * Resumen real de la evaluación inicial / autoevaluación (AUDIT-5).
+ *
+ * Fuente: InitialEvaluationService.findCurrent (lectura pura, sin findOrCreate:
+ * el contexto IA nunca crea datos). Agregados sin PII: solo conteos por estado.
+ */
+export interface CompanyAIContextInitialEvaluation {
+  /** true si la empresa tiene una evaluación inicial registrada. */
+  available: boolean;
+  /** Estado del dominio (Borrador / En evaluación / Aprobada / …). Null sin evaluación. */
+  status: string | null;
+  /** Cumplimiento global ponderado 0-100. 0 sin evaluación. */
+  overallCompliance: number;
+  /** Total de estándares del catálogo evaluado. */
+  totalStandards: number;
+  /** Estándares con estado evaluado (Cumple + No Cumple + No Aplica). */
+  evaluated: number;
+  /** Estándares en estado Cumple. */
+  compliant: number;
+  /** Estándares en estado No Cumple. */
+  nonCompliant: number;
+  /** Conteo de hallazgos registrados (sin contenido). */
+  findings: number;
+  /** Conteo de acciones del plan de acción (sin contenido). */
+  actionItems: number;
+}
+
+/**
+ * Indicadores agregados del dashboard real (AUDIT-5).
+ *
+ * Fuente: DashboardService.getCompanyStats (conteos reales scoped por companyId).
+ * Sin PII: solo agregados numéricos.
+ */
+export interface CompanyAIContextIndicators {
+  employees: number;
+  incidents: number;
+  trainings: number;
+  /** Cumplimiento 0-100 derivado de respuestas de evaluación (dashboard). */
+  compliance: number;
+  /** Riesgos con nivel ≥ 12 (críticos). */
+  highRisks: number;
+}
+
+/**
+ * Resumen de accidentalidad (AUDIT-5).
+ *
+ * Fuente: IncidentsService.findAll (scoped por companyId). SOLO agregados y
+ * metadatos no sensibles: nunca employeeId, nombre de empleado ni descripción.
+ */
+export interface CompanyAIContextIncidents {
+  total: number;
+  /** Incidentes con estado distinto de 'Cerrado' (sin depender del casing). */
+  open: number;
+  /** Conteos agregados por severidad. */
+  severitySummary: { severity: string; count: number }[];
+  /** Incidentes recientes (limitados): tipo, severidad, fecha y estado. */
+  recent: { type: string; severity: string; date: string | null; status: string }[];
+}
+
+/**
+ * Resumen de ausentismo (AUDIT-5).
+ *
+ * Fuente: AbsenteeismService.getCompanyStats + findAllByCompany (scoped por
+ * companyId). Sin PII: nunca userId, descripción ni soporte.
+ */
+export interface CompanyAIContextAbsenteeism {
+  total: number;
+  totalDaysLost: number;
+  averageDays: number;
+  /** Conteos por tipo (ENFERMEDAD / ACCIDENTE / PERMISO). */
+  causes: { type: string; count: number }[];
+  /** Registros recientes (limitados): tipo, fecha de inicio y días. */
+  recent: { type: string; startDate: string | null; days: number }[];
+}
+
+/**
+ * Resumen de programas / capacitaciones (AUDIT-5).
+ *
+ * Fuente: TrainingsService.findAll (scoped por companyId). Sin PII: no se
+ * incluyen instructores ni listas de asistencia.
+ */
+export interface CompanyAIContextPrograms {
+  total: number;
+  /** Capacitaciones con algún control de asistencia registrado (URL). */
+  withAttendanceControl: number;
+  /** Capacitaciones recientes (limitadas): tema y fecha. */
+  recent: { topic: string; date: string | null }[];
+}
+
+/**
+ * Resumen de inspecciones / auditorías (AUDIT-5).
+ *
+ * Fuente: InspectionsService.findAll (scoped por companyId). Sin PII: títulos
+ * y estados, sin responsables ni notas internas.
+ */
+export interface CompanyAIContextAudits {
+  total: number;
+  /** Actividades con status 'pendiente'. */
+  pending: number;
+  /** Actividades con status distinto de 'pendiente' o fecha de cierre. */
+  completed: number;
+  /** Actividades recientes (limitadas): título, estado y fecha planificada. */
+  recent: { title: string; status: string; plannedDate: string | null }[];
+}
+
+/**
  * Contexto operativo central de una empresa para los Engines IA y el futuro Copiloto.
  *
  * Se construye con datos REALES del sistema (sin información ficticia) y queda
  * preparado para que cualquier engine o el Copiloto lo consuman sin volver a
  * consultar MongoDB.
+ *
+ * AUDIT-5: se agregaron las secciones de autoevaluación, indicadores,
+ * accidentalidad, ausentismo, programas y auditorías/inspecciones reutilizando
+ * los services reales (nunca duplicando su lógica). Los dominios EPP y
+ * emergencias NO tienen módulo propio seguro en el backend: se documentan como
+ * NO DISPONIBLES (ver informe AUDIT-5) y no se inventan agregados.
  */
 export interface CompanyAIContext {
   company: CompanyAIContextCompany;
@@ -251,4 +362,16 @@ export interface CompanyAIContext {
   copasstTraining: CompanyAIContextCopasstTraining;
   /** Estado real del Comité de Convivencia Laboral (1.1.8), reutilizando el dominio. */
   convivencia: CompanyAIContextConvivencia;
+  /** Evaluación inicial / autoevaluación real (AUDIT-5). */
+  initialEvaluation: CompanyAIContextInitialEvaluation;
+  /** Indicadores agregados del dashboard real (AUDIT-5). */
+  indicators: CompanyAIContextIndicators;
+  /** Resumen de accidentalidad real (AUDIT-5). */
+  incidents: CompanyAIContextIncidents;
+  /** Resumen de ausentismo real (AUDIT-5). */
+  absenteeism: CompanyAIContextAbsenteeism;
+  /** Resumen de programas / capacitaciones real (AUDIT-5). */
+  programs: CompanyAIContextPrograms;
+  /** Resumen de inspecciones / auditorías real (AUDIT-5). */
+  audits: CompanyAIContextAudits;
 }

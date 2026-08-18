@@ -46,6 +46,7 @@ import { ComplianceActionEngineModule } from './modules/compliance-action-engine
 import { ComplianceAutomationModule } from './modules/compliance-automation/compliance-automation.module';
 import { ComplianceExecutionModule } from './modules/compliance-execution/compliance-execution.module';
 import { AiModule } from './modules/ai/ai.module';
+import { AiPipelineModule } from './modules/ai-pipeline/ai-pipeline.module';
 import { AiContextModule } from './modules/ai/context/ai-context.module';
 import { ApprovalWorkflowModule } from './modules/approval-workflow/approval-workflow.module';
 import { ComplianceAiModule } from './modules/compliance-ai/compliance-ai.module';
@@ -105,6 +106,7 @@ import { DocumentGenerationModule } from './modules/document-generation/document
     AiModule,
     AiContextModule,
     ComplianceAiModule,
+    AiPipelineModule,
     PhvaModule,
     DocumentGenerationModule,
     ApprovalWorkflowModule,

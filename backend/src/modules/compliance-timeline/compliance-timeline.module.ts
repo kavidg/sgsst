@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { ComplianceEngineModule } from '../compliance-engine/compliance-engine.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -15,14 +17,13 @@ import {
   imports: [
     AuthModule,
     MongooseModule.forFeature([
-      // Schema de User requerido por RolesGuard para validar permisos.
       { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
       { name: ComplianceTimeline.name, schema: ComplianceTimelineSchema },
     ]),
-    // Fuente única de datos: el timeline reutiliza exclusivamente el ComplianceEngine.
     ComplianceEngineModule,
   ],
   controllers: [ComplianceTimelineController],
-  providers: [ComplianceTimelineService, RolesGuard],
+  providers: [ComplianceTimelineService, RolesGuard, CompanyAccessGuard],
 })
 export class ComplianceTimelineModule {}

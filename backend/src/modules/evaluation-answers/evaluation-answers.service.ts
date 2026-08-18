@@ -18,8 +18,8 @@ export class EvaluationAnswersService {
     private readonly evaluationModel: Model<EvaluationDocument>,
   ) {}
 
-  async create(createEvaluationAnswerDto: CreateEvaluationAnswerDto): Promise<EvaluationAnswer> {
-    await this.ensureEvaluationExists(createEvaluationAnswerDto.evaluationId);
+  async create(companyId: Types.ObjectId, createEvaluationAnswerDto: CreateEvaluationAnswerDto): Promise<EvaluationAnswer> {
+    await this.ensureEvaluationExists(companyId, createEvaluationAnswerDto.evaluationId);
 
     const question = await this.findQuestionOrFail(createEvaluationAnswerDto.questionId);
     const score = createEvaluationAnswerDto.answer ? question.maxScore : 0;
@@ -32,16 +32,18 @@ export class EvaluationAnswersService {
 
     await created.save();
 
-    return this.findOne(created.id);
+    return this.findOne(companyId, created.id);
   }
 
-  async findAll(): Promise<EvaluationAnswer[]> {
-    return this.findWithQuestionData({});
+  async findAll(companyId: Types.ObjectId): Promise<EvaluationAnswer[]> {
+    const evaluationIds = await this.getEvaluationIdsForCompany(companyId);
+    return this.findWithQuestionData({ evaluationId: { $in: evaluationIds } });
   }
 
-  async findOne(id: string): Promise<EvaluationAnswer> {
+  async findOne(companyId: Types.ObjectId, id: string): Promise<EvaluationAnswer> {
+    const evaluationIds = await this.getEvaluationIdsForCompany(companyId);
     const answer = await this.evaluationAnswerModel
-      .findById(id)
+      .findOne({ _id: id, evaluationId: { $in: evaluationIds } })
       .populate({
         path: 'questionId',
         select: 'question maxScore order',
@@ -55,8 +57,11 @@ export class EvaluationAnswersService {
     return answer;
   }
 
-  async update(id: string, updateEvaluationAnswerDto: UpdateEvaluationAnswerDto): Promise<EvaluationAnswer> {
-    const existing = await this.evaluationAnswerModel.findById(id).exec();
+  async update(companyId: Types.ObjectId, id: string, updateEvaluationAnswerDto: UpdateEvaluationAnswerDto): Promise<EvaluationAnswer> {
+    const evaluationIds = await this.getEvaluationIdsForCompany(companyId);
+    const existing = await this.evaluationAnswerModel
+      .findOne({ _id: id, evaluationId: { $in: evaluationIds } })
+      .exec();
 
     if (!existing) {
       throw new NotFoundException(`Evaluation answer with id ${id} not found`);
@@ -69,7 +74,7 @@ export class EvaluationAnswersService {
       observation: updateEvaluationAnswerDto.observation ?? existing.observation,
     };
 
-    await this.ensureEvaluationExists(merged.evaluationId);
+    await this.ensureEvaluationExists(companyId, merged.evaluationId);
     const question = await this.findQuestionOrFail(merged.questionId);
 
     const updated = await this.evaluationAnswerModel
@@ -97,25 +102,28 @@ export class EvaluationAnswersService {
     return updated;
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.evaluationAnswerModel.findByIdAndDelete(id).exec();
+  async remove(companyId: Types.ObjectId, id: string): Promise<void> {
+    const evaluationIds = await this.getEvaluationIdsForCompany(companyId);
+    const result = await this.evaluationAnswerModel
+      .findOneAndDelete({ _id: id, evaluationId: { $in: evaluationIds } })
+      .exec();
 
     if (!result) {
       throw new NotFoundException(`Evaluation answer with id ${id} not found`);
     }
   }
 
-  async findByEvaluation(evaluationId: string): Promise<EvaluationAnswer[]> {
-    await this.ensureEvaluationExists(evaluationId);
+  async findByEvaluation(companyId: Types.ObjectId, evaluationId: string): Promise<EvaluationAnswer[]> {
+    await this.ensureEvaluationExists(companyId, evaluationId);
     return this.findWithQuestionData({ evaluationId: new Types.ObjectId(evaluationId) });
   }
 
-  async calculateEvaluationScore(evaluationId: string): Promise<{
+  async calculateEvaluationScore(companyId: Types.ObjectId, evaluationId: string): Promise<{
     totalScore: number;
     maxPossibleScore: number;
     percentage: number;
   }> {
-    await this.ensureEvaluationExists(evaluationId);
+    await this.ensureEvaluationExists(companyId, evaluationId);
 
     const [answersResult, questionsResult] = await Promise.all([
       this.evaluationAnswerModel
@@ -140,6 +148,14 @@ export class EvaluationAnswersService {
       maxPossibleScore,
       percentage,
     };
+  }
+
+  private async getEvaluationIdsForCompany(companyId: Types.ObjectId): Promise<Types.ObjectId[]> {
+    const evaluations = await this.evaluationModel
+      .find({ companyId })
+      .select('_id')
+      .exec();
+    return evaluations.map((e) => e._id);
   }
 
   private async findWithQuestionData(filter: Record<string, unknown>): Promise<EvaluationAnswer[]> {
@@ -179,8 +195,8 @@ export class EvaluationAnswersService {
     return question;
   }
 
-  private async ensureEvaluationExists(evaluationId: string): Promise<void> {
-    const evaluation = await this.evaluationModel.exists({ _id: evaluationId }).exec();
+  private async ensureEvaluationExists(companyId: Types.ObjectId, evaluationId: string): Promise<void> {
+    const evaluation = await this.evaluationModel.exists({ _id: evaluationId, companyId }).exec();
 
     if (!evaluation) {
       throw new NotFoundException(`Evaluation with id ${evaluationId} not found`);

@@ -1,34 +1,30 @@
-import { BadRequestException, Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
-import { Types } from 'mongoose';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
+import { RequestWithUser } from '../auth/auth.types';
 import { ComplianceExecutionService } from './compliance-execution.service';
 import { ExecuteAutomationDto } from './dto/execute-automation.dto';
 import { ExecutionResultDto } from './dto/execution-result.dto';
 
 @Controller('compliance-execution')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class ComplianceExecutionController {
   constructor(private readonly complianceExecutionService: ComplianceExecutionService) {}
 
   /**
    * Ejecuta una automatización READY para una empresa.
    *
-   * Flujo: validar → construir ExecutionPlan → ejecutar paso a paso
-   * (patrón Strategy) → guardar historial → retornar ExecutionResult.
+   * AUDIT-13: Migrado de @Param('companyId') a request.companyId.
    */
-  @Post('company/:companyId/execute')
+  @Post('execute')
   @Roles('owner', 'admin', 'manager')
   async execute(
-    @Param('companyId') companyId: string,
+    @Req() request: RequestWithUser,
     @Body() body: ExecuteAutomationDto,
   ): Promise<ExecutionResultDto> {
-    if (!Types.ObjectId.isValid(companyId)) {
-      throw new BadRequestException('Invalid companyId');
-    }
-
-    // El companyId del path es la fuente autoritativa; se fusiona con el body.
+    const companyId = request.companyId?.toString() ?? '';
     return this.complianceExecutionService.execute({ ...body, companyId });
   }
 }

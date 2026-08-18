@@ -1,74 +1,80 @@
-import { Controller, Post, Get, Patch, Body, Param, Headers, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Req, UseGuards } from '@nestjs/common';
 import { ImplementationWizardService } from './implementation-wizard.service';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
+import { Roles } from '../questions/roles.decorator';
+import { RolesGuard } from '../questions/roles.guard';
 import { Types } from 'mongoose';
+import { RequestWithUser } from '../auth/auth.types';
 
 @Controller('implementation-wizard')
-@UseGuards(FirebaseAuthGuard, CompanyAccessGuard)
+@UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class ImplementationWizardController {
   constructor(private readonly wizardService: ImplementationWizardService) {}
 
-  private parseCompanyId(headers: Record<string, string>): Types.ObjectId {
-    return new Types.ObjectId(headers['x-company-id']);
+  private parseCompanyId(request: RequestWithUser): Types.ObjectId {
+    // AUDIT-9: CompanyAccessGuard ya validó membresía y seteó request.companyId.
+    if (!request.companyId) throw new Error('Company ID no encontrado');
+    return request.companyId;
   }
 
   @Get()
-  async getWizard(@Headers() headers: Record<string, string>) {
-    return this.wizardService.getWizard(this.parseCompanyId(headers));
+  @Roles('owner', 'admin', 'manager')
+  async getWizard(@Req() request: RequestWithUser) {
+    return this.wizardService.getWizard(this.parseCompanyId(request));
   }
 
-  /**
-   * Overview del Centro de Implementación construido por el
-   * Implementation Validator Engine (DTO propio, sin schemas Mongo).
-   *
-   * Ejecuta la auto-validación real si la última ejecución supera el TTL
-   * de 5 minutos y siempre responde con datos actualizados.
-   */
   @Get('overview')
-  async getOverview(@Headers() headers: Record<string, string>) {
-    return this.wizardService.getOverview(this.parseCompanyId(headers));
+  @Roles('owner', 'admin', 'manager')
+  async getOverview(@Req() request: RequestWithUser) {
+    return this.wizardService.getOverview(this.parseCompanyId(request));
   }
 
   @Get('dashboard')
-  async getDashboard(@Headers() headers: Record<string, string>) {
-    return this.wizardService.getDashboardMetrics(this.parseCompanyId(headers));
+  @Roles('owner', 'admin', 'manager')
+  async getDashboard(@Req() request: RequestWithUser) {
+    return this.wizardService.getDashboardMetrics(this.parseCompanyId(request));
   }
 
   @Patch('step/:stepId')
+  @Roles('owner', 'admin', 'manager')
   async validateStep(
     @Param('stepId') stepId: string,
     @Body() body: { score: number; status: string; details?: string },
-    @Headers() headers: Record<string, string>,
+    @Req() request: RequestWithUser,
   ) {
     return this.wizardService.updateStepStatus(
-      this.parseCompanyId(headers),
+      this.parseCompanyId(request),
       stepId as any,
       body.status as any,
-      headers['x-user-id'] || 'system',
-      headers['x-user-email'],
+      request.user?._id ?? request.user?.uid ?? 'system',
+      request.user?.email,
     );
   }
 
   @Post('auto-validate')
-  async autoValidate(@Headers() headers: Record<string, string>) {
-    return this.wizardService.validateImplementation(this.parseCompanyId(headers));
+  @Roles('owner', 'admin', 'manager')
+  async autoValidate(@Req() request: RequestWithUser) {
+    return this.wizardService.validateImplementation(this.parseCompanyId(request));
   }
 
   @Post('complete-onboarding')
-  async completeOnboarding(@Headers() headers: Record<string, string>) {
-    return this.wizardService.completeOnboarding(this.parseCompanyId(headers));
+  @Roles('owner', 'admin', 'manager')
+  async completeOnboarding(@Req() request: RequestWithUser) {
+    return this.wizardService.completeOnboarding(this.parseCompanyId(request));
   }
 
   @Post('generate-certificate')
-  async generateCertificate(@Headers() headers: Record<string, string>) {
+  @Roles('owner', 'admin', 'manager')
+  async generateCertificate(@Req() request: RequestWithUser) {
     return this.wizardService.generateCertificate(
-      this.parseCompanyId(headers),
-      new Types.ObjectId(headers['x-user-id'] || '000000000000000000000000'),
+      this.parseCompanyId(request),
+      new Types.ObjectId(request.user?._id ?? '000000000000000000000000'),
     );
   }
 
   @Get('module-route/:stepId')
+  @Roles('owner', 'admin', 'manager')
   getModuleRoute(@Param('stepId') stepId: string) {
     return { route: this.wizardService.getStepModuleRoute(stepId as any) };
   }

@@ -96,11 +96,13 @@ export class DocumentGenerationService {
     const template = await this.templateSourceService.getTemplate(request.templateId, request.companyId);
 
     const variables = this.variableResolverService.resolve(template.variables, request.context);
-    const rendered = await this.rendererService.renderDocument(RendererFormat.DOCX, template, variables);
+    // FASE 7 — PDF: el formato se toma de la plantilla (DOCX por defecto para retrocompatibilidad).
+    const format = template.format ?? RendererFormat.DOCX;
+    const rendered = await this.rendererService.renderDocument(format, template, variables);
 
     const upload = await this.storageService.upload(
       rendered,
-      this.buildFileName(template.name, RendererFormat.DOCX),
+      this.buildFileName(template.name, format),
       `document-generation/${request.companyId.toString()}`,
     );
 
@@ -117,7 +119,7 @@ export class DocumentGenerationService {
         // cliente. Ausente → undefined (sin inventar códigos).
         documentCode: this.resolveDocumentCode(request.context),
         status: DocumentStatus.GENERATED,
-        format: RendererFormat.DOCX,
+        format,
         fileUrl: upload.fileUrl,
         storagePath: upload.storagePath,
         version: template.version,

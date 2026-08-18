@@ -7,10 +7,20 @@
     "sourceMap": false,
     "declaration": false
   },
-  "include": ["src/modules/ai/**/*.ts", "src/modules/phva/**/*.ts", "src/modules/phva-advanced/**/*.ts", "src/modules/compliance-ai/**/*.ts", "src/modules/compliance-engine/**/*.ts", "src/modules/approval-workflow/**/*.ts", "src/modules/document-generation/**/*.ts", "src/modules/document-management/**/*.ts", "src/modules/templates/**/*.ts", "src/modules/implementation-validator/**/*.ts", "src/modules/implementation-wizard/**/*.ts", "src/modules/implementation-priority/**/*.ts", "src/modules/standard-catalog/**/*.ts",    "src/modules/initial-evaluation/**/*.ts",
+  "include": ["src/modules/ai/**/*.ts", "src/modules/phva/**/*.ts", "src/modules/phva-advanced/**/*.ts",    "src/modules/compliance-ai/**/*.ts",
+    "src/modules/ai-pipeline/**/*.ts", "src/modules/compliance-engine/**/*.ts", "src/modules/approval-workflow/**/*.ts", "src/modules/document-generation/**/*.ts", "src/modules/document-management/**/*.ts", "src/modules/templates/**/*.ts", "src/modules/implementation-validator/**/*.ts", "src/modules/implementation-wizard/**/*.ts", "src/modules/implementation-priority/**/*.ts", "src/modules/standard-catalog/**/*.ts",    "src/modules/initial-evaluation/**/*.ts",
     "src/modules/copasst/**/*.ts",
     "src/modules/convivencia/**/*.ts",
     "src/modules/otp-rate-limit/**/*.ts",
-    "src/modules/otp-challenge/**/*.ts"
+    "src/modules/otp-challenge/**/*.ts",
+    "src/modules/annual-work-plan/**/*.ts",
+    "src/modules/compliance-action-engine/**/*.ts",
+    "src/modules/compliance-automation/**/*.ts",
+    "src/modules/company-profile/**/*.ts",
+    "src/modules/communication/**/*.ts",
+    "src/modules/legal-matrix/**/*.ts",
+    "src/modules/responsibility-matrix/**/*.ts",
+    "src/modules/ai-pipeline/**/*.ts",
+    "src/modules/tenant-isolation-regression.spec.ts"
   ]
 }

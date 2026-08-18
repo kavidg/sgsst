@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { ImplementationWizardModule } from '../implementation-wizard/implementation-wizard.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -18,11 +20,13 @@ import { ImplementationPriorityService } from './implementation-priority.service
   imports: [
     AuthModule,
     ImplementationWizardModule,
-    // Schema de User requerido por RolesGuard para validar permisos.
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
+    ]),
   ],
   controllers: [ImplementationPriorityController],
-  providers: [ImplementationPriorityService, RolesGuard],
+  providers: [ImplementationPriorityService, RolesGuard, CompanyAccessGuard],
   exports: [ImplementationPriorityService],
 })
 export class ImplementationPriorityModule {}

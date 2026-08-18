@@ -3,6 +3,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AlertsModule } from '../alerts/alerts.module';
 import { AnnualWorkPlanModule } from '../annual-work-plan/annual-work-plan.module';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { DashboardModule } from '../dashboard/dashboard.module';
 import { DocumentManagementModule } from '../document-management/document-management.module';
 import { InitialEvaluationModule } from '../initial-evaluation/initial-evaluation.module';
@@ -15,20 +17,19 @@ import { ExecutionHistory, ExecutionHistorySchema } from './schemas/execution-hi
 @Module({
   imports: [
     AuthModule,
-    // Servicios existentes reutilizados por los ejecutores de pasos.
     AnnualWorkPlanModule,
     AlertsModule,
     DocumentManagementModule,
     DashboardModule,
     InitialEvaluationModule,
-    // Schema de User requerido por RolesGuard + resolución del ejecutor.
     MongooseModule.forFeature([
       { name: ExecutionHistory.name, schema: ExecutionHistorySchema },
       { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),
   ],
   controllers: [ComplianceExecutionController],
-  providers: [ComplianceExecutionService, RolesGuard],
+  providers: [ComplianceExecutionService, RolesGuard, CompanyAccessGuard],
   exports: [ComplianceExecutionService],
 })
 export class ComplianceExecutionModule {}

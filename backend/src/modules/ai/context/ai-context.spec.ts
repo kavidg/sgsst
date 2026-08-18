@@ -3,15 +3,22 @@ import { describe, it } from 'node:test';
 import { Model } from 'mongoose';
 import { NotFoundException } from '@nestjs/common';
 
+import { AbsenteeismService } from '../../absenteeism/absenteeism.service';
 import { ActivityStatus } from '../../annual-work-plan/schemas/plan-activity.schema';
 import { AnnualWorkPlanService } from '../../annual-work-plan/services/annual-work-plan.service';
 import { Company, CompanyDocument } from '../../companies/schemas/company.schema';
 import { ComplianceEngineService } from '../../compliance-engine/compliance-engine.service';
 import { ConvivenciaService } from '../../convivencia/convivencia.service';
+import { DashboardService } from '../../dashboard/dashboard.service';
 import { DocumentStatus } from '../../document-management/schemas/document-master.schema';
 import { DocumentMasterService } from '../../document-management/services/document-master.service';
+import { IncidentsService } from '../../incidents/incidents.service';
+import { InitialEvaluationService } from '../../initial-evaluation/initial-evaluation.service';
+import { StandardEvaluationStatus } from '../../initial-evaluation/schemas/initial-evaluation.schema';
+import { InspectionsService } from '../../inspections/inspections.service';
 import { PhvaAnalysisService } from '../../phva/phva-analysis.service';
 import { PhvaAdvancedCopasstTrainingService } from '../../phva-advanced/phva-advanced-copasst-training.service';
+import { TrainingsService } from '../../trainings/trainings.service';
 import { AiContextService } from './ai-context.service';
 
 /** ObjectId válido de MongoDB para las pruebas. */
@@ -43,7 +50,28 @@ function buildService(overrides?: {
   activities?: unknown[];
   copasstTraining?: { record?: unknown; coverage?: unknown };
   convivencia?: { snapshot?: unknown; period?: unknown };
+  // AUDIT-5: dominios operativos (cada stub registra la llamada para
+  // verificar que recibe el companyId autorizado).
+  initialEvaluation?: unknown;
+  indicators?: unknown;
+  incidents?: unknown[];
+  absenteeism?: { stats?: unknown; records?: unknown[] };
+  programs?: unknown[];
+  audits?: unknown[];
 }): AiContextService {
+  return buildServiceWithCalls(overrides);
+}
+
+/**
+ * Variante de buildService que expone el registro de llamadas de los providers
+ * (para TENANT-AUDIT5-04: todos deben recibir el companyId autorizado).
+ * Un array compartido es más robusto que adjuntar estado a la función.
+ */
+function buildServiceWithCalls(
+  overrides?: Parameters<typeof buildService>[0],
+): AiContextService {
+  // AUDIT-5: registro de los companyId que recibe cada provider.
+  const providerCalls: Array<{ provider: string; companyId: string }> = [];
   const companyModel = {
     // Sin async: findById() debe devolver el objeto encadenable (Query) para .exec().
     findById: () => ({ exec: async () => overrides?.company ?? null }),
@@ -79,8 +107,56 @@ function buildService(overrides?: {
       return overrides.convivencia.period;
     },
   } as unknown as ConvivenciaService;
+  // ── AUDIT-5: stubs de los dominios operativos (reutilizan los mismos
+  // métodos reales que consume AiContextService, registrando la llamada).
+  const initialEvaluationService = {
+    findCurrent: async (companyId: { toString(): string }) => {
+      providerCalls.push({ provider: 'initialEvaluation', companyId: companyId.toString() });
+      return overrides?.initialEvaluation ?? null;
+    },
+  } as unknown as InitialEvaluationService;
+  const dashboardService = {
+    getCompanyStats: async (companyId: { toString(): string }) => {
+      providerCalls.push({ provider: 'indicators', companyId: companyId.toString() });
+      return overrides?.indicators ?? null;
+    },
+  } as unknown as DashboardService;
+  const incidentsService = {
+    findAll: async (companyId: { toString(): string }) => {
+      providerCalls.push({ provider: 'incidents', companyId: companyId.toString() });
+      return overrides?.incidents ?? [];
+    },
+  } as unknown as IncidentsService;
+  const absenteeismService = {
+    getCompanyStats: async (companyId: string) => {
+      providerCalls.push({ provider: 'absenteeism.stats', companyId });
+      return (
+        overrides?.absenteeism?.stats ?? {
+          totalDiasPerdidos: 0,
+          totalCasos: 0,
+          promedioDias: 0,
+        }
+      );
+    },
+    findAllByCompany: async (companyId: string) => {
+      providerCalls.push({ provider: 'absenteeism.records', companyId });
+      return overrides?.absenteeism?.records ?? [];
+    },
+  } as unknown as AbsenteeismService;
+  const trainingsService = {
+    findAll: async (companyId: { toString(): string }) => {
+      providerCalls.push({ provider: 'programs', companyId: companyId.toString() });
+      return overrides?.programs ?? [];
+    },
+  } as unknown as TrainingsService;
+  const inspectionsService = {
+    findAll: async (companyId: { toString(): string }) => {
+      providerCalls.push({ provider: 'audits', companyId: companyId.toString() });
+      return overrides?.audits ?? [];
+    },
+  } as unknown as InspectionsService;
 
-  return new AiContextService(
+  const service = new AiContextService(
     companyModel,
     complianceEngineService,
     phvaAnalysisService,
@@ -88,7 +164,16 @@ function buildService(overrides?: {
     annualWorkPlanService,
     copasstTrainingService,
     convivenciaService,
+    initialEvaluationService,
+    dashboardService,
+    incidentsService,
+    absenteeismService,
+    trainingsService,
+    inspectionsService,
   );
+  // Expone el registro de llamadas para el test de tenant (TENANT-AUDIT5-04).
+  (service as unknown as { __audit5Calls?: typeof providerCalls }).__audit5Calls = providerCalls;
+  return service;
 }
 
 describe('AiContextService.buildCompanyContext', () => {
@@ -388,6 +473,15 @@ describe('AiContextService.buildCompanyContext', () => {
       { findCurrent: async () => null, getActivities: async () => [] } as unknown as AnnualWorkPlanService,
       copasstTrainingService,
       { getComplianceSnapshot: async () => { throw noPeriodError(); }, findCurrent: async () => { throw noPeriodError(); } } as unknown as ConvivenciaService,
+      { findCurrent: async () => null } as unknown as InitialEvaluationService,
+      { getCompanyStats: async () => null } as unknown as DashboardService,
+      { findAll: async () => [] } as unknown as IncidentsService,
+      {
+        getCompanyStats: async () => ({ totalDiasPerdidos: 0, totalCasos: 0, promedioDias: 0 }),
+        findAllByCompany: async () => [],
+      } as unknown as AbsenteeismService,
+      { findAll: async () => [] } as unknown as TrainingsService,
+      { findAll: async () => [] } as unknown as InspectionsService,
     );
 
     const contextA = await service.buildCompanyContext(COMPANY_ID);
@@ -470,6 +564,15 @@ describe('AiContextService.buildCompanyContext', () => {
       annualWorkPlanService,
       copasstTrainingService,
       convivenciaService,
+      { findCurrent: async () => null } as unknown as InitialEvaluationService,
+      { getCompanyStats: async () => null } as unknown as DashboardService,
+      { findAll: async () => [] } as unknown as IncidentsService,
+      {
+        getCompanyStats: async () => ({ totalDiasPerdidos: 0, totalCasos: 0, promedioDias: 0 }),
+        findAllByCompany: async () => [],
+      } as unknown as AbsenteeismService,
+      { findAll: async () => [] } as unknown as TrainingsService,
+      { findAll: async () => [] } as unknown as InspectionsService,
     );
 
     const context = await service.buildCompanyContext(COMPANY_ID);
@@ -716,6 +819,15 @@ describe('AiContextService.buildCompanyContext', () => {
       { findCurrent: async () => null, getActivities: async () => [] } as unknown as AnnualWorkPlanService,
       { findByCompany: async () => null, calculateCoverage: async () => DEFAULT_COVERAGE, isSessionExecuted: stubIsSessionExecuted } as unknown as PhvaAdvancedCopasstTrainingService,
       convivenciaService,
+      { findCurrent: async () => null } as unknown as InitialEvaluationService,
+      { getCompanyStats: async () => null } as unknown as DashboardService,
+      { findAll: async () => [] } as unknown as IncidentsService,
+      {
+        getCompanyStats: async () => ({ totalDiasPerdidos: 0, totalCasos: 0, promedioDias: 0 }),
+        findAllByCompany: async () => [],
+      } as unknown as AbsenteeismService,
+      { findAll: async () => [] } as unknown as TrainingsService,
+      { findAll: async () => [] } as unknown as InspectionsService,
     );
 
     const contextA = await service.buildCompanyContext(companyA);
@@ -881,5 +993,313 @@ describe('AiContextService.buildCompanyContext', () => {
     // Los conteos reales sí se reflejan (son datos del periodo, no cumplimiento).
     assert.equal(context.convivencia.memberCount, 1);
     assert.equal(context.convivencia.completedMeetingCount, 1);
+  });
+
+  // ═════════════════════════════════════════════
+  // AUDIT-5 — CONTEXT-AUDIT5
+  // Dominios operativos: initialEvaluation, indicators, incidents,
+  // absenteeism, programs, audits (datos REALES del tenant, agregados sin PII).
+  // ═════════════════════════════════════════════
+  it('CONTEXT-AUDIT5-01 — autoevaluación: agregados reales (status, cumplimiento, estándares, hallazgos, acciones)', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '21' },
+      initialEvaluation: {
+        status: 'COMPLETED',
+        overallCompliance: 72,
+        standards: [
+          { status: StandardEvaluationStatus.COMPLIES },
+          { status: StandardEvaluationStatus.DOES_NOT_COMPLY },
+          { status: StandardEvaluationStatus.COMPLIES },
+        ],
+        findings: [{ id: 'f1' }, { id: 'f2' }],
+        actionPlan: [{ id: 'a1' }],
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.initialEvaluation.available, true);
+    assert.equal(context.initialEvaluation.status, 'COMPLETED');
+    assert.equal(context.initialEvaluation.overallCompliance, 72);
+    assert.equal(context.initialEvaluation.totalStandards, 3);
+    assert.equal(context.initialEvaluation.compliant, 2);
+    assert.equal(context.initialEvaluation.nonCompliant, 1);
+    assert.equal(context.initialEvaluation.findings, 2);
+    assert.equal(context.initialEvaluation.actionItems, 1);
+  });
+
+  it('CONTEXT-AUDIT5-02 — indicadores: agregados reales del dashboard', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      indicators: { employees: 42, incidents: 3, trainings: 8, compliance: 81, highRisks: 2 },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.indicators.employees, 42);
+    assert.equal(context.indicators.incidents, 3);
+    assert.equal(context.indicators.trainings, 8);
+    assert.equal(context.indicators.compliance, 81);
+    assert.equal(context.indicators.highRisks, 2);
+  });
+
+  it('CONTEXT-AUDIT5-03 — accidentalidad: agregados sin PII (nunca employeeId ni descripción)', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      incidents: [
+        { type: 'Leve', severity: 'Baja', status: 'Abierto', date: new Date('2026-08-01') },
+        { type: 'Grave', severity: 'Alta', status: 'Abierto', date: new Date('2026-08-05') },
+        { type: 'Leve', severity: 'Baja', status: 'Cerrado', date: new Date('2026-07-01') },
+      ],
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+    const serialized = JSON.stringify(context.incidents);
+
+    assert.equal(context.incidents.total, 3);
+    assert.equal(context.incidents.open, 2);
+    assert.deepEqual(context.incidents.severitySummary, [
+      { severity: 'Baja', count: 2 },
+      { severity: 'Alta', count: 1 },
+    ]);
+    assert.equal(context.incidents.recent.length, 3);
+    assert.ok(!serialized.includes('employeeId'));
+    assert.ok(!serialized.includes('descripcion'));
+  });
+
+  it('CONTEXT-AUDIT5-04 — ausentismo: agregados reales (días, casos, causas) sin PII', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      absenteeism: {
+        stats: { totalDiasPerdidos: 15, totalCasos: 4, promedioDias: 3.75 },
+        records: [
+          { tipo: 'Enfermedad general', fechaInicio: new Date('2026-08-01'), dias: 5 },
+          { tipo: 'Accidente laboral', fechaInicio: new Date('2026-08-02'), dias: 10 },
+        ],
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+    const serialized = JSON.stringify(context.absenteeism);
+
+    assert.equal(context.absenteeism.total, 4);
+    assert.equal(context.absenteeism.totalDaysLost, 15);
+    assert.equal(context.absenteeism.averageDays, 3.75);
+    assert.deepEqual(context.absenteeism.causes, [
+      { type: 'Enfermedad general', count: 1 },
+      { type: 'Accidente laboral', count: 1 },
+    ]);
+    assert.ok(!serialized.includes('userId'));
+    assert.ok(!serialized.includes('soporte'));
+  });
+
+  it('CONTEXT-AUDIT5-05 — programas: conteos y temas sin instructores ni listas de asistencia', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '21' },
+      programs: [
+        { topic: 'Trabajo en alturas', date: new Date('2026-08-01') },
+        {
+          topic: 'Primeros auxilios',
+          date: new Date('2026-08-10'),
+          attendanceControl: { initialListUrl: 'https://x/lista' },
+        },
+        { topic: 'Manejo de extintores' },
+      ],
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+    const serialized = JSON.stringify(context.programs);
+
+    assert.equal(context.programs.total, 3);
+    assert.equal(context.programs.withAttendanceControl, 1);
+    assert.equal(context.programs.recent.length, 3);
+    assert.ok(!serialized.includes('instructor'));
+    assert.ok(!serialized.includes('initialListUrl'));
+  });
+
+  it('CONTEXT-AUDIT5-06 — auditorías: títulos y estados sin responsables ni notas', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      audits: [
+        { title: 'Auditoría interna', status: 'pendiente', plannedDate: new Date('2026-09-01') },
+        {
+          title: 'Inspección instalaciones',
+          status: 'completada',
+          plannedDate: new Date('2026-07-01'),
+          completedDate: new Date('2026-07-15'),
+        },
+      ],
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+    const serialized = JSON.stringify(context.audits);
+
+    assert.equal(context.audits.total, 2);
+    assert.equal(context.audits.pending, 1);
+    assert.equal(context.audits.completed, 1);
+    assert.equal(context.audits.recent.length, 2);
+    assert.ok(!serialized.includes('responsable'));
+  });
+
+  it('CONTEXT-AUDIT5-07 — dominios sin datos: resumen vacío consistente (no rompe el contexto)', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Nueva', standardsType: '7' },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.deepEqual(context.initialEvaluation, {
+      available: false,
+      status: null,
+      overallCompliance: 0,
+      totalStandards: 0,
+      evaluated: 0,
+      compliant: 0,
+      nonCompliant: 0,
+      findings: 0,
+      actionItems: 0,
+    });
+    assert.deepEqual(context.indicators, {
+      employees: 0,
+      incidents: 0,
+      trainings: 0,
+      compliance: 0,
+      highRisks: 0,
+    });
+    assert.equal(context.incidents.total, 0);
+    assert.deepEqual(context.incidents.recent, []);
+    assert.deepEqual(context.absenteeism, {
+      total: 0,
+      totalDaysLost: 0,
+      averageDays: 0,
+      causes: [],
+      recent: [],
+    });
+    assert.equal(context.programs.total, 0);
+    assert.equal(context.audits.total, 0);
+  });
+
+  it('CONTEXT-AUDIT5-08 — un módulo caído (excepción) no rompe el contexto: sección con valores por defecto', async () => {
+    // incidentes lanza → el safe getter lo tolera con []. Los demás dominios
+    // siguen funcionando con sus datos reales.
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '21' },
+      incidents: [] as unknown[],
+      programs: [{ topic: 'Curso', date: new Date('2026-08-01') }],
+    });
+    // Fuerza el fallo del módulo de incidentes sobrescribiendo el stub.
+    (service as unknown as { incidentsService: { findAll: () => Promise<never> } }).incidentsService.findAll =
+      async () => {
+        throw new Error('módulo caído');
+      };
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.incidents.total, 0);
+    assert.deepEqual(context.incidents.recent, []);
+    // El resto del contexto sigue intacto.
+    assert.equal(context.programs.total, 1);
+    assert.equal(context.company.name, 'Empresa Demo');
+  });
+
+  it('TENANT-AUDIT5-04 — cada provider recibe el companyId autorizado (nunca uno del DTO/body/header)', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa A', standardsType: '21' },
+      initialEvaluation: { status: 'COMPLETED', overallCompliance: 50, standards: [], findings: [], actionPlan: [] },
+      indicators: { employees: 1, incidents: 0, trainings: 0, compliance: 50, highRisks: 0 },
+      incidents: [],
+      absenteeism: { stats: { totalDiasPerdidos: 0, totalCasos: 0, promedioDias: 0 }, records: [] },
+      programs: [],
+      audits: [],
+    });
+
+    await service.buildCompanyContext(COMPANY_ID);
+
+    const calls = (service as unknown as {
+      __audit5Calls: Array<{ provider: string; companyId: string }>;
+    }).__audit5Calls;
+    assert.ok(calls.length > 0);
+    const providers = ['initialEvaluation', 'indicators', 'incidents', 'absenteeism.stats', 'absenteeism.records', 'programs', 'audits'];
+    const seen = new Set(calls.map((call) => call.provider));
+    for (const provider of providers) {
+      assert.ok(seen.has(provider), `provider ${provider} debe ser consultado`);
+    }
+    // TODAS las llamadas usan el companyId autorizado (COMPANY_ID).
+    for (const call of calls) {
+      assert.equal(call.companyId, COMPANY_ID, `${call.provider} debe recibir el companyId autorizado`);
+    }
+  });
+
+  it('PRIVACY-AUDIT5-01 — el contexto extendido no expone secretos, tokens, OTP ni PII (otp/password/token/phone)', async () => {
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '60' },
+      initialEvaluation: {
+        status: 'COMPLETED',
+        overallCompliance: 70,
+        standards: [{ status: StandardEvaluationStatus.COMPLIES }],
+        findings: [{ secret: 'HALLAZGO-CONFIDENCIAL' }],
+        actionPlan: [{ secret: 'ACCION-CONFIDENCIAL' }],
+      },
+      indicators: { employees: 5, incidents: 1, trainings: 1, compliance: 70, highRisks: 0 },
+      incidents: [
+        {
+          type: 'Leve',
+          severity: 'Baja',
+          status: 'Abierto',
+          employeeId: 'EMP-SECRETO',
+          description: 'DESCRIPCION-SENSIBLE',
+          phone: '3001234567',
+        },
+      ],
+      absenteeism: {
+        stats: { totalDiasPerdidos: 2, totalCasos: 1, promedioDias: 2 },
+        records: [{ tipo: 'Enfermedad', fechaInicio: new Date('2026-08-01'), dias: 2, userId: 'USR-SECRETO', soporte: 'SOPORTE-SENSIBLE' }],
+      },
+      programs: [
+        { topic: 'Curso', instructor: 'INSTRUCTOR-SECRETO', attendanceControl: { finalListUrl: 'https://x/lista' } },
+      ],
+      audits: [{ title: 'Auditoría', status: 'pendiente', responsable: 'RESPONSABLE-SECRETO', notes: 'NOTA-SENSIBLE' }],
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+    const serialized = JSON.stringify(context);
+
+    // Sin secretos, tokens, OTP, teléfonos ni PII en NINGÚN dominio.
+    assert.ok(!serialized.includes('SECRETO'));
+    assert.ok(!serialized.includes('SENSIBLE'));
+    assert.ok(!serialized.includes('otp'));
+    assert.ok(!serialized.includes('password'));
+    assert.ok(!serialized.includes('token'));
+    assert.ok(!serialized.includes('3001234567'));
+    assert.ok(!serialized.includes('https://'));
+    assert.ok(!serialized.includes('USR-'));
+  });
+
+  it('REGRESSION-AUDIT5-01 — los dominios originales del contexto (compliance, phva, documentos, actividades, copasst, convivencia) siguen funcionando con datos reales', async () => {
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const service = buildService({
+      company: { _id: COMPANY_ID, name: 'Empresa Demo', standardsType: '21' },
+      overview: { overallCompliance: 80, findings: [{ title: 'F1' }], recommendations: [{ title: 'R1' }] },
+      phva: { overall: 80, planear: { percentage: 70, pending: [] }, hacer: { percentage: 80, pending: [] }, verificar: { percentage: 90, pending: [] }, actuar: { percentage: 60, pending: [] } },
+      documents: [{ name: 'Política', status: DocumentStatus.ACTIVE, expirationDate: future }],
+      activities: [{ title: 'A1', status: ActivityStatus.PENDING }],
+      copasstTraining: {
+        record: { itemCode: '1.1.7', year: 2026, complianceStatus: 'COMPLIES', sessions: [], memberCoverage: [], evaluationAttempts: [], evidences: [] },
+        coverage: { totalMembers: 1, trainedMembers: 1, coveragePercentage: 100, executedSessions: 1 },
+      },
+      convivencia: {
+        snapshot: buildSnapshot({ complianceStatus: 'COMPLIES', percentage: 100 }),
+        period: PERIOD_COMPLIES,
+      },
+    });
+
+    const context = await service.buildCompanyContext(COMPANY_ID);
+
+    assert.equal(context.compliance.overallCompliance, 80);
+    assert.equal(context.phva.overall, 80);
+    assert.equal(context.documents.total, 1);
+    assert.equal(context.activities.total, 1);
+    assert.equal(context.copasstTraining.complianceStatus, 'COMPLIES');
+    assert.equal(context.convivencia.complianceStatus, 'COMPLIES');
   });
 });

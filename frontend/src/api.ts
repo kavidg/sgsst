@@ -406,12 +406,10 @@ interface UpdateEvaluationPayload {
 }
 
 function withCompanyHeader(headers: HeadersInit = {}): HeadersInit {
-  const companyId = localStorage.getItem(ACTIVE_COMPANY_STORAGE_KEY);
-
-  return {
-    ...headers,
-    ...(companyId ? { 'x-company-id': companyId } : {}),
-  };
+  // AUDIT-16: x-company-id header removed — backend uses CompanyAccessGuard
+  // + request.companyId for tenant isolation. This function now only passes
+  // through the provided headers without injecting tenant headers.
+  return { ...headers };
 }
 
 async function apiFetch<T>(path: string, token: string, init?: RequestInit): Promise<T> {
@@ -880,9 +878,11 @@ export function fetchInspectionActivities(token: string) {
   return apiFetch<InspectionActivityModel[]>('/inspections/activities', token, { method: 'GET' });
 }
 
-export function fetchAlertsByCompany(token: string, companyId: string, userId?: string) {
+export function fetchAlertsByCompany(token: string, _companyId: string, userId?: string) {
+  // AUDIT-16: URL simplified — backend uses CompanyAccessGuard + request.companyId.
+  // _companyId param kept for API compatibility (callers may still pass it).
   const query = userId ? `?userId=${encodeURIComponent(userId)}` : '';
-  return apiFetch<AlertModel[]>(`/alerts/company/${companyId}${query}`, token, { method: 'GET' });
+  return apiFetch<AlertModel[]>(`/alerts${query}`, token, { method: 'GET' });
 }
 
 export function markAlertAsRead(token: string, id: string) {
@@ -3458,7 +3458,10 @@ export interface PriorityItemModel {
   actionType?: string;
 }
 
-/** Respuesta de GET /implementation-priority/company/:companyId/priorities. */
+/**
+ * Respuesta de GET /implementation-priority/priorities.
+ * AUDIT-16: URL simplified — backend uses CompanyAccessGuard + request.companyId.
+ */
 export interface PriorityOverviewModel {
   companyId: string;
   generatedAt: string;
@@ -3481,12 +3484,13 @@ export interface PriorityOverviewModel {
  * GET /implementation-priority/company/:companyId/priorities
  */
 export function fetchImplementationPriorities(token: string) {
+  // AUDIT-16: URL simplified — backend uses CompanyAccessGuard + request.companyId.
   const companyId = getActiveCompanyId();
   if (!companyId) {
     return Promise.reject(new Error('No hay empresa activa'));
   }
   return apiFetch<PriorityOverviewModel>(
-    `/implementation-priority/company/${companyId}/priorities`,
+    '/implementation-priority/priorities',
     token,
     { method: 'GET' },
   );

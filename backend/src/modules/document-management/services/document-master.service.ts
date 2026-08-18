@@ -149,9 +149,13 @@ export class DocumentMasterService {
       .exec();
   }
 
-  async findById(id: Types.ObjectId): Promise<DocumentMaster> {
+  async findById(id: Types.ObjectId, companyId?: Types.ObjectId): Promise<DocumentMaster> {
+    const query: Record<string, unknown> = { _id: id };
+    if (companyId) {
+      query.companyId = companyId;
+    }
     const doc = await this.documentModel
-      .findById(id)
+      .findOne(query)
       .populate('ownerUser', 'name email')
       .populate('approvalUser', 'name email')
       .exec();

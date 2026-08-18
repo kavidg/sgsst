@@ -35,15 +35,17 @@ export class AbsenteeismService {
       .exec();
   }
 
-  async findAllByUser(userId: string): Promise<Absenteeism[]> {
+  async findAllByUser(userId: string, companyId: string): Promise<Absenteeism[]> {
     return this.absenteeismModel
-      .find({ userId: new Types.ObjectId(userId) })
+      .find({ userId: new Types.ObjectId(userId), companyId: new Types.ObjectId(companyId) })
       .sort({ fechaInicio: -1, createdAt: -1 })
       .exec();
   }
 
-  async update(id: string, dto: UpdateAbsenteeismDto): Promise<Absenteeism> {
-    const current = await this.absenteeismModel.findById(id).exec();
+  async update(id: string, companyId: string, dto: UpdateAbsenteeismDto): Promise<Absenteeism> {
+    const current = await this.absenteeismModel
+      .findOne({ _id: id, companyId: new Types.ObjectId(companyId) })
+      .exec();
 
     if (!current) {
       throw new NotFoundException(`Absenteeism with id ${id} not found`);
@@ -54,13 +56,12 @@ export class AbsenteeismService {
 
     const payload = {
       ...dto,
-      ...(dto.companyId ? { companyId: new Types.ObjectId(dto.companyId) } : {}),
       ...(dto.userId ? { userId: new Types.ObjectId(dto.userId) } : {}),
       dias: this.calculateDias(fechaInicio, fechaFin),
     };
 
     const updated = await this.absenteeismModel
-      .findByIdAndUpdate(id, payload, { new: true, runValidators: true })
+      .findOneAndUpdate({ _id: id, companyId: new Types.ObjectId(companyId) }, payload, { new: true, runValidators: true })
       .exec();
 
     if (!updated) {
@@ -71,8 +72,10 @@ export class AbsenteeismService {
     return updated;
   }
 
-  async remove(id: string): Promise<void> {
-    const deleted = await this.absenteeismModel.findByIdAndDelete(id).exec();
+  async remove(id: string, companyId: string): Promise<void> {
+    const deleted = await this.absenteeismModel
+      .findOneAndDelete({ _id: id, companyId: new Types.ObjectId(companyId) })
+      .exec();
 
     if (!deleted) {
       throw new NotFoundException(`Absenteeism with id ${id} not found`);

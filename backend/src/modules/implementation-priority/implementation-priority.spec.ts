@@ -427,7 +427,8 @@ describe('ImplementationPriorityController', () => {
     } as unknown as ImplementationPriorityService;
 
     const controller = new ImplementationPriorityController(serviceStub);
-    const result = await controller.getPriorities('a'.repeat(24));
+    const mockRequest = { companyId: new (require('mongoose').Types.ObjectId)('a'.repeat(24)) } as any;
+    const result = await controller.getPriorities(mockRequest);
 
     assert.equal(result.companyId, 'a'.repeat(24));
     assert.ok(Array.isArray(result.priorities));

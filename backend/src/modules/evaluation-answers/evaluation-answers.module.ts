@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Evaluation, EvaluationSchema } from '../../evaluations/schemas/evaluation.schema';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { Question, QuestionSchema } from '../questions/schemas/question.schema';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { EvaluationAnswersController } from './evaluation-answers.controller';
 import { EvaluationAnswersService } from './evaluation-answers.service';
 import { EvaluationAnswer, EvaluationAnswerSchema } from './schemas/evaluation-answer.schema';
@@ -17,10 +19,11 @@ import { EvaluationAnswer, EvaluationAnswerSchema } from './schemas/evaluation-a
       { name: Question.name, schema: QuestionSchema },
       { name: Evaluation.name, schema: EvaluationSchema },
       { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),
   ],
   controllers: [EvaluationAnswersController],
-  providers: [EvaluationAnswersService, RolesGuard],
+  providers: [EvaluationAnswersService, RolesGuard, CompanyAccessGuard],
   exports: [EvaluationAnswersService],
 })
 export class EvaluationAnswersModule {}

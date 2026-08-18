@@ -44,6 +44,30 @@ export const INTENT_RULES: readonly IntentRule[] = [
     engine: 'alerts',
     keywords: ['alerta', 'alertas', 'emergencia', 'riesgo'],
   },
+  // ────────────────────────────────────────────────────────────────────────────
+  // AUDIT-5: intents de dominios operativos con services reales reutilizados.
+  // Se declaran DESPUÉS de las reglas existentes para no alterar el routing
+  // certificado de compliance/indicators/documents/phva/alerts (los tests de
+  // regresión de AUDIT-1 los protegen). Las keywords son específicas del
+  // dominio para evitar ambigüedades (ej: 'ausentismo' no captura 'indicador
+  // de ausentismo', que debe seguir enrumbando a indicators).
+  // ────────────────────────────────────────────────────────────────────────────
+  {
+    engine: 'incidents',
+    keywords: ['accidentalidad', 'accidente', 'accidentes', 'incidente laboral', 'incidentes laborales'],
+  },
+  {
+    engine: 'absenteeism',
+    keywords: ['ausentismo', 'ausencias laborales', 'incapacidades'],
+  },
+  {
+    engine: 'programs',
+    keywords: ['capacitacion', 'capacitaciones', 'programa de capacitacion', 'entrenamiento'],
+  },
+  {
+    engine: 'audits',
+    keywords: ['auditoria', 'auditorias', 'inspeccion', 'inspecciones'],
+  },
 ];
 
 /**

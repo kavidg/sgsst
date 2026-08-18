@@ -1,8 +1,10 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { CompanyUser, CompanyUserSchema } from '../companies/schemas/company-user.schema';
 import { DocumentManagementModule } from '../document-management/document-management.module';
 import { AnnualWorkPlanModule } from '../annual-work-plan/annual-work-plan.module';
 import { InitialEvaluationModule } from '../initial-evaluation/initial-evaluation.module';
@@ -111,14 +113,15 @@ import {
     MongooseModule.forFeature([
       { name: ApprovalRequest.name, schema: ApprovalRequestSchema },
       { name: ApprovalEvent.name, schema: ApprovalEventSchema },
-      // Schema de User requerido por RolesGuard para validar permisos.
       { name: User.name, schema: UserSchema },
+      { name: CompanyUser.name, schema: CompanyUserSchema },
     ]),
   ],
   controllers: [ApprovalWorkflowController],
   providers: [
     ApprovalWorkflowService,
     RolesGuard,
+    CompanyAccessGuard,
     DocumentAdapter,
     AnnualWorkPlanAdapter,
     InitialEvaluationAdapter,

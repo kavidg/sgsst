@@ -2,8 +2,9 @@
  * Modelos de UI del Dashboard Inteligente.
  *
  * Reflejan los contratos JSON del Compliance Intelligence Engine
- * (GET /compliance-engine/company/:companyId/overview) y del
- * Compliance Action Engine (GET /compliance-action-engine/company/:companyId/recommendations).
+ * (GET /compliance-engine/overview) y del
+ * Compliance Action Engine (GET /compliance-action-engine/recommendations).
+ * AUDIT-16: URLs simplificadas — backend usa CompanyAccessGuard + request.companyId.
  * Contienen únicamente modelos de presentación; sin lógica de negocio.
  */
 
