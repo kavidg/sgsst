@@ -19,6 +19,7 @@ import { InspectionsService } from '../../inspections/inspections.service';
 import { PhvaAnalysisService } from '../../phva/phva-analysis.service';
 import { PhvaAdvancedCopasstTrainingService } from '../../phva-advanced/phva-advanced-copasst-training.service';
 import { TrainingsService } from '../../trainings/trainings.service';
+import { ChangeManagementService } from '../../change-management/change-management.service';
 import { AiContextService } from './ai-context.service';
 
 /** ObjectId válido de MongoDB para las pruebas. */
@@ -58,6 +59,7 @@ function buildService(overrides?: {
   absenteeism?: { stats?: unknown; records?: unknown[] };
   programs?: unknown[];
   audits?: unknown[];
+  changeManagement?: { stats?: unknown; requests?: unknown[] };
 }): AiContextService {
   return buildServiceWithCalls(overrides);
 }
@@ -155,6 +157,16 @@ function buildServiceWithCalls(
       return overrides?.audits ?? [];
     },
   } as unknown as InspectionsService;
+  const changeManagementService = {
+    getStats: async (companyId: { toString(): string }) => {
+      providerCalls.push({ provider: 'changeManagement.stats', companyId: companyId.toString() });
+      return overrides?.changeManagement?.stats ?? { total: 0, draft: 0, pendingApproval: 0, approved: 0, implemented: 0, rejected: 0, byImpactLevel: {}, byChangeType: {} };
+    },
+    findAll: async (companyId: { toString(): string }) => {
+      providerCalls.push({ provider: 'changeManagement.requests', companyId: companyId.toString() });
+      return overrides?.changeManagement?.requests ?? [];
+    },
+  } as unknown as ChangeManagementService;
 
   const service = new AiContextService(
     companyModel,
@@ -170,6 +182,7 @@ function buildServiceWithCalls(
     absenteeismService,
     trainingsService,
     inspectionsService,
+    changeManagementService,
   );
   // Expone el registro de llamadas para el test de tenant (TENANT-AUDIT5-04).
   (service as unknown as { __audit5Calls?: typeof providerCalls }).__audit5Calls = providerCalls;
@@ -479,9 +492,10 @@ describe('AiContextService.buildCompanyContext', () => {
       {
         getCompanyStats: async () => ({ totalDiasPerdidos: 0, totalCasos: 0, promedioDias: 0 }),
         findAllByCompany: async () => [],
-      } as unknown as AbsenteeismService,
-      { findAll: async () => [] } as unknown as TrainingsService,
+      } as unknown as AbsenteeismService,      { findAll: async () => [] } as unknown as TrainingsService,
       { findAll: async () => [] } as unknown as InspectionsService,
+      { getStats: async () => ({ total: 0, draft: 0, pendingApproval: 0, approved: 0, implemented: 0, rejected: 0, byImpactLevel: {}, byChangeType: {} }), findAll: async () => [] } as unknown as ChangeManagementService,
+
     );
 
     const contextA = await service.buildCompanyContext(COMPANY_ID);
@@ -570,9 +584,10 @@ describe('AiContextService.buildCompanyContext', () => {
       {
         getCompanyStats: async () => ({ totalDiasPerdidos: 0, totalCasos: 0, promedioDias: 0 }),
         findAllByCompany: async () => [],
-      } as unknown as AbsenteeismService,
-      { findAll: async () => [] } as unknown as TrainingsService,
+      } as unknown as AbsenteeismService,      { findAll: async () => [] } as unknown as TrainingsService,
       { findAll: async () => [] } as unknown as InspectionsService,
+      { getStats: async () => ({ total: 0, draft: 0, pendingApproval: 0, approved: 0, implemented: 0, rejected: 0, byImpactLevel: {}, byChangeType: {} }), findAll: async () => [] } as unknown as ChangeManagementService,
+
     );
 
     const context = await service.buildCompanyContext(COMPANY_ID);
@@ -825,9 +840,10 @@ describe('AiContextService.buildCompanyContext', () => {
       {
         getCompanyStats: async () => ({ totalDiasPerdidos: 0, totalCasos: 0, promedioDias: 0 }),
         findAllByCompany: async () => [],
-      } as unknown as AbsenteeismService,
-      { findAll: async () => [] } as unknown as TrainingsService,
+      } as unknown as AbsenteeismService,      { findAll: async () => [] } as unknown as TrainingsService,
       { findAll: async () => [] } as unknown as InspectionsService,
+      { getStats: async () => ({ total: 0, draft: 0, pendingApproval: 0, approved: 0, implemented: 0, rejected: 0, byImpactLevel: {}, byChangeType: {} }), findAll: async () => [] } as unknown as ChangeManagementService,
+
     );
 
     const contextA = await service.buildCompanyContext(companyA);

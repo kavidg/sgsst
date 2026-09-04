@@ -9,6 +9,9 @@ import { SstPolicyHandler } from './handlers/sst-policy.handler';
 import { ResponsibilitiesHandler } from './handlers/responsibilities.handler';
 import { ResponsibleSgsstHandler } from './handlers/responsible-sgsst.handler';
 import { CopasstTrainingHandler } from './handlers/copasst-training.handler';
+import { SstObjectivesHandler } from './handlers/sst-objectives.handler';
+import { EppHandler } from './handlers/epp.handler';
+import { EmergenciesHandler } from './handlers/emergencies.handler';
 
 /**
  * Contrato estructural de los handlers de sub-entidad de PHVA Advanced.
@@ -67,6 +70,9 @@ export class PhvaAdvancedAdapter implements ApprovalAdapter {
     private readonly responsibilitiesHandler: ResponsibilitiesHandler,
     private readonly responsibleSgsstHandler: ResponsibleSgsstHandler,
     private readonly copasstTrainingHandler: CopasstTrainingHandler,
+    private readonly sstObjectivesHandler: SstObjectivesHandler,
+    private readonly eppHandler: EppHandler,
+    private readonly emergenciesHandler: EmergenciesHandler,
   ) {
     this.handlers = [
       resourceAssignmentHandler,
@@ -75,6 +81,9 @@ export class PhvaAdvancedAdapter implements ApprovalAdapter {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      sstObjectivesHandler,
+      eppHandler,
+      emergenciesHandler,
     ];
   }
 

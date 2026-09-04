@@ -29,6 +29,7 @@ import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from '.
 import { DashboardPage } from './pages/DashboardPage';
 import { EmployeesPage } from './pages/EmployeesPage';
 import { IncidentsPage } from './pages/IncidentsPage';
+import { DiseaseInvestigationManagementPage } from './pages/DiseaseInvestigationManagementPage';
 import { RisksPage } from './pages/RisksPage';
 import { TrainingsPage } from './pages/TrainingsPage';
 import { InspectionsPage } from './pages/InspectionsPage';
@@ -43,6 +44,15 @@ import CompanyConfigurationPage from './pages/CompanyConfigurationPage';
 import ImplementationWizardPage from './pages/ImplementationWizardPage';
 import CommunicationWorkerPortal from './components/CommunicationWorkerPortal';
 import { LegalMatrixPage } from './pages/LegalMatrixPage';
+import { CommunicationPage } from './pages/CommunicationPage';
+import { AcquisitionsPage } from './pages/AcquisitionsPage';
+import { ContractingPage } from './pages/ContractingPage';
+import { ChangeManagementPage } from './pages/ChangeManagementPage';
+import { IntelligenceCompliancePage } from './pages/IntelligenceCompliancePage';
+import { SociodemographicManagementPage } from './pages/SociodemographicManagementPage';
+import { OccupationalExamManagementPage } from './pages/OccupationalExamManagementPage';
+import { MedicalRecommendationManagementPage } from './pages/MedicalRecommendationManagementPage';
+import { OccupationalEvaluationManagementPage } from './pages/OccupationalEvaluationManagementPage';
 import { DoPage } from './pages/documents/DoPage';
 import { CheckPage } from './pages/documents/CheckPage';
 import { ActPage } from './pages/documents/ActPage';
@@ -55,6 +65,15 @@ import CopasstCandidateRegister from './pages/CopasstCandidateRegister';
 import ConvivenciaCandidateRegister from './pages/ConvivenciaCandidateRegister';
 import SocializationPage from './pages/SocializationPage';
 import AdvancedManagementPage from './pages/AdvancedManagementPage';
+import { EppManagementPage } from './pages/EppManagementPage';
+import { EmergenciesPage } from './pages/EmergenciesPage';
+import { EpidemiologicalSurveillancePage } from './pages/EpidemiologicalSurveillancePage';
+import { HealthIndicatorsPage } from './pages/HealthIndicatorsPage';
+import { CaseInterventionPage } from './pages/CaseInterventionPage';
+import { RiskMethodologyPage } from './pages/RiskMethodologyPage';
+import { WorkerParticipationPage } from './pages/WorkerParticipationPage';
+import { HazardousSubstancePage } from './pages/HazardousSubstancePage';
+import { EnvironmentalMeasurementPage } from './pages/EnvironmentalMeasurementPage';
 
 const ECONOMIC_SECTORS = [
   'Agricultura', 'Ganadería', 'Silvicultura', 'Pesca',
@@ -869,10 +888,20 @@ function App() {
         <Route path="/documents/check" element={renderDocumentsRoutePage(<CheckPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/documents/act" element={renderDocumentsRoutePage(<ActPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderIncidentsRoutePage()} />
+        <Route path="/disease-investigation-management" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <DiseaseInvestigationManagementPage token={idToken} />} />
+        <Route path="/epidemiological-surveillance" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <EpidemiologicalSurveillancePage token={idToken} role={profile?.role} />} />
+        <Route path="/health-indicators" element={<HealthIndicatorsPage token={idToken} role={profile?.role} />} />
+        <Route path="/case-intervention" element={<CaseInterventionPage token={idToken} role={profile?.role} />} />
+        <Route path="/risk-methodology" element={<RiskMethodologyPage token={idToken} role={profile?.role} />} />
+        <Route path="/worker-participation" element={<WorkerParticipationPage token={idToken} role={profile?.role} />} />
+        <Route path="/hazardous-substances" element={<HazardousSubstancePage token={idToken} role={profile?.role} />} />
+        <Route path="/environmental-measurements" element={<EnvironmentalMeasurementPage token={idToken} role={profile?.role} />} />
         <Route path="/alerts" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderAlertsRoutePage()} />
         <Route path="/absenteeism" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderAbsenteeismRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
         <Route path="/inspections" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderInspectionsRoutePage()} />
+        <Route path="/epp" element={<EppManagementPage token={idToken} role={profile?.role} />} />
+        <Route path="/emergencies" element={<EmergenciesPage token={idToken} role={profile?.role} />} />
         <Route
           path="/my-communications"
           element={
@@ -939,6 +968,135 @@ function App() {
                 )}
               </>
             )
+          }
+        />
+        <Route
+          path="/communication"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <CommunicationPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para ver comunicaciones.</p>
+                )}
+              </>
+            )
+          }
+        />
+        <Route
+          path="/acquisitions"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <AcquisitionsPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para ver adquisiciones.</p>
+                )}
+              </>
+            )
+          }
+        />
+        <Route
+          path="/contracting"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <ContractingPage token={idToken} />
+                ) : (
+                  <p>Selecciona una empresa para ver contratación.</p>
+                )}
+              </>
+            )
+          }
+        />
+        <Route
+          path="/change-management"
+          element={
+            <>
+              {renderSharedHeader()}
+              {activeCompanyId ? (
+                <ChangeManagementPage token={idToken} />
+              ) : (
+                <p>Selecciona una empresa para ver gestión del cambio.</p>
+              )}
+            </>
+          }
+        />
+        <Route
+          path="/sociodemographic-management"
+          element={
+            <>
+              {renderSharedHeader()}
+              {activeCompanyId ? (
+                <SociodemographicManagementPage token={idToken} />
+              ) : (
+                <p>Selecciona una empresa para ver la gestión sociodemográfica.</p>
+              )}
+            </>
+          }
+        />
+        <Route
+          path="/occupational-exam-management"
+          element={
+            <>
+              {renderSharedHeader()}
+              {activeCompanyId ? (
+                <OccupationalExamManagementPage token={idToken} />
+              ) : (
+                <p>Selecciona una empresa para ver la gestión de exámenes médicos.</p>
+              )}
+            </>
+          }
+        />
+        <Route
+          path="/medical-recommendation-management"
+          element={
+            <>
+              {renderSharedHeader()}
+              {activeCompanyId ? (
+                <MedicalRecommendationManagementPage token={idToken} />
+              ) : (
+                <p>Selecciona una empresa para ver la gestión de recomendaciones médicas.</p>
+              )}
+            </>
+          }
+        />
+        <Route
+          path="/occupational-evaluation-management"
+          element={
+            <>
+              {renderSharedHeader()}
+              {activeCompanyId ? (
+                <OccupationalEvaluationManagementPage token={idToken} />
+              ) : (
+                <p>Selecciona una empresa para ver la gestión de evaluaciones médicas ocupacionales.</p>
+              )}
+            </>
+          }
+        />
+        <Route
+          path="/intelligence-compliance"
+          element={
+            <>
+              {renderSharedHeader()}
+              {activeCompanyId ? (
+                <IntelligenceCompliancePage token={idToken} />
+              ) : (
+                <p>Selecciona una empresa para ver inteligencia y cumplimiento.</p>
+              )}
+            </>
           }
         />
         <Route

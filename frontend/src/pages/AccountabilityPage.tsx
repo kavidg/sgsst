@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   AccountabilityReportModel,
   AccountabilityMeetingModel,
@@ -33,6 +34,7 @@ import {
   fetchEmployees,
   EmployeeModel,
 } from '../api';
+import { PhvaBackButton } from '../components/PhvaBackButton';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
@@ -73,6 +75,10 @@ function statusBadge(status?: string) {
 }
 
 export function AccountabilityPage({ token }: AccountabilityPageProps) {
+  const location = useLocation();
+  const sourceParam = (location.state as Record<string, unknown> | null)?.source;
+  const isFromPhva261 = sourceParam === 'phva-2.6.1';
+
   const [tab, setTab] = useState('Dashboard Ejecutivo');
   const [dashboard, setDashboard] = useState<AccountabilityDashboardModel | null>(null);
   const [autoCompliance, setAutoCompliance] = useState<AutoComplianceModel | null>(null);
@@ -346,6 +352,12 @@ export function AccountabilityPage({ token }: AccountabilityPageProps) {
 
   return (
     <section className="acc-mgmt">
+      <PhvaBackButton />
+      {isFromPhva261 && (
+        <div style={{ padding: '.5rem 1rem', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '.375rem', fontSize: '.85rem', color: '#0369a1', marginBottom: '1rem' }}>
+          📋 Gestión de rendición de cuentas — soporte para PHVA 2.6.1 «Rendición de cuentas»
+        </div>
+      )}
       <div className="acc-mgmt__header">
         <div>
           <h2>Rendición de Cuentas SG-SST</h2>

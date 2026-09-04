@@ -17,6 +17,7 @@ import { SstObjectives, SstObjectivesSchema } from '../phva-advanced/schemas/phv
 import { SstPolicy, SstPolicySchema } from '../phva-advanced/schemas/phva-advanced-sst-policy.schema';
 import { TrainingManagement, TrainingManagementSchema } from '../phva-advanced/schemas/phva-advanced-training-management.schema';
 import { StandardCatalogModule } from '../standard-catalog/standard-catalog.module';
+import { AnnualWorkPlanModule } from '../annual-work-plan/annual-work-plan.module';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -32,6 +33,7 @@ import { InitialEvaluation, InitialEvaluationSchema } from './schemas/initial-ev
     AlertsModule,
     forwardRef(() => ApprovalWorkflowModule),
     StandardCatalogModule,
+    AnnualWorkPlanModule,
     MongooseModule.forFeature([
       { name: InitialEvaluation.name, schema: InitialEvaluationSchema },
       { name: Company.name, schema: CompanySchema },

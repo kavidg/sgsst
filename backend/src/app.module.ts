@@ -52,6 +52,14 @@ import { ApprovalWorkflowModule } from './modules/approval-workflow/approval-wor
 import { ComplianceAiModule } from './modules/compliance-ai/compliance-ai.module';
 import { PhvaModule } from './modules/phva/phva.module';
 import { DocumentGenerationModule } from './modules/document-generation/document-generation.module';
+import { IndicatorsModule } from './modules/indicators/indicators.module';
+import { AcquisitionsModule } from './modules/acquisitions/acquisitions.module';
+import { ContractingModule } from './modules/contracting/contracting.module';
+import { ChangeManagementModule } from './modules/change-management/change-management.module';
+import { ProgramsModule } from './modules/programs/programs.module';
+import { OccupationalExamModule } from './modules/occupational-exam/occupational-exam.module';
+import { MedicalRecommendationModule } from './modules/medical-recommendation/medical-recommendation.module';
+import { EpidemiologicalSurveillanceModule } from './modules/epidemiological-surveillance/epidemiological-surveillance.module';
 
 @Module({
   imports: [
@@ -110,6 +118,12 @@ import { DocumentGenerationModule } from './modules/document-generation/document
     PhvaModule,
     DocumentGenerationModule,
     ApprovalWorkflowModule,
+    IndicatorsModule,
+    ProgramsModule,
+    AcquisitionsModule,    ContractingModule,
+    ChangeManagementModule,
+    OccupationalExamModule,
+    MedicalRecommendationModule,
+    EpidemiologicalSurveillanceModule,
   ],
-})
-export class AppModule {}
+}) export class AppModule {}

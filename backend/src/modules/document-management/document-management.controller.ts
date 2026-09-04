@@ -30,6 +30,7 @@ import {
   SubmitForApprovalDto,
   ApproveDocumentDto,
   RejectDocumentDto,
+  RequestAdjustmentsDto,
   CreateRetentionRuleDto,
   UpdateRetentionRuleDto,
   SearchDocumentDto,
@@ -42,6 +43,7 @@ import { ApprovalDecision } from '../approval-workflow/enums/approval-decision.e
 import { ApprovalActor } from '../approval-workflow/interfaces/approval-actor.interface';
 import { buildApprovalActor } from '../approval-workflow/helpers/approval-actor.helper';
 import { UserDocument } from '../users/schemas/user.schema';
+import { ApprovalNotificationEvent } from '../approval-workflow/services/approval-notification.service';
 
 @Controller('document-management')
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
@@ -68,6 +70,13 @@ export class DocumentManagementController {
   @Get('stats')
   @Roles('owner', 'admin', 'manager', 'member')
   async getStats(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    return this.searchService.getDocumentStats(companyId);
+  }
+
+  @Get('dashboard')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getDashboard(@Req() request: RequestWithUser) {
     const companyId = this.resolveCompanyId(request);
     return this.searchService.getDocumentStats(companyId);
   }
@@ -238,6 +247,14 @@ export class DocumentManagementController {
       this.buildActor(user),
     );
 
+    // Notificar a aprobadores (evento SUBMITTED / RESUBMITTED)
+    void this.documentService.notifyApprovalEvent(companyId, {
+      type: 'APPROVAL_SUBMITTED',
+      documentId: id,
+      entityLabel: `${id}`,
+      actorEmail: user.email,
+    });
+
     return approval;
   }
 
@@ -287,6 +304,14 @@ export class DocumentManagementController {
       this.buildActor(user),
     );
 
+    // Notificar aprobación (evento APPROVED)
+    void this.documentService.notifyApprovalEvent(companyId, {
+      type: 'APPROVED',
+      documentId: approval.documentId.toString(),
+      entityLabel: `${approval.documentId}`,
+      actorEmail: user.email,
+    });
+
     // Mantiene la misma respuesta del frontend ({ approval, document }).
     return result.applied;
   }
@@ -316,7 +341,44 @@ export class DocumentManagementController {
       this.buildActor(user),
     );
 
+    // Notificar rechazo (evento REJECTED)
+    void this.documentService.notifyApprovalEvent(companyId, {
+      type: 'REJECTED',
+      documentId: approval.documentId.toString(),
+      entityLabel: `${approval.documentId}`,
+      actorEmail: user.email,
+    });
+
     return result.applied;
+  }
+
+  @Post(':id/request-adjustments')
+  @Roles('owner', 'admin', 'manager')
+  async requestAdjustments(
+    @Param('id') id: string,
+    @Body() dto: RequestAdjustmentsDto,
+    @Req() request: RequestWithUser,
+  ) {
+    const companyId = this.resolveCompanyId(request);
+    const user = await this.resolveUserFromRequest(request);
+
+    const result = await this.documentService.requestAdjustments(
+      companyId,
+      new Types.ObjectId(id),
+      user._id,
+      dto.reason,
+      dto.comments,
+    );
+
+    // Notificar solicitud de ajustes (evento ADJUSTMENTS_REQUESTED)
+    void this.documentService.notifyApprovalEvent(companyId, {
+      type: 'ADJUSTMENTS_REQUESTED',
+      documentId: id,
+      entityLabel: `${id}`,
+      actorEmail: user.email,
+    });
+
+    return result;
   }
 
   // ==================== DIGITAL SIGNATURES ====================

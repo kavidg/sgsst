@@ -36,6 +36,12 @@ export interface DocumentCatalogItem {
   sourceModule: string;
   sourceEntity: string;
   downloadUrl: string;
+  /**
+   * Referencia al DocumentMaster asociado (Fase 8.2.A / Bloque 5A).
+   * Permite trazabilidad bidireccional: DocumentInstance → DocumentMaster.
+   * null cuando la instancia no tiene un documento master vinculado.
+   */
+  documentMasterId: string | null;
 }
 
 /**

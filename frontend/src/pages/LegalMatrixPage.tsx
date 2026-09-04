@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   CompanyLegalMatrixModel, LegalActionPlanModel, LegalDashboardModel, LegalEvidenceModel,
@@ -8,9 +9,9 @@ import {
   fetchLegalHistory, fetchLegalRegulatoryChanges, fetchLegalRequirements, fetchLegalMatrixCompliance,
   fetchSectorRegulations,
 } from '../api';
+import { PhvaBackButton } from '../components/PhvaBackButton';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { Sheet } from '../components/ui/Sheet';
 
 
 type Props = { token: string };
@@ -30,6 +31,10 @@ const TABS: Array<{ id: TabId; label: string }> = [
 
 
 export function LegalMatrixPage({ token }: Props) {
+  const location = useLocation();
+  const sourceParam = (location.state as Record<string, unknown> | null)?.source;
+  const isFromPhva271 = sourceParam === 'phva-2.7.1';
+
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -46,7 +51,6 @@ export function LegalMatrixPage({ token }: Props) {
   const [history, setHistory] = useState<LegalHistoryModel[]>([]);
   const [autoCompliance, setAutoCompliance] = useState<{ complies: boolean; reasons: string[]; score: number } | null>(null);
   const [sectorRegs, setSectorRegs] = useState<any[]>([]);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -95,6 +99,20 @@ export function LegalMatrixPage({ token }: Props) {
 
   return (
     <div className="legal-matrix">
+      <PhvaBackButton />
+      {/* Context banner when navigated from PHVA 2.7.1 */}
+      {isFromPhva271 && (
+        <div style={{
+          background: '#f0f9ff',
+          border: '1px solid #0ea5e9',
+          borderRadius: '6px',
+          padding: '.75rem 1rem',
+          marginBottom: '1rem',
+          fontSize: '.9rem',
+        }}>
+          📋 Gestión de Matriz Legal — soporte para PHVA 2.7.1 «Matriz legal»
+        </div>
+      )}
       <Card>
         <div className="actions" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '.5rem' }}>
           <div>
@@ -102,9 +120,6 @@ export function LegalMatrixPage({ token }: Props) {
             {matrix && <p className="muted" style={{ margin: '.25rem 0 0' }}>Sector: {matrix.economicSector}</p>}
           </div>
           <div className="actions">
-            <Button type="button" variant="primary" onClick={() => setAdvancedOpen(true)}>
-              ⚡ Entrar a Gestión avanzada
-            </Button>
             <Button type="button" variant="secondary" onClick={loadAll}>Recargar</Button>
           </div>
         </div>
@@ -137,10 +152,7 @@ export function LegalMatrixPage({ token }: Props) {
         {activeTab === 'history' && <HistoryTab history={history} />}
       </div>
 
-      {/* Advanced Management Sheet */}
-      <Sheet open={advancedOpen} title="Gestión Avanzada - Matriz Legal" onOpenChange={setAdvancedOpen}>
-        <AdvancedPanel matrix={matrix} compliance={compliance} autoCompliance={autoCompliance} token={token} onRefresh={loadAll} />
-      </Sheet>
+
     </div>
   );
 }

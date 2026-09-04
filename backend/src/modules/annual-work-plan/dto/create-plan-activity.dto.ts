@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsEnum, IsNumber, IsDateString, Min, Max } from 'class-validator';
-import { ActivityPriority } from '../schemas/plan-activity.schema';
+import { ActivityPriority, PhvaPhase } from '../schemas/plan-activity.schema';
 import { Types } from 'mongoose';
 
 export class CreatePlanActivityDto {
@@ -35,6 +35,14 @@ export class CreatePlanActivityDto {
   @IsNumber()
   @Min(0)
   estimatedCost?: number;
+
+  @IsOptional()
+  @IsEnum(PhvaPhase)
+  phvaPhase?: PhvaPhase;
+
+  @IsOptional()
+  @IsString()
+  standardNumber?: string;
 }
 
 export class UpdatePlanActivityDto {
@@ -81,4 +89,12 @@ export class UpdatePlanActivityDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsEnum(PhvaPhase)
+  phvaPhase?: PhvaPhase;
+
+  @IsOptional()
+  @IsString()
+  standardNumber?: string;
 }

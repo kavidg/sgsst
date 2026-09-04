@@ -81,7 +81,8 @@ describe('AUDIT-2 — Pesos oficiales PHVA (PHVA-WEIGHTS)', () => {
     );
     // Baseline certificado del catálogo: 50 estándares IMPLEMENTED suman 100
     // + 10 PLANNED suman 110 total (documentado en catalog-60.ts).
-    assert.equal(normativeSum, 110);
+    // + 3.1.4 (PARTIAL) agrega 3 → 113 total.
+    assert.equal(normativeSum, 113);
     // Un estándar representativo conserva su peso normativo.
     const responsible = CATALOG_60.find((s) => s.code === '1.1.1');
     assert.equal(responsible?.normativeWeight, 0.5);

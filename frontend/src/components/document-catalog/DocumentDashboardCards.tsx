@@ -14,11 +14,19 @@ export function DocumentDashboardCards({ summary }: { summary: DocumentDashboard
   }
 
   const kpis: { label: string; value: number; variant: string; extra?: string }[] = [
-    { label: 'Total Documentos', value: summary.totalDocuments, variant: 'info' },
-    { label: 'Aprobados', value: summary.approved, variant: 'good' },
+    { label: 'Total en gestión', value: summary.totalDocuments, variant: 'info', extra: 'Documentos maestros' },
+    { label: 'Vigentes', value: summary.approved, variant: 'good' },
     { label: 'Pendientes', value: summary.pending, variant: 'warning' },
     { label: 'Archivados', value: summary.archived, variant: 'info' },
   ];
+
+  // Agregar KPIs de vencimiento si están disponibles
+  if (summary.expiringSoon !== undefined && summary.expiringSoon > 0) {
+    kpis.push({ label: 'Próximos a vencer', value: summary.expiringSoon, variant: 'warning' });
+  }
+  if (summary.expired !== undefined && summary.expired > 0) {
+    kpis.push({ label: 'Vencidos', value: summary.expired, variant: 'danger' });
+  }
 
   const visibleTypes = summary.byType.filter((t) => t.count > 0);
 
@@ -35,9 +43,9 @@ export function DocumentDashboardCards({ summary }: { summary: DocumentDashboard
       </div>
 
       <div className="advanced-management__section">
-        <h3>Documentos por Tipo</h3>
+        <h3>Documentos maestros por tipo</h3>
         {visibleTypes.length === 0 ? (
-          <p className="muted">Sin documentos generados.</p>
+          <p className="muted">Sin documentos en gestión.</p>
         ) : (
           <div style={{ display: 'grid', gap: '.5rem' }}>
             {visibleTypes.map((typeSummary) => (

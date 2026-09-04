@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, UseGuards, BadRequestException } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { CommunicationService } from './communication.service';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
@@ -11,6 +12,12 @@ import { RequestWithUser } from '../auth/auth.types';
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
 export class CommunicationController {
   constructor(private readonly service: CommunicationService) {}
+
+  private assertValidObjectId(id: string, label = 'id') {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException(`Invalid ${label}: ${id}`);
+    }
+  }
 
   // ========== DASHBOARD ==========
   @Get('dashboard')
@@ -25,96 +32,7 @@ export class CommunicationController {
     return this.service.getAutoCompliance(request.companyId?.toString() ?? '');
   }
 
-  // ========== COMMUNICATIONS ==========
-  @Post()
-  @Roles('owner', 'admin', 'manager')
-  create(@Req() request: RequestWithUser, @CurrentUser() user: any, @Body() body: any) {
-    return this.service.createComm('', request.companyId?.toString() ?? '', user?.uid || '', user?.email || '', body);
-  }
-
-  @Get()
-  @Roles('owner', 'admin', 'manager')
-  findAll(@Req() request: RequestWithUser) {
-    return this.service.findAllComms(request.companyId?.toString() ?? '');
-  }
-
-  @Get(':id')
-  @Roles('owner', 'admin', 'manager')
-  findOne(@Req() request: RequestWithUser, @Param('id') id: string) {
-    return this.service.findCommById(request.companyId?.toString() ?? '', id);
-  }
-
-  @Patch(':id')
-  @Roles('owner', 'admin', 'manager')
-  update(@Req() request: RequestWithUser, @Param('id') id: string, @Body() body: any) {
-    return this.service.updateComm(request.companyId?.toString() ?? '', id, body);
-  }
-
-  @Post(':id/publish')
-  @Roles('owner', 'admin', 'manager')
-  publish(@Req() request: RequestWithUser, @Param('id') id: string) {
-    return this.service.publishComm('', request.companyId?.toString() ?? '', id);
-  }
-
-  @Post(':id/archive')
-  @Roles('owner', 'admin', 'manager')
-  archive(@Req() request: RequestWithUser, @Param('id') id: string) {
-    return this.service.archiveComm(request.companyId?.toString() ?? '', id);
-  }
-
-  @Delete(':id')
-  @Roles('owner', 'admin', 'manager')
-  delete(@Req() request: RequestWithUser, @Param('id') id: string) {
-    return this.service.deleteComm(request.companyId?.toString() ?? '', id);
-  }
-
-  // ========== RECIPIENTS ==========
-  @Get(':id/recipients')
-  @Roles('owner', 'admin', 'manager')
-  getRecipients(@Req() request: RequestWithUser, @Param('id') id: string) {
-    return this.service.getRecipients(request.companyId?.toString() ?? '', id);
-  }
-
-  @Post(':id/recipients')
-  @Roles('owner', 'admin', 'manager')
-  addRecipients(@Req() request: RequestWithUser, @Param('id') id: string, @Body('employeeIds') employeeIds: string[]) {
-    return this.service.addRecipients(request.companyId?.toString() ?? '', id, employeeIds);
-  }
-
-  // ========== READ RECEIPTS ==========
-  @Post(':id/read')
-  registerRead(
-    @Req() request: RequestWithUser,
-    @Param('id') id: string,
-    @Body('employeeId') employeeId: string,
-    @Body('employeeName') employeeName: string,
-  ) {
-    return this.service.registerRead(request.companyId?.toString() ?? '', id, employeeId, employeeName);
-  }
-
-  @Get(':id/read-receipts')
-  @Roles('owner', 'admin', 'manager')
-  getReadReceipts(@Req() request: RequestWithUser, @Param('id') id: string) {
-    return this.service.getReadReceipts(request.companyId?.toString() ?? '', id);
-  }
-
-  // ========== SIGNATURES ==========
-  @Post(':id/sign')
-  addSignature(
-    @Req() request: RequestWithUser,
-    @Param('id') id: string,
-    @Body() body: { employeeId: string; employeeName: string; employeeEmail: string; signatureHash?: string; signatureUrl?: string; comments?: string },
-  ) {
-    return this.service.addSignature(request.companyId?.toString() ?? '', id, body.employeeId, body.employeeName, body.employeeEmail, body);
-  }
-
-  @Get(':id/signatures')
-  @Roles('owner', 'admin', 'manager')
-  getSignatures(@Req() request: RequestWithUser, @Param('id') id: string) {
-    return this.service.getSignatures(request.companyId?.toString() ?? '', id);
-  }
-
-  // ========== CAMPAIGNS ==========
+  // ========== CAMPAIGNS (static routes BEFORE :id) ==========
   @Post('campaigns')
   @Roles('owner', 'admin', 'manager')
   createCampaign(@Req() request: RequestWithUser, @Body() body: any) {
@@ -130,16 +48,18 @@ export class CommunicationController {
   @Patch('campaigns/:id')
   @Roles('owner', 'admin', 'manager')
   updateCampaign(@Req() request: RequestWithUser, @Param('id') id: string, @Body() body: any) {
+    this.assertValidObjectId(id);
     return this.service.updateCampaign(request.companyId?.toString() ?? '', id, body);
   }
 
   @Delete('campaigns/:id')
   @Roles('owner', 'admin', 'manager')
   deleteCampaign(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
     return this.service.deleteCampaign(request.companyId?.toString() ?? '', id);
   }
 
-  // ========== SURVEYS ==========
+  // ========== SURVEYS (static routes BEFORE :id) ==========
   @Post('surveys')
   @Roles('owner', 'admin', 'manager')
   createSurvey(@Req() request: RequestWithUser, @Body() body: any) {
@@ -155,33 +75,38 @@ export class CommunicationController {
   @Patch('surveys/:id')
   @Roles('owner', 'admin', 'manager')
   updateSurvey(@Req() request: RequestWithUser, @Param('id') id: string, @Body() body: any) {
+    this.assertValidObjectId(id);
     return this.service.updateSurvey(request.companyId?.toString() ?? '', id, body);
   }
 
   @Delete('surveys/:id')
   @Roles('owner', 'admin', 'manager')
   deleteSurvey(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
     return this.service.deleteSurvey(request.companyId?.toString() ?? '', id);
   }
 
   @Post('surveys/:id/respond')
   submitSurveyResponse(@Req() request: RequestWithUser, @Param('id') surveyId: string, @Body() body: any) {
+    this.assertValidObjectId(surveyId);
     return this.service.submitSurveyResponse(request.companyId?.toString() ?? '', { ...body, surveyId });
   }
 
   @Get('surveys/:id/results')
   @Roles('owner', 'admin', 'manager')
   getSurveyResults(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
     return this.service.getSurveyResults(request.companyId?.toString() ?? '', id);
   }
 
   @Get('surveys/:id/stats')
   @Roles('owner', 'admin', 'manager')
   getSurveyStats(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
     return this.service.getSurveyStats(request.companyId?.toString() ?? '', id);
   }
 
-  // ========== MAILBOX ==========
+  // ========== MAILBOX (static routes BEFORE :id) ==========
   @Post('mailbox')
   createMailbox(@Req() request: RequestWithUser, @Body() body: any) {
     return this.service.createMailboxEntry(request.companyId?.toString() ?? '', body, body.employeeId);
@@ -200,16 +125,18 @@ export class CommunicationController {
     @Body('response') response: string,
     @Body('respondedBy') respondedBy: string,
   ) {
+    this.assertValidObjectId(id);
     return this.service.respondMailbox(request.companyId?.toString() ?? '', id, response, respondedBy);
   }
 
   @Delete('mailbox/:id')
   @Roles('owner', 'admin', 'manager')
   deleteMailbox(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
     return this.service.deleteMailboxEntry(request.companyId?.toString() ?? '', id);
   }
 
-  // ========== HISTORY ==========
+  // ========== HISTORY (static routes BEFORE :id) ==========
   @Get('history')
   @Roles('owner', 'admin', 'manager')
   getHistory(
@@ -231,5 +158,110 @@ export class CommunicationController {
   @Roles('owner', 'admin', 'manager')
   checkAlerts(@Req() request: RequestWithUser) {
     return this.service.checkAlerts(request.companyId?.toString() ?? '');
+  }
+
+  // ========== COMMUNICATIONS CRUD ==========
+  @Post()
+  @Roles('owner', 'admin', 'manager')
+  create(@Req() request: RequestWithUser, @CurrentUser() user: any, @Body() body: any) {
+    return this.service.createComm('', request.companyId?.toString() ?? '', user?.uid || '', user?.email || '', body);
+  }
+
+  @Get()
+  @Roles('owner', 'admin', 'manager')
+  findAll(@Req() request: RequestWithUser) {
+    return this.service.findAllComms(request.companyId?.toString() ?? '');
+  }
+
+  // ========== DYNAMIC :id ROUTES (LAST) ==========
+  // All static routes above MUST be declared before this catch-all :id route.
+  // NestJS matches routes in declaration order; :id is greedy and would
+  // otherwise intercept requests for /campaigns, /surveys, /mailbox, /history.
+
+  @Get(':id')
+  @Roles('owner', 'admin', 'manager')
+  findOne(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
+    return this.service.findCommById(request.companyId?.toString() ?? '', id);
+  }
+
+  @Patch(':id')
+  @Roles('owner', 'admin', 'manager')
+  update(@Req() request: RequestWithUser, @Param('id') id: string, @Body() body: any) {
+    this.assertValidObjectId(id);
+    return this.service.updateComm(request.companyId?.toString() ?? '', id, body);
+  }
+
+  @Post(':id/publish')
+  @Roles('owner', 'admin', 'manager')
+  publish(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
+    return this.service.publishComm('', request.companyId?.toString() ?? '', id);
+  }
+
+  @Post(':id/archive')
+  @Roles('owner', 'admin', 'manager')
+  archive(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
+    return this.service.archiveComm(request.companyId?.toString() ?? '', id);
+  }
+
+  @Delete(':id')
+  @Roles('owner', 'admin', 'manager')
+  delete(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
+    return this.service.deleteComm(request.companyId?.toString() ?? '', id);
+  }
+
+  // ========== RECIPIENTS ==========
+  @Get(':id/recipients')
+  @Roles('owner', 'admin', 'manager')
+  getRecipients(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
+    return this.service.getRecipients(request.companyId?.toString() ?? '', id);
+  }
+
+  @Post(':id/recipients')
+  @Roles('owner', 'admin', 'manager')
+  addRecipients(@Req() request: RequestWithUser, @Param('id') id: string, @Body('employeeIds') employeeIds: string[]) {
+    this.assertValidObjectId(id);
+    return this.service.addRecipients(request.companyId?.toString() ?? '', id, employeeIds);
+  }
+
+  // ========== READ RECEIPTS ==========
+  @Post(':id/read')
+  registerRead(
+    @Req() request: RequestWithUser,
+    @Param('id') id: string,
+    @Body('employeeId') employeeId: string,
+    @Body('employeeName') employeeName: string,
+  ) {
+    this.assertValidObjectId(id);
+    return this.service.registerRead(request.companyId?.toString() ?? '', id, employeeId, employeeName);
+  }
+
+  @Get(':id/read-receipts')
+  @Roles('owner', 'admin', 'manager')
+  getReadReceipts(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
+    return this.service.getReadReceipts(request.companyId?.toString() ?? '', id);
+  }
+
+  // ========== SIGNATURES ==========
+  @Post(':id/sign')
+  addSignature(
+    @Req() request: RequestWithUser,
+    @Param('id') id: string,
+    @Body() body: { employeeId: string; employeeName: string; employeeEmail: string; signatureHash?: string; signatureUrl?: string; comments?: string },
+  ) {
+    this.assertValidObjectId(id);
+    return this.service.addSignature(request.companyId?.toString() ?? '', id, body.employeeId, body.employeeName, body.employeeEmail, body);
+  }
+
+  @Get(':id/signatures')
+  @Roles('owner', 'admin', 'manager')
+  getSignatures(@Req() request: RequestWithUser, @Param('id') id: string) {
+    this.assertValidObjectId(id);
+    return this.service.getSignatures(request.companyId?.toString() ?? '', id);
   }
 }

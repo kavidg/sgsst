@@ -137,23 +137,33 @@ export class PhvaAdvancedCopasstTrainingService {
       .exec();
     if (existing) return existing;
 
-    const period = await this.getCurrentCopasstPeriod(companyId);
-    const created = await this.model.create({
-      companyId,
-      itemCode: COPASST_TRAINING_ITEM_CODE,
-      year,
-      periodId: period?._id,
-      checklistTemplate: DEFAULT_COPASST_TRAINING_CHECKLIST,
-      history: [
-        {
-          action: 'CREATED',
-          createdBy: 'system',
-          createdAt: new Date(),
-          details: `Entidad 1.1.7 creada para el año ${year}`,
-        },
-      ],
-    });
-    return created;
+    try {
+      const period = await this.getCurrentCopasstPeriod(companyId);
+      const created = await this.model.create({
+        companyId,
+        itemCode: COPASST_TRAINING_ITEM_CODE,
+        year,
+        periodId: period?._id,
+        checklistTemplate: DEFAULT_COPASST_TRAINING_CHECKLIST,
+        history: [
+          {
+            action: 'CREATED',
+            createdBy: 'system',
+            createdAt: new Date(),
+            details: `Entidad 1.1.7 creada para el año ${year}`,
+          },
+        ],
+      });
+      return created;
+    } catch (err: any) {
+      if (err?.code === 11000) {
+        const retry = await this.model
+          .findOne({ companyId, itemCode: COPASST_TRAINING_ITEM_CODE, year })
+          .exec();
+        if (retry) return retry;
+      }
+      throw err;
+    }
   }
 
   /**

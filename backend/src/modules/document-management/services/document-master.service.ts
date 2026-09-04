@@ -14,6 +14,8 @@ import { DocumentSignature, DocumentSignatureDocument } from '../schemas/documen
 import { AlertsService } from '../../alerts/alerts.service';
 import { AutoCommunicationService } from '../../communication/auto-communication.service';
 import { AlertSeverity } from '../../alerts/schemas/alert.schema';
+import { ApprovalNotificationService, ApprovalNotificationEvent } from '../../approval-workflow/services/approval-notification.service';
+import { ApprovalEntity } from '../../approval-workflow/enums/approval-entity.enum';
 
 interface UserRef {
   _id: Types.ObjectId;
@@ -36,6 +38,7 @@ export class DocumentMasterService {
     private readonly retentionService: DocumentRetentionService,
     private readonly alertsService: AlertsService,
     private readonly autoCommService: AutoCommunicationService,
+    private readonly approvalNotificationService: ApprovalNotificationService,
   ) {}
 
   // ==================== DOCUMENT CRUD ====================
@@ -591,6 +594,101 @@ export class DocumentMasterService {
     return approval;
   }
 
+  /**
+   * Solicita ajustes sobre un documento pendiente de aprobación.
+   *
+   * Reutiliza la lógica de reject() porque la transición documental es
+   * idéntica (PENDING_APPROVAL → DRAFT) y el esquema DocumentApproval solo
+   * soporta los estados PENDING / APPROVED / REJECTED.  La diferencia
+   * semántica se preserva en el rejectionReason ("Ajustes solicitados")
+   * y en el historial documental.
+   *
+   * @param companyId  — del contexto autenticado (tenant isolation)
+   * @param documentId — documento a ajustar
+   * @param userId     — usuario que solicita los ajustes
+   * @param reason     — razón de los ajustes solicitados
+   * @param comments   — comentarios adicionales (opcional)
+   */
+  async requestAdjustments(
+    companyId: Types.ObjectId,
+    documentId: Types.ObjectId,
+    userId: Types.ObjectId,
+    reason?: string,
+    comments?: string,
+  ): Promise<DocumentApproval> {
+    // Tenant isolation: el documento debe pertenecer a la empresa.
+    const document = await this.findById(documentId, companyId);
+
+    // Buscar la aprobación pendiente de ESTE documento en ESTA empresa.
+    const approval = await this.findPendingApprovalByDocument(companyId, documentId);
+    if (!approval) {
+      throw new BadRequestException('No pending approval found for this document');
+    }
+
+    // Delegar a reject() con la razón de ajustes solicitados.
+    const result = await this.reject(
+      approval._id,
+      reason ?? 'Ajustes solicitados',
+      comments,
+    );
+
+    // Registrar en historial documental (reject() no lo hace).
+    await this.historyService.record({
+      companyId,
+      documentId,
+      userId,
+      action: DocumentHistoryAction.STATUS_CHANGE,
+      previousValue: { status: DocumentStatus.PENDING_APPROVAL } as Record<string, unknown>,
+      newValue: { status: DocumentStatus.DRAFT } as Record<string, unknown>,
+      description: `Ajustes solicitados: ${reason ?? 'Sin especificar'}`,
+    });
+
+    return result;
+  }
+
+  // ==================== NOTIFICATIONS ====================
+
+  /**
+   * Envía notificación de evento de aprobación documental a los destinatarios
+   * relevantes, reutilizando ApprovalNotificationService (servicio genérico del
+   * Approval Workflow Core).
+   *
+   * El servicio genérico delega en DocumentAdapter para obtener:
+   * - moduleCode (2.5.1)
+   * - moduleName (Conservación documental)
+   * - entityLabel (código/nombre del documento)
+   * - getNotificationMessage (mensajes específicos del dominio)
+   * - getDefaultActionUrl (/document-management)
+   * - allowedRoles (owner, manager)
+   *
+   * No bloquea el workflow si falla la notificación.
+   *
+   * @param companyId - Identificador de la empresa (del contexto autenticado)
+   * @param event - Evento de aprobación
+   * @param documentId - Identificador del documento
+   * @param entityLabel - Identificador legible del documento
+   * @param actorEmail - Email del usuario que realizó la acción
+   */
+  async notifyApprovalEvent(
+    companyId: Types.ObjectId,
+    event: {
+      type: ApprovalNotificationEvent;
+      documentId: string;
+      entityLabel: string;
+      actorEmail?: string;
+    },
+  ): Promise<void> {
+    await this.approvalNotificationService.notify({
+      companyId,
+      entity: ApprovalEntity.DOCUMENT,
+      entityId: event.documentId,
+      entityLabel: event.entityLabel,
+      event: event.type,
+      actorEmail: event.actorEmail,
+      actionUrl: '/document-management',
+    });
+  }
+
   async getPendingApprovals(companyId: Types.ObjectId): Promise<DocumentApproval[]> {
     return this.approvalModel
       .find({ companyId, status: ApprovalStatus.PENDING })
@@ -906,5 +1004,106 @@ export class DocumentMasterService {
       process: 'Medical Records',
       expirationDate: params.expirationDate || twentyYearsLater,
     });
+  }
+
+  // ==================== EVIDENCE QUERIES (2.9.1 — Adquisiciones) ====================
+
+  /**
+   * Busca documentos vinculados a una adquisición específica.
+   * Tenant-safe: filtra por companyId.
+   */
+  async findByAcquisitionId(
+    companyId: Types.ObjectId,
+    acquisitionId: Types.ObjectId,
+  ): Promise<DocumentMaster[]> {
+    return this.documentModel
+      .find({ companyId, acquisitionId })
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  /**
+   * Busca documentos vinculados a un proveedor específico.
+   * Tenant-safe: filtra por companyId.
+   */
+  async findBySupplierId(
+    companyId: Types.ObjectId,
+    supplierId: Types.ObjectId,
+  ): Promise<DocumentMaster[]> {
+    return this.documentModel
+      .find({ companyId, supplierId })
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  /**
+   * Cuenta documentos por estándar dentro de una empresa.
+   * Retorna: { total, active, expired, expiringSoon } sin PII.
+   */
+  async countByStandardCode(
+    companyId: Types.ObjectId,
+    standardCode: string,
+  ): Promise<{
+    total: number;
+    active: number;
+    expired: number;
+    expiringSoon: number;
+    pendingApproval: number;
+  }> {
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const [total, active, expired, expiringSoon, pendingApproval] = await Promise.all([
+      this.documentModel.countDocuments({ companyId, standardCode }).exec(),
+      this.documentModel.countDocuments({ companyId, standardCode, status: DocumentStatus.ACTIVE }).exec(),
+      this.documentModel.countDocuments({
+        companyId, standardCode,
+        status: DocumentStatus.ACTIVE,
+        expirationDate: { $lte: now },
+      }).exec(),
+      this.documentModel.countDocuments({
+        companyId, standardCode,
+        status: DocumentStatus.ACTIVE,
+        expirationDate: { $gte: now, $lte: thirtyDays },
+      }).exec(),
+      this.documentModel.countDocuments({
+        companyId, standardCode,
+        status: DocumentStatus.PENDING_APPROVAL,
+      }).exec(),
+    ]);
+
+    return { total, active, expired, expiringSoon, pendingApproval };
+  }
+
+  /**
+   * Cuenta documentos que tienen acquisitionId vinculado dentro de una empresa.
+   * Retorna los IDs únicos de adquisiciones que tienen al menos un documento.
+   */
+  async findAcquisitionIdsWithDocuments(
+    companyId: Types.ObjectId,
+  ): Promise<Types.ObjectId[]> {
+    const results = await this.documentModel
+      .aggregate([
+        { $match: { companyId, acquisitionId: { $exists: true, $ne: null }, standardCode: '2.9.1' } },
+        { $group: { _id: '$acquisitionId' } },
+      ])
+      .exec();
+    return results.map((r) => r._id as Types.ObjectId);
+  }
+
+  /**
+   * Cuenta documentos que tienen supplierId vinculado dentro de una empresa.
+   * Retorna los IDs únicos de proveedores que tienen al menos un documento.
+   */
+  async findSupplierIdsWithDocuments(
+    companyId: Types.ObjectId,
+  ): Promise<Types.ObjectId[]> {
+    const results = await this.documentModel
+      .aggregate([
+        { $match: { companyId, supplierId: { $exists: true, $ne: null }, standardCode: '2.9.1' } },
+        { $group: { _id: '$supplierId' } },
+      ])
+      .exec();
+    return results.map((r) => r._id as Types.ObjectId);
   }
 }

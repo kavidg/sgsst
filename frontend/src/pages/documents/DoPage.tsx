@@ -51,6 +51,15 @@ const condicionesSalud: EvaluationEntry[] = [
     criteria:
       'Se evidencia gestión oportuna de recomendaciones médicas ocupacionales, con acciones documentadas y monitoreo de su efectividad.',
   },
+  {
+    code: '3.1.4',
+    title: 'Realización de Evaluaciones Médicas Ocupacionales',
+    weight: 3,
+    modeReview:
+      'Verificar la realización de evaluaciones médicas ocupacionales de ingreso, periódicas y de egreso, definiendo periodicidad, relación con peligros y comunicación por escrito al trabajador.',
+    criteria:
+      'La organización realiza evaluaciones médicas ocupacionales conforme a la normatividad, con periodicidad definida, relación con peligros, comunicación documentada al trabajador y trazabilidad administrativa.',
+  },
 ];
 
 const registroInvestigacion: EvaluationEntry[] = [
@@ -221,7 +230,7 @@ const gestionAmenazas: EvaluationEntry[] = [
   },
 ];
 
-function EvaluationSection({ title, items, children, sectionId, readOnly = false }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean }) {
+function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
   useEffect(() => {
@@ -239,6 +248,13 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               hasError={missingCodes.has(item.code)}
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
+              headerAction={
+                ['3.1.1', '3.1.2', '3.1.3', '3.1.4', '3.2.1', '3.2.2', '3.3.1', '3.3.2', '3.3.3', '4.1.1', '4.1.2', '4.1.3', '4.1.4'].includes(item.code) ? (
+                  <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
+                    ⚡ Entrar a Gestión avanzada
+                  </Button>
+                ) : null
+              }
             />
             {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
           </div>
@@ -352,6 +368,61 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
     [useCatalogSet, catalogGroups, hacerCatalogByCode, useCatalog],
   );
 
+  const onOpenAdvancedManagement = (item: EvaluationEntry) => {
+    if (item.code === '3.1.1') {
+      navigate('/sociodemographic-management', { state: { source: 'phva-3.1.1' } });
+      return;
+    }
+    if (item.code === '3.1.2') {
+      navigate('/occupational-exam-management', { state: { source: 'phva-3.1.2' } });
+      return;
+    }
+    if (item.code === '3.1.3') {
+      navigate('/medical-recommendation-management', { state: { source: 'phva-3.1.3' } });
+      return;
+    }
+    if (item.code === '3.1.4') {
+      navigate('/occupational-evaluation-management', { state: { source: 'phva-3.1.4' } });
+      return;
+    }
+    if (item.code === '3.2.1') {
+      navigate('/absenteeism', { state: { source: 'phva-3.2.1' } });
+      return;
+    }
+    if (item.code === '3.2.2') {
+      navigate('/disease-investigation-management', { state: { source: 'phva-3.2.2' } });
+      return;
+    }
+    if (item.code === '3.3.1') {
+      navigate('/epidemiological-surveillance', { state: { source: 'phva-3.3.1' } });
+      return;
+    }
+    if (item.code === '3.3.2') {
+      navigate('/health-indicators', { state: { source: 'phva-3.3.2' } });
+      return;
+    }
+    if (item.code === '3.3.3') {
+      navigate('/case-intervention', { state: { source: 'phva-3.3.3' } });
+      return;
+    }
+    if (item.code === '4.1.1') {
+      navigate('/risk-methodology', { state: { source: 'phva-4.1.1' } });
+      return;
+    }
+    if (item.code === '4.1.2') {
+      navigate('/worker-participation', { state: { source: 'phva-4.1.2' } });
+      return;
+    }
+    if (item.code === '4.1.3') {
+      navigate('/hazardous-substances', { state: { source: 'phva-4.1.3' } });
+      return;
+    }
+    if (item.code === '4.1.4') {
+      navigate('/environmental-measurements', { state: { source: 'phva-4.1.4' } });
+      return;
+    }
+  };
+
   return (
     <div className="grid">
       <ComplianceProgress
@@ -363,14 +434,14 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
         <p className="muted">Gestión de la Salud (20%)</p>
       </Card>
 
-      <EvaluationSection title={catalogSections['do-condiciones-salud']?.title ?? 'Condiciones de salud en el trabajo (9%)'} items={condicionesSaludItems} sectionId="do-condiciones-salud" readOnly={readOnly} />
-      <EvaluationSection title={catalogSections['do-registro-investigacion']?.title ?? 'Registro e investigación (5%)'} items={registroInvestigacionItems} sectionId="do-registro-investigacion" readOnly={readOnly} />
-      <EvaluationSection title={catalogSections['do-vigilancia-salud']?.title ?? 'Vigilancia de la salud (6%)'} items={vigilanciaSaludItems} sectionId="do-vigilancia-salud" readOnly={readOnly} />
+      <EvaluationSection title={catalogSections['do-condiciones-salud']?.title ?? 'Condiciones de salud en el trabajo (9%)'} items={condicionesSaludItems} sectionId="do-condiciones-salud" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} />
+      <EvaluationSection title={catalogSections['do-registro-investigacion']?.title ?? 'Registro e investigación (5%)'} items={registroInvestigacionItems} sectionId="do-registro-investigacion" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} />
+      <EvaluationSection title={catalogSections['do-vigilancia-salud']?.title ?? 'Vigilancia de la salud (6%)'} items={vigilanciaSaludItems} sectionId="do-vigilancia-salud" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} />
 
       <Card title="Gestión de Peligros y Riesgos (30%)">
         <p className="muted">Control de peligros y riesgos prioritarios</p>
       </Card>
-      <EvaluationSection title={catalogSections['do-identificacion-peligros']?.title ?? 'Identificación de peligros (15%)'} items={identificacionPeligrosItems} sectionId="do-identificacion-peligros" readOnly={readOnly} />
+      <EvaluationSection title={catalogSections['do-identificacion-peligros']?.title ?? 'Identificación de peligros (15%)'} items={identificacionPeligrosItems} sectionId="do-identificacion-peligros" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} />
       <EvaluationSection title={catalogSections['do-medidas-control']?.title ?? 'Medidas de prevención y control (15%)'} items={medidasControlItems} sectionId="do-medidas-control" readOnly={readOnly} />
 
       <Card title="Gestión de Amenazas (10%)">

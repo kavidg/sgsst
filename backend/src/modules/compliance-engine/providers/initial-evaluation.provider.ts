@@ -11,6 +11,7 @@ import {
 import { FindingPriority } from '../enums/finding-priority.enum';
 import { classifyComplianceLevel } from '../utils/compliance-score';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
+import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 
 /**
  * Cumplimiento de la evaluación inicial SG-SST.
@@ -39,6 +40,7 @@ export class InitialEvaluationProvider implements ComplianceProvider {
         findings: [],
         pending: 0,
         completed: 0,
+        phases: { plan: 0 } as Partial<Record<CompliancePhaseKey, number>>,
       };
     }
 
@@ -68,6 +70,7 @@ export class InitialEvaluationProvider implements ComplianceProvider {
       findings,
       pending: pendingActions,
       completed: evaluation.actionPlan.length - pendingActions,
+      phases: { plan: evaluation.overallCompliance } as Partial<Record<CompliancePhaseKey, number>>,
     };
   }
 

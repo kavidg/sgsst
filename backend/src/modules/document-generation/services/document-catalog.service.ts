@@ -94,6 +94,43 @@ export class DocumentCatalogService {
   }
 
   /**
+   * Busca la primera instancia vinculada a un DocumentMaster específico.
+   * Devuelve el ViewModel (DocumentCatalogItem) o null si no existe.
+   * Utilizado por la navegación cruzada Aprobaciones → Documentos generados.
+   */
+  async getByDocumentMasterId(
+    documentMasterId: string,
+    companyId?: Types.ObjectId,
+  ): Promise<DocumentCatalogItem | null> {
+    const masterObjectId = this.toObjectId(documentMasterId, 'documentMasterId');
+
+    const filter: FilterQuery<DocumentInstanceDocument> = {
+      documentMasterId: masterObjectId,
+    };
+    if (companyId) {
+      filter.companyId = companyId;
+    }
+
+    const instance = await this.instanceModel.findOne(filter).exec();
+    if (!instance) {
+      return null;
+    }
+
+    const templateById = new Map<string, DocumentTemplateDocument>();
+    const companyById = new Map<string, CompanyDocument>();
+
+    const [template, company] = await Promise.all([
+      this.templateModel.findById(instance.templateId).exec(),
+      this.companyModel.findById(instance.companyId).exec(),
+    ]);
+
+    if (template) templateById.set(template._id.toString(), template);
+    if (company) companyById.set(company._id.toString(), company);
+
+    return this.toItem(instance, templateById, companyById);
+  }
+
+  /**
    * Detalle de una instancia documental: instancia + metadatos de aprobación
    * + historial de versiones de la misma entidad de origen (sin duplicar
    * información: cada versión es una DocumentInstance real).
@@ -295,6 +332,7 @@ export class DocumentCatalogService {
       sourceModule: instance.sourceModule,
       sourceEntity: instance.sourceEntity,
       downloadUrl: instance.fileUrl,
+      documentMasterId: instance.documentMasterId?.toString() ?? null,
     };
   }
 

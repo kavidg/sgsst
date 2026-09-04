@@ -3,6 +3,7 @@ import { ApprovalDecision } from '../enums/approval-decision.enum';
 import { ApprovalEntity } from '../enums/approval-entity.enum';
 import { ApprovalStatus } from '../enums/approval-status.enum';
 import { ApprovalActor } from '../interfaces/approval-actor.interface';
+import { ApprovalNotificationEvent } from '../services/approval-notification.service';
 
 /**
  * Token de inyección para el registro de adapters del Approval Workflow Core.
@@ -57,4 +58,28 @@ export interface ApprovalAdapter {
 
   /** Roles autorizados para decidir sobre esta entidad. */
   allowedRoles(): string[];
+
+  /**
+   * Retorna el mensaje de notificación específico del dominio para un evento.
+   * El servicio genérico delega en el adapter para construir mensajes.
+   */
+  getNotificationMessage?(event: ApprovalNotificationEvent, entityLabel: string): string;
+
+  /**
+   * Retorna la URL de navegación para la entidad.
+   * Ejemplo: "/acquisitions", "/documents"
+   */
+  getDefaultActionUrl?(entity: unknown): string;
+
+  /**
+   * Retorna el moduleCode para la alerta (ej: '2.9.1', '2.5.1').
+   * Si no se implementa, se usa una cadena vacía.
+   */
+  getModuleCode?(): string;
+
+  /**
+   * Retorna el moduleName para la alerta (ej: 'Adquisiciones', 'Conservación documental').
+   * Si no se implementa, se usa una cadena vacía.
+   */
+  getModuleName?(): string;
 }

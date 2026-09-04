@@ -5,13 +5,7 @@ import { FindingPriority } from '../enums/finding-priority.enum';
 import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 import { classifyComplianceLevel } from '../utils/compliance-score';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
-
-const PHASE_PREFIXES: Record<CompliancePhaseKey, string[]> = {
-  plan: ['1.', '2.'],
-  do: ['3.', '4.', '5.'],
-  check: ['6.'],
-  act: ['7.'],
-};
+import { PHASE_PREFIXES } from '../utils/phase-prefixes';
 
 /**
  * Cumplimiento del PHVA clásico (evaluaciones por estándar) y desglose por etapa.

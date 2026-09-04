@@ -31,10 +31,10 @@ const links: SidebarLink[] = [
   { to: '/absenteeism', label: 'Ausentismos', icon: Icons.chart },
   { to: '/risks', label: 'Riesgos', icon: Icons.shield },
   { to: '/inspections', label: 'Inspecciones', icon: Icons.shield },
-  { to: '/document-management', label: 'Conservación Doc.', icon: Icons.file },
-  { to: '/accountability', label: 'Rend. Cuentas', icon: Icons.chart },
-  { to: '/legal-matrix', label: 'Matriz Legal', icon: Icons.file },
+  { to: '/epp', label: 'EPP', icon: Icons.shield },
+  { to: '/emergencies', label: 'Emergencias', icon: Icons.alert },
   { to: '/my-communications', label: 'Mis Comunic.', icon: Icons.bell },
+  { to: '/intelligence-compliance', label: '🤖 Inteligencia', icon: Icons.chart },
 ];
 
 const documentsSubmenu: DocumentsSubmenuLink[] = [

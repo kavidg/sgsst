@@ -1,6 +1,10 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsMongoId, IsOptional, IsString } from 'class-validator';
 
 export class UpdateResponsableSstDto {
+  // === Vínculo con Employee (BLOQUE 3) ===
+  @IsOptional()
+  @IsMongoId()
+  employeeId?: string;
   @IsOptional()
   @IsString()
   fullName?: string;

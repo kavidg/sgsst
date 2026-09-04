@@ -225,7 +225,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '1.2.2',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Inducción y Reinducción SG-SST',
     description: 'Procedimiento de inducción y reinducción en SG-SST para todo el personal.',
     chapter: 'Recursos',
@@ -403,7 +403,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     phva: 'HACER',
     normativeWeight: 1,
     applicableLevels: ['21', '60'],
-    moduleRoute: '/documents/plan',
+    moduleRoute: '/communication',
     validationProvider: 'communication.provider',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'BAJO' },
     // FASE 7.7.B.1 — Textos tomados de PlanPage (integralManagementItems).
@@ -415,14 +415,15 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '2.9.1',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Adquisiciones',
     description: 'Criterios de SST integrados en compras de bienes y servicios con evaluación de proveedores.',
     chapter: 'Gestión integral del SG-SST',
     phva: 'HACER',
     normativeWeight: 1,
     applicableLevels: ['60'],
-    moduleRoute: '/documents/plan',
+    moduleRoute: '/acquisitions',
+    validationProvider: 'acquisition.provider',
     priorityMetadata: { criticality: 'BAJA', estimatedEffort: 'MEDIO' },
     // FASE 7.7.B.1 — Textos tomados de PlanPage (integralManagementItems).
     criteria:
@@ -433,7 +434,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '2.10.1',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Contratación',
     description: 'Requisitos de SST para contratistas y subcontratistas con inducción, control y seguimiento.',
     chapter: 'Gestión integral del SG-SST',
@@ -451,7 +452,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '2.11.1',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Gestión del cambio',
     description: 'Procedimiento de gestión del cambio con evaluación de impactos en SST.',
     chapter: 'Gestión integral del SG-SST',
@@ -495,14 +496,14 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   // ──────────────── CAPÍTULO 3. GESTIÓN DEL TALENTO HUMANO ────────────────
   {
     code: '3.1.1',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Perfil sociodemográfico',
     description: 'Caracterización sociodemográfica de la población trabajadora, actualizada como mínimo una vez al año.',
     chapter: 'Gestión del talento humano',
     phva: 'PLANEAR',
     normativeWeight: 3,
     applicableLevels: ['60'],
-    moduleRoute: '/documents/do',
+    moduleRoute: '/sociodemographic-management',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (condicionesSalud).
     criteria:
@@ -513,7 +514,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '3.1.2',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Exámenes médicos ocupacionales',
     description: 'Evaluaciones médicas ocupacionales de ingreso, periódicos y de egreso según el riesgo del cargo.',
     chapter: 'Gestión del talento humano',
@@ -531,7 +532,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '3.1.3',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Seguimiento a recomendaciones médicas',
     description: 'Gestión oportuna de recomendaciones y restricciones médicas ocupacionales.',
     chapter: 'Gestión del talento humano',
@@ -545,6 +546,23 @@ export const CATALOG_60: readonly StandardDefinition[] = [
       'Se evidencia gestión oportuna de recomendaciones médicas ocupacionales, con acciones documentadas y monitoreo de su efectividad.',
     modeReview:
       'Revisar el mecanismo para gestionar recomendaciones o restricciones médicas y confirmar evidencia de ajustes laborales, reubicaciones o controles implementados.',
+    section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
+  },
+  {
+    code: '3.1.4',
+    implementationStatus: 'IMPLEMENTED',
+    title: 'Realización de Evaluaciones Médicas Ocupacionales',
+    description: 'Evaluaciones médicas ocupacionales con periodicidad, peligros relacionados y comunicación al trabajador.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 3,
+    applicableLevels: ['7', '21', '60'],
+    moduleRoute: '/documents/do',
+    priorityMetadata: { criticality: 'ALTA', estimatedEffort: 'MEDIO' },
+    criteria:
+      'Se realizan evaluaciones médicas ocupacionales de ingreso, periódicas y de egreso, definiendo la periodicidad, asociando peligros relacionados y comunicando resultados por escrito al trabajador.',
+    modeReview:
+      'Verificar que se realicen evaluaciones médicas de ingreso, periódicas y de egreso según la periodicidad definida, que se asocien peligros relevantes y que exista constancia de comunicación de resultados al trabajador.',
     section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
   },
   {
@@ -574,7 +592,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     phva: 'HACER',
     normativeWeight: 2.5,
     applicableLevels: ['60'],
-    moduleRoute: '/incidents',
+    moduleRoute: '/disease-investigation-management',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (registroInvestigacion).
     criteria:
@@ -585,14 +603,14 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '3.3.1',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Programas de vigilancia epidemiológica',
     description: 'PVE priorizados según matriz de peligros con diseño metodológico, indicadores y ejecución.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 2,
     applicableLevels: ['60'],
-    moduleRoute: '/documents/do',
+    moduleRoute: '/epidemiological-surveillance',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'ALTO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (vigilanciaSalud).
     criteria:
@@ -603,14 +621,14 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '3.3.2',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Medición y análisis de indicadores de salud',
     description: 'Indicadores de salud laboral calculados, analizados y comunicados periódicamente.',
     chapter: 'Gestión del talento humano',
     phva: 'VERIFICAR',
     normativeWeight: 2,
     applicableLevels: ['60'],
-    moduleRoute: '/documents/do',
+    moduleRoute: '/health-indicators',
     priorityMetadata: { criticality: 'BAJA', estimatedEffort: 'MEDIO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (vigilanciaSalud).
     criteria:
@@ -621,14 +639,14 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '3.3.3',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Intervención y seguimiento de casos',
     description: 'Gestión integral de casos de salud laboral con trazabilidad de acciones y cierre.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 2,
     applicableLevels: ['60'],
-    moduleRoute: '/documents/do',
+    moduleRoute: '/case-intervention',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (vigilanciaSalud).
     criteria:
@@ -683,7 +701,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '4.1.2',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Participación de trabajadores',
     description: 'Evidencias de participación de trabajadores en la identificación de peligros y valoración de riesgos.',
     chapter: 'Procedimientos y programas',
@@ -701,7 +719,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '4.1.3',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Sustancias peligrosas',
     description: 'Inventario de sustancias químicas peligrosas, hojas de datos de seguridad y controles implementados.',
     chapter: 'Procedimientos y programas',
@@ -719,7 +737,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '4.1.4',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Mediciones ambientales',
     description: 'Mediciones higiénicas ambientales según riesgos priorizados con análisis y acciones derivadas.',
     chapter: 'Procedimientos y programas',
@@ -755,7 +773,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '4.2.2',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Verificación de aplicación de medidas',
     description: 'Seguimiento al cumplimiento y efectividad de las medidas implementadas.',
     chapter: 'Procedimientos y programas',
@@ -773,7 +791,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '4.2.3',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Procedimientos e instructivos',
     description: 'Procedimientos e instructivos de trabajo seguro para tareas críticas, actualizados y divulgados.',
     chapter: 'Procedimientos y programas',
@@ -871,7 +889,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   // ─────────────────── CAPÍTULO 5. EMERGENCIAS (PHVA Hacer) ───────────────────
   {
     code: '5.1.1',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Plan de emergencias',
     description: 'Plan de prevención, preparación y respuesta ante emergencias documentado y actualizado.',
     chapter: 'Procedimientos y programas',
@@ -889,7 +907,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '5.1.2',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Brigada de emergencia',
     description: 'Brigada de emergencia conformada y entrenada con simulacros y disponibilidad de equipos.',
     chapter: 'Procedimientos y programas',
@@ -975,7 +993,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '6.1.4',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Planificación auditorías COPASST',
     description: 'Planificación de auditorías y seguimiento de compromisos del COPASST.',
     chapter: 'Verificación y mejora',
@@ -995,7 +1013,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   // ─────────────────── CAPÍTULO 7. ACTUAR (PHVA Actuar) ───────────────────
   {
     code: '7.1.1',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Acciones preventivas y correctivas',
     description: 'Acciones preventivas y correctivas definidas, ejecutadas y verificadas para evitar recurrencias.',
     chapter: 'Verificación y mejora',
@@ -1013,7 +1031,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '7.1.2',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Acciones mejora alta dirección',
     description: 'Acciones de mejora aprobadas por la alta dirección con seguimiento a su implementación.',
     chapter: 'Verificación y mejora',
@@ -1049,7 +1067,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '7.1.4',
-    implementationStatus: 'PARTIAL',
+    implementationStatus: 'IMPLEMENTED',
     title: 'Plan de mejoramiento',
     description: 'Plan de mejoramiento del SG-SST con acciones, responsables y seguimiento al cierre.',
     chapter: 'Verificación y mejora',

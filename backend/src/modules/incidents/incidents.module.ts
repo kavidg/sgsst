@@ -8,16 +8,22 @@ import { RolesGuard } from '../questions/roles.guard';
 import { IncidentsController } from './incidents.controller';
 import { IncidentsService } from './incidents.service';
 import { Incident, IncidentSchema } from './schemas/incident.schema';
+import { CompanyPeriodWorkData, CompanyPeriodWorkDataSchema } from './schemas/company-period-work-data.schema';
+import { CompanyPeriodWorkDataService } from './company-period-work-data.service';
 
 @Module({
   imports: [
     AuthModule,
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }, { name: Incident.name, schema: IncidentSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: Incident.name, schema: IncidentSchema },
+      { name: CompanyPeriodWorkData.name, schema: CompanyPeriodWorkDataSchema },
+    ]),
     UsersModule,
     CommunicationModule,
   ],
   controllers: [IncidentsController],
-  providers: [IncidentsService, RolesGuard],
-  exports: [IncidentsService],
+  providers: [IncidentsService, CompanyPeriodWorkDataService, RolesGuard],
+  exports: [IncidentsService, CompanyPeriodWorkDataService],
 })
 export class IncidentsModule {}

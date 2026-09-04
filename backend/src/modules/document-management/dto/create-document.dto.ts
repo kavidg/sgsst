@@ -135,6 +135,16 @@ export class RejectDocumentDto {
   comments?: string;
 }
 
+export class RequestAdjustmentsDto {
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+  @IsString()
+  comments?: string;
+}
+
 export class CreateRetentionRuleDto {
   @IsEnum(DocumentType)
   documentType!: DocumentType;

@@ -106,16 +106,20 @@ function buildService(record: MockRecord, options?: { legalRepresentative?: bool
   };
   const responsableSstModel = {
     findOne: () => ({ exec: async () => record }),
+    findOneAndUpdate: () => ({ exec: async () => record }),
     create: async () => record,
   };
   const genericModel = {
     findOne: async () => null,
+    findOneAndUpdate: () => ({ exec: async () => record }),
     findById: () => ({ exec: async () => null }),
     create: async () => record,
   };
 
   const service = new PhvaAdvancedService(
     responsableSstModel as never,
+    genericModel as never,
+    genericModel as never,
     genericModel as never,
     genericModel as never,
     genericModel as never,
@@ -141,6 +145,7 @@ function buildService(record: MockRecord, options?: { legalRepresentative?: bool
     { resolve: async () => null } as never,
     { resolve: async () => null } as never,
     { resolve: async () => null } as never,
+    { syncFromSstObjectives: async () => ({ created: 0, updated: 0, skipped: 0, errors: 0 }) } as never,
   );
 
   return { service, record };

@@ -21,6 +21,8 @@ import { PlanSubtask, PlanSubtaskSchema } from './schemas/plan-subtask.schema';
 import { TaskEvidence, TaskEvidenceSchema } from './schemas/task-evidence.schema';
 import { TaskJustification, TaskJustificationSchema } from './schemas/task-justification.schema';
 import { PlanHistory, PlanHistorySchema } from './schemas/plan-history.schema';
+import { SstObjectives, SstObjectivesSchema } from '../phva-advanced/schemas/phva-advanced-sst-objective.schema';
+import { InitialEvaluation, InitialEvaluationSchema } from '../initial-evaluation/schemas/initial-evaluation.schema';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { PlanHistory, PlanHistorySchema } from './schemas/plan-history.schema';
       { name: TaskEvidence.name, schema: TaskEvidenceSchema },
       { name: TaskJustification.name, schema: TaskJustificationSchema },
       { name: PlanHistory.name, schema: PlanHistorySchema },
+      { name: SstObjectives.name, schema: SstObjectivesSchema },
+      { name: InitialEvaluation.name, schema: InitialEvaluationSchema },
     ]),
   ],
   controllers: [AnnualWorkPlanController],

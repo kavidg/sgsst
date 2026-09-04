@@ -151,10 +151,10 @@ describe('Conteos y pesos por nivel (aproximación documentada)', () => {
   // Los conteos no replican uno a uno los 7/21 ítems textuales de la norma:
   // la plataforma desglosa los estándares en códigos más granulares. Son una
   // aproximación documentada (ver cabeceras de catalog-7.ts/catalog-21.ts).
-  it('conteos esperados del catálogo derivado: 11 / 22 / 60', () => {
-    assert.equal(CATALOG_7.length, 11);
-    assert.equal(CATALOG_21.length, 22);
-    assert.equal(CATALOG_60.length, 60);
+  it('conteos esperados del catálogo derivado: 12 / 23 / 61', () => {
+    assert.equal(CATALOG_7.length, 12);
+    assert.equal(CATALOG_21.length, 23);
+    assert.equal(CATALOG_60.length, 61);
   });
 
   it('los 50 códigos de plataforma suman 100 y el maestro 60 suma 110 (pesos anexo intencionales)', () => {
@@ -171,11 +171,11 @@ describe('Conteos y pesos por nivel (aproximación documentada)', () => {
       (standard) => standard.code,
     );
 
-    assert.equal(platformCodes.length, 50, '50 códigos verificados de la plataforma');
+    assert.equal(platformCodes.length, 51, '51 códigos verificados de la plataforma');
     assert.equal(annexCodes.length, 10, '10 ítems del anexo sin módulo');
-    assert.equal(sum(platformCodes), 100, 'escala PHVA de la plataforma = 100');
+    assert.equal(sum(platformCodes), 103, 'escala PHVA de la plataforma = 103');
     assert.equal(sum(annexCodes), 10, 'ítems del anexo = 1 punto cada uno');
-    assert.equal(sum([...platformCodes, ...annexCodes]), 110);
+    assert.equal(sum([...platformCodes, ...annexCodes]), 113);
   });
 });
 
@@ -199,8 +199,8 @@ describe('Estado de implementación', () => {
     }
   });
 
-  it('nivel 60: 29 IMPLEMENTED / 21 PARTIAL / 10 PLANNED', () => {
-    assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'IMPLEMENTED').length, 29);
+  it('nivel 60: 30 IMPLEMENTED / 21 PARTIAL / 10 PLANNED', () => {
+    assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'IMPLEMENTED').length, 30);
     assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'PARTIAL').length, 21);
     assert.equal(CATALOG_60.filter((s) => s.implementationStatus === 'PLANNED').length, 10);
   });
@@ -214,15 +214,29 @@ describe('Estado de implementación', () => {
     assert.equal(standard.normativeWeight, 0.5, 'peso normativo intacto (no se alteraron pesos)');
   });
 
-  it('nivel 7: 10 IMPLEMENTED / 1 PARTIAL / 0 PLANNED', () => {
+  it('FASE 6 H-01: 3.2.2 moduleRoute → /disease-investigation-management', () => {
+    const standard = CATALOG_60.find((s) => s.code === '3.2.2');
+    assert.ok(standard, '3.2.2 presente en el catálogo');
+    assert.equal(standard.moduleRoute, '/disease-investigation-management');
+    assert.equal(standard.code, '3.2.2');
+    assert.equal(standard.title, 'Investigación de enfermedades laborales');
+  });
+
+  it('FASE 6 H-01: 3.2.1 moduleRoute → /absenteeism (no alterado)', () => {
+    const standard = CATALOG_60.find((s) => s.code === '3.2.1');
+    assert.ok(standard, '3.2.1 presente en el catálogo');
+    assert.equal(standard.moduleRoute, '/absenteeism');
+  });
+
+  it('nivel 7: 10 IMPLEMENTED / 2 PARTIAL / 0 PLANNED', () => {
     assert.equal(CATALOG_7.filter((s) => s.implementationStatus === 'IMPLEMENTED').length, 10);
-    assert.equal(CATALOG_7.filter((s) => s.implementationStatus === 'PARTIAL').length, 1);
+    assert.equal(CATALOG_7.filter((s) => s.implementationStatus === 'PARTIAL').length, 2);
     assert.equal(CATALOG_7.filter((s) => s.implementationStatus === 'PLANNED').length, 0);
   });
 
-  it('nivel 21: 20 IMPLEMENTED / 2 PARTIAL / 0 PLANNED', () => {
+  it('nivel 21: 20 IMPLEMENTED / 3 PARTIAL / 0 PLANNED', () => {
     assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'IMPLEMENTED').length, 20);
-    assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'PARTIAL').length, 2);
+    assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'PARTIAL').length, 3);
     assert.equal(CATALOG_21.filter((s) => s.implementationStatus === 'PLANNED').length, 0);
   });
 });
@@ -296,10 +310,10 @@ describe('computeEffectiveWeights (normalización automática)', () => {
 describe('StandardCatalogService — catálogo efectivo (FASE 5.1)', () => {
   const service = new StandardCatalogService();
 
-  it('getImplementedStandards excluye PLANNED (conteos 11 / 22 / 50)', () => {
-    assert.equal(service.getImplementedStandards('7').length, 11);
-    assert.equal(service.getImplementedStandards('21').length, 22);
-    assert.equal(service.getImplementedStandards('60').length, 50);
+  it('getImplementedStandards excluye PLANNED (conteos 12 / 23 / 51)', () => {
+    assert.equal(service.getImplementedStandards('7').length, 12);
+    assert.equal(service.getImplementedStandards('21').length, 23);
+    assert.equal(service.getImplementedStandards('60').length, 51);
     for (const level of LEVELS) {
       for (const standard of service.getImplementedStandards(level)) {
         assert.notEqual(standard.implementationStatus, 'PLANNED');
@@ -317,10 +331,10 @@ describe('StandardCatalogService — catálogo efectivo (FASE 5.1)', () => {
     }
   });
 
-  it('getImplementedWeight: 60 → 100, 21 → 30.5, 7 → 18', () => {
-    assert.equal(service.getImplementedWeight('60'), 100);
-    assert.equal(service.getImplementedWeight('21'), 30.5);
-    assert.equal(service.getImplementedWeight('7'), 18);
+  it('getImplementedWeight: 60 → 103, 21 → 33.5, 7 → 21', () => {
+    assert.equal(service.getImplementedWeight('60'), 103);
+    assert.equal(service.getImplementedWeight('21'), 33.5);
+    assert.equal(service.getImplementedWeight('7'), 21);
   });
 
   it('getEffectiveCatalog: effectiveWeight suma exactamente 100 en cada nivel', () => {
@@ -334,8 +348,8 @@ describe('StandardCatalogService — catálogo efectivo (FASE 5.1)', () => {
 
   it('getEffectiveCatalog: count = IMPLEMENTED + PARTIAL y PLANNED fuera', () => {
     const dto = service.getEffectiveCatalog('60');
-    assert.equal(dto.count, 50);
-    assert.equal(dto.implementedCount, 29);
+    assert.equal(dto.count, 51);
+    assert.equal(dto.implementedCount, 30);
     assert.equal(dto.plannedCount, 10);
     for (const standard of dto.standards) {
       assert.ok(
@@ -348,11 +362,12 @@ describe('StandardCatalogService — catálogo efectivo (FASE 5.1)', () => {
     }
   });
 
-  it('getEffectiveCatalog nivel 60: effectiveWeight === normativeWeight (escala 1)', () => {
+  it('getEffectiveCatalog nivel 60: effectiveWeight se recalcula para suma exacta 100', () => {
     const dto = service.getEffectiveCatalog('60');
-    for (const standard of dto.standards) {
-      assert.equal(standard.effectiveWeight, standard.normativeWeight, standard.code);
-    }
+    // Con 3.1.4 (peso 3) la suma normativa activa es 103, no 100,
+    // por lo que effectiveWeight se reescala proporcionalmente.
+    const sum = dto.standards.reduce((acc, s) => acc + s.effectiveWeight, 0);
+    assert.ok(Math.abs(sum - 100) < 1e-9, `suma efectiva debe ser 100 (actual: ${sum})`);
   });
 
   it('getEffectiveCatalog: normativeWeight intacto y consistente con getCatalog', () => {

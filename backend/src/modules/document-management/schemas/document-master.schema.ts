@@ -73,6 +73,23 @@ export class DocumentMaster {
   @Prop({ default: true })
   isActive!: boolean;
 
+  // ── Vinculación con módulos SG-SST (Fase 2.9.1 — Adquisiciones) ──
+  // Campos opcionales para relacionar documentos con estándares,
+  // adquisiciones y proveedores. Se usan ObjectId sin populate automático
+  // para evitar dependencias circulares entre módulos.
+
+  /** Código del estándar PHVA asociado (ej: '2.9.1'). */
+  @Prop({ trim: true })
+  standardCode?: string;
+
+  /** Referencia a Acquisition (ObjectId sin ref — evita circular dependency). */
+  @Prop({ type: Types.ObjectId })
+  acquisitionId?: Types.ObjectId;
+
+  /** Referencia a Supplier (ObjectId sin ref — evita circular dependency). */
+  @Prop({ type: Types.ObjectId })
+  supplierId?: Types.ObjectId;
+
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -83,4 +100,7 @@ DocumentMasterSchema.index({ companyId: 1, code: 1 }, { unique: true });
 DocumentMasterSchema.index({ companyId: 1, documentType: 1 });
 DocumentMasterSchema.index({ companyId: 1, status: 1 });
 DocumentMasterSchema.index({ companyId: 1, expirationDate: 1 });
+DocumentMasterSchema.index({ companyId: 1, standardCode: 1 }, { sparse: true });
+DocumentMasterSchema.index({ companyId: 1, acquisitionId: 1 }, { sparse: true });
+DocumentMasterSchema.index({ companyId: 1, supplierId: 1 }, { sparse: true });
 DocumentMasterSchema.index({ name: 'text', code: 'text', description: 'text' });

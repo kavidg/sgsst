@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { AlertsModule } from '../alerts/alerts.module';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { RolesGuard } from '../questions/roles.guard';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -12,6 +13,8 @@ import { ResponsibilityMatrixModule } from '../responsibility-matrix/responsibil
 import { CopasstModule } from '../copasst/copasst.module';
 import { ConvivenciaModule } from '../convivencia/convivencia.module';
 import { PhvaAdvancedModule } from '../phva-advanced/phva-advanced.module';
+import { AcquisitionsModule } from '../acquisitions/acquisitions.module';
+import { ContractingModule } from '../contracting/contracting.module';
 import { ApprovalWorkflowController } from './approval-workflow.controller';
 import { ApprovalWorkflowService } from './approval-workflow.service';
 import { ApprovalEvent, ApprovalEventSchema } from './schemas/approval-event.schema';
@@ -30,12 +33,24 @@ import { ConvivenciaAdapter } from './adapters/convivencia.adapter';
 // conformación post-aprobación). Provisto y exportado por ConvivenciaModule.
 import { ConvivenciaDocumentGenerator } from '../convivencia/convivencia-document.generator';
 import { PhvaAdvancedAdapter } from './adapters/phva-advanced.adapter';
+import { AcquisitionAdapter } from './adapters/acquisition.adapter';
+import { ContractingAdapter } from './adapters/contracting.adapter';
+import { ChangeManagementAdapter } from './adapters/change-management.adapter';
+import { ChangeManagementModule } from '../change-management/change-management.module';
+import { ChangeRequest, ChangeRequestSchema } from '../change-management/schema/change-request.schema';
+import { Acquisition, AcquisitionSchema } from '../acquisitions/schemas/acquisition.schema';
+import { AcquisitionHistory, AcquisitionHistorySchema } from '../acquisitions/schemas/acquisition-history.schema';
+import { Contract, ContractSchema } from '../contracting/schemas/contract.schema';
+import { ApprovalNotificationService } from './services/approval-notification.service';
 import { ResourceAssignmentHandler } from './adapters/handlers/resource-assignment.handler';
 import { TrainingManagementHandler } from './adapters/handlers/training-management.handler';
 import { SstPolicyHandler } from './adapters/handlers/sst-policy.handler';
 import { ResponsibilitiesHandler } from './adapters/handlers/responsibilities.handler';
 import { ResponsibleSgsstHandler } from './adapters/handlers/responsible-sgsst.handler';
 import { CopasstTrainingHandler } from './adapters/handlers/copasst-training.handler';
+import { SstObjectivesHandler } from './adapters/handlers/sst-objectives.handler';
+import { EppHandler } from './adapters/handlers/epp.handler';
+import { EmergenciesHandler } from './adapters/handlers/emergencies.handler';
 import { ResponsibleSgsstDocumentGenerator } from '../phva-advanced/responsible-sgsst-document.generator';
 import { CopasstDocumentGenerator } from '../phva-advanced/copasst-document.generator';
 import { ResponsibilitiesDocumentGenerator } from '../phva-advanced/responsibilities-document.generator';
@@ -100,9 +115,9 @@ import {
  * locked, representante legal, firmas, notificaciones y compliance);
  * ADJUSTMENTS_REQUESTED no es soportado (sin flujo real).
  */
-@Module({
-  imports: [
+@Module({    imports: [
     AuthModule,
+    AlertsModule,
     forwardRef(() => DocumentManagementModule),
     forwardRef(() => AnnualWorkPlanModule),
     forwardRef(() => InitialEvaluationModule),
@@ -110,16 +125,24 @@ import {
     forwardRef(() => CopasstModule),
     forwardRef(() => ConvivenciaModule),
     forwardRef(() => PhvaAdvancedModule),
+    forwardRef(() => AcquisitionsModule),
+    forwardRef(() => ContractingModule),
+    forwardRef(() => ChangeManagementModule),
     MongooseModule.forFeature([
       { name: ApprovalRequest.name, schema: ApprovalRequestSchema },
       { name: ApprovalEvent.name, schema: ApprovalEventSchema },
       { name: User.name, schema: UserSchema },
       { name: CompanyUser.name, schema: CompanyUserSchema },
+      { name: Acquisition.name, schema: AcquisitionSchema },
+      { name: AcquisitionHistory.name, schema: AcquisitionHistorySchema },
+      { name: Contract.name, schema: ContractSchema },
+      { name: ChangeRequest.name, schema: ChangeRequestSchema },
     ]),
   ],
   controllers: [ApprovalWorkflowController],
   providers: [
     ApprovalWorkflowService,
+    ApprovalNotificationService,
     RolesGuard,
     CompanyAccessGuard,
     DocumentAdapter,
@@ -129,6 +152,9 @@ import {
     CopasstAdapter,
     ConvivenciaAdapter,
     PhvaAdvancedAdapter,
+    AcquisitionAdapter,
+    ContractingAdapter,
+    ChangeManagementAdapter,
     ResourceAssignmentHandler,
     TrainingManagementHandler,
     SstPolicyHandler,
@@ -137,6 +163,12 @@ import {
     // Fase 5 (1.1.7) — Capacitación COPASST: approve/reject/adjustments
     // reutilizan PhvaAdvancedCopasstTrainingService.approveCopasstTraining.
     CopasstTrainingHandler,
+    // FASE 1 (2.2.1) — Objetivos SST: aprobación/rechazo de objetivos.
+    SstObjectivesHandler,
+    // FASE 1 (1.2.3) — EPP: aprobación/rechazo de dotación de EPP.
+    EppHandler,
+    // FASE 1 (1.1.10) — Emergencias: aprobación/rechazo del plan de emergencias.
+    EmergenciesHandler,
     {
       provide: APPROVAL_ADAPTERS,
       useFactory: (...adapters: ApprovalAdapter[]) => adapters,
@@ -148,6 +180,9 @@ import {
         CopasstAdapter,
         ConvivenciaAdapter,
         PhvaAdvancedAdapter,
+        AcquisitionAdapter,
+        ContractingAdapter,
+        ChangeManagementAdapter,
       ],
     },
     // Fase 2.1 — generación documental post-aprobación centralizada en el Core.
@@ -188,6 +223,6 @@ import {
       ],
     },
   ],
-  exports: [ApprovalWorkflowService],
+  exports: [ApprovalWorkflowService, ApprovalNotificationService],
 })
 export class ApprovalWorkflowModule {}

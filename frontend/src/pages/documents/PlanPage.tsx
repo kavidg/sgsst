@@ -1253,7 +1253,7 @@ function SpecialPensionAdvancedPanel({ token, readOnly, onComplianceChange, onDi
 }
 
 
-function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void }) {
+function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement, token }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void; token?: string }) {
   const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
 
   useEffect(() => {
@@ -1272,13 +1272,14 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
-                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.7', '1.1.8', '1.2.1', '1.2.2', '1.2.3', '2.1.1', '2.2.1', '2.3.1', '2.4.1'].includes(item.code) ? (
+                ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.7', '1.1.8', '1.2.1', '1.2.2', '1.2.3', '2.1.1', '2.2.1', '2.3.1', '2.4.1', '2.5.1', '2.6.1', '2.7.1', '2.8.1', '2.9.1', '2.10.1', '2.11.1', '3.1.1'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
                   </Button>
                 ) : null
               }
             />
+
             {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
           </div>
         ))}
@@ -1374,6 +1375,46 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
   // actual. Si el estándar no existe en el catálogo, se usa el panel interno.
   const onOpenAdvancedManagement = (item: EvaluationEntry) => {
     const catalogItem = planearCatalogByCode.get(item.code);
+    // 2.5.1 — Conservación documental: navega a /document-management
+    if (item.code === '2.5.1') {
+      navigate('/document-management', { state: { source: 'phva-2.5.1' } });
+      return;
+    }
+    // 2.6.1 — Rendición de cuentas: navega a /accountability
+    if (item.code === '2.6.1') {
+      navigate('/accountability', { state: { source: 'phva-2.6.1' } });
+      return;
+    }
+    // 2.7.1 — Matriz legal: navega a /legal-matrix
+    if (item.code === '2.7.1') {
+      navigate('/legal-matrix', { state: { source: 'phva-2.7.1' } });
+      return;
+    }
+    // 2.8.1 — Comunicación: navega a /communication
+    if (item.code === '2.8.1') {
+      navigate('/communication', { state: { source: 'phva-2.8.1' } });
+      return;
+    }
+    // 2.9.1 — Adquisiciones: navega a /acquisitions
+    if (item.code === '2.9.1') {
+      navigate('/acquisitions', { state: { source: 'phva-2.9.1' } });
+      return;
+    }
+    // 2.10.1 — Contratación: navega a /contracting
+    if (item.code === '2.10.1') {
+      navigate('/contracting', { state: { source: 'phva-2.10.1' } });
+      return;
+    }
+    // 2.11.1 — Gestión del cambio: navega a /change-management
+    if (item.code === '2.11.1') {
+      navigate('/change-management', { state: { source: 'phva-2.11.1' } });
+      return;
+    }
+    // 3.1.1 — Perfil sociodemográfico: navega a /sociodemographic-management
+    if (item.code === '3.1.1') {
+      navigate('/sociodemographic-management', { state: { source: 'phva-3.1.1' } });
+      return;
+    }
     if (catalogItem?.moduleRoute?.startsWith('/advanced-management/')) {
       navigate(catalogItem.moduleRoute);
       return;
@@ -1406,6 +1447,7 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
         sectionId="plan-recursos"
         readOnly={readOnly}
         onOpenAdvancedManagement={onOpenAdvancedManagement}
+        token={token}
       />
       <EvaluationSection
         title={catalogSections['plan-capacitacion']?.title ?? 'Capacitación en el SG-SST (6%)'}
@@ -1413,14 +1455,16 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
         sectionId="plan-capacitacion"
         readOnly={readOnly}
         onOpenAdvancedManagement={onOpenAdvancedManagement}
+        token={token}
       />
-      <EvaluationSection title={catalogSections['plan-gestion-integral']?.title ?? 'Gestión Integral del SG-SST (15%)'} items={integralManagement} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement}>
+      <EvaluationSection title={catalogSections['plan-gestion-integral']?.title ?? 'Gestión Integral del SG-SST (15%)'} items={integralManagement} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} token={token}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/do')}>
             Siguiente → Hacer
           </Button>
         </div>
       </EvaluationSection>
+
       <Sheet
         open={Boolean(advancedManagementItem)}
         title={advancedManagementItem ? `${advancedManagementItem.code} · ${advancedManagementItem.title}` : 'Gestión avanzada'}

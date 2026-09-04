@@ -100,6 +100,8 @@ describe('PhvaAdvancedService.generateResponsibleSgsstDocument', () => {
       { findOne: async () => null, create: async () => record } as never, // trainingManagementModel
       { findOne: async () => null, create: async () => record } as never, // sstPolicyModel
       { findOne: async () => null, create: async () => record } as never, // sstObjectivesModel
+      { findOne: async () => null, create: async () => record } as never, // eppModel
+      { findOne: async () => null, create: async () => record } as never, // emergenciesModel
       { findOne: async () => null, create: async () => record } as never, // trainingModel
       { findOne: async () => null, create: async () => record } as never, // inspectionActivityModel
       { findOne: async () => null, create: async () => record } as never, // incidentModel
@@ -117,7 +119,8 @@ describe('PhvaAdvancedService.generateResponsibleSgsstDocument', () => {
       { resolve: async () => null } as never,                     // copasstResolver (Fase 3)
       { resolve: async () => null } as never,                     // responsibilitiesResolver (Fase 4)
       { resolve: async () => null } as never,                     // resourceAssignmentResolver (Fase 5)
-      { resolve: async () => null } as never,                     // sstPolicyResolver (Fase 6)
+      { resolve: async () => null } as never,                         // sstPolicyResolver (Fase 6)
+      { syncFromSstObjectives: async () => ({ created: 0, updated: 0, skipped: 0, errors: 0 }) } as never, // annualWorkPlanService (Fase 2)
     );
 
     return { service, generateDocumentCalls, instanceData };

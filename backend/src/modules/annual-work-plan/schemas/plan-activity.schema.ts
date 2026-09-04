@@ -18,6 +18,14 @@ export enum ActivityStatus {
   CANCELLED = 'Cancelled',
 }
 
+/** Fases del PHVA (Planear-Hacer-Verificar-Actuar). */
+export enum PhvaPhase {
+  PLAN = 'plan',
+  DO = 'do',
+  CHECK = 'check',
+  ACT = 'act',
+}
+
 @Schema({ timestamps: true })
 export class PlanActivity {
   @Prop({ required: true, type: Types.ObjectId, ref: 'AnnualWorkPlan' })
@@ -32,8 +40,29 @@ export class PlanActivity {
   @Prop({ type: Types.ObjectId })
   objectiveId?: Types.ObjectId;
 
+  /** Fase PHVA a la que pertenece esta actividad (plan/do/check/act). */
+  @Prop({ enum: Object.values(PhvaPhase) })
+  phvaPhase?: PhvaPhase;
+
+  /** Número o código del estándar SG-SST asociado (ej: '6.1.1', '3.3.2'). */
+  @Prop()
+  standardNumber?: string;
+
+  /** Módulo que originó la actividad (ej: 'sst-objectives', 'initial-evaluation'). */
   @Prop()
   sourceModule?: string;
+
+  /** Entidad origen del módulo (ej: ObjectId de SstObjectives o InitialEvaluation). */
+  @Prop({ type: Types.ObjectId })
+  sourceEntityId?: Types.ObjectId;
+
+  /** Identificador de actividad dentro de la entidad origen (ej: activityId string del SstObjectiveActivity). */
+  @Prop()
+  sourceActivityId?: string;
+
+  /** Estándar/itemCode del origen (ej: '2.2.1' para SST Objectives). */
+  @Prop()
+  sourceItemCode?: string;
 
   @Prop()
   workCenter?: string;
@@ -77,5 +106,7 @@ export class PlanActivity {
 export const PlanActivitySchema = SchemaFactory.createForClass(PlanActivity);
 
 PlanActivitySchema.index({ annualPlanId: 1 });
+PlanActivitySchema.index({ annualPlanId: 1, phvaPhase: 1 });
 PlanActivitySchema.index({ responsibleUser: 1 });
 PlanActivitySchema.index({ status: 1, endDate: 1 });
+PlanActivitySchema.index({ standardNumber: 1 });

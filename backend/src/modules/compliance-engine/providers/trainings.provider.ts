@@ -4,6 +4,7 @@ import { TrainingsService } from '../../trainings/trainings.service';
 import { FindingPriority } from '../enums/finding-priority.enum';
 import { classifyComplianceLevel } from '../utils/compliance-score';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
+import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 
 /** Umbral de ejecución aceptable del programa de capacitación. */
 const TRAINING_THRESHOLD = 70;
@@ -53,6 +54,9 @@ export class TrainingsProvider implements ComplianceProvider {
       findings,
       pending: lowCompletion.length,
       completed: trainings.length - lowCompletion.length,
+      // Ejecución del programa de capacitación → HACER.
+      // Fuente independiente: no consolidada en AWP actualmente.
+      phases: { do: percentage } as Partial<Record<CompliancePhaseKey, number>>,
     };
   }
 }

@@ -4,6 +4,7 @@ import ResourceAssignmentModule from '../components/ResourceAssignmentModule';
 import TrainingProgramModule from '../components/TrainingProgramModule';
 import TrainingCopasstModule from '../components/TrainingCopasstModule';
 import PolicyManagementModule from '../components/PolicyManagementModule';
+import SstObjectivesModule from '../components/SstObjectivesModule';
 import ResponsableSstPanel from '../components/ResponsableSstPanel';
 import CopasstManagementPage from './CopasstManagementPage';
 import ConvivenciaManagementPage from './ConvivenciaManagementPage';
@@ -270,6 +271,22 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
   }
   if (standardCode === '2.1.1') {
     return <PolicyManagementModule token={token} />;
+  }
+  if (standardCode === '2.2.1') {
+    return (
+      <AdvancedPageLayout>
+        <AdvancedHeader
+          backPath="/implementation-wizard"
+          backLabel="← Volver a Implementación"
+          moduleCode="2.2.1"
+          moduleTitle="Objetivos SST"
+          description="Definición y seguimiento de objetivos de seguridad y salud en el trabajo"
+          statusBadge={null}
+          actions={[]}
+        />
+        <SstObjectivesModule token={token} role={role} />
+      </AdvancedPageLayout>
+    );
   }
   if (standardCode === '2.4.1') {
     return <AnnualWorkPlanPage token={token} />;

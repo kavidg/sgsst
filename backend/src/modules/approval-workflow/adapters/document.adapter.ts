@@ -10,7 +10,9 @@ import { Model, Types } from 'mongoose';
 import { ApprovalDecision } from '../enums/approval-decision.enum';
 import { ApprovalEntity } from '../enums/approval-entity.enum';
 import { ApprovalStatus } from '../enums/approval-status.enum';
-import { ApprovalAdapter, ApplyDecisionContext } from './approval-adapter.interface';
+import { ApprovalNotificationEvent } from '../services/approval-notification.service';
+import { ApplyDecisionContext } from './approval-adapter.interface';
+import { BaseApprovalAdapter } from './base-approval.adapter';
 import { DocumentStatus } from '../../document-management/schemas/document-master.schema';
 import { DocumentMasterService } from '../../document-management/services/document-master.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -23,12 +25,16 @@ import { User, UserDocument } from '../../users/schemas/user.schema';
  * aplicar aprobaciones/rechazos y traduce DocumentStatus al ApprovalStatus
  * canónico. Mantiene DocumentApproval, DocumentSignature e historial intactos.
  *
+ * Extiende BaseApprovalAdapter para obtener comportamiento por defecto
+ * (allowedRoles, mapDecisionToStatus) y soporte para notificaciones
+ * genéricas (getNotificationMessage, getModuleCode, getModuleName).
+ *
  * El actor del workflow puede llegar como UID de Firebase o como ObjectId de
  * usuario; el adapter resuelve el `_id` real del usuario para registrar quién
  * aprueba (campo `approvedBy` del DocumentApproval).
  */
 @Injectable()
-export class DocumentAdapter implements ApprovalAdapter {
+export class DocumentAdapter extends BaseApprovalAdapter {
   readonly module = ApprovalEntity.DOCUMENT;
 
   constructor(
@@ -36,18 +42,66 @@ export class DocumentAdapter implements ApprovalAdapter {
     private readonly documentService: DocumentMasterService,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
-  ) {}
+  ) {
+    super();
+  }
 
+  // ─── Entity metadata ─────────────────────────────────────────────────
+
+  getEntityLabel(entity: unknown): string {
+    const doc = entity as { code?: string; name?: string } | undefined;
+    return doc?.code ?? doc?.name ?? 'Documento';
+  }
+
+  getDefaultActionUrl(): string {
+    return '/document-management';
+  }
+
+  getModuleCode(): string {
+    return '2.5.1';
+  }
+
+  getModuleName(): string {
+    return 'Conservación documental';
+  }
+
+  getNotificationMessage(event: ApprovalNotificationEvent, entityLabel: string): string {
+    switch (event) {
+      case 'APPROVAL_SUBMITTED':
+        return `Documento "${entityLabel}" enviado al flujo de aprobación y requiere revisión.`;
+      case 'APPROVED':
+        return `Documento "${entityLabel}" fue aprobado correctamente.`;
+      case 'REJECTED':
+        return `Documento "${entityLabel}" fue rechazado y requiere revisión.`;
+      case 'ADJUSTMENTS_REQUESTED':
+        return `Documento "${entityLabel}": se solicitaron ajustes antes de continuar con la aprobación.`;
+    }
+  }
+
+  // ─── Core adapter contract ───────────────────────────────────────────
+
+  /**
+   * Obtiene la entidad documental filtrando por companyId (tenant isolation).
+   * La búsqueda incluye companyId para garantizar que no se pueda acceder
+   * a documentos de otra empresa.
+   */
   async getEntity(companyId: string, entityId?: string) {
     if (!entityId) {
       throw new BadRequestException('entityId is required by DocumentAdapter');
     }
-    return this.documentService.findById(new Types.ObjectId(entityId));
+    return this.documentService.findById(
+      new Types.ObjectId(entityId),
+      new Types.ObjectId(companyId),
+    );
   }
 
   /**
    * Aplica una decisión del motor sobre el documento real, reutilizando la
    * lógica existente (DocumentMasterService.approve / reject).
+   *
+   * APPROVED → documento pasa a ACTIVE
+   * REJECTED → documento vuelve a DRAFT
+   * ADJUSTMENTS_REQUESTED → documento vuelve a DRAFT con razón de ajustes
    */
   async applyDecision(ctx: ApplyDecisionContext) {
     const documentId = new Types.ObjectId(ctx.entityId.toString());
@@ -84,8 +138,12 @@ export class DocumentAdapter implements ApprovalAdapter {
           ctx.comments,
         );
       case ApprovalDecision.ADJUSTMENTS_REQUESTED:
-        throw new BadRequestException(
-          'ADJUSTMENTS_REQUESTED is not supported by DocumentAdapter',
+        // Rechaza el documento con la razón de ajustes solicitados,
+        // permitiendo que el autor realice correcciones y lo reenvíe.
+        return this.documentService.reject(
+          approval._id,
+          ctx.reason ?? 'Ajustes solicitados',
+          ctx.comments,
         );
     }
   }
@@ -107,9 +165,7 @@ export class DocumentAdapter implements ApprovalAdapter {
     }
   }
 
-  allowedRoles(): string[] {
-    return ['owner', 'manager'];
-  }
+  // ─── Private helpers ─────────────────────────────────────────────────
 
   /**
    * Resuelve el `_id` del usuario que aprueba: si el actor trae un ObjectId lo

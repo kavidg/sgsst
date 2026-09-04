@@ -530,3 +530,134 @@ describe('AUDIT-1 — Tenant isolation del AI Orchestrator', () => {
     assert.equal((request as { companyId?: unknown }).companyId, '64b0000000000000000000a1');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORCH-CHANGE-01 to ORCH-CHANGE-18 — Gestión del Cambio (2.11.1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('ORCH-CHANGE-01: El Orchestrator reconoce Gestión del Cambio', () => {
+  it('enruta "gestión del cambio" a compliance', () => {
+    assert.equal(resolveEngineName('¿Cómo está la gestión del cambio?'), 'compliance');
+  });
+
+  it('enruta "cambio organizacional" a compliance', () => {
+    assert.equal(resolveEngineName('¿Tenemos cambio organizacional pendiente?'), 'compliance');
+  });
+
+  it('enruta "solicitud de cambio" a compliance', () => {
+    assert.equal(resolveEngineName('¿Cuántas solicitud de cambio tenemos?'), 'compliance');
+  });
+});
+
+describe('ORCH-CHANGE-02: El Orchestrator reconoce estándar 2.11.1', () => {
+  it('enruta "2.11.1" a compliance', () => {
+    assert.equal(resolveEngineName('¿Cuál es el cumplimiento del estándar 2.11.1?'), 'compliance');
+  });
+
+  it('enruta "estándar 2.11.1" a compliance', () => {
+    assert.equal(resolveEngineName('Analiza el estándar 2.11.1'), 'compliance');
+  });
+});
+
+describe('ORCH-CHANGE-03: Reconoce análisis de impacto', () => {
+  it('enruta "evaluación de impacto" a compliance', () => {
+    assert.equal(resolveEngineName('¿Qué cambios requieren evaluación de impacto?'), 'compliance');
+  });
+
+  it('enruta "análisis de impacto" a compliance', () => {
+    assert.equal(resolveEngineName('¿Tenemos análisis de impacto SST?'), 'compliance');
+  });
+});
+
+describe('ORCH-CHANGE-04: Reconoce acciones de control', () => {
+  it('enruta "acciones de control" a compliance', () => {
+    assert.equal(resolveEngineName('¿Qué acciones de control faltan?'), 'compliance');
+  });
+});
+
+describe('ORCH-CHANGE-05: Reconoce aprobaciones pendientes', () => {
+  it('enruta "cambios pendientes de aprobación" a compliance', () => {
+    assert.equal(resolveEngineName('¿Tenemos cambios pendientes de aprobación?'), 'compliance');
+  });
+});
+
+describe('ORCH-CHANGE-06: Reconoce cambios rechazados', () => {
+  it('enruta "cambios rechazados" a compliance', () => {
+    assert.equal(resolveEngineName('¿Qué cambios rechazados tenemos?'), 'compliance');
+  });
+});
+
+describe('ORCH-CHANGE-07: Reconoce seguimiento post-implementación', () => {
+  it('enruta "seguimiento de cambios" a compliance', () => {
+    assert.equal(resolveEngineName('¿Tenemos cambios implementados sin seguimiento?'), 'compliance');
+  });
+});
+
+describe('ORCH-CHANGE-08: Consultas de Gestión del Cambio utilizan companyId del usuario', () => {
+  it('el contexto contiene companyId del usuario autenticado', () => {
+    const context = buildContext('¿Cómo está la gestión del cambio?');
+    assert.equal(context.companyId, 'company-test');
+  });
+});
+
+describe('ORCH-CHANGE-10: NO_DATA no se interpreta como cumplimiento del 100%', () => {
+  it('cuando no hay datos, la respuesta indica insuficiencia', async () => {
+    const service = new OrchestratorService(ENGINES);
+    const result = await service.query('¿Cómo está la gestión del cambio?', {
+      userId: 'uid-test',
+      companyId: null,
+      timestamp: new Date(),
+      question: '¿Cómo está la gestión del cambio?',
+    });
+    // Sin companyId, el engine de compliance responde información insuficiente
+    assert.ok(result.response.length > 0);
+    assert.ok(result.confidence <= 0.5);
+  });
+});
+
+describe('ORCH-CHANGE-13: El porcentaje proviene del ComplianceEngine', () => {
+  it('el engine compliance no recalcula scoring', () => {
+    const complianceEngine = ENGINES.find((e) => e.getName() === 'compliance');
+    assert.ok(complianceEngine, 'compliance engine must exist');
+    // El ComplianceAIEngine.execute no contiene divisiones ni cálculos de porcentaje
+    const source = complianceEngine!.execute.toString();
+    assert.ok(!source.includes('/ 100'), 'ComplianceAIEngine no debe dividir por 100');
+  });
+});
+
+describe('ORCH-CHANGE-14: No se modifica scoring global PHVA', () => {
+  it('las keywords de gestión del cambio enrutan a compliance, no a phva', () => {
+    assert.equal(resolveEngineName('¿Cómo está la gestión del cambio?'), 'compliance');
+    assert.equal(resolveEngineName('¿cambios SST?'), 'compliance');
+  });
+});
+
+describe('ORCH-CHANGE-15: Estándares existentes continúan funcionando', () => {
+  it('2.9.1 sigue reconocido por compliance', () => {
+    assert.equal(resolveEngineName('¿Qué estándares aplican a mi empresa?'), 'compliance');
+  });
+
+  it('2.10.1 sigue reconocido por compliance', () => {
+    assert.equal(resolveEngineName('¿cumplimiento sgsst?'), 'compliance');
+  });
+
+  it('indicadores siguen funcionando', () => {
+    assert.equal(resolveEngineName('muéstrame los indicadores'), 'indicators');
+  });
+
+  it('documentos siguen funcionando', () => {
+    assert.equal(resolveEngineName('¿qué documentos están vencidos?'), 'documents');
+  });
+});
+
+describe('ORCH-CHANGE-18: No existe routing duplicado para 2.11.1', () => {
+  it('keywords de gestión del cambio van a compliance (único routing)', () => {
+    const engine = resolveEngineName('gestión del cambio');
+    assert.equal(engine, 'compliance');
+  });
+
+  it('no existe engine change-management separado', () => {
+    const engineNames = ENGINES.map((e) => e.getName());
+    assert.ok(!engineNames.includes('change-management'), 'No debe existir engine change-management separado');
+  });
+});

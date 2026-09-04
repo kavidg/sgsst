@@ -4,6 +4,7 @@ import { PhvaAdvancedCopasstTrainingService } from '../../phva-advanced/phva-adv
 import { FindingPriority } from '../enums/finding-priority.enum';
 import { classifyComplianceLevel } from '../utils/compliance-score';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
+import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 
 /**
  * Umbral de cobertura aceptable de la capacitación COPASST (1.1.7).
@@ -66,6 +67,9 @@ export class CopasstTrainingProvider implements ComplianceProvider {
         findings,
         pending: coverage.totalMembers - coverage.trainedMembers,
         completed: coverage.trainedMembers,
+        // Ejecución de capacitación COPASST (1.1.7) → HACER.
+        // Fuente independiente: dominio propio, no consolidada en AWP.
+        phases: { do: coverage.coveragePercentage } as Partial<Record<CompliancePhaseKey, number>>,
       };
     } catch (error) {
       // Error de infraestructura (conexión, timeout): devolver 0 controlado con

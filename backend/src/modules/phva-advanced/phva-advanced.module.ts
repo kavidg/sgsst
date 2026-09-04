@@ -28,6 +28,8 @@ import { PhvaAdvancedCopasstTraining, PhvaAdvancedCopasstTrainingSchema } from '
 import { SstPolicy, SstPolicySchema } from './schemas/phva-advanced-sst-policy.schema';
 import { SstObjectives, SstObjectivesSchema } from './schemas/phva-advanced-sst-objective.schema';
 import { PolicyTemplate, PolicyTemplateSchema } from './schemas/policy-template.schema';
+import { SstEpp, SstEppSchema } from './schemas/phva-advanced-epp.schema';
+import { SstEmergencies, SstEmergenciesSchema } from './schemas/phva-advanced-emergencies.schema';
 import { PolicyTemplateService } from './policy-template.service';
 import { PolicyTemplateController } from './policy-template.controller';
 import { Training, TrainingSchema } from '../trainings/schemas/training.schema';
@@ -43,6 +45,8 @@ import { ResourceAssignmentVariableResolverService } from './resource-assignment
 import { ResourceAssignmentDocumentGenerator } from './resource-assignment-document.generator';
 import { SstPolicyVariableResolverService } from './sst-policy-variable-resolver.service';
 import { SstPolicyDocumentGenerator } from './sst-policy-document.generator';
+// Fase 2 — Plan Anual de Trabajo: sincronización SST Objectives → AnnualWorkPlan.
+import { AnnualWorkPlanModule } from '../annual-work-plan/annual-work-plan.module';
 // Fase 4 (1.1.7) — evidencias y generación documental de la Capacitación COPASST.
 import { CopasstTrainingVariableResolverService } from './copasst-training-variable-resolver.service';
 import { CopasstTrainingDocumentService } from './copasst-training-document.service';
@@ -71,6 +75,8 @@ import { CopasstTrainingDocumentGenerator } from './copasst-training-document.ge
       { name: Company.name, schema: CompanySchema },
       { name: Employee.name, schema: EmployeeSchema },
       { name: PolicyTemplate.name, schema: PolicyTemplateSchema },
+      { name: SstEpp.name, schema: SstEppSchema },
+      { name: SstEmergencies.name, schema: SstEmergenciesSchema },
       { name: CompanyProfile.name, schema: CompanyProfileSchema },
       // Fase 3 — generación documental del COPASST: el resolver de dominio
       // consulta el periodo CopasstPeriod para resolver las variables de la
@@ -89,6 +95,8 @@ import { CopasstTrainingDocumentGenerator } from './copasst-training-document.ge
     // ciclo real del grafo (phva-advanced ↔ document-generation ↔
     // document-management ↔ approval-workflow ↔ phva-advanced).
     forwardRef(() => DocumentGenerationModule),
+    // Fase 2 — Sincronización SST Objectives (2.2.1) → AnnualWorkPlan real.
+    forwardRef(() => AnnualWorkPlanModule),
   ],
   controllers: [PhvaAdvancedController, PolicyTemplateController],
   providers: [

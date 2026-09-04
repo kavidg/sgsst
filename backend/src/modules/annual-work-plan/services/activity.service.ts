@@ -6,6 +6,7 @@ import {
   PlanActivityDocument,
   ActivityStatus,
   ActivityPriority,
+  PhvaPhase,
 } from '../schemas/plan-activity.schema';
 import { PlanTask, PlanTaskDocument } from '../schemas/plan-task.schema';
 import { PlanSubtask, PlanSubtaskDocument } from '../schemas/plan-subtask.schema';
@@ -35,12 +36,17 @@ export class ActivityService {
     description?: string;
     objectiveId?: Types.ObjectId;
     sourceModule?: string;
+    sourceEntityId?: Types.ObjectId;
+    sourceActivityId?: string;
+    sourceItemCode?: string;
     workCenter?: string;
     startDate: Date;
     endDate: Date;
     responsibleUser: Types.ObjectId;
     priority?: ActivityPriority;
     estimatedCost?: number;
+    phvaPhase?: PhvaPhase;
+    standardNumber?: string;
     userId: Types.ObjectId;
     userEmail: string;
   }): Promise<PlanActivity> {
@@ -50,7 +56,12 @@ export class ActivityService {
       description: dto.description,
       objectiveId: dto.objectiveId,
       sourceModule: dto.sourceModule,
+      sourceEntityId: dto.sourceEntityId,
+      sourceActivityId: dto.sourceActivityId,
+      sourceItemCode: dto.sourceItemCode,
       workCenter: dto.workCenter,
+      phvaPhase: dto.phvaPhase,
+      standardNumber: dto.standardNumber,
       startDate: dto.startDate,
       endDate: dto.endDate,
       responsibleUser: dto.responsibleUser,
@@ -106,6 +117,8 @@ export class ActivityService {
       actualCost: number;
       progress: number;
       status: string;
+      phvaPhase: PhvaPhase;
+      standardNumber: string;
     }>,
     userId: Types.ObjectId,
     userEmail: string,
@@ -133,6 +146,8 @@ export class ActivityService {
     if (dto.status !== undefined) {
       activity.status = dto.status as ActivityStatus;
     }
+    if (dto.phvaPhase !== undefined) activity.phvaPhase = dto.phvaPhase;
+    if (dto.standardNumber !== undefined) activity.standardNumber = dto.standardNumber;
 
     // Auto-set status based on progress
     if (dto.progress !== undefined) {

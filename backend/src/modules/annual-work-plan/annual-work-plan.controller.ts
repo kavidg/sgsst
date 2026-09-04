@@ -144,6 +144,12 @@ export class AnnualWorkPlanController {
 
   // ==================== COMPLIANCE ====================
 
+  @Get(':id/dashboard')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getDashboard(@Param('id') id: string) {
+    return this.annualWorkPlanService.getDashboard(new Types.ObjectId(id));
+  }
+
   @Post(':id/recalculate')
   @Roles('owner', 'admin', 'manager')
   async recalculateCompliance(@Param('id') id: string) {
@@ -160,14 +166,16 @@ export class AnnualWorkPlanController {
 
   @Get(':planId/activities')
   @Roles('owner', 'admin', 'manager', 'member')
-  async getActivities(@Param('planId') planId: string) {
-    return this.annualWorkPlanService.getActivities(new Types.ObjectId(planId));
+  async getActivities(@Param('planId') planId: string, @Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    return this.annualWorkPlanService.getActivities(new Types.ObjectId(planId), companyId);
   }
 
   @Get(':planId/activities/:activityId')
   @Roles('owner', 'admin', 'manager', 'member')
-  async getActivity(@Param('activityId') activityId: string) {
-    return this.annualWorkPlanService.getActivity(new Types.ObjectId(activityId));
+  async getActivity(@Param('activityId') activityId: string, @Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    return this.annualWorkPlanService.getActivity(new Types.ObjectId(activityId), companyId);
   }
 
   @Post(':planId/activities')
@@ -210,14 +218,16 @@ export class AnnualWorkPlanController {
 
   @Get(':planId/activities/:activityId/tasks')
   @Roles('owner', 'admin', 'manager', 'member')
-  async getTasks(@Param('activityId') activityId: string) {
-    return this.annualWorkPlanService.getTasks(new Types.ObjectId(activityId));
+  async getTasks(@Param('activityId') activityId: string, @Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    return this.annualWorkPlanService.getTasks(new Types.ObjectId(activityId), companyId);
   }
 
   @Get(':planId/activities/:activityId/tasks/:taskId')
   @Roles('owner', 'admin', 'manager', 'member')
-  async getTask(@Param('taskId') taskId: string) {
-    return this.annualWorkPlanService.getTask(new Types.ObjectId(taskId));
+  async getTask(@Param('taskId') taskId: string, @Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    return this.annualWorkPlanService.getTask(new Types.ObjectId(taskId), companyId);
   }
 
   @Post(':planId/activities/:activityId/tasks')

@@ -14,6 +14,7 @@ import { buildApprovalActor } from '../approval-workflow/helpers/approval-actor.
 import { UserDocument } from '../users/schemas/user.schema';
 import { SignApprovalDto, SubmitApprovalDto, UpdateStandardDto, UpsertActionDto, UpsertFindingDto } from './dto/initial-evaluation.dto';
 import { InitialEvaluationService } from './initial-evaluation.service';
+import { AnnualWorkPlanService } from '../annual-work-plan/services/annual-work-plan.service';
 
 @Controller('advanced-management/initial-evaluation')
 @UseGuards(FirebaseAuthGuard, RolesGuard, CompanyAccessGuard)
@@ -22,6 +23,7 @@ export class InitialEvaluationController {
     private readonly initialEvaluationService: InitialEvaluationService,
     private readonly usersService: UsersService,
     private readonly approvalWorkflowService: ApprovalWorkflowService,
+    private readonly annualWorkPlanService: AnnualWorkPlanService,
   ) {}
 
   @Get()
@@ -124,6 +126,19 @@ export class InitialEvaluationController {
   @Roles('owner', 'admin', 'manager')
   async executiveDashboard(@Req() request: RequestWithUser) {
     return this.initialEvaluationService.executiveDashboard(this.resolveCompanyId(request));
+  }
+
+  @Post('sync')
+  @Roles('owner', 'admin', 'manager')
+  async syncToAnnualWorkPlan(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    const user = await this.resolveUser(request);
+    const evaluation = await this.initialEvaluationService.findCurrent(companyId);
+    return this.annualWorkPlanService.syncFromInitialEvaluation(
+      companyId,
+      evaluation._id as Types.ObjectId,
+      user,
+    );
   }
 
   private resolveCompanyId(request: RequestWithUser) {

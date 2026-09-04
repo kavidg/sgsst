@@ -116,6 +116,8 @@ describe('PhvaAdvancedService.generateCopasstDocument', () => {
       { findOne: async () => null, create: async () => period } as never, // trainingManagementModel
       { findOne: async () => null, create: async () => period } as never, // sstPolicyModel
       { findOne: async () => null, create: async () => period } as never, // sstObjectivesModel
+      { findOne: async () => null, create: async () => period } as never, // eppModel
+      { findOne: async () => null, create: async () => period } as never, // emergenciesModel
       { findOne: async () => null, create: async () => period } as never, // trainingModel
       { findOne: async () => null, create: async () => period } as never, // inspectionActivityModel
       { findOne: async () => null, create: async () => period } as never, // incidentModel
@@ -134,6 +136,7 @@ describe('PhvaAdvancedService.generateCopasstDocument', () => {
       { resolve: async () => null } as never,                         // responsibilitiesResolver (Fase 4)
       { resolve: async () => null } as never,                         // resourceAssignmentResolver (Fase 5)
       { resolve: async () => null } as never,                         // sstPolicyResolver (Fase 6)
+      { syncFromSstObjectives: async () => ({ created: 0, updated: 0, skipped: 0, errors: 0 }) } as never, // annualWorkPlanService (Fase 2)
     );
 
     return { service, generateDocumentCalls, instanceData };

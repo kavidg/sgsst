@@ -31,6 +31,22 @@ export class Risk {
 
   @Prop({ required: true })
   controlMeasures!: string;
+
+  /**
+   * Referencia opcional a la metodología utilizada para este registro.
+   * Permite trazabilidad: RiskMethodology 1.0 → Risk A, Risk B
+   *                              RiskMethodology 2.0 → Risk C, Risk D
+   */
+  @Prop({ type: Types.ObjectId, ref: 'RiskMethodology' })
+  methodologyId?: Types.ObjectId;
+
+  /**
+   * Versión de la metodología al momento de crear este registro.
+   * Se copia de RiskMethodology.version para preservar trazabilidad.
+   * Permite saber con qué versión fue evaluado cada Risk sin JOIN.
+   */
+  @Prop({ type: String, default: '' })
+  methodologyVersion?: string;
 }
 
 export const RiskSchema = SchemaFactory.createForClass(Risk);

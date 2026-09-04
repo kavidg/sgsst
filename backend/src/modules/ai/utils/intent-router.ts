@@ -26,7 +26,7 @@ export const INTENT_RULES: readonly IntentRule[] = [
     // snapshot del dominio 1.1.8 vía el Compliance Engine (sin engine nuevo).
     // La regla está PRIMERO a propósito: 'convivencia' gana sobre 'documento'/
     // 'actividad' para que toda consulta 1.1.8 use los datos del dominio.
-    keywords: ['estandar', 'estandares', 'cumplimiento sgsst', 'cumplimiento del sg sst', 'compliance', 'autoevaluacion', 'nivel de cumplimiento', 'copasst', 'convivencia', 'comite de convivencia'],
+    keywords: ['estandar', 'estandares', 'cumplimiento sgsst', 'cumplimiento del sg sst', 'compliance', 'autoevaluacion', 'nivel de cumplimiento', 'copasst', 'convivencia', 'comite de convivencia', 'gestion del cambio', 'cambio organizacional', 'solicitud de cambio', 'cambios sst', 'evaluacion de impacto', 'analisis de impacto', 'acciones de control', 'cambios pendientes', 'cambios rechazados', 'cambios implementados', 'seguimiento de cambios', 'procedimiento de gestion del cambio', '2.11.1'],
   },
   {
     engine: 'indicators',

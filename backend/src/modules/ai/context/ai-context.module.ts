@@ -17,6 +17,8 @@ import { PhvaModule } from '../../phva/phva.module';
 // Capacitación COPASST) para alimentar la sección copasstTraining del contexto.
 import { PhvaAdvancedModule } from '../../phva-advanced/phva-advanced.module';
 import { TrainingsModule } from '../../trainings/trainings.module';
+// 2.11.1 — Gestión del Cambio: expone ChangeManagementService para alimentar la sección changeManagement del contexto.
+import { ChangeManagementModule } from '../../change-management/change-management.module';
 import { AiContextService } from './ai-context.service';
 
 /**
@@ -51,6 +53,8 @@ import { AiContextService } from './ai-context.service';
     AbsenteeismModule,
     TrainingsModule,
     InspectionsModule,
+    // 2.11.1 — Gestión del Cambio: módulo de dominio para contexto IA.
+    ChangeManagementModule,
   ],
   providers: [AiContextService],
   exports: [AiContextService],

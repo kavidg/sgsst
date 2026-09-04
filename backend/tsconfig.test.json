@@ -21,6 +21,10 @@
     "src/modules/legal-matrix/**/*.ts",
     "src/modules/responsibility-matrix/**/*.ts",
     "src/modules/ai-pipeline/**/*.ts",
-    "src/modules/tenant-isolation-regression.spec.ts"
+    "src/modules/tenant-isolation-regression.spec.ts",
+    "src/modules/contracting/**/*.ts",
+    "src/modules/change-management/**/*.ts",
+    "src/modules/incidents/**/*.ts",
+    "src/modules/epidemiological-surveillance/**/*.ts"
   ]
 }

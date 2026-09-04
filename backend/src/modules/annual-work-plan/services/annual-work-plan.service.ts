@@ -6,7 +6,7 @@ import {
   AnnualWorkPlanDocument,
   AnnualWorkPlanStatus,
 } from '../schemas/annual-work-plan.schema';
-import { PlanActivity, PlanActivityDocument, ActivityPriority } from '../schemas/plan-activity.schema';
+import { PlanActivity, PlanActivityDocument, ActivityPriority, ActivityStatus, PhvaPhase } from '../schemas/plan-activity.schema';
 import { PlanTask, PlanTaskDocument, TaskStatus } from '../schemas/plan-task.schema';
 import { PlanSubtask, PlanSubtaskDocument } from '../schemas/plan-subtask.schema';
 import { TaskEvidence, TaskEvidenceDocument } from '../schemas/task-evidence.schema';
@@ -20,6 +20,17 @@ import { TaskEvidenceService } from './task-evidence.service';
 import { TaskJustificationService } from './task-justification.service';
 import { AlertsService } from '../../alerts/alerts.service';
 import { UserDocument } from '../../users/schemas/user.schema';
+import {
+  SstObjectives,
+  SstObjectivesDocument,
+  SstObjectiveActivityStatus,
+} from '../../phva-advanced/schemas/phva-advanced-sst-objective.schema';
+import {
+  InitialEvaluation,
+  InitialEvaluationDocument,
+  EvaluationActionPlan,
+  WorkStatus,
+} from '../../initial-evaluation/schemas/initial-evaluation.schema';
 
 @Injectable()
 export class AnnualWorkPlanService {
@@ -38,6 +49,8 @@ export class AnnualWorkPlanService {
     private readonly justificationModel: Model<TaskJustificationDocument>,
     @InjectModel(PlanHistory.name)
     private readonly historyModel: Model<PlanHistoryDocument>,
+    @InjectModel(SstObjectives.name)
+    private readonly sstObjectivesModel: Model<SstObjectivesDocument>,
     private readonly activityService: ActivityService,
     private readonly taskService: TaskService,
     private readonly planComplianceService: PlanComplianceService,
@@ -45,6 +58,8 @@ export class AnnualWorkPlanService {
     private readonly taskEvidenceService: TaskEvidenceService,
     private readonly taskJustificationService: TaskJustificationService,
     private readonly alertsService: AlertsService,
+    @InjectModel(InitialEvaluation.name)
+    private readonly initialEvaluationModel: Model<InitialEvaluationDocument>,
   ) {}
 
   // ==================== PLAN CRUD ====================
@@ -231,6 +246,91 @@ export class AnnualWorkPlanService {
     );
   }
 
+  // ==================== DASHBOARD ====================
+
+  /**
+   * Returns a summary dashboard of the plan's activities.
+   * completionPercentage = completed / total * 100 (0 if total = 0).
+   * Overdue = endDate < now AND status NOT IN [COMPLETED, CANCELLED].
+   */
+  async getDashboard(planId: Types.ObjectId): Promise<{
+    totalActivities: number;
+    pending: number;
+    inProgress: number;
+    completed: number;
+    cancelled: number;
+    overdue: number;
+    completionPercentage: number;
+    byPhase: Record<string, number>;
+  }> {
+    const plan = await this.findById(planId);
+
+    const activities = await this.activityModel
+      .find({ annualPlanId: plan._id })
+      .exec();
+
+    const now = new Date();
+    let pending = 0;
+    let inProgress = 0;
+    let completed = 0;
+    let cancelled = 0;
+    let overdue = 0;
+    const byPhase: Record<string, number> = {};
+
+    for (const act of activities) {
+      // Count by status
+      switch (act.status) {
+        case ActivityStatus.PENDING:
+          pending++;
+          break;
+        case ActivityStatus.IN_PROGRESS:
+          inProgress++;
+          break;
+        case ActivityStatus.COMPLETED:
+          completed++;
+          break;
+        case ActivityStatus.CANCELLED:
+          cancelled++;
+          break;
+        case ActivityStatus.DELAYED:
+          // Delayed counts as overdue
+          overdue++;
+          break;
+      }
+
+      // Overdue detection: endDate < now AND status NOT IN [COMPLETED, CANCELLED]
+      if (
+        act.endDate < now &&
+        act.status !== ActivityStatus.COMPLETED &&
+        act.status !== ActivityStatus.CANCELLED
+      ) {
+        overdue++;
+      }
+
+      // Count by PHVA phase
+      if (act.phvaPhase) {
+        byPhase[act.phvaPhase] = (byPhase[act.phvaPhase] ?? 0) + 1;
+      }
+    }
+
+    const totalActivities = activities.length;
+    const completionPercentage =
+      totalActivities > 0
+        ? Math.round((completed / totalActivities) * 100)
+        : 0;
+
+    return {
+      totalActivities,
+      pending,
+      inProgress,
+      completed,
+      cancelled,
+      overdue,
+      completionPercentage,
+      byPhase,
+    };
+  }
+
   // ==================== COMPLIANCE ENGINE ====================
 
   async recalculateCompliance(id: Types.ObjectId): Promise<number> {
@@ -266,6 +366,8 @@ export class AnnualWorkPlanService {
       responsibleUser: string;
       priority?: ActivityPriority;
       estimatedCost?: number;
+      phvaPhase?: PhvaPhase;
+      standardNumber?: string;
     },
     user: UserDocument,
   ): Promise<PlanActivity> {
@@ -285,17 +387,34 @@ export class AnnualWorkPlanService {
       responsibleUser: new Types.ObjectId(dto.responsibleUser),
       priority: dto.priority,
       estimatedCost: dto.estimatedCost,
+      phvaPhase: dto.phvaPhase,
+      standardNumber: dto.standardNumber,
       userId: user._id,
       userEmail: user.email,
     });
   }
 
-  async getActivities(planId: Types.ObjectId): Promise<PlanActivity[]> {
+  async getActivities(planId: Types.ObjectId, companyId?: Types.ObjectId): Promise<PlanActivity[]> {
+    // Tenant isolation: if companyId is provided, verify the plan belongs to the company
+    if (companyId) {
+      const plan = await this.planModel.findById(planId).exec();
+      if (!plan || plan.companyId.toString() !== companyId.toString()) {
+        throw new NotFoundException('Plan not found');
+      }
+    }
     return this.activityService.findByPlan(planId);
   }
 
-  async getActivity(id: Types.ObjectId): Promise<PlanActivity> {
-    return this.activityService.findById(id);
+  async getActivity(id: Types.ObjectId, companyId?: Types.ObjectId): Promise<PlanActivity> {
+    const activity = await this.activityService.findById(id);
+    // Tenant isolation: if companyId is provided, verify the plan belongs to the company
+    if (companyId) {
+      const plan = await this.planModel.findById(activity.annualPlanId).exec();
+      if (!plan || plan.companyId.toString() !== companyId.toString()) {
+        throw new NotFoundException('Activity not found');
+      }
+    }
+    return activity;
   }
 
   async updateActivity(
@@ -337,12 +456,33 @@ export class AnnualWorkPlanService {
     });
   }
 
-  async getTasks(activityId: Types.ObjectId): Promise<PlanTask[]> {
+  async getTasks(activityId: Types.ObjectId, companyId?: Types.ObjectId): Promise<PlanTask[]> {
+    // Tenant isolation: if companyId is provided, verify the activity belongs to the company
+    if (companyId) {
+      const activity = await this.activityModel.findById(activityId).exec();
+      if (activity) {
+        const plan = await this.planModel.findById(activity.annualPlanId).exec();
+        if (!plan || plan.companyId.toString() !== companyId.toString()) {
+          throw new NotFoundException('Activity not found');
+        }
+      }
+    }
     return this.taskService.findByActivity(activityId);
   }
 
-  async getTask(id: Types.ObjectId): Promise<PlanTask> {
-    return this.taskService.findById(id);
+  async getTask(id: Types.ObjectId, companyId?: Types.ObjectId): Promise<PlanTask> {
+    const task = await this.taskService.findById(id);
+    // Tenant isolation: if companyId is provided, verify through activity → plan
+    if (companyId) {
+      const activity = await this.activityModel.findById(task.activityId).exec();
+      if (activity) {
+        const plan = await this.planModel.findById(activity.annualPlanId).exec();
+        if (!plan || plan.companyId.toString() !== companyId.toString()) {
+          throw new NotFoundException('Task not found');
+        }
+      }
+    }
+    return task;
   }
 
   async updateTask(
@@ -529,6 +669,10 @@ export class AnnualWorkPlanService {
     endDate: Date;
     responsibleUser: Types.ObjectId;
     estimatedCost?: number;
+    sourceModule?: string;
+    sourceEntityId?: Types.ObjectId;
+    sourceActivityId?: string;
+    sourceItemCode?: string;
     user: UserDocument;
   }): Promise<PlanActivity> {
     const plan = await this.findOrCreateCurrent(params.companyId, params.user);
@@ -538,7 +682,10 @@ export class AnnualWorkPlanService {
       title: params.title,
       description: params.description,
       objectiveId: params.objectiveId,
-      sourceModule: 'OBJECTIVE',
+      sourceModule: params.sourceModule ?? 'OBJECTIVE',
+      sourceEntityId: params.sourceEntityId,
+      sourceActivityId: params.sourceActivityId,
+      sourceItemCode: params.sourceItemCode,
       startDate: params.startDate,
       endDate: params.endDate,
       responsibleUser: params.responsibleUser,
@@ -697,5 +844,343 @@ export class AnnualWorkPlanService {
       userId: params.user._id,
       userEmail: params.user.email,
     });
+  }
+
+  // ==================== CONSOLIDATION DETECTION ====================
+
+  /**
+   * Determina si un plan tiene actividades sincronizadas desde módulos externos
+   * identificadas por su sourceModule.
+   *
+   * Este método es la fuente única de verdad para detectar consolidación.
+   * Un plan se considera consolidado SOLO cuando existen actividades reales
+   * con sourceModule ∈ sourceModules.  Actividades manuales (sin sourceModule)
+   * NO activan la consolidación.
+   *
+   * Tenant-safe: el plan ya fue resuelto por planId.
+   * Testeable: retorna un booleano simple.
+   * Reutilizable: puede ser llamado desde cualquier módulo que necesite
+   *   saber si el plan consolida fuentes específicas.
+   *
+   * @param planId - ObjectId del AnnualWorkPlan a consultar.
+   * @param sourceModules - Lista de sourceModule values a buscar.
+   * @returns true si existe al menos 1 activity con sourceModule ∈ sourceModules.
+   */
+  async hasActivitiesFromSourceModules(
+    planId: Types.ObjectId,
+    sourceModules: string[],
+  ): Promise<boolean> {
+    const count = await this.activityModel.countDocuments({
+      annualPlanId: planId,
+      sourceModule: { $in: sourceModules },
+    }).exec();
+    return count > 0;
+  }
+
+  // ==================== SST OBJECTIVES → ANNUAL WORK PLAN SYNC ====================
+
+  /**
+   * Synchronize SST Objectives (2.2.1) into real AnnualWorkPlan activities.
+   *
+   * For each SstObjectiveActivity across all objectives:
+   *   - Look up existing PlanActivity by sourceModule + sourceActivityId
+   *   - If not found → create (idempotent)
+   *   - If found → skip (deduplication)
+   *
+   * Returns a summary of the operation.
+   *
+   * This method is tenant-safe: companyId is the ONLY source of truth.
+   * The sync is idempotent: running it multiple times produces the same result.
+   */
+  async syncFromSstObjectives(
+    companyId: Types.ObjectId,
+    user: UserDocument,
+  ): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
+    // 1. Obtain SST Objectives for this tenant
+    const sstObjectives = await this.sstObjectivesModel
+      .findOne({ companyId, itemCode: '2.2.1' })
+      .exec();
+
+    if (!sstObjectives) {
+      return { created: 0, updated: 0, skipped: 0, errors: 0 };
+    }
+
+    // 2. Obtain or create the current AnnualWorkPlan
+    const plan = await this.findOrCreateCurrent(companyId, user);
+
+    // 3. Collect all activities from all objectives
+    const objectives = (sstObjectives.objectives ?? []) as unknown[];
+    const sstActivities: Array<{
+      objectiveId: string;
+      objectiveName: string;
+      activityId: string;
+      name: string;
+      description?: string;
+      responsible: string;
+      dueDate: Date;
+      status: SstObjectiveActivityStatus;
+    }> = [];
+
+    for (const obj of objectives) {
+      const objective = obj as Record<string, unknown>;
+      const objectiveId = objective.objectiveId as string;
+      const objectiveName = (objective.name as string) ?? 'Objetivo SST';
+      const activities = (objective.activities ?? []) as Record<string, unknown>[];
+
+      for (const act of activities) {
+        sstActivities.push({
+          objectiveId,
+          objectiveName,
+          activityId: act.activityId as string,
+          name: (act.name as string) ?? 'Actividad SST',
+          description: act.description as string | undefined,
+          responsible: (act.responsible as string) ?? 'Sin asignar',
+          dueDate: act.dueDate ? new Date(act.dueDate as string | number) : new Date(),
+          status: (act.status as SstObjectiveActivityStatus) ?? SstObjectiveActivityStatus.PENDING,
+        });
+      }
+    }
+
+    if (sstActivities.length === 0) {
+      return { created: 0, updated: 0, skipped: 0, errors: 0 };
+    }
+
+    // 4. Find all existing PlanActivities that were synced from SST Objectives
+    const existingActivities = await this.activityModel
+      .find({
+        annualPlanId: plan._id,
+        sourceModule: 'sst-objectives',
+      })
+      .exec();
+
+    // Build a map: sourceActivityId → PlanActivity
+    const existingBySource = new Map<string, typeof existingActivities[0]>();
+    for (const act of existingActivities) {
+      if (act.sourceActivityId) {
+        existingBySource.set(act.sourceActivityId, act);
+      }
+    }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const sstAct of sstActivities) {
+      try {
+        const existing = existingBySource.get(sstAct.activityId);
+
+        if (existing) {
+          // Already synced — skip (idempotent)
+          skipped++;
+          continue;
+        }
+
+        // Map SstObjectiveActivityStatus → ActivityStatus
+        const statusMap: Record<string, ActivityStatus> = {
+          'Pending': ActivityStatus.PENDING,
+          'In Progress': ActivityStatus.IN_PROGRESS,
+          'Completed': ActivityStatus.COMPLETED,
+          'Delayed': ActivityStatus.DELAYED,
+          'Cancelled': ActivityStatus.CANCELLED,
+        };
+
+        // NOTE: sstAct.responsible is a name string, not an ObjectId.
+        // When user lookup by name is available, resolve the actual responsible user.
+        // Fallback: use the plan creator as responsibleUser.
+        const responsibleUserId = plan.createdBy;
+
+        const activity = await this.activityService.create({
+          annualPlanId: plan._id,
+          title: `[SST 2.2.1] ${sstAct.name}`,
+          description: sstAct.description ?? `Actividad del objetivo SST: ${sstAct.objectiveName}`,
+          sourceModule: 'sst-objectives',
+          sourceEntityId: sstObjectives._id,
+          sourceActivityId: sstAct.activityId,
+          sourceItemCode: '2.2.1',
+          startDate: new Date(),
+          endDate: sstAct.dueDate,
+          responsibleUser: responsibleUserId,
+          priority: ActivityPriority.HIGH,
+          userId: user._id,
+          userEmail: user.email,
+        });
+
+        // Update the status if the SST activity has a different status
+        const mappedStatus = statusMap[sstAct.status] ?? ActivityStatus.PENDING;
+        if (mappedStatus !== ActivityStatus.PENDING) {
+          const activityAny = activity as unknown as { _id: Types.ObjectId };
+          await this.activityService.update(
+            activityAny._id,
+            { status: mappedStatus } as never,
+            user._id,
+            user.email,
+          );
+        }
+
+        created++;
+      } catch {
+        errors++;
+      }
+    }
+
+    return { created, updated, skipped, errors };
+  }
+
+  // ==================== INITIAL EVALUATION → ANNUAL WORK PLAN SYNC ====================
+
+  /**
+   * Synchronize InitialEvaluation.actionPlan[] into real AnnualWorkPlan activities.
+   *
+   * For each action in the evaluation's actionPlan:
+   *   - Look up existing PlanActivity by sourceModule + sourceEntityId + sourceActivityId
+   *   - If not found → create (idempotent)
+   *   - If found → update title/description/endDate/status if the source changed
+   *
+   * Returns a summary of the operation.
+   *
+   * This method is tenant-safe: companyId is the ONLY source of truth.
+   * The sync is idempotent: running it multiple times produces the same result.
+   */
+  async syncFromInitialEvaluation(
+    companyId: Types.ObjectId,
+    evaluationId: Types.ObjectId,
+    user: UserDocument,
+  ): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
+    // 1. Obtain the InitialEvaluation and validate tenant ownership
+    const evaluation = await this.initialEvaluationModel.findById(evaluationId).exec();
+
+    if (!evaluation) {
+      throw new NotFoundException('Initial evaluation not found');
+    }
+
+    if (evaluation.companyId.toString() !== companyId.toString()) {
+      throw new ForbiddenException('Evaluation does not belong to this company');
+    }
+
+    // 2. Obtain or create the current AnnualWorkPlan
+    const plan = await this.findOrCreateCurrent(companyId, user);
+
+    // 3. Collect all actions from the evaluation's actionPlan
+    const actionPlan = (evaluation.actionPlan ?? []) as unknown[];
+
+    if (actionPlan.length === 0) {
+      return { created: 0, updated: 0, skipped: 0, errors: 0 };
+    }
+
+    // 4. Find all existing PlanActivities that were synced from this evaluation
+    const existingActivities = await this.activityModel
+      .find({
+        annualPlanId: plan._id,
+        sourceModule: 'initial-evaluation',
+        sourceEntityId: evaluationId,
+      })
+      .exec();
+
+    // Build a map: sourceActivityId → PlanActivity
+    const existingBySource = new Map<string, typeof existingActivities[0]>();
+    for (const act of existingActivities) {
+      if (act.sourceActivityId) {
+        existingBySource.set(act.sourceActivityId, act);
+      }
+    }
+
+    // Map WorkStatus → ActivityStatus
+    const statusMap: Record<string, ActivityStatus> = {
+      [WorkStatus.OPEN]: ActivityStatus.PENDING,
+      [WorkStatus.IN_PROGRESS]: ActivityStatus.IN_PROGRESS,
+      [WorkStatus.CLOSED]: ActivityStatus.COMPLETED,
+    };
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const raw of actionPlan) {
+      try {
+        const action = raw as EvaluationActionPlan;
+
+        if (!action.id || !action.title) {
+          errors++;
+          continue;
+        }
+
+        const existing = existingBySource.get(action.id);
+
+        if (existing) {
+          // Action already synced — update if source data changed
+          const mappedStatus = statusMap[action.status] ?? ActivityStatus.PENDING;
+          const needsUpdate =
+            existing.title !== action.title ||
+            existing.description !== action.description ||
+            (action.dueDate && existing.endDate?.getTime() !== new Date(action.dueDate).getTime()) ||
+            existing.status !== mappedStatus;
+
+          if (needsUpdate) {
+            const updateData: Record<string, unknown> = {};
+            if (existing.title !== action.title) updateData.title = action.title;
+            if (existing.description !== action.description) updateData.description = action.description;
+            if (action.dueDate) {
+              const newEnd = new Date(action.dueDate);
+              if (existing.endDate?.getTime() !== newEnd.getTime()) {
+                updateData.endDate = newEnd;
+              }
+            }
+            if (existing.status !== mappedStatus) updateData.status = mappedStatus;
+
+            await this.activityService.update(
+              existing._id as Types.ObjectId,
+              updateData as never,
+              user._id,
+              user.email,
+            );
+            updated++;
+          } else {
+            skipped++;
+          }
+          continue;
+        }
+
+        // Create new activity from action plan item
+        const responsibleUserId = plan.createdBy;
+        const startDate = evaluation.evaluationDate ? new Date(evaluation.evaluationDate) : new Date();
+        const endDate = action.dueDate ? new Date(action.dueDate) : new Date();
+
+        const activity = await this.activityService.create({
+          annualPlanId: plan._id,
+          title: action.title,
+          description: action.description || undefined,
+          sourceModule: 'initial-evaluation',
+          sourceEntityId: evaluation._id,
+          sourceActivityId: action.id,
+          sourceItemCode: action.source,
+          startDate,
+          endDate,
+          responsibleUser: responsibleUserId,
+          priority: ActivityPriority.HIGH,
+          userId: user._id,
+          userEmail: user.email,
+        });
+
+        // Set initial status if not default PENDING
+        const mappedStatus = statusMap[action.status] ?? ActivityStatus.PENDING;
+        if (mappedStatus !== ActivityStatus.PENDING) {
+          const activityAny = activity as unknown as { _id: Types.ObjectId };
+          await this.activityService.update(
+            activityAny._id,
+            { status: mappedStatus } as never,
+            user._id,
+            user.email,
+          );
+        }
+
+        created++;
+      } catch {
+        errors++;
+      }
+    }
+
+    return { created, updated, skipped, errors };
   }
 }

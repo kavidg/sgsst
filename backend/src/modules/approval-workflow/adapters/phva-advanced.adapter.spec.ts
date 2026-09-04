@@ -10,6 +10,9 @@ import { SstPolicyHandler } from './handlers/sst-policy.handler';
 import { ResponsibilitiesHandler } from './handlers/responsibilities.handler';
 import { ResponsibleSgsstHandler } from './handlers/responsible-sgsst.handler';
 import { CopasstTrainingHandler } from './handlers/copasst-training.handler';
+import { SstObjectivesHandler } from './handlers/sst-objectives.handler';
+import { EppHandler } from './handlers/epp.handler';
+import { EmergenciesHandler } from './handlers/emergencies.handler';
 import { PhvaAdvancedCopasstTrainingService } from '../../phva-advanced/phva-advanced-copasst-training.service';
 import { ApprovalWorkflowService } from '../approval-workflow.service';
 import { ApprovalActor } from '../interfaces/approval-actor.interface';
@@ -148,6 +151,22 @@ function buildPhvaAdvancedService(overrides?: {
     findCopasstTrainingByCompany: async () => {
       throw new NotFoundException('Capacitación COPASST not found');
     },
+    // Stub del SstObjectivesHandler (no utilizado por estas pruebas, pero
+    // requerido por el dispatcher del adapter).
+    findSstObjectives: async () => {
+      throw new NotFoundException('SST Objectives not found');
+    },
+    findOrCreateSstObjectives: async () => {
+      throw new NotFoundException('SST Objectives not found');
+    },
+    // Stub del EppHandler (no utilizado por estas pruebas, pero
+    // requerido por el dispatcher del adapter).
+    findOrCreateEpp: async () => {
+      throw new NotFoundException('EPP not found');
+    },
+    findOrCreateEmergencies: async () => {
+      throw new NotFoundException('Emergencias not found');
+    },
   } as unknown as PhvaAdvancedService;
   return { service, approveCalls, rejectCalls };
 }
@@ -219,6 +238,21 @@ function buildAdapter(overrides?: {
     buildNotFoundCopasstService(),
     overrides?.userModel ?? buildUserModel(),
   );
+  // SstObjectivesHandler: stub that returns not found for cross-tenant tests.
+  const sstObjectivesHandler = new SstObjectivesHandler(
+    service,
+    overrides?.userModel ?? buildUserModel(),
+  );
+  // EppHandler: stub that returns not found for cross-tenant tests.
+  const eppHandler = new EppHandler(
+    service,
+    overrides?.userModel ?? buildUserModel(),
+  );
+  // EmergenciesHandler: stub that returns not found for cross-tenant tests.
+  const emergenciesHandler = new EmergenciesHandler(
+    service,
+    overrides?.userModel ?? buildUserModel(),
+  );
   return {
     adapter: new PhvaAdvancedAdapter(
       resourceHandler,
@@ -227,6 +261,9 @@ function buildAdapter(overrides?: {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      sstObjectivesHandler,
+      eppHandler,
+      emergenciesHandler,
     ),
     approveCalls,
     rejectCalls,
@@ -444,6 +481,9 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -521,6 +561,9 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -605,6 +648,9 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -664,6 +710,9 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -721,6 +770,9 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
 
     const result = (await adapter.getEntity(COMPANY_ID, RECORD_ID)) as GetEntityResult;
@@ -788,6 +840,9 @@ describe('PhvaAdvancedAdapter (Resource Assignment)', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
 
     const result = await adapter.applyDecision(
@@ -820,6 +875,9 @@ describe('Integración ApprovalWorkflowService + PhvaAdvancedAdapter', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
     const events: unknown[] = [];
     let latestRequest: ApprovalRequestDocument | null = null;
@@ -896,6 +954,9 @@ describe('Integración ApprovalWorkflowService + PhvaAdvancedAdapter', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
     const events: unknown[] = [];
     let latestRequest: ApprovalRequestDocument | null = null;
@@ -971,6 +1032,9 @@ describe('Integración ApprovalWorkflowService + PhvaAdvancedAdapter', () => {
       responsibilitiesHandler,
       responsibleSgsstHandler,
       copasstTrainingHandler,
+      new SstObjectivesHandler({ findSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findOrCreateSstObjectives: async () => { throw new NotFoundException('SST Objectives not found'); }, findSstPolicyById: async () => { throw new NotFoundException('SST Policy not found'); }, findSstPolicyByCompany: async () => { throw new NotFoundException('SST Policy not found'); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EppHandler({ findOrCreateEpp: async () => { throw new NotFoundException("EPP not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
+      new EmergenciesHandler({ findOrCreateEmergencies: async () => { throw new NotFoundException("Emergencias not found"); } } as unknown as PhvaAdvancedService, buildUserModel()),
     );
     const events: unknown[] = [];
     const createdRequests: ApprovalRequestDocument[] = [];

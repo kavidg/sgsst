@@ -25,12 +25,11 @@ import {
   CopasstTrainingCoverage,
   PhvaAdvancedCopasstTrainingService,
 } from '../../phva-advanced/phva-advanced-copasst-training.service';
-import { PhvaAdvancedCopasstTrainingDocument } from '../../phva-advanced/schemas/phva-advanced-copasst-training.schema';
-import {
-  CompanyAIContext,
+import { PhvaAdvancedCopasstTrainingDocument } from '../../phva-advanced/schemas/phva-advanced-copasst-training.schema';import { CompanyAIContext,
   CompanyAIContextAbsenteeism,
   CompanyAIContextActivities,
   CompanyAIContextAudits,
+  CompanyAIContextChangeManagement,
   CompanyAIContextConvivencia,
   CompanyAIContextCopasstTraining,
   CompanyAIContextDocuments,
@@ -39,6 +38,7 @@ import {
   CompanyAIContextInitialEvaluation,
   CompanyAIContextPrograms,
 } from './interfaces/company-ai-context.interface';
+import { ChangeManagementService } from '../../change-management/change-management.service';
 
 /** Límite de elementos por lista para mantener el contexto compacto y legible. */
 const MAX_ITEMS_PER_LIST = 10;
@@ -84,6 +84,8 @@ export class AiContextService {
     private readonly absenteeismService: AbsenteeismService,
     private readonly trainingsService: TrainingsService,
     private readonly inspectionsService: InspectionsService,
+    // 2.11.1 — Gestión del Cambio: reutiliza el service de dominio existente.
+    private readonly changeManagementService: ChangeManagementService,
   ) {}
 
   /**
@@ -115,6 +117,7 @@ export class AiContextService {
       absenteeism,
       programs,
       audits,
+      changeManagement,
     ] = await Promise.all([
       this.safeFindCompany(companyId),
       this.safeGetOverview(companyId),
@@ -129,6 +132,7 @@ export class AiContextService {
       this.safeGetAbsenteeism(companyObjectId),
       this.safeGetPrograms(companyObjectId),
       this.safeGetAudits(companyObjectId),
+      this.safeGetChangeManagement(companyObjectId),
     ]);
 
     return {
@@ -156,6 +160,7 @@ export class AiContextService {
       absenteeism: this.buildAbsenteeismContext(absenteeism),
       programs: this.buildProgramsContext(programs),
       audits: this.buildAuditsContext(audits),
+      changeManagement: this.buildChangeManagementContext(changeManagement),
     };
   }
 
@@ -324,6 +329,20 @@ export class AiContextService {
     } catch (error) {
       this.logger.debug(`Auditorías no disponibles: ${this.errorMessage(error)}`);
       return [];
+    }
+  }
+
+  /** Gestión del Cambio (2.11.1): stats + solicitudes recientes sin PII. */
+  private async safeGetChangeManagement(companyObjectId: Types.ObjectId) {
+    try {
+      const [stats, requests] = await Promise.all([
+        this.changeManagementService.getStats(companyObjectId),
+        this.changeManagementService.findAll(companyObjectId),
+      ]);
+      return { stats, requests };
+    } catch (error) {
+      this.logger.debug(`Gestión del cambio (2.11.1) no disponible: ${this.errorMessage(error)}`);
+      return null;
     }
   }
 
@@ -541,6 +560,49 @@ export class AiContextService {
       pending: pending.slice(0, MAX_ITEMS_PER_LIST),
       delayed: delayed.slice(0, MAX_ITEMS_PER_LIST),
       completed: completed.slice(0, MAX_ITEMS_PER_LIST),
+    };
+  }
+
+  /** Sección de Gestión del Cambio (2.11.1): agregados reales, sin PII. */
+  private buildChangeManagementContext(data: {
+    stats: { total: number; draft: number; pendingApproval: number; approved: number; implemented: number; rejected: number; byImpactLevel: Record<string, number>; byChangeType: Record<string, number> };
+    requests: Array<{ title: string; changeType: string; impactLevel: string; status: string }>;
+  } | null): CompanyAIContextChangeManagement {
+    if (!data) {
+      return {
+        available: false,
+        total: 0,
+        draft: 0,
+        pendingApproval: 0,
+        approved: 0,
+        implemented: 0,
+        rejected: 0,
+        byImpactLevel: [],
+        byChangeType: [],
+        recent: [],
+      };
+    }
+    const { stats, requests } = data;
+    return {
+      available: stats.total > 0,
+      total: stats.total,
+      draft: stats.draft,
+      pendingApproval: stats.pendingApproval,
+      approved: stats.approved,
+      implemented: stats.implemented,
+      rejected: stats.rejected,
+      byImpactLevel: Object.entries(stats.byImpactLevel)
+        .map(([level, count]) => ({ level, count }))
+        .filter((item) => item.count > 0),
+      byChangeType: Object.entries(stats.byChangeType)
+        .map(([type, count]) => ({ type, count }))
+        .filter((item) => item.count > 0),
+      recent: requests.slice(0, MAX_ITEMS_PER_LIST).map((request) => ({
+        title: request.title,
+        changeType: request.changeType,
+        impactLevel: request.impactLevel,
+        status: request.status,
+      })),
     };
   }
 

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsString, Min } from 'class-validator';
+import { IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateRiskDto {
   @IsString()
@@ -26,4 +26,12 @@ export class CreateRiskDto {
 
   @IsString()
   controlMeasures!: string;
+
+  @IsOptional()
+  @IsMongoId()
+  methodologyId?: string;
+
+  @IsOptional()
+  @IsString()
+  methodologyVersion?: string;
 }

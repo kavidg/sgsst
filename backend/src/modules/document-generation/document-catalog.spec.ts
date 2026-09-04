@@ -210,6 +210,10 @@ function buildService(data: TestData): {
         exec: async () => data.instances.filter((row) => matches(filter, row)).length,
       }),
       find: (filter: Record<string, unknown>) => chain(filter),
+      findOne: (filter: Record<string, unknown>) => ({
+        exec: async () =>
+          data.instances.find((row) => matches(filter, row)) ?? null,
+      }),
       findById: (id: Types.ObjectId) => ({
         exec: async () =>
           data.instances.find((row) => eq(row._id, id)) ?? null,
@@ -293,6 +297,30 @@ describe('DocumentCatalogService.list', () => {
     assert.equal(policy.sourceEntity, 'SST_POLICY');
     assert.equal(policy.approvedAt?.toISOString(), '2026-02-02T00:00:00.000Z');
     assert.equal(policy.approvedBy, APPROVER_ID);
+  });
+
+  it('expone documentMasterId en el ViewModel (null cuando no existe)', async () => {
+    const { service } = buildService(buildData());
+
+    const page = await service.list({});
+
+    // Instancia sin documentMasterId → null
+    const item = page.items.find((i) => i.id === INSTANCE_1);
+    assert.ok(item);
+    assert.equal(item.documentMasterId, null);
+  });
+
+  it('expone documentMasterId cuando la instancia lo tiene', async () => {
+    const data = buildData();
+    const MASTER_ID = '64b0000000000000000000aa';
+    (data.instances[0] as Record<string, unknown>).documentMasterId = new Types.ObjectId(MASTER_ID);
+    const { service } = buildService(data);
+
+    const page = await service.list({});
+
+    const item = page.items.find((i) => i.id === INSTANCE_1);
+    assert.ok(item);
+    assert.equal(item.documentMasterId, MASTER_ID);
   });
 
   it('filtra por companyId', async () => {
@@ -470,6 +498,25 @@ describe('DocumentCatalogService.getById', () => {
     assert.equal(detail.versions[0].id, '64b000000000000000000009');
   });
 
+  it('expone documentMasterId en el detalle (null cuando no existe)', async () => {
+    const { service } = buildService(buildData());
+
+    const detail = await service.getById(INSTANCE_1);
+
+    assert.equal(detail.documentMasterId, null);
+  });
+
+  it('expone documentMasterId en el detalle cuando la instancia lo tiene', async () => {
+    const data = buildData();
+    const MASTER_ID = '64b0000000000000000000aa';
+    (data.instances[0] as Record<string, unknown>).documentMasterId = new Types.ObjectId(MASTER_ID);
+    const { service } = buildService(data);
+
+    const detail = await service.getById(INSTANCE_1);
+
+    assert.equal(detail.documentMasterId, MASTER_ID);
+  });
+
   it('lanza NotFound si la instancia no existe', async () => {
     const { service } = buildService(buildData());
 
@@ -484,6 +531,53 @@ describe('DocumentCatalogService.getById', () => {
 
     await assert.rejects(
       () => service.getById('not-an-id'),
+      BadRequestException,
+    );
+  });
+});
+
+describe('DocumentCatalogService.getByDocumentMasterId', () => {
+  it('devuelve la instancia vinculada al DocumentMaster', async () => {
+    const data = buildData();
+    const MASTER_ID = '64b0000000000000000000aa';
+    (data.instances[0] as Record<string, unknown>).documentMasterId = new Types.ObjectId(MASTER_ID);
+    const { service } = buildService(data);
+
+    const result = await service.getByDocumentMasterId(MASTER_ID);
+
+    assert.ok(result);
+    assert.equal(result.id, INSTANCE_1);
+    assert.equal(result.documentMasterId, MASTER_ID);
+  });
+
+  it('devuelve null cuando no existe instancia vinculada', async () => {
+    const { service } = buildService(buildData());
+
+    const result = await service.getByDocumentMasterId('64b0000000000000000000ff');
+
+    assert.equal(result, null);
+  });
+
+  it('filtra por companyId cuando se proporciona', async () => {
+    const data = buildData();
+    const MASTER_ID = '64b0000000000000000000aa';
+    (data.instances[0] as Record<string, unknown>).documentMasterId = new Types.ObjectId(MASTER_ID);
+    const { service } = buildService(data);
+
+    // Buscar con companyId diferente → no debe encontrar
+    const result = await service.getByDocumentMasterId(
+      MASTER_ID,
+      new Types.ObjectId(COMPANY_B),
+    );
+
+    assert.equal(result, null);
+  });
+
+  it('lanza BadRequest con documentMasterId inválido', async () => {
+    const { service } = buildService(buildData());
+
+    await assert.rejects(
+      () => service.getByDocumentMasterId('not-an-objectid'),
       BadRequestException,
     );
   });

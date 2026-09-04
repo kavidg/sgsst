@@ -1,9 +1,8 @@
 /**
- * Tipos del Dashboard Documental (SPRINT FRONT-5).
+ * Tipos del Dashboard Documental.
  *
- * Métricas de UI calculadas a partir del catálogo del DocumentGenerationEngine
- * (GET /document-generation/catalog). Espejo estricto del contrato calculado
- * por document-dashboard.service.ts — sin any, TypeScript estricto.
+ * Métricas de UI calculadas a partir de DocumentMaster (fuente única de
+ * verdad) vía GET /document-management/dashboard.
  */
 
 /** Conteo de instancias por tipo documental. */
@@ -14,10 +13,6 @@ export interface DocumentTypeSummary {
 
 /**
  * Resumen del panel documental de una empresa.
- *
- * Nota de semántica (SPRINT FRONT-5): el ciclo de vida de DocumentInstance no
- * incluye un estado REJECTED (las decisiones rechazadas nunca generan
- * instancias documentales), por lo que `rejected` se expone como 0.
  */
 export interface DocumentDashboardSummary {
   totalDocuments: number;
@@ -26,4 +21,8 @@ export interface DocumentDashboardSummary {
   rejected: number;
   archived: number;
   byType: DocumentTypeSummary[];
+  /** Documentos próximos a vencer (dentro de 30 días). */
+  expiringSoon?: number;
+  /** Documentos ya vencidos. */
+  expired?: number;
 }

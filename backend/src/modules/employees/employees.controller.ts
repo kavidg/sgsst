@@ -50,6 +50,13 @@ export class EmployeesController {
     return this.employeesService.findAll(companyId);
   }
 
+  @Get('sociodemographic-stats')
+  @Roles('owner', 'admin', 'manager')
+  async getSociodemographicStats(@Req() request: RequestWithUser) {
+    const companyId = await this.resolveCompanyId(request);
+    return this.employeesService.getSociodemographicStats(companyId);
+  }
+
   @Get(':id')
   @Roles('owner', 'admin', 'manager')
   async findOne(@Req() request: RequestWithUser, @Param('id') id: string) {

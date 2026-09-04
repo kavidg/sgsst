@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import { Roles } from '../questions/roles.decorator';
 import { RolesGuard } from '../questions/roles.guard';
 import { UsersService } from '../users/users.service';
 import { CreateIncidentDto } from './dto/create-incident.dto';
+import { QueryIncidentDto } from './dto/query-incident.dto';
 import { UpdateIncidentDto } from './dto/update-incident.dto';
 import { IncidentsService } from './incidents.service';
 
@@ -35,11 +37,18 @@ export class IncidentsController {
     return this.incidentsService.create(companyId, createIncidentDto);
   }
 
+  @Get('stats')
+  @Roles('owner', 'admin', 'manager')
+  async getStats(@Req() request: RequestWithUser) {
+    const companyId = await this.resolveCompanyId(request);
+    return this.incidentsService.getDiseaseInvestigationStats(companyId);
+  }
+
   @Get()
   @Roles('owner', 'admin', 'manager')
-  async findAll(@Req() request: RequestWithUser) {
+  async findAll(@Req() request: RequestWithUser, @Query() query: QueryIncidentDto) {
     const companyId = await this.resolveCompanyId(request);
-    return this.incidentsService.findAll(companyId);
+    return this.incidentsService.findAll(companyId, query.investigationType);
   }
 
   @Get(':id')

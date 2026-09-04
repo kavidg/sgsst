@@ -185,6 +185,37 @@ export interface CreateAbsenteeismPayload {
   soporte?: string;
 }
 
+export interface InvestigationActionPayload {
+  action: string;
+  responsible: string;
+  status?: string;
+  dueDate?: string;
+  completedDate?: string;
+}
+
+export interface DiseaseInvestigationStats {
+  totalInvestigations: number;
+  pendingInvestigations: number;
+  closedInvestigations: number;
+  investigationsWithFormalResearch: number;
+  investigationsWithoutFormalResearch: number;
+  investigationsWithRootCauses: number;
+  investigationsWithImmediateCauses: number;
+  investigationsWithRelatedFactors: number;
+  investigationsWithCorrectiveActions: number;
+  investigationsWithPreventiveActions: number;
+  investigationsWithEvidence: number;
+  investigationsWithResponsible: number;
+  openCorrectiveActions: number;
+  overdueCorrectiveActions: number;
+  completedCorrectiveActions: number;
+  openPreventiveActions: number;
+  overduePreventiveActions: number;
+  completedPreventiveActions: number;
+  averageClosureDays: number;
+  monthlyTrend: Array<{ month: string; count: number }>;
+}
+
 export interface CreateIncidentPayload {
   employeeId: string;
   type: string;
@@ -192,6 +223,16 @@ export interface CreateIncidentPayload {
   description: string;
   severity: string;
   status: string;
+  investigationType?: string;
+  rootCauses?: string[];
+  immediateCauses?: string[];
+  relatedFactors?: string[];
+  correctiveActions?: InvestigationActionPayload[];
+  preventiveActions?: InvestigationActionPayload[];
+  responsible?: string;
+  investigationDate?: string;
+  closureDate?: string;
+  evidence?: string[];
 }
 
 export interface UpdateIncidentPayload {
@@ -201,6 +242,16 @@ export interface UpdateIncidentPayload {
   description?: string;
   severity?: string;
   status?: string;
+  investigationType?: string;
+  rootCauses?: string[];
+  immediateCauses?: string[];
+  relatedFactors?: string[];
+  correctiveActions?: InvestigationActionPayload[];
+  preventiveActions?: InvestigationActionPayload[];
+  responsible?: string;
+  investigationDate?: string;
+  closureDate?: string;
+  evidence?: string[];
 }
 
 export interface TrainingModel {
@@ -338,6 +389,19 @@ export interface EmployeeModel {
   contractType: string;
   status: string;
   companyId: string;
+  // Campos sociodemográficos (3.1.1) — todos opcionales
+  birthDate?: string;
+  gender?: 'MASCULINO' | 'FEMENINO' | 'OTRO';
+  maritalStatus?: 'SOLTERO' | 'CASADO' | 'DIVORCIADO' | 'VIUDO' | 'UNION_LIBRE';
+  educationLevel?: 'PRIMARIA' | 'SECUNDARIA' | 'TECNICO' | 'TECNOLOGO' | 'PROFESIONAL' | 'POSGRADO';
+  dependents?: number;
+  socioeconomicStratum?: number;
+  housingType?: 'PROPIA' | 'ARRENDADA' | 'FAMILIAR' | 'OTRO';
+  ethnicGroup?: 'INDIGENA' | 'ROM' | 'RAIZAL' | 'PALENQUERO' | 'AFROCOLOMBIANO' | 'NINGUNO' | 'OTRO';
+  disability?: boolean;
+  workSchedule?: 'DIURNA' | 'NOCTURNA' | 'MIXTA' | 'ROTATIVA';
+  admissionDate?: string;
+  workCenter?: string;
 }
 
 export interface CreateEmployeePayload {
@@ -347,6 +411,19 @@ export interface CreateEmployeePayload {
   area: string;
   contractType: string;
   status: string;
+  // Campos sociodemográficos (3.1.1) — todos opcionales
+  birthDate?: string;
+  gender?: 'MASCULINO' | 'FEMENINO' | 'OTRO';
+  maritalStatus?: 'SOLTERO' | 'CASADO' | 'DIVORCIADO' | 'VIUDO' | 'UNION_LIBRE';
+  educationLevel?: 'PRIMARIA' | 'SECUNDARIA' | 'TECNICO' | 'TECNOLOGO' | 'PROFESIONAL' | 'POSGRADO';
+  dependents?: number;
+  socioeconomicStratum?: number;
+  housingType?: 'PROPIA' | 'ARRENDADA' | 'FAMILIAR' | 'OTRO';
+  ethnicGroup?: 'INDIGENA' | 'ROM' | 'RAIZAL' | 'PALENQUERO' | 'AFROCOLOMBIANO' | 'NINGUNO' | 'OTRO';
+  disability?: boolean;
+  workSchedule?: 'DIURNA' | 'NOCTURNA' | 'MIXTA' | 'ROTATIVA';
+  admissionDate?: string;
+  workCenter?: string;
 }
 
 export interface BulkEmployeesResponse {
@@ -365,6 +442,19 @@ interface UpdateEmployeePayload {
   area?: string;
   contractType?: string;
   status?: string;
+  // Campos sociodemográficos (3.1.1) — todos opcionales
+  birthDate?: string;
+  gender?: 'MASCULINO' | 'FEMENINO' | 'OTRO';
+  maritalStatus?: 'SOLTERO' | 'CASADO' | 'DIVORCIADO' | 'VIUDO' | 'UNION_LIBRE';
+  educationLevel?: 'PRIMARIA' | 'SECUNDARIA' | 'TECNICO' | 'TECNOLOGO' | 'PROFESIONAL' | 'POSGRADO';
+  dependents?: number;
+  socioeconomicStratum?: number;
+  housingType?: 'PROPIA' | 'ARRENDADA' | 'FAMILIAR' | 'OTRO';
+  ethnicGroup?: 'INDIGENA' | 'ROM' | 'RAIZAL' | 'PALENQUERO' | 'AFROCOLOMBIANO' | 'NINGUNO' | 'OTRO';
+  disability?: boolean;
+  workSchedule?: 'DIURNA' | 'NOCTURNA' | 'MIXTA' | 'ROTATIVA';
+  admissionDate?: string;
+  workCenter?: string;
 }
 
 interface CreateUserPayload {
@@ -689,6 +779,141 @@ export function deleteEmployee(token: string, id: string) {
   return apiFetch<void>(`/employees/${id}`, token, { method: 'DELETE' });
 }
 
+// ── Sociodemographic Stats ──
+
+export interface DistributionEntry {
+  label: string;
+  count: number;
+}
+
+export interface SociodemographicStats {
+  totalWorkers: number;
+  completeProfiles: number;
+  completionPercentage: number;
+  ageRanges: DistributionEntry[];
+  genderDistribution: DistributionEntry[];
+  educationDistribution: DistributionEntry[];
+  maritalStatusDistribution: DistributionEntry[];
+  contractTypeDistribution: DistributionEntry[];
+  workScheduleDistribution: DistributionEntry[];
+  housingTypeDistribution: DistributionEntry[];
+  ethnicGroupDistribution: DistributionEntry[];
+  disabilityDistribution: { value: string; count: number }[];
+  socioeconomicStratumDistribution: { stratum: number; count: number }[];
+  dependentsDistribution: DistributionEntry[];
+  recentUpdates: number;
+}
+
+export function fetchSociodemographicStats(token: string): Promise<SociodemographicStats> {
+  return apiFetch<SociodemographicStats>('/employees/sociodemographic-stats', token, { method: 'GET' });
+}
+
+// ── Occupational Exams (3.1.2) ──
+
+export type ExamType = 'ENTRY' | 'PERIODIC' | 'EXIT' | 'POST_INCAPACITY' | 'CHANGE_OF_OCCUPATION' | 'OTHER';
+export type ExamStatusType = 'SCHEDULED' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+export type FitnessStatusType = 'FIT' | 'FIT_WITH_RESTRICTIONS' | 'UNFIT' | 'PENDING' | 'NOT_REPORTED';
+
+export interface OccupationalExam {
+  _id: string;
+  companyId: string;
+  employeeId: string;
+  examType: ExamType;
+  examDate?: string;
+  status: ExamStatusType;
+  nextDueDate?: string;
+  fitnessStatus?: FitnessStatusType;
+  followUpRequired: boolean;
+  followUpDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateOccupationalExamPayload {
+  employeeId: string;
+  examType: ExamType;
+  examDate?: string;
+  status?: ExamStatusType;
+  nextDueDate?: string;
+  fitnessStatus?: FitnessStatusType;
+  followUpRequired?: boolean;
+  followUpDate?: string;
+}
+
+export interface OccupationalExamStats {
+  totalWorkers: number;
+  totalExams: number;
+  entryExams: number;
+  periodicExams: number;
+  exitExams: number;
+  completedExams: number;
+  scheduledExams: number;
+  expiredExams: number;
+  followUpsRequired: number;
+  upcomingExams: number;
+  fitnessDistribution: DistributionEntry[];
+  examTypeDistribution: DistributionEntry[];
+  statusDistribution: DistributionEntry[];
+  areaDistribution: DistributionEntry[];
+  contractTypeDistribution: DistributionEntry[];
+  // Métricas 3.1.4
+  communicationAcknowledged: number;
+  communicationPending: number;
+  periodicityDefined: number;
+  periodicityPending: number;
+  hazardCoverage: number;
+  hazardCoveragePending: number;
+}
+
+export function fetchOccupationalExams(token: string, params?: { employeeId?: string; examType?: string; status?: string }): Promise<OccupationalExam[]> {
+  const query = new URLSearchParams();
+  if (params?.employeeId) query.set('employeeId', params.employeeId);
+  if (params?.examType) query.set('examType', params.examType);
+  if (params?.status) query.set('status', params.status);
+  const qs = query.toString();
+  return apiFetch<OccupationalExam[]>(`/occupational-exams${qs ? '?' + qs : ''}`, token, { method: 'GET' });
+}
+
+export function createOccupationalExam(token: string, payload: CreateOccupationalExamPayload): Promise<OccupationalExam> {
+  return apiFetch<OccupationalExam>('/occupational-exams', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateOccupationalExam(token: string, id: string, payload: Partial<CreateOccupationalExamPayload>): Promise<OccupationalExam> {
+  return apiFetch<OccupationalExam>(`/occupational-exams/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteOccupationalExam(token: string, id: string): Promise<void> {
+  return apiFetch<void>(`/occupational-exams/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchOccupationalExamStats(token: string): Promise<OccupationalExamStats> {
+  return apiFetch<OccupationalExamStats>('/occupational-exams/stats', token, { method: 'GET' });
+}
+
+// ── Medical Recommendations (3.1.3) ──
+
+export interface MedicalRecommendationStats {
+  totalRecommendations: number;
+  pendingRecommendations: number;
+  inProgressRecommendations: number;
+  completedRecommendations: number;
+  cancelledRecommendations: number;
+  overdueRecommendations: number;
+  dueSoonRecommendations: number;
+  effectivenessVerified: number;
+  effectivenessPending: number;
+  totalActions: number;
+  pendingActions: number;
+  completedActions: number;
+  recommendationTypeDistribution: DistributionEntry[];
+  statusDistribution: DistributionEntry[];
+  actionStatusDistribution: DistributionEntry[];
+}
+
+export function fetchMedicalRecommendationStats(token: string): Promise<MedicalRecommendationStats> {
+  return apiFetch<MedicalRecommendationStats>('/medical-recommendations/stats', token, { method: 'GET' });
+}
+
 export function fetchRisks(token: string) {
   return apiFetch<RiskModel[]>('/risks', token, { method: 'GET' });
 }
@@ -705,8 +930,14 @@ export function deleteRisk(token: string, id: string) {
   return apiFetch<void>(`/risks/${id}`, token, { method: 'DELETE' });
 }
 
-export function fetchIncidents(token: string) {
-  return apiFetch<IncidentModel[]>('/incidents', token, { method: 'GET' });
+export function fetchIncidents(token: string, params?: { investigationType?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.investigationType) {
+    searchParams.set('investigationType', params.investigationType);
+  }
+  const qs = searchParams.toString();
+  const url = `/incidents${qs ? `?${qs}` : ''}`;
+  return apiFetch<IncidentModel[]>(url, token, { method: 'GET' });
 }
 
 export function createIncident(token: string, payload: CreateIncidentPayload) {
@@ -721,12 +952,16 @@ export function deleteIncident(token: string, id: string) {
   return apiFetch<void>(`/incidents/${id}`, token, { method: 'DELETE' });
 }
 
-export function fetchAbsenteeismByCompany(token: string, companyId: string) {
-  return apiFetch<AbsenteeismModel[]>(`/absenteeism/company/${companyId}`, token, { method: 'GET' });
+export function fetchDiseaseInvestigationStats(token: string): Promise<DiseaseInvestigationStats> {
+  return apiFetch<DiseaseInvestigationStats>('/incidents/stats', token, { method: 'GET' });
 }
 
-export function fetchAbsenteeismStatsByCompany(token: string, companyId: string) {
-  return apiFetch<AbsenteeismStats>(`/absenteeism/stats/company/${companyId}`, token, { method: 'GET' });
+export function fetchAbsenteeismByCompany(token: string, _companyId: string) {
+  return apiFetch<AbsenteeismModel[]>('/absenteeism', token, { method: 'GET' });
+}
+
+export function fetchAbsenteeismStatsByCompany(token: string, _companyId: string) {
+  return apiFetch<AbsenteeismStats>('/absenteeism/stats', token, { method: 'GET' });
 }
 
 export function createAbsenteeism(token: string, payload: CreateAbsenteeismPayload) {
@@ -1963,6 +2198,32 @@ export function fetchDocumentCatalogByCompany(token: string, companyId: string, 
  */
 export function fetchDocumentCatalogItem(token: string, id: string): Promise<DocumentCatalogDetail> {
   return apiFetch<DocumentCatalogDetail>(`/document-generation/catalog/${encodeURIComponent(id)}`, token, { method: 'GET' });
+}
+
+/**
+ * Busca la primera instancia vinculada a un DocumentMaster (Bloque 5.1).
+ * GET /document-generation/catalog/by-master/:documentMasterId
+ * Devuelve null si no existe instancia vinculada.
+ */
+export function fetchDocumentCatalogByMaster(token: string, documentMasterId: string): Promise<DocumentCatalogItem | null> {
+  return apiFetch<DocumentCatalogItem | null>(`/document-generation/catalog/by-master/${encodeURIComponent(documentMasterId)}`, token, { method: 'GET' });
+}
+
+/**
+ * Dashboard documental desde DocumentMaster (GET /document-management/dashboard).
+ * Devuelve métricas reales: total, active, expiringSoon, expired, byType, byStatus.
+ */
+export interface DocumentDashboardStats {
+  total: number;
+  byType: Record<string, number>;
+  byStatus: Record<string, number>;
+  active: number;
+  expiringSoon: number;
+  expired: number;
+}
+
+export function fetchDocumentDashboard(token: string): Promise<DocumentDashboardStats> {
+  return apiFetch<DocumentDashboardStats>('/document-management/dashboard', token, { method: 'GET' });
 }
 
 // ==================== COMMUNICATION / COMUNICACIÓN SG-SST API ====================
@@ -4475,3 +4736,1222 @@ export const createConvivenciaCase = (token: string, periodId: string, payload: 
 export const updateConvivenciaCase = (token: string, periodId: string, index: number, payload: {
   status?: string; assignedCommitteeMember?: string; recommendations?: string; evidence?: string[];
 }) => apiFetch<ConvivenciaPeriodModel>(`/convivencia/periods/${periodId}/cases/${index}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+
+// ==================== FASE 1: 2.2.1 OBJETIVOS SST (submit/approve/reject) ====================
+// fetchSstObjectivesAdvanced and updateSstObjectivesAdvanced already exist above.
+
+export const submitSstObjectivesAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/sst-objectives/submit', token, { method: 'POST' });
+export const approveSstObjectivesAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/sst-objectives/approve', token, { method: 'POST' });
+export const rejectSstObjectivesAdvanced = (token: string, reason: string) => apiFetch<Record<string, unknown>>('/phva-advanced/sst-objectives/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
+
+// ==================== FASE 1: 1.2.3 EPP API ====================
+
+export const fetchEppAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/epp', token, { method: 'GET' });
+export const fetchEppCoverage = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/epp/coverage', token, { method: 'GET' });
+export const updateEppAdvanced = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/epp', token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const submitEppAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/epp/submit', token, { method: 'POST' });
+export const approveEppAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/epp/approve', token, { method: 'POST' });
+export const rejectEppAdvanced = (token: string, reason: string) => apiFetch<Record<string, unknown>>('/phva-advanced/epp/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
+
+// ==================== FASE 1: 1.1.10 EMERGENCIAS API ====================
+
+export const fetchEmergenciesAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies', token, { method: 'GET' });
+export const updateEmergenciesAdvanced = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies', token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const submitEmergenciesAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/submit', token, { method: 'POST' });
+export const approveEmergenciesAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/approve', token, { method: 'POST' });
+export const rejectEmergenciesAdvanced = (token: string, reason: string) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
+
+// ==================== 2.9.1 ADQUISICIONES API ====================
+
+export interface SupplierModel {
+  _id: string;
+  companyId: string;
+  name: string;
+  legalName?: string;
+  taxId?: string;
+  type: 'PROVIDER' | 'CONTRACTOR' | 'THIRD_PARTY';
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  observations?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AcquisitionApprovalStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'ADJUSTMENTS_REQUESTED';
+
+export interface AcquisitionModel {
+  _id: string;
+  companyId: string;
+  requestNumber: string;
+  title: string;
+  description?: string;
+  requestingArea?: string;
+  requestedBy?: string;
+  responsibleUser?: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: 'DRAFT' | 'REQUESTED' | 'IN_REVIEW' | 'SUPPLIER_SELECTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  supplierId?: SupplierModel | string;
+  sstCriteria?: string;
+  observations?: string;
+  requestedAt?: string;
+  requiredDate?: string;
+  completedAt?: string;
+  createdBy?: string;
+  createdByName?: string;
+  approvalStatus?: AcquisitionApprovalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AcquisitionsDashboardModel {
+  totalSuppliers: number;
+  activeSuppliers: number;
+  inactiveSuppliers: number;
+  totalAcquisitions: number;
+  draftAcquisitions: number;
+  requestedAcquisitions: number;
+  inReviewAcquisitions: number;
+  supplierSelectedAcquisitions: number;
+  inProgressAcquisitions: number;
+  completedAcquisitions: number;
+  cancelledAcquisitions: number;
+}
+
+export interface AcquisitionsHistoryModel {
+  _id: string;
+  companyId: string;
+  userId?: string;
+  userEmail?: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  description?: string;
+  previousValue?: Record<string, unknown>;
+  newValue?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export function fetchAcquisitionsDashboard(token: string) {
+  return apiFetch<AcquisitionsDashboardModel>('/acquisitions/dashboard', token, { method: 'GET' });
+}
+
+export function fetchSuppliers(token: string) {
+  return apiFetch<SupplierModel[]>('/acquisitions/suppliers', token, { method: 'GET' });
+}
+
+export function fetchSupplier(token: string, id: string) {
+  return apiFetch<SupplierModel>(`/acquisitions/suppliers/${id}`, token, { method: 'GET' });
+}
+
+export function createSupplier(token: string, payload: Partial<SupplierModel>) {
+  return apiFetch<SupplierModel>('/acquisitions/suppliers', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateSupplier(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<SupplierModel>(`/acquisitions/suppliers/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteSupplier(token: string, id: string) {
+  return apiFetch<void>(`/acquisitions/suppliers/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchAcquisitions(token: string) {
+  return apiFetch<AcquisitionModel[]>('/acquisitions', token, { method: 'GET' });
+}
+
+export function fetchAcquisition(token: string, id: string) {
+  return apiFetch<AcquisitionModel>(`/acquisitions/${id}`, token, { method: 'GET' });
+}
+
+export function createAcquisition(token: string, payload: Partial<AcquisitionModel>) {
+  return apiFetch<AcquisitionModel>('/acquisitions', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateAcquisition(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<AcquisitionModel>(`/acquisitions/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteAcquisition(token: string, id: string) {
+  return apiFetch<void>(`/acquisitions/${id}`, token, { method: 'DELETE' });
+}
+
+export function changeAcquisitionStatus(token: string, id: string, status: string) {
+  return apiFetch<AcquisitionModel>(`/acquisitions/${id}/status`, token, { method: 'POST', body: JSON.stringify({ status }) });
+}
+
+export function assignAcquisitionSupplier(token: string, id: string, supplierId: string) {
+  return apiFetch<AcquisitionModel>(`/acquisitions/${id}/supplier`, token, { method: 'POST', body: JSON.stringify({ supplierId }) });
+}
+
+export function fetchAcquisitionsHistory(token: string, limit = 100, skip = 0) {
+  return apiFetch<AcquisitionsHistoryModel[]>('/acquisitions/history', token, { method: 'GET' });
+}
+
+// ── Approval Workflow (2.9.1) ──
+
+export interface AcquisitionApprovalResponse {
+  acquisitionId: string;
+  approvalStatus: AcquisitionApprovalStatus | null;
+  canSubmit: boolean;
+}
+
+export interface AcquisitionSubmitApprovalResponse {
+  acquisitionId: string;
+  requestNumber: string;
+  title: string;
+  requestId: string;
+  status: string;
+}
+
+export interface AcquisitionApprovalHistoryResponse {
+  requestId: string | null;
+  status: string | null;
+  history: Array<{
+    _id: string;
+    action: string;
+    actor: { userId: string; name?: string; email?: string };
+    previousStatus: string;
+    newStatus: string;
+    reason?: string;
+    createdAt: string;
+  }>;
+}
+
+export function fetchAcquisitionApproval(token: string, id: string) {
+  return apiFetch<AcquisitionApprovalResponse>(`/acquisitions/${id}/approval`, token, { method: 'GET' });
+}
+
+export function submitAcquisitionForApproval(token: string, id: string, comments?: string) {
+  return apiFetch<AcquisitionSubmitApprovalResponse>(`/acquisitions/${id}/submit-approval`, token, {
+    method: 'POST',
+    body: JSON.stringify({ comments }),
+  });
+}
+
+export function approveAcquisition(token: string, id: string, comments?: string) {
+  return apiFetch<{ acquisitionId: string; requestId?: string; status?: string }>(`/acquisitions/${id}/approve`, token, {
+    method: 'POST',
+    body: JSON.stringify({ comments }),
+  });
+}
+
+export function rejectAcquisition(token: string, id: string, reason?: string, comments?: string) {
+  return apiFetch<{ acquisitionId: string; requestId?: string; status?: string }>(`/acquisitions/${id}/reject`, token, {
+    method: 'POST',
+    body: JSON.stringify({ reason, comments }),
+  });
+}
+
+export function fetchAcquisitionApprovalHistory(token: string, id: string) {
+  return apiFetch<AcquisitionApprovalHistoryResponse>(`/acquisitions/${id}/approval/history`, token, { method: 'GET' });
+}
+
+export function requestAcquisitionAdjustments(token: string, id: string, reason: string) {
+  return apiFetch<{ acquisitionId: string; requestNumber: string; status: string }>(`/acquisitions/${id}/request-adjustments`, token, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+// ==================== DOCUMENT MANAGEMENT — APPROVAL WORKFLOW (2.5.1) ====================
+
+/**
+ * Tipos del flujo de aprobación documental (DocumentMaster).
+ * Espejo del contrato JSON del backend (/document-management/*).
+ */
+export interface DocumentMasterItem {
+  _id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  description?: string;
+  documentType: string;
+  process?: string;
+  version: number;
+  status: string;
+  ownerUser?: { _id: string; name?: string; email?: string };
+  approvalUser?: { _id: string; name?: string; email?: string };
+  approvalDate?: string;
+  expirationDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentApprovalItem {
+  _id: string;
+  companyId: string;
+  documentId: string | DocumentMasterItem;
+  requestedBy?: { _id: string; name?: string; email?: string };
+  status: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  comments?: string;
+  createdAt: string;
+}
+
+/** Lista documentos de la empresa (GET /document-management). */
+export function fetchDocumentManagementList(token: string): Promise<DocumentMasterItem[]> {
+  return apiFetch<DocumentMasterItem[]>('/document-management', token, { method: 'GET' });
+}
+
+/** Detalle de un documento (GET /document-management/:id). */
+export function fetchDocumentManagementDetail(token: string, id: string): Promise<DocumentMasterItem> {
+  return apiFetch<DocumentMasterItem>(`/document-management/${id}`, token, { method: 'GET' });
+}
+
+/** Aprobaciones pendientes (GET /document-management/approvals/pending). */
+export function fetchDocumentPendingApprovals(token: string): Promise<DocumentApprovalItem[]> {
+  return apiFetch<DocumentApprovalItem[]>('/document-management/approvals/pending', token, { method: 'GET' });
+}
+
+/** Historial de aprobaciones (GET /document-management/approvals/history). */
+export function fetchDocumentApprovalHistory(token: string): Promise<DocumentApprovalItem[]> {
+  return apiFetch<DocumentApprovalItem[]>('/document-management/approvals/history', token, { method: 'GET' });
+}
+
+/** Enviar documento a aprobación (POST /document-management/:id/submit-approval). */
+export function submitDocumentForApproval(token: string, documentId: string, comments?: string) {
+  return apiFetch<DocumentApprovalItem>(`/document-management/${documentId}/submit-approval`, token, {
+    method: 'POST',
+    body: JSON.stringify({ comments }),
+  });
+}
+
+/** Aprobar documento (POST /document-management/approvals/:approvalId/approve). */
+export function approveDocument(token: string, approvalId: string, dto: {
+  approvedBy?: string;
+  comments?: string;
+  signatureHash?: string;
+  signatureUrl?: string;
+  signerName?: string;
+  signerEmail?: string;
+}) {
+  return apiFetch<DocumentMasterItem>(`/document-management/approvals/${approvalId}/approve`, token, {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+}
+
+/** Rechazar documento (POST /document-management/approvals/:approvalId/reject). */
+export function rejectDocument(token: string, approvalId: string, rejectionReason: string, comments?: string) {
+  return apiFetch<DocumentApprovalItem>(`/document-management/approvals/${approvalId}/reject`, token, {
+    method: 'POST',
+    body: JSON.stringify({ rejectionReason, comments }),
+  });
+}
+
+/** Solicitar ajustes (POST /document-management/:id/request-adjustments). */
+export function requestDocumentAdjustments(token: string, documentId: string, reason?: string, comments?: string) {
+  return apiFetch<DocumentApprovalItem>(`/document-management/${documentId}/request-adjustments`, token, {
+    method: 'POST',
+    body: JSON.stringify({ reason, comments }),
+  });
+}
+
+// ==================== CONTRACTING — 2.10.1 ====================
+
+export type ContractStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'CANCELLED';
+
+export type ContractApprovalStatus = 'DRAFT' | 'SUBMITTED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'ADJUSTMENTS_REQUESTED' | 'ARCHIVED';
+
+export interface ContractModel {
+  _id: string;
+  companyId: string;
+  contractNumber: string;
+  title: string;
+  description?: string;
+  contractorId: SupplierModel | string;
+  status: ContractStatus;
+  approvalStatus?: ContractApprovalStatus;
+  contractStart?: string;
+  contractEnd?: string;
+  sstRequirements?: string;
+  observations?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractingStatsModel {
+  total: number;
+  draft: number;
+  active: number;
+  closed: number;
+  cancelled: number;
+}
+
+export function fetchContracts(token: string) {
+  return apiFetch<ContractModel[]>('/contracting', token, { method: 'GET' });
+}
+
+export function fetchContract(token: string, id: string) {
+  return apiFetch<ContractModel>(`/contracting/${id}`, token, { method: 'GET' });
+}
+
+export function createContract(token: string, payload: Partial<ContractModel>) {
+  return apiFetch<ContractModel>('/contracting', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateContract(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<ContractModel>(`/contracting/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteContract(token: string, id: string) {
+  return apiFetch<void>(`/contracting/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchContractingStats(token: string) {
+  return apiFetch<ContractingStatsModel>('/contracting/stats', token, { method: 'GET' });
+}
+
+// Approval Workflow for Contracting
+
+export interface ContractApprovalResponse {
+  contractId: string;
+  approvalStatus: ContractApprovalStatus | null;
+  canSubmit: boolean;
+}
+
+export interface ContractSubmitApprovalResponse {
+  contractId: string;
+  contractNumber: string;
+  title: string;
+  requestId: string;
+  status: string;
+}
+
+export interface ContractApprovalHistoryResponse {
+  requestId: string | null;
+  status: string | null;
+  history: Array<{
+    _id: string;
+    action: string;
+    actor: { userId: string; name?: string; email?: string };
+    previousStatus: string;
+    newStatus: string;
+    reason?: string;
+    createdAt: string;
+  }>;
+}
+
+export function fetchContractApproval(token: string, id: string) {
+  return apiFetch<ContractApprovalResponse>(`/contracting/${id}/approval`, token, { method: 'GET' });
+}
+
+export function submitContractForApproval(token: string, id: string, comments?: string) {
+  return apiFetch<ContractSubmitApprovalResponse>(`/contracting/${id}/submit-approval`, token, {
+    method: 'POST',
+    body: JSON.stringify({ comments }),
+  });
+}
+
+export function approveContract(token: string, id: string, comments?: string) {
+  return apiFetch<{ contractId: string; requestId?: string; status?: string }>(`/contracting/${id}/approve`, token, {
+    method: 'POST',
+    body: JSON.stringify({ comments }),
+  });
+}
+
+export function rejectContract(token: string, id: string, reason?: string, comments?: string) {
+  return apiFetch<{ contractId: string; requestId?: string; status?: string }>(`/contracting/${id}/reject`, token, {
+    method: 'POST',
+    body: JSON.stringify({ reason, comments }),
+  });
+}
+
+export function fetchContractApprovalHistory(token: string, id: string) {
+  return apiFetch<ContractApprovalHistoryResponse>(`/contracting/${id}/approval/history`, token, { method: 'GET' });
+}
+
+export function requestContractAdjustments(token: string, id: string, reason: string) {
+  return apiFetch<{ contractId: string; contractNumber: string; status: string }>(`/contracting/${id}/request-adjustments`, token, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+// ==================== CONTRACT INDUCTIONS ====================
+
+export type ContractInductionStatus = 'PENDING' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+
+export interface ContractInductionModel {
+  _id: string;
+  companyId: string;
+  contractId: ContractModel | string;
+  contractorId: SupplierModel | string;
+  workerName: string;
+  workerId?: string;
+  status: ContractInductionStatus;
+  inductionDate?: string;
+  expirationDate?: string;
+  score?: number;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractInductionStatsModel {
+  total: number;
+  pending: number;
+  completed: number;
+  expired: number;
+  cancelled: number;
+}
+
+export function fetchContractInductions(token: string, params?: {
+  contractId?: string;
+  contractorId?: string;
+  status?: string;
+  search?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.contractId) query.set('contractId', params.contractId);
+  if (params?.contractorId) query.set('contractorId', params.contractorId);
+  if (params?.status) query.set('status', params.status);
+  if (params?.search) query.set('search', params.search);
+  const qs = query.toString();
+  return apiFetch<ContractInductionModel[]>(`/contracting/inductions${qs ? `?${qs}` : ''}`, token, { method: 'GET' });
+}
+
+export function fetchContractInduction(token: string, id: string) {
+  return apiFetch<ContractInductionModel>(`/contracting/inductions/${id}`, token, { method: 'GET' });
+}
+
+export function createContractInduction(token: string, payload: {
+  contractId: string;
+  contractorId: string;
+  workerName: string;
+  workerId?: string;
+  inductionDate?: string;
+  expirationDate?: string;
+  score?: number;
+}) {
+  return apiFetch<ContractInductionModel>('/contracting/inductions', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateContractInduction(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<ContractInductionModel>(`/contracting/inductions/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteContractInduction(token: string, id: string) {
+  return apiFetch<void>(`/contracting/inductions/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchContractInductionStats(token: string) {
+  return apiFetch<ContractInductionStatsModel>('/contracting/inductions/stats', token, { method: 'GET' });
+}
+
+// ==================== CONTRACT EVALUATIONS ====================
+
+export interface ContractEvaluationModel {
+  _id: string;
+  companyId: string;
+  contractId: ContractModel | string;
+  contractorId: SupplierModel | string;
+  evaluationDate: string;
+  score: number;
+  criteria?: string[];
+  observations?: string;
+  evaluatedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractEvaluationStatsModel {
+  total: number;
+  withScore: number;
+  averageScore: number;
+}
+
+export function fetchContractEvaluations(token: string, params?: {
+  contractId?: string;
+  contractorId?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.contractId) query.set('contractId', params.contractId);
+  if (params?.contractorId) query.set('contractorId', params.contractorId);
+  const qs = query.toString();
+  return apiFetch<ContractEvaluationModel[]>(`/contracting/evaluations${qs ? `?${qs}` : ''}`, token, { method: 'GET' });
+}
+
+export function fetchContractEvaluation(token: string, id: string) {
+  return apiFetch<ContractEvaluationModel>(`/contracting/evaluations/${id}`, token, { method: 'GET' });
+}
+
+export function createContractEvaluation(token: string, payload: {
+  contractId: string;
+  contractorId: string;
+  evaluationDate: string;
+  score: number;
+  criteria?: string[];
+  observations?: string;
+}) {
+  return apiFetch<ContractEvaluationModel>('/contracting/evaluations', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateContractEvaluation(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<ContractEvaluationModel>(`/contracting/evaluations/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteContractEvaluation(token: string, id: string) {
+  return apiFetch<void>(`/contracting/evaluations/${id}`, token, { method: 'DELETE' });
+}
+
+export function fetchContractEvaluationStats(token: string) {
+  return apiFetch<ContractEvaluationStatsModel>('/contracting/evaluations/stats', token, { method: 'GET' });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHANGE MANAGEMENT — 2.11.1 — Gestión del cambio
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type ChangeType = 'PROCESS' | 'STRUCTURE' | 'PERSONNEL' | 'TECHNOLOGY' | 'INFRASTRUCTURE';
+export type ImpactLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type ChangeStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'IMPLEMENTED' | 'REJECTED';
+
+export interface ChangeRequestModel {
+  _id: string;
+  companyId: string;
+  title: string;
+  description: string;
+  changeType: ChangeType;
+  impactLevel: ImpactLevel;
+  status: ChangeStatus;
+  requestedBy: string;
+  requestedByName: string;
+  riskAnalysis?: string;
+  controlActions: string[];
+  affectedProcesses: string[];
+  affectedWorkers: string[];
+  implementationDate?: string;
+  followUpDate?: string;
+  observations?: string;
+  createdBy?: string;
+  createdByName?: string;
+  approvalStatus?: string;
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChangeManagementStatsModel {
+  total: number;
+  draft: number;
+  pendingApproval: number;
+  approved: number;
+  implemented: number;
+  rejected: number;
+  byImpactLevel: Record<string, number>;
+  byChangeType: Record<string, number>;
+}
+
+export interface ChangeApprovalResponse {
+  requestId: string;
+  title: string;
+  status: ChangeStatus;
+  approvalStatus?: string;
+}
+
+export interface ChangeApprovalHistoryResponse {
+  requestId: string;
+  history: Array<{
+    _id: string;
+    action: string;
+    actorName?: string;
+    actorEmail?: string;
+    comments?: string;
+    createdAt: string;
+  }>;
+}
+
+export function fetchChangeRequests(token: string, params?: {
+  status?: string;
+  changeType?: string;
+  impactLevel?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.status) query.set('status', params.status);
+  if (params?.changeType) query.set('changeType', params.changeType);
+  if (params?.impactLevel) query.set('impactLevel', params.impactLevel);
+  const qs = query.toString();
+  return apiFetch<ChangeRequestModel[]>(`/change-management${qs ? `?${qs}` : ''}`, token, { method: 'GET' });
+}
+
+export function fetchChangeManagementStats(token: string) {
+  return apiFetch<ChangeManagementStatsModel>('/change-management/stats', token, { method: 'GET' });
+}
+
+export function fetchChangeRequest(token: string, id: string) {
+  return apiFetch<ChangeRequestModel>(`/change-management/${id}`, token, { method: 'GET' });
+}
+
+export function createChangeRequest(token: string, payload: {
+  title: string;
+  description: string;
+  changeType: ChangeType;
+  impactLevel: ImpactLevel;
+  riskAnalysis?: string;
+  controlActions?: string[];
+  affectedProcesses?: string[];
+  affectedWorkers?: string[];
+  implementationDate?: string;
+  followUpDate?: string;
+  observations?: string;
+}) {
+  return apiFetch<ChangeRequestModel>('/change-management', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateChangeRequest(token: string, id: string, payload: Record<string, unknown>) {
+  return apiFetch<ChangeRequestModel>(`/change-management/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteChangeRequest(token: string, id: string) {
+  return apiFetch<{ message: string }>(`/change-management/${id}`, token, { method: 'DELETE' });
+}
+
+export function submitChangeForApproval(token: string, id: string, comments?: string) {
+  return apiFetch<{ requestId: string; title: string; approvalRequestId: string; status: string }>(
+    `/change-management/${id}/submit-approval`,
+    token,
+    { method: 'POST', body: JSON.stringify({ comments }) },
+  );
+}
+
+export function fetchChangeApproval(token: string, id: string) {
+  return apiFetch<ChangeApprovalResponse>(`/change-management/${id}/approval`, token, { method: 'GET' });
+}
+
+export function fetchChangeApprovalHistory(token: string, id: string) {
+  return apiFetch<ChangeApprovalHistoryResponse>(`/change-management/${id}/approval/history`, token, { method: 'GET' });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APPROVAL WORKFLOW — GENERIC DECIDE ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface ApprovalWorkflowRequest {
+  _id: string;
+  module: string;
+  entityType: string;
+  entityId: string;
+  status: string;
+  decision?: string;
+  reason?: string;
+  decidedBy?: { userId: string; name?: string; email?: string };
+  decidedAt?: string;
+  createdAt: string;
+}
+
+export interface ApprovalWorkflowHistoryEntry {
+  _id: string;
+  action: string;
+  actor?: { userId: string; name?: string; email?: string };
+  previousStatus: string;
+  newStatus: string;
+  reason?: string;
+  createdAt: string;
+}
+
+export function decideApprovalRequest(token: string, requestId: string, payload: {
+  decision: 'APPROVED' | 'REJECTED' | 'ADJUSTMENTS_REQUESTED';
+  reason?: string;
+  comments?: string;
+}) {
+  return apiFetch<ApprovalWorkflowRequest>(
+    `/approval-workflow/requests/${requestId}/decide`,
+    token,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export function fetchApprovalRequest(token: string, requestId: string) {
+  return apiFetch<ApprovalWorkflowRequest>(
+    `/approval-workflow/requests/${requestId}`,
+    token,
+    { method: 'GET' },
+  );
+}
+
+export function fetchApprovalHistory(token: string, requestId: string) {
+  return apiFetch<ApprovalWorkflowHistoryEntry[]>(
+    `/approval-workflow/requests/${requestId}/history`,
+    token,
+    { method: 'GET' },
+  );
+}
+
+// ==================== AI ORCHESTRATOR API ====================
+/** Respuesta del endpoint POST /ai/orchestrator/query. */
+export interface AiOrchestratorResponse {
+  module: string;
+  action: string;
+  confidence: number;
+  response: string;
+  suggestions: string[];
+}
+
+/**
+ * Consulta al AI Orchestrator (POST /ai/orchestrator/query).
+ * El backend determina companyId y contexto automáticamente.
+ */
+export function queryAiOrchestrator(token: string, question: string): Promise<AiOrchestratorResponse> {
+  return apiFetch<AiOrchestratorResponse>('/ai/orchestrator/query', token, {
+    method: 'POST',
+    body: JSON.stringify({ question }),
+  });
+}
+
+// ==================== EPIDEMIOLOGICAL SURVEILLANCE (3.3.1) ====================
+
+/** Tipos de vigilancia epidemiológica. */
+export type SurveillanceType = 'BIOMECHANICAL' | 'PSYCHOSOCIAL' | 'CHEMICAL' | 'BIOLOGICAL' | 'PHYSICAL' | 'OTHER';
+
+/** Estado administrativo de un programa de vigilancia epidemiológica. */
+export type SurveillanceProgramStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+
+/** Estado de una actividad de vigilancia epidemiológica. */
+export type SurveillanceActivityStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+/** Actividad de un programa de vigilancia epidemiológica. */
+export interface SurveillanceActivity {
+  title: string;
+  description?: string;
+  responsible?: string;
+  startDate: string;
+  endDate: string;
+  status: SurveillanceActivityStatus;
+  progress?: number;
+  evidence?: string[];
+}
+
+/** Programa de Vigilancia Epidemiológica (3.3.1). */
+export interface EpidemiologicalSurveillanceProgram {
+  _id: string;
+  companyId: string;
+  name: string;
+  description?: string;
+  surveillanceType: SurveillanceType;
+  relatedHazards?: string[];
+  targetAreas?: string[];
+  targetPositions?: string[];
+  startDate: string;
+  endDate: string;
+  status: SurveillanceProgramStatus;
+  periodicityMonths?: number;
+  responsible?: string;
+  standardNumber?: string;
+  activities?: SurveillanceActivity[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Payload para crear un programa de vigilancia epidemiológica. */
+export type CreateEpidemiologicalSurveillancePayload = Omit<EpidemiologicalSurveillanceProgram, '_id' | 'companyId' | 'createdAt' | 'updatedAt'>;
+
+/** Payload para actualizar un programa de vigilancia epidemiológica. */
+export type UpdateEpidemiologicalSurveillancePayload = Partial<CreateEpidemiologicalSurveillancePayload>;
+
+/** Funciones API para 3.3.1 — Programas de vigilancia epidemiológica. */
+
+export function fetchEpidemiologicalSurveillancePrograms(token: string): Promise<EpidemiologicalSurveillanceProgram[]> {
+  return apiFetch<EpidemiologicalSurveillanceProgram[]>('/epidemiological-surveillance', token, { method: 'GET' });
+}
+
+export function fetchEpidemiologicalSurveillanceProgram(token: string, id: string): Promise<EpidemiologicalSurveillanceProgram> {
+  return apiFetch<EpidemiologicalSurveillanceProgram>(`/epidemiological-surveillance/${id}`, token, { method: 'GET' });
+}
+
+export function createEpidemiologicalSurveillanceProgram(token: string, payload: CreateEpidemiologicalSurveillancePayload): Promise<EpidemiologicalSurveillanceProgram> {
+  return apiFetch<EpidemiologicalSurveillanceProgram>('/epidemiological-surveillance', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateEpidemiologicalSurveillanceProgram(token: string, id: string, payload: UpdateEpidemiologicalSurveillancePayload): Promise<EpidemiologicalSurveillanceProgram> {
+  return apiFetch<EpidemiologicalSurveillanceProgram>(`/epidemiological-surveillance/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteEpidemiologicalSurveillanceProgram(token: string, id: string): Promise<void> {
+  return apiFetch<void>(`/epidemiological-surveillance/${id}`, token, { method: 'DELETE' });
+}
+
+/** Análisis inteligente de un estándar específico. */
+export interface StandardAnalysisResponse {
+  standardCode: string;
+  standardTitle: string;
+  module: string;
+  compliancePercentage: number;
+  complianceStatus: string;
+  level: string;
+  analysis: {
+    summary: string;
+    keyIssues: Array<{
+      id: string;
+      title: string;
+      priority: string;
+      impact: string;
+      recommendation: string;
+    }>;
+    quickWins: string[];
+    nextSteps: string[];
+  };
+  metrics: Record<string, number>;
+  evaluatedAt: string;
+  dataAvailable: boolean;
+}
+
+export function fetchStandardAnalysis(token: string, standardCode: string): Promise<StandardAnalysisResponse> {
+  return apiFetch<StandardAnalysisResponse>(`/compliance-ai/standard-analysis/${standardCode}`, token, { method: 'GET' });
+}
+
+// ==================== HEALTH INDICATORS (3.3.2) ====================
+
+/** Categoría de un indicador. */
+export type IndicatorCategory = 'STRUCTURE' | 'PROCESS' | 'RESULT';
+
+/** Subcategoría de un indicador. */
+export type IndicatorSubcategory = 'SAFETY' | 'HEALTH' | 'TRAINING' | 'COMPLIANCE' | 'MANAGEMENT' | 'EMERGENCY' | 'RISK' | 'DOCUMENTATION' | 'OTHER';
+
+/** Tipo de fórmula. */
+export type IndicatorFormulaType = 'AUTOMATIC' | 'SEMI_AUTOMATIC' | 'MANUAL';
+
+/** Frecuencia de medición. */
+export type IndicatorFrequency = 'MONTHLY' | 'QUARTERLY' | 'SEMESTRAL' | 'ANNUAL';
+
+/** Estado de una medición. */
+export type IndicatorMeasurementStatus = 'NO_DATA' | 'CALCULATED' | 'TARGET_MET' | 'TARGET_NOT_MET';
+
+/** Definición de un indicador. */
+export interface IndicatorDefinition {
+  _id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  description: string;
+  category: IndicatorCategory;
+  subcategory: IndicatorSubcategory;
+  sourceModule: string;
+  formulaType: IndicatorFormulaType;
+  formula: Record<string, unknown>;
+  unit: string;
+  targetValue?: number;
+  targetOperator?: string;
+  targetMin?: number;
+  targetMax?: number;
+  frequency: IndicatorFrequency;
+  responsible: string;
+  responsibleArea: string;
+  isActive: boolean;
+  applicableLevels: string[];
+  catalogCode: string;
+}
+
+/** Item del dashboard de indicadores. */
+export interface IndicatorDashboardItem {
+  id: string;
+  code: string;
+  name: string;
+  formulaType: string;
+  calculatedValue: number | null;
+  target: { operator?: string; value?: number; min?: number; max?: number };
+  status: IndicatorMeasurementStatus;
+  source: string | null;
+  period: string;
+  unit: string;
+}
+
+/** Resumen del dashboard. */
+export interface IndicatorDashboardSummary {
+  total: number;
+  eligible: number;
+  targetMet: number;
+  targetNotMet: number;
+  noData: number;
+  compliancePercentage: number;
+}
+
+/** Respuesta del dashboard de indicadores. */
+export interface IndicatorDashboardResponse {
+  period: string;
+  summary: IndicatorDashboardSummary;
+  indicators: IndicatorDashboardItem[];
+}
+
+/** Detalle de un indicador. */
+export interface IndicatorDetailResponse {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  subcategory: string;
+  sourceModule: string;
+  formulaType: string;
+  formula: Record<string, unknown>;
+  unit: string;
+  target: { operator?: string; value?: number; min?: number; max?: number };
+  measurement: {
+    calculatedValue: number | null;
+    numerator: number;
+    denominator: number;
+    status: string;
+    source: string | null;
+    period: string;
+    periodStart: string;
+    periodEnd: string;
+    measuredAt: string | null;
+  } | null;
+  status: string;
+}
+
+/** Funciones API para 3.3.2 — Indicadores de salud laboral. */
+
+export function fetchIndicators(token: string): Promise<IndicatorDefinition[]> {
+  return apiFetch<IndicatorDefinition[]>('/indicators', token, { method: 'GET' });
+}
+
+export function fetchIndicator(token: string, id: string): Promise<IndicatorDefinition> {
+  return apiFetch<IndicatorDefinition>(`/indicators/${id}`, token, { method: 'GET' });
+}
+
+export function fetchIndicatorDashboard(token: string, period: string): Promise<IndicatorDashboardResponse> {
+  return apiFetch<IndicatorDashboardResponse>(`/indicators/dashboard/${period}`, token, { method: 'GET' });
+}
+
+export function fetchIndicatorDetail(token: string, period: string, indicatorCode: string): Promise<IndicatorDetailResponse> {
+  return apiFetch<IndicatorDetailResponse>(`/indicators/dashboard/${period}/${indicatorCode}`, token, { method: 'GET' });
+}
+
+export function fetchIndicatorMeasurements(token: string, indicatorId: string): Promise<Array<{ _id: string; period: string; calculatedValue: number; status: string; source: string }>> {
+  return apiFetch(`/indicators/${indicatorId}/measurements`, token, { method: 'GET' });
+}
+
+export function calculateIndicatorPeriod(token: string, period: string): Promise<{ period: string; calculated: Array<{ code: string; value: number; status: string }>; noData: Array<{ code: string }>; failed: Array<{ code: string; error: string }>; summary: { total: number; calculated: number; noData: number; failed: number } }> {
+  return apiFetch(`/indicators/calculate/${period}`, token, { method: 'POST' });
+}
+
+// ==================== WORKER PARTICIPATION (4.1.2) ====================
+
+export interface WorkerParticipationModel {
+  _id: string;
+  companyId: string;
+  activityType: string;
+  participationDate: string;
+  participants: string[];
+  description: string;
+  observations?: string;
+  riskId?: string;
+  process?: string;
+  area?: string;
+  activity?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWorkerParticipationPayload {
+  activityType: string;
+  participationDate: string;
+  participants?: string[];
+  description: string;
+  observations?: string;
+  riskId?: string;
+  process?: string;
+  area?: string;
+  activity?: string;
+  status?: string;
+}
+
+export interface UpdateWorkerParticipationPayload {
+  activityType?: string;
+  participationDate?: string;
+  participants?: string[];
+  description?: string;
+  observations?: string;
+  riskId?: string;
+  process?: string;
+  area?: string;
+  activity?: string;
+  status?: string;
+}
+
+export function fetchWorkerParticipations(token: string): Promise<WorkerParticipationModel[]> {
+  return apiFetch<WorkerParticipationModel[]>('/risks/participations', token, { method: 'GET' });
+}
+
+export function fetchWorkerParticipation(token: string, id: string): Promise<WorkerParticipationModel> {
+  return apiFetch<WorkerParticipationModel>(`/risks/participations/${id}`, token, { method: 'GET' });
+}
+
+export function createWorkerParticipation(token: string, payload: CreateWorkerParticipationPayload): Promise<WorkerParticipationModel> {
+  return apiFetch<WorkerParticipationModel>('/risks/participations', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateWorkerParticipation(token: string, id: string, payload: UpdateWorkerParticipationPayload): Promise<WorkerParticipationModel> {
+  return apiFetch<WorkerParticipationModel>(`/risks/participations/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteWorkerParticipation(token: string, id: string): Promise<void> {
+  return apiFetch<void>(`/risks/participations/${id}`, token, { method: 'DELETE' });
+}
+
+// ==================== HAZARDOUS SUBSTANCE (4.1.3) ====================
+
+export interface HazardousSubstanceModel {
+  _id: string;
+  companyId: string;
+  name: string;
+  casNumber?: string;
+  hazardClassification?: string;
+  substanceType: string;
+  supplier?: string;
+  storageLocation?: string;
+  sdsStatus: string;
+  sdsUrl?: string;
+  sdsIssueDate?: string;
+  sdsReviewDate?: string;
+  controlsImplemented?: string;
+  riskId?: string;
+  notes?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateHazardousSubstancePayload {
+  name: string;
+  casNumber?: string;
+  hazardClassification?: string;
+  substanceType: string;
+  supplier?: string;
+  storageLocation?: string;
+  sdsStatus: string;
+  sdsUrl?: string;
+  sdsIssueDate?: string;
+  sdsReviewDate?: string;
+  controlsImplemented?: string;
+  riskId?: string;
+  notes?: string;
+  status?: string;
+}
+
+export interface UpdateHazardousSubstancePayload {
+  name?: string;
+  casNumber?: string;
+  hazardClassification?: string;
+  substanceType?: string;
+  supplier?: string;
+  storageLocation?: string;
+  sdsStatus?: string;
+  sdsUrl?: string;
+  sdsIssueDate?: string;
+  sdsReviewDate?: string;
+  controlsImplemented?: string;
+  riskId?: string;
+  notes?: string;
+  status?: string;
+}
+
+export function fetchHazardousSubstances(token: string): Promise<HazardousSubstanceModel[]> {
+  return apiFetch<HazardousSubstanceModel[]>('/risks/hazardous-substances', token, { method: 'GET' });
+}
+
+export function fetchHazardousSubstance(token: string, id: string): Promise<HazardousSubstanceModel> {
+  return apiFetch<HazardousSubstanceModel>(`/risks/hazardous-substances/${id}`, token, { method: 'GET' });
+}
+
+export function createHazardousSubstance(token: string, payload: CreateHazardousSubstancePayload): Promise<HazardousSubstanceModel> {
+  return apiFetch<HazardousSubstanceModel>('/risks/hazardous-substances', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateHazardousSubstance(token: string, id: string, payload: UpdateHazardousSubstancePayload): Promise<HazardousSubstanceModel> {
+  return apiFetch<HazardousSubstanceModel>(`/risks/hazardous-substances/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteHazardousSubstance(token: string, id: string): Promise<void> {
+  return apiFetch<void>(`/risks/hazardous-substances/${id}`, token, { method: 'DELETE' });
+}
+
+// ─── Environmental Measurements (4.1.4) ───────────────────────────────────
+
+export interface EnvironmentalMeasurementModel {
+  _id: string;
+  companyId: string;
+  measurementType: string;
+  description: string;
+  area: string;
+  measurementDate: string;
+  responsible?: string;
+  resultValue?: number;
+  resultUnit?: string;
+  regulatoryLimit?: number;
+  regulatoryLimitUnit?: string;
+  complianceResult?: string;
+  methodInstrument?: string;
+  observations?: string;
+  riskId?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEnvironmentalMeasurementPayload {
+  measurementType: string;
+  description: string;
+  area: string;
+  measurementDate: string;
+  responsible?: string;
+  resultValue?: number;
+  resultUnit?: string;
+  regulatoryLimit?: number;
+  regulatoryLimitUnit?: string;
+  complianceResult?: string;
+  methodInstrument?: string;
+  observations?: string;
+  riskId?: string;
+  status?: string;
+}
+
+export interface UpdateEnvironmentalMeasurementPayload {
+  measurementType?: string;
+  description?: string;
+  area?: string;
+  measurementDate?: string;
+  responsible?: string;
+  resultValue?: number;
+  resultUnit?: string;
+  regulatoryLimit?: number;
+  regulatoryLimitUnit?: string;
+  complianceResult?: string;
+  methodInstrument?: string;
+  observations?: string;
+  riskId?: string;
+  status?: string;
+}
+
+export function fetchEnvironmentalMeasurements(token: string): Promise<EnvironmentalMeasurementModel[]> {
+  return apiFetch<EnvironmentalMeasurementModel[]>('/risks/environmental-measurements', token, { method: 'GET' });
+}
+
+export function fetchEnvironmentalMeasurement(token: string, id: string): Promise<EnvironmentalMeasurementModel> {
+  return apiFetch<EnvironmentalMeasurementModel>(`/risks/environmental-measurements/${id}`, token, { method: 'GET' });
+}
+
+export function createEnvironmentalMeasurement(token: string, payload: CreateEnvironmentalMeasurementPayload): Promise<EnvironmentalMeasurementModel> {
+  return apiFetch<EnvironmentalMeasurementModel>('/risks/environmental-measurements', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateEnvironmentalMeasurement(token: string, id: string, payload: UpdateEnvironmentalMeasurementPayload): Promise<EnvironmentalMeasurementModel> {
+  return apiFetch<EnvironmentalMeasurementModel>(`/risks/environmental-measurements/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteEnvironmentalMeasurement(token: string, id: string): Promise<void> {
+  return apiFetch<void>(`/risks/environmental-measurements/${id}`, token, { method: 'DELETE' });
+}

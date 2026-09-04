@@ -34,6 +34,12 @@ export interface DocumentCatalogItem {
   sourceEntity: string;
   downloadUrl: string;
   /**
+   * Referencia al DocumentMaster asociado (Bloque 5A).
+   * Permite trazabilidad bidireccional: DocumentInstance → DocumentMaster.
+   * null cuando la instancia no tiene un documento master vinculado.
+   */
+  documentMasterId?: string | null;
+  /**
    * Fecha de vencimiento (SPRINT FRONT-5). Campo preparado para el futuro:
    * DocumentInstance aún no la expone en el ViewModel del catálogo, por lo
    * que llega undefined y la UI muestra "Sin fecha definida". Nunca se

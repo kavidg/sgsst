@@ -373,6 +373,14 @@ export class PhvaAdvancedResponsableSst {
   @Prop({ type: [ResponsableSstStoredDocument], default: [] })
   documents!: ResponsableSstStoredDocument[];
 
+  // === Vínculo con Employee (BLOQUE 3) ===
+  // Referencia opcional al Employee de la empresa. Cuando el Responsable SST
+  // es un empleado de la empresa, este campo permite la relación explícita
+  // con CredentialResponsible (que requiere employeeId). Cuando es un
+  // responsable externo, employeeId permanece null/undefined.
+  @Prop({ type: Types.ObjectId, ref: 'Employee', required: false })
+  employeeId?: Types.ObjectId;
+
   @Prop({ type: [ResponsableSstAlertEntry], default: [] })
   alerts!: ResponsableSstAlertEntry[];
 

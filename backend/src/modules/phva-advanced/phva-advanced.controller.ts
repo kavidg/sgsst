@@ -82,6 +82,17 @@ export class PhvaAdvancedController {
     return this.phvaAdvancedService.updateResponsableSst(companyId, user, dto);
   }
 
+  @Post('responsable-sst/link-employee')
+  @Roles('owner', 'admin', 'manager')
+  async linkResponsibleSstToEmployee(
+    @Req() request: RequestWithUser,
+    @Body() dto: { employeeId: string },
+  ) {
+    const companyId = this.resolveCompanyId(request);
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.linkResponsibleSstToEmployee(companyId, dto.employeeId, user);
+  }
+
   @Post('responsable-sst/documents')
   @Roles('owner', 'admin')
   @UseInterceptors(FileInterceptor('file'))
@@ -982,7 +993,7 @@ export class PhvaAdvancedController {
   @Get('sst-objectives')
   @Roles('owner', 'admin', 'manager', 'member')
   async getSstObjectives(@Req() request: RequestWithUser) {
-    return this.phvaAdvancedService.findOrCreateSstObjectives(this.resolveCompanyId(request));
+    return this.phvaAdvancedService.findSstObjectives(this.resolveCompanyId(request));
   }
 
   @Patch('sst-objectives')
@@ -1006,6 +1017,279 @@ export class PhvaAdvancedController {
     return this.phvaAdvancedService.updateSstObjectiveActivities(this.resolveCompanyId(request), user, objectiveId, dto.activities ?? []);
   }
 
+  // ==================== SST OBJECTIVES → ANNUAL WORK PLAN SYNC ====================
+
+  @Post('sst-objectives/sync')
+  @Roles('owner', 'admin', 'manager')
+  async syncSstObjectivesToAnnualWorkPlan(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    return this.phvaAdvancedService.syncSstObjectivesToAnnualWorkPlan(companyId, user);
+  }
+
+  // ==================== SST OBJECTIVES APPROVAL ====================
+
+  @Post('sst-objectives/submit')
+  @Roles('owner', 'admin')
+  async submitSstObjectives(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateSstObjectives(companyId);
+
+    // Create approval request in the Approval Workflow Core.
+    await this.approvalWorkflowService.createRequest(
+      companyId.toString(),
+      {
+        module: ApprovalEntity.PHVA_ADVANCED,
+        entityType: 'SstObjectives',
+        entityId: record._id.toString(),
+        assignedRoles: ['owner', 'manager'],
+        comments: 'Aprobación de Objetivos SST (2.2.1)',
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        firebaseUid: request.user?.uid,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    // Mark as pending in the domain.
+    record.complianceStatus = 'PENDING';
+    record.complianceReason = 'Objetivos SST enviados para aprobación.';
+    await record.save();
+
+    return record;
+  }
+
+  @Post('sst-objectives/approve')
+  @Roles('owner', 'manager')
+  async approveSstObjectives(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateSstObjectives(companyId);
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      { decision: ApprovalDecision.APPROVED },
+      actor,
+    );
+
+    return { record, decision: result };
+  }
+
+  @Post('sst-objectives/reject')
+  @Roles('owner', 'manager')
+  async rejectSstObjectives(@Req() request: RequestWithUser, @Body() dto: { reason: string }) {
+    if (!dto.reason || !dto.reason.trim()) throw new BadRequestException('Rejection reason is required');
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateSstObjectives(companyId);
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      { decision: ApprovalDecision.REJECTED, reason: dto.reason },
+      actor,
+    );
+
+    return { record, decision: result };
+  }
+
+  // ===================== EPP (1.2.3) =====================
+
+  @Get('epp')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getEpp(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateEpp(this.resolveCompanyId(request));
+  }
+
+  @Get('epp/coverage')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getEppCoverage(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.calculateEppCoverage(this.resolveCompanyId(request));
+  }
+
+  @Patch('epp')
+  @Roles('owner', 'admin', 'manager')
+  async updateEpp(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateEpp(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Post('epp/submit')
+  @Roles('owner', 'admin')
+  async submitEpp(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateEpp(companyId);
+
+    await this.approvalWorkflowService.createRequest(
+      companyId.toString(),
+      {
+        module: ApprovalEntity.PHVA_ADVANCED,
+        entityType: 'SstEpp',
+        entityId: record._id.toString(),
+        assignedRoles: ['owner', 'manager'],
+        comments: 'Aprobación del módulo EPP (1.2.3)',
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        firebaseUid: request.user?.uid,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return { record, status: 'PENDING_APPROVAL' };
+  }
+
+  @Post('epp/approve')
+  @Roles('owner', 'manager')
+  async approveEpp(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateEpp(companyId);
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      { decision: ApprovalDecision.APPROVED, comments: 'EPP aprobado' },
+      actor,
+    );
+
+    return { record, decision: result };
+  }
+
+  @Post('epp/reject')
+  @Roles('owner', 'manager')
+  async rejectEpp(@Req() request: RequestWithUser, @Body() dto: { reason: string }) {
+    if (!dto.reason || !dto.reason.trim()) throw new BadRequestException('Rejection reason is required');
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateEpp(companyId);
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      { decision: ApprovalDecision.REJECTED, reason: dto.reason },
+      actor,
+    );
+    return { record, decision: result };
+  }
+
+  // ===================== EMERGENCIAS (1.1.10) =====================
+
+  @Get('emergencies')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getEmergencies(@Req() request: RequestWithUser) {
+    return this.phvaAdvancedService.findOrCreateEmergencies(this.resolveCompanyId(request));
+  }
+
+  @Patch('emergencies')
+  @Roles('owner', 'admin', 'manager')
+  async updateEmergencies(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateEmergencies(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Post('emergencies/submit')
+  @Roles('owner', 'admin')
+  async submitEmergencies(@Req() request: RequestWithUser) {
+    const user = await this.resolveUserFromRequest(request);
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateEmergencies(companyId);
+
+    await this.approvalWorkflowService.createRequest(
+      companyId.toString(),
+      {
+        module: ApprovalEntity.PHVA_ADVANCED,
+        entityType: 'SstEmergencies',
+        entityId: record._id.toString(),
+        assignedRoles: ['owner', 'manager'],
+        comments: 'Aprobación del plan de emergencias (1.1.10)',
+      },
+      buildApprovalActor({
+        userId: request.user?._id,
+        firebaseUid: request.user?.uid,
+        email: request.user?.email,
+        role: request.user?.role,
+      }),
+    );
+
+    return { record, status: 'PENDING_APPROVAL' };
+  }
+
+  @Post('emergencies/approve')
+  @Roles('owner', 'manager')
+  async approveEmergencies(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateEmergencies(companyId);
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      { decision: ApprovalDecision.APPROVED, comments: 'Plan de emergencias aprobado' },
+      actor,
+    );
+
+    return { record, decision: result };
+  }
+
+  @Post('emergencies/reject')
+  @Roles('owner', 'manager')
+  async rejectEmergencies(@Req() request: RequestWithUser, @Body() dto: { reason: string }) {
+    if (!dto.reason || !dto.reason.trim()) throw new BadRequestException('Rejection reason is required');
+    const companyId = this.resolveCompanyId(request);
+    const record = await this.phvaAdvancedService.findOrCreateEmergencies(companyId);
+    const actor = buildApprovalActor({
+      userId: request.user?._id,
+      firebaseUid: request.user?.uid,
+      email: request.user?.email,
+      role: request.user?.role,
+    });
+
+    const result = await this.approvalWorkflowService.decideAndApply(
+      companyId.toString(),
+      ApprovalEntity.PHVA_ADVANCED,
+      record._id.toString(),
+      { decision: ApprovalDecision.REJECTED, reason: dto.reason },
+      actor,
+    );
+    return { record, decision: result };
+  }
 
   @Get('annual-work-plan')
   @Roles('owner', 'admin', 'manager', 'member')

@@ -77,3 +77,32 @@ export function getPhaseWeights(): Record<CompliancePhaseKey, number> {
 export function getModuleWeights(): Record<string, number> {
   return { ...DEFAULT_MODULE_WEIGHTS };
 }
+
+// ─── Multi-Provider Phase Deduplication (PLANEAR-BLOQUE-4A) ───────────────
+
+/**
+ * Dependencias de consolidación de fuentes para phases.plan.
+ *
+ * CLAVE: AnnualWorkPlan consolida las actividades derivadas de SST Objectives
+ * e InitialEvaluation. Si AWP tiene una contribución válida que realmente
+ * represente esa consolidación, se ignoran SST Objectives e InitialEvaluation
+ * como fuentes individuales.
+ *
+ * EvaluationsProvider NO participa en esta deduplicación: se considera una
+ * fuente legacy independiente.
+ *
+ * Fuente: schema PlanActivity.sourceModule (Bloques 1 y 2).
+ */
+export const PHASE_DEPENDENCIES: Record<string, string[]> = {
+  'annual-work-plan': ['sst-objectives', 'initial-evaluation'],
+};
+
+/**
+ * Módulos fuente cuyos sourceModule en PlanActivity indican que AWP
+ * consolida esas fuentes.  Usado por AnnualWorkPlanProvider para
+ * determinar si el plan tiene actividades sincronizadas.
+ */
+export const AWP_CONSOLIDATED_SOURCES = [
+  'sst-objectives',
+  'initial-evaluation',
+];

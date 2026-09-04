@@ -351,6 +351,48 @@ export interface CompanyAIContextAudits {
  * emergencias NO tienen módulo propio seguro en el backend: se documentan como
  * NO DISPONIBLES (ver informe AUDIT-5) y no se inventan agregados.
  */
+/**
+ * Resumen de Gestión del Cambio (2.11.1) dentro del contexto IA.
+ *
+ * Fuente: ChangeManagementService.getStats + findAll (scoped por companyId).
+ * Sin PII: solo conteos y estados agregados.
+ */
+export interface CompanyAIContextChangeManagement {
+  /** true si la empresa tiene solicitudes de cambio registradas. */
+  available: boolean;
+  /** Total de solicitudes de cambio. */
+  total: number;
+  /** Solicitudes en borrador. */
+  draft: number;
+  /** Solicitudes pendientes de aprobación. */
+  pendingApproval: number;
+  /** Solicitudes aprobadas. */
+  approved: number;
+  /** Solicitudes implementadas. */
+  implemented: number;
+  /** Solicitudes rechazadas. */
+  rejected: number;
+  /** Conteos por nivel de impacto. */
+  byImpactLevel: { level: string; count: number }[];
+  /** Conteos por tipo de cambio. */
+  byChangeType: { type: string; count: number }[];
+  /** Solicitudes recientes (limitadas): título, tipo, impacto y estado. */
+  recent: { title: string; changeType: string; impactLevel: string; status: string }[];
+}
+
+/**
+ * Contexto operativo central de una empresa para los Engines IA y el futuro Copiloto.
+ *
+ * Se construye con datos REALES del sistema (sin información ficticia) y queda
+ * preparado para que cualquier engine o el Copiloto lo consuman sin volver a
+ * consultar MongoDB.
+ *
+ * AUDIT-5: se agregaron las secciones de autoevaluación, indicadores,
+ * accidentalidad, ausentismo, programas y auditorías/inspecciones reutilizando
+ * los services reales (nunca duplicando su lógica). Los dominios EPP y
+ * emergencias NO tienen módulo propio seguro en el backend: se documentan como
+ * NO DISPONIBLES (ver informe AUDIT-5) y no se inventan agregados.
+ */
 export interface CompanyAIContext {
   company: CompanyAIContextCompany;
   compliance: CompanyAIContextCompliance;
@@ -374,4 +416,6 @@ export interface CompanyAIContext {
   programs: CompanyAIContextPrograms;
   /** Resumen de inspecciones / auditorías real (AUDIT-5). */
   audits: CompanyAIContextAudits;
+  /** Resumen de Gestión del Cambio (2.11.1), reutilizando el dominio. */
+  changeManagement: CompanyAIContextChangeManagement;
 }

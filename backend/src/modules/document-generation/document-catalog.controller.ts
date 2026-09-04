@@ -61,6 +61,25 @@ export class DocumentCatalogController {
   }
 
   /**
+   * Busca la primera instancia vinculada a un DocumentMaster específico.
+   * Devuelve null si no existe. Utilizado por la navegación cruzada
+   * Aprobaciones → Documentos generados (Bloque 5.1).
+   *
+   * DEBE ir ANTES de catalog/:id para evitar que NestJS lo matchee como un id.
+   */
+  @Get('catalog/by-master/:documentMasterId')
+  @Roles('owner', 'admin', 'manager')
+  catalogByMaster(
+    @Req() request: RequestWithUser,
+    @Param('documentMasterId') documentMasterId: string,
+  ) {
+    return this.documentCatalogService.getByDocumentMasterId(
+      documentMasterId,
+      request.companyId,
+    );
+  }
+
+  /**
    * Detalle de una instancia: instancia + metadatos de aprobación + historial
    * de versiones de la misma entidad de origen.
    */

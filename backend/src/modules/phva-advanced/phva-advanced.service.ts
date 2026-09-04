@@ -57,9 +57,12 @@ import { TrainingManagement, TrainingManagementDocument } from './schemas/phva-a
 import { PolicySignatureStatus, PolicySocializationStatus, SstPolicy, SstPolicyDocument, SstPolicyStatus } from './schemas/phva-advanced-sst-policy.schema';
 import { PolicyTemplateService } from './policy-template.service';
 import { SstObjectives, SstObjectivesDocument, SstObjectiveActivityStatus, SstObjectiveAutomaticSource, SstObjectiveMeasurementMethod, SstObjectiveStatus, SstObjectiveTaskPriority } from './schemas/phva-advanced-sst-objective.schema';
+import { SstEpp, SstEppDocument } from './schemas/phva-advanced-epp.schema';
+import { SstEmergencies, SstEmergenciesDocument } from './schemas/phva-advanced-emergencies.schema';
 import { Training, TrainingDocument } from '../trainings/schemas/training.schema';
 import { InspectionActivity, InspectionActivityDocument } from '../inspections/schemas/inspection-activity.schema';
 import { Incident, IncidentDocument } from '../incidents/schemas/incident.schema';
+import { AnnualWorkPlanService } from '../annual-work-plan/services/annual-work-plan.service';
 
 const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
   'fullName',
@@ -103,6 +106,10 @@ export class PhvaAdvancedService {
     private readonly sstPolicyModel: Model<SstPolicyDocument>,
     @InjectModel(SstObjectives.name)
     private readonly sstObjectivesModel: Model<SstObjectivesDocument>,
+    @InjectModel(SstEpp.name)
+    private readonly eppModel: Model<SstEppDocument>,
+    @InjectModel(SstEmergencies.name)
+    private readonly emergenciesModel: Model<SstEmergenciesDocument>,
     @InjectModel(Training.name)
     private readonly trainingModel: Model<TrainingDocument>,
     @InjectModel(InspectionActivity.name)
@@ -135,12 +142,16 @@ export class PhvaAdvancedService {
     // Fase 6 — generación documental de la Política de Seguridad y Salud en
     // el Trabajo (2.1.1).
     private readonly sstPolicyResolver: SstPolicyVariableResolverService,
+    // Fase 2 — Sincronización SST Objectives → AnnualWorkPlan real.
+    private readonly annualWorkPlanService: AnnualWorkPlanService,
   ) {}
 
   async findOrCreateResourceAssignment(companyId: Types.ObjectId) {
-    const current = await this.resourceAssignmentModel.findOne({ companyId, itemCode: '1.1.3' }).exec();
-    if (current) return current;
-    return this.resourceAssignmentModel.create({ companyId, itemCode: '1.1.3' });
+    return this.resourceAssignmentModel.findOneAndUpdate(
+      { companyId, itemCode: '1.1.3' },
+      { $setOnInsert: { companyId, itemCode: '1.1.3' } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).exec();
   }
 
   /**
@@ -401,9 +412,11 @@ export class PhvaAdvancedService {
   }
 
   async findOrCreateResponsibilities(companyId: Types.ObjectId) {
-    const current = await this.responsibilitiesModel.findOne({ companyId, itemCode: '1.1.2' }).exec();
-    if (current) return current;
-    return this.responsibilitiesModel.create({ companyId, itemCode: '1.1.2' });
+    return this.responsibilitiesModel.findOneAndUpdate(
+      { companyId, itemCode: '1.1.2' },
+      { $setOnInsert: { companyId, itemCode: '1.1.2' } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).exec();
   }
 
   /**
@@ -731,10 +744,11 @@ export class PhvaAdvancedService {
   }
 
   async findOrCreateResponsableSst(companyId: Types.ObjectId) {
-    const current = await this.responsableSstModel.findOne({ companyId, itemCode: '1.1.1' }).exec();
-    if (current) return current;
-
-    return this.responsableSstModel.create({ companyId, itemCode: '1.1.1' });
+    return this.responsableSstModel.findOneAndUpdate(
+      { companyId, itemCode: '1.1.1' },
+      { $setOnInsert: { companyId, itemCode: '1.1.1' } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).exec();
   }
 
   /**
@@ -1473,6 +1487,18 @@ export class PhvaAdvancedService {
 
     for (const [key, value] of Object.entries(dto) as Array<[keyof UpdateResponsableSstDto, string | undefined]>) {
       if (value === undefined) continue;
+
+      // BLOQUE 3 — employeeId requiere validación de tenant explícita.
+      if (key === 'employeeId') {
+        const empId = new Types.ObjectId(value);
+        const employee = await this.employeeModel.findOne({ _id: empId, companyId }).exec();
+        if (!employee) {
+          throw new BadRequestException('Employee not found in this company');
+        }
+        record.employeeId = empId;
+        continue;
+      }
+
       if (key.endsWith('Date') || key === 'licenseExpiresAt' || key === 'course50HoursDetectedDate') {
         (record as unknown as Record<string, Date | undefined>)[key] = this.parseOptionalDate(value, key);
       } else {
@@ -1502,6 +1528,41 @@ export class PhvaAdvancedService {
 
     await record.save();
     await this.generateAlerts(record);
+    return record;
+  }
+
+  /**
+   * Vincula explícitamente el Responsable SST con un Employee de la empresa.
+   *
+   * BLOQUE 3 — Método dedicado de vinculación. No crea Employee, no crea
+   * CredentialResponsible, no hace matching automático por documento.
+   *
+   * Reglas:
+   *  1. Employee debe existir.
+   *  2. Employee.companyId debe coincidir con el companyId del contexto.
+   *  3. El Responsable SST debe pertenecer al mismo companyId.
+   *  4. employeeId se almacena como referencia explícita.
+   */
+  async linkResponsibleSstToEmployee(
+    companyId: Types.ObjectId,
+    employeeId: string,
+    user: UserDocument,
+  ): Promise<PhvaAdvancedResponsableSstDocument> {
+    if (!Types.ObjectId.isValid(employeeId)) {
+      throw new BadRequestException('Invalid employeeId');
+    }
+
+    const empObjectId = new Types.ObjectId(employeeId);
+    const employee = await this.employeeModel.findOne({ _id: empObjectId, companyId }).exec();
+    if (!employee) {
+      throw new NotFoundException('Employee not found in this company');
+    }
+
+    const record = await this.findOrCreateResponsableSst(companyId);
+    record.employeeId = empObjectId;
+    record.updatedBy = this.resolveUserId(user);
+    await record.save();
+
     return record;
   }
 
@@ -2019,9 +2080,11 @@ export class PhvaAdvancedService {
   }
 
   async findOrCreateArlAffiliations(companyId: Types.ObjectId) {
-    const current = await this.arlAffiliationsModel.findOne({ companyId, itemCode: '1.1.4' }).exec();
-    if (current) return current;
-    return this.arlAffiliationsModel.create({ companyId, itemCode: '1.1.4' });
+    return this.arlAffiliationsModel.findOneAndUpdate(
+      { companyId, itemCode: '1.1.4' },
+      { $setOnInsert: { companyId, itemCode: '1.1.4' } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).exec();
   }
 
   async updateArlAffiliations(companyId: Types.ObjectId, user: UserDocument, dto: UpdateArlAffiliationsDto) {
@@ -2057,9 +2120,11 @@ export class PhvaAdvancedService {
 
 
   async findOrCreateSpecialPension(companyId: Types.ObjectId) {
-    const current = await this.specialPensionModel.findOne({ companyId, itemCode: '1.1.5' }).exec();
-    if (current) return current;
-    return this.specialPensionModel.create({ companyId, itemCode: '1.1.5', enabled: false });
+    return this.specialPensionModel.findOneAndUpdate(
+      { companyId, itemCode: '1.1.5' },
+      { $setOnInsert: { companyId, itemCode: '1.1.5', enabled: false } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).exec();
   }
 
   async updateSpecialPension(companyId: Types.ObjectId, user: UserDocument, dto: { enabled?: boolean; records?: Array<{ employeeId: string; employeeName?: string; position?: string; highRiskType?: string; requiresSpecialContribution?: boolean; contributionStatus?: string; startDate?: string; observations?: string; supportDocument?: string }>; documents?: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt?: string }> }) {
@@ -2103,13 +2168,31 @@ export class PhvaAdvancedService {
     const current = await this.sstObjectivesModel.findOne({ companyId, itemCode }).exec();
     if (current) return this.saveSstObjectivesWithCompliance(current, false);
     const annualPlan = itemCode === '2.4.1';
-    const record = await this.sstObjectivesModel.create({
-      companyId,
-      itemCode,
-      objectives: annualPlan ? this.defaultAnnualWorkPlanObjectives() : this.defaultSstObjectives(),
-      history: [{ action: 'CREATE', objectiveId: 'system', field: annualPlan ? 'annualWorkPlan' : 'objectives', date: new Date(), newValue: annualPlan ? 'Plan anual de trabajo inicial' : 'Objetivos SST iniciales' }],
-    });
-    return this.saveSstObjectivesWithCompliance(record, false);
+    try {
+      const record = await this.sstObjectivesModel.create({
+        companyId,
+        itemCode,
+        objectives: annualPlan ? this.defaultAnnualWorkPlanObjectives() : this.defaultSstObjectives(),
+        history: [{ action: 'CREATE', objectiveId: 'system', field: annualPlan ? 'annualWorkPlan' : 'objectives', date: new Date(), newValue: annualPlan ? 'Plan anual de trabajo inicial' : 'Objetivos SST iniciales' }],
+      });
+      return this.saveSstObjectivesWithCompliance(record, false);
+    } catch (err: any) {
+      if (err?.code === 11000) {
+        const retry = await this.sstObjectivesModel.findOne({ companyId, itemCode }).exec();
+        if (retry) return this.saveSstObjectivesWithCompliance(retry, false);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Read-only lookup for SST Objectives.  Returns the existing record or
+   * null — never writes to MongoDB.  Use this in compliance scoring,
+   * read-only GET endpoints, and approval-getEntity flows where a
+   * side-effect-free read is sufficient.
+   */
+  async findSstObjectives(companyId: Types.ObjectId, itemCode = '2.2.1'): Promise<SstObjectivesDocument | null> {
+    return this.sstObjectivesModel.findOne({ companyId, itemCode }).exec();
   }
 
   async findOrCreateAnnualWorkPlan(companyId: Types.ObjectId) {
@@ -2130,7 +2213,15 @@ export class PhvaAdvancedService {
         this.pushNestedAnnualWorkPlanHistory(record, user, before ? JSON.parse(before) as Record<string, unknown> : undefined, objective as Record<string, unknown>);
       }
     }
-    return this.saveSstObjectivesWithCompliance(record, true);
+    const saved = await this.saveSstObjectivesWithCompliance(record, true);
+    // FASE 2 — auto-sync: propagate SST Objectives activities → AnnualWorkPlan.
+    // Failure is non-blocking: the objectives save is already committed.
+    try {
+      if (itemCode === '2.2.1') {
+        await this.annualWorkPlanService.syncFromSstObjectives(companyId, user);
+      }
+    } catch { /* sync failure should not break objective save */ }
+    return saved;
   }
 
   async updateAnnualWorkPlan(companyId: Types.ObjectId, user: UserDocument, dto: Partial<SstObjectives>) {
@@ -2163,7 +2254,29 @@ export class PhvaAdvancedService {
     objective.measurementMethod = SstObjectiveMeasurementMethod.ACTIVITY_BASED;
     objective.lastUpdatedAt = new Date();
     this.pushSstObjectiveHistory(record, user, 'ACTIVITY_COMPLETION', objectiveId, 'activities', before, JSON.stringify(activities));
-    return this.saveSstObjectivesWithCompliance(record, true);
+    const saved = await this.saveSstObjectivesWithCompliance(record, true);
+    // FASE 2 — auto-sync after activity update.
+    try {
+      if (itemCode === '2.2.1') {
+        await this.annualWorkPlanService.syncFromSstObjectives(companyId, user);
+      }
+    } catch { /* sync failure should not break objective save */ }
+    return saved;
+  }
+
+  /**
+   * Synchronize SST Objectives (2.2.1) into the real AnnualWorkPlan.
+   *
+   * FASE 2 — BLOQUE 1: connects SstObjectiveActivity → PlanActivity.
+   * The sync is idempotent and tenant-safe.
+   *
+   * @returns summary of the sync operation
+   */
+  async syncSstObjectivesToAnnualWorkPlan(
+    companyId: Types.ObjectId,
+    user: UserDocument,
+  ): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
+    return this.annualWorkPlanService.syncFromSstObjectives(companyId, user);
   }
 
   async updateAnnualWorkPlanActivities(companyId: Types.ObjectId, user: UserDocument, objectiveId: string, activities: unknown[]) {
@@ -2511,18 +2624,26 @@ export class PhvaAdvancedService {
   async findOrCreateSstPolicy(companyId: Types.ObjectId) {
     const current = await this.sstPolicyModel.findOne({ companyId, itemCode: '2.1.1' }).exec();
     if (current) return this.refreshSstPolicyCompliance(current);
-    const documentCode = await this.nextPolicyCode(companyId);
-    const record = await this.sstPolicyModel.create({
-      companyId,
-      itemCode: '2.1.1',
-      documentCode,
-      documentName: 'Política de Seguridad y Salud en el Trabajo',
-      currentVersion: '1.0',
-      status: SstPolicyStatus.DRAFT,
-      signatures: this.defaultPolicySignatures(),
-      history: [{ action: 'CREATE', date: new Date(), newValue: documentCode }],
-    });
-    return this.refreshSstPolicyCompliance(record);
+    try {
+      const documentCode = await this.nextPolicyCode(companyId);
+      const record = await this.sstPolicyModel.create({
+        companyId,
+        itemCode: '2.1.1',
+        documentCode,
+        documentName: 'Política de Seguridad y Salud en el Trabajo',
+        currentVersion: '1.0',
+        status: SstPolicyStatus.DRAFT,
+        signatures: this.defaultPolicySignatures(),
+        history: [{ action: 'CREATE', date: new Date(), newValue: documentCode }],
+      });
+      return this.refreshSstPolicyCompliance(record);
+    } catch (err: any) {
+      if (err?.code === 11000) {
+        const retry = await this.sstPolicyModel.findOne({ companyId, itemCode: '2.1.1' }).exec();
+        if (retry) return this.refreshSstPolicyCompliance(retry);
+      }
+      throw err;
+    }
   }
 
   /**
@@ -3092,9 +3213,11 @@ export class PhvaAdvancedService {
   }
 
   async findOrCreateTrainingManagement(companyId: Types.ObjectId) {
-    const current = await this.trainingManagementModel.findOne({ companyId, itemCode: '1.2.1' }).exec();
-    if (current) return current;
-    return this.trainingManagementModel.create({ companyId, itemCode: '1.2.1' });
+    return this.trainingManagementModel.findOneAndUpdate(
+      { companyId, itemCode: '1.2.1' },
+      { $setOnInsert: { companyId, itemCode: '1.2.1' } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).exec();
   }
 
   /**
@@ -3146,6 +3269,94 @@ export class PhvaAdvancedService {
       version: (record.approval?.version || 0) + 1,
     } as never;
     record.history.push({ action: `APPROVAL_${payload.status}`, createdBy: user.email, createdAt: new Date(), details: payload.comments } as never);
+    return record.save();
+  }
+
+  // ===================== EPP (1.2.3) =====================
+
+  async findOrCreateEpp(companyId: Types.ObjectId) {
+    return this.eppModel.findOneAndUpdate(
+      { companyId, itemCode: '1.2.3' },
+      { $setOnInsert: { companyId, itemCode: '1.2.3' } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).exec();
+  }
+
+  async findEppById(id: Types.ObjectId): Promise<SstEppDocument> {
+    const record = await this.eppModel.findById(id).exec();
+    if (!record) throw new NotFoundException('EPP not found');
+    return record;
+  }
+
+  async findEppByCompany(companyId: Types.ObjectId): Promise<SstEppDocument> {
+    const record = await this.eppModel.findOne({ companyId, itemCode: '1.2.3' }).exec();
+    if (!record) throw new NotFoundException('EPP not found');
+    return record;
+  }
+
+  async updateEpp(companyId: Types.ObjectId, user: UserDocument, dto: Record<string, unknown>) {
+    const record = await this.findOrCreateEpp(companyId);
+    Object.assign(record, dto);
+    record.history.push({
+      action: 'UPDATE',
+      userId: user._id?.toString() ?? '',
+      userName: user.email ?? '',
+      timestamp: new Date(),
+      details: 'Actualización de EPP',
+    } as never);
+    return record.save();
+  }
+
+  async calculateEppCoverage(companyId: Types.ObjectId) {
+    const record = await this.findOrCreateEpp(companyId);
+    const catalog = record.catalog ?? [];
+    const assignments = record.assignments ?? [];
+    const active = assignments.filter((a) => a.status === 'ACTIVE');
+    const catalogItems = catalog.filter((c) => c.active);
+    const coveragePercentage = catalogItems.length > 0
+      ? Math.round((active.length / catalogItems.length) * 100)
+      : 0;
+    return {
+      totalCatalog: catalogItems.length,
+      totalAssignments: assignments.length,
+      activeAssignments: active.length,
+      coveragePercentage,
+      pending: catalogItems.length - active.length,
+    };
+  }
+
+  // ===================== EMERGENCIAS (1.1.10) =====================
+
+  async findOrCreateEmergencies(companyId: Types.ObjectId) {
+    return this.emergenciesModel.findOneAndUpdate(
+      { companyId, itemCode: '1.1.10' },
+      { $setOnInsert: { companyId, itemCode: '1.1.10' } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).exec();
+  }
+
+  async findEmergenciesById(id: Types.ObjectId): Promise<SstEmergenciesDocument> {
+    const record = await this.emergenciesModel.findById(id).exec();
+    if (!record) throw new NotFoundException('Emergencias not found');
+    return record;
+  }
+
+  async findEmergenciesByCompany(companyId: Types.ObjectId): Promise<SstEmergenciesDocument> {
+    const record = await this.emergenciesModel.findOne({ companyId, itemCode: '1.1.10' }).exec();
+    if (!record) throw new NotFoundException('Emergencias not found');
+    return record;
+  }
+
+  async updateEmergencies(companyId: Types.ObjectId, user: UserDocument, dto: Record<string, unknown>) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    Object.assign(record, dto);
+    record.history.push({
+      action: 'UPDATE',
+      userId: user._id?.toString() ?? '',
+      userName: user.email ?? '',
+      timestamp: new Date(),
+      details: 'Actualización de Emergencias',
+    } as never);
     return record.save();
   }
 

@@ -5,6 +5,7 @@ import { InspectionActivity } from '../../inspections/schemas/inspection-activit
 import { FindingPriority } from '../enums/finding-priority.enum';
 import { classifyComplianceLevel } from '../utils/compliance-score';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
+import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 
 const COMPLETED_STATUSES = ['ejecutada', 'completada', 'finalizada', 'closed'];
 
@@ -45,6 +46,9 @@ export class InspectionsProvider implements ComplianceProvider {
       pending: pending.length,
       completed,
       overdue: overdue.length,
+      // Ejecución de inspecciones de seguridad → HACER.
+      // Fuente independiente: no consolidada en AWP actualmente.
+      phases: { do: percentage } as Partial<Record<CompliancePhaseKey, number>>,
     };
   }
 
