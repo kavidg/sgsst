@@ -6,9 +6,9 @@ import { Input } from './ui/Input';
 import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
 import {
-  PHVA_AUTO_STATUS_BADGE_CLASS,
   PHVA_AUTO_STATUS_LABEL,
   PhvaAutoEvaluationResult,
+  PhvaAutoResultStatus,
 } from '../services/phva-evaluation-engine.service';
 
 type EvaluationItemProps = {
@@ -23,21 +23,18 @@ type EvaluationItemProps = {
   hasError?: boolean;
   headerAction?: ReactNode;
   /**
-   * FASE 2 — Resultado automático del motor para este estándar.
-   * `undefined`  → el estándar no participa del motor (flujo manual intacto).
-   * `null`       → participa pero aún sin respuesta (cargando o con error).
+   * Resultado automático del motor para este estándar.
+   * `undefined` → el estándar NO participa del motor (evaluación manual).
+   * `null`      → participa pero aún sin respuesta (cargando o con error).
    */
   autoResult?: PhvaAutoEvaluationResult | null;
   /** true mientras el motor está respondiendo para este estándar. */
   autoLoading?: boolean;
   /** true si la consulta del motor falló para este estándar. */
   autoError?: boolean;
-  /**
-   * Bloquea el select manual: el veredicto lo administra el motor y el usuario
-   * no puede sobrescribirlo.
-   */
+  /** El veredicto lo administra el motor: el select manual no se muestra. */
   autoLocked?: boolean;
-  /** Reintenta la consulta del motor para toda la empresa (botón reintentar). */
+  /** Reintenta la consulta del motor (estado de error). */
   onRetryAutoEvaluation?: () => void;
 };
 
@@ -58,6 +55,73 @@ const initialPlan: ImprovementPlan = {
   endDate: '',
   notes: '',
 };
+
+/**
+ * FASE PHVA del estándar a partir de su código. Replica la clasificación real
+ * de PHASE_PREFIXES del Compliance Engine (capítulos 1–2 PLANEAR; 3–5 y los
+ * 2.x de módulos HACER; 6 y 2.6.1 VERIFICAR; 7 ACTUAR) sin importar backend.
+ */
+type PhvaPhase = 'PLANEAR' | 'HACER' | 'VERIFICAR' | 'ACTUAR';
+
+const PHVA_PHASE_LABEL: Record<PhvaPhase, string> = {
+  PLANEAR: 'Planear',
+  HACER: 'Hacer',
+  VERIFICAR: 'Verificar',
+  ACTUAR: 'Actuar',
+};
+
+const DO_CHAPTER_TWO_CODES: readonly string[] = ['2.5.1', '2.8.1', '2.9.1', '2.10.1', '2.11.1'];
+
+function derivePhvaPhase(code: string): PhvaPhase {
+  if (code.startsWith('7.')) return 'ACTUAR';
+  if (code === '2.6.1' || code.startsWith('6.')) return 'VERIFICAR';
+  if (DO_CHAPTER_TWO_CODES.includes(code) || /^[345]\./.test(code)) return 'HACER';
+  return 'PLANEAR';
+}
+
+/** Vista del bloque principal de cumplimiento (única fuente visual del estado). */
+type StatusView = {
+  key: 'ok' | 'danger' | 'pending' | 'neutral' | 'loading' | 'error';
+  icon: string;
+  label: string;
+  hint?: string;
+};
+
+function buildEngineStatusView(
+  autoResult: PhvaAutoEvaluationResult | null,
+  loading: boolean,
+  error: boolean,
+): StatusView {
+  if (loading) {
+    return { key: 'loading', icon: '⏳', label: 'Cargando evaluación…' };
+  }
+  if (error) {
+    return { key: 'error', icon: '⚠', label: 'Error al consultar evaluación' };
+  }
+  if (!autoResult) {
+    return { key: 'pending', icon: '⚠', label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS };
+  }
+  const statusViews: Record<PhvaAutoResultStatus, StatusView> = {
+    CUMPLE_TOTALMENTE: { key: 'ok', icon: '✅', label: PHVA_AUTO_STATUS_LABEL.CUMPLE_TOTALMENTE },
+    NO_CUMPLE: { key: 'danger', icon: '❌', label: PHVA_AUTO_STATUS_LABEL.NO_CUMPLE },
+    PENDIENTE_ANALISIS: { key: 'pending', icon: '⚠', label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS },
+    NO_APLICA: { key: 'neutral', icon: '—', label: PHVA_AUTO_STATUS_LABEL.NO_APLICA },
+  };
+  return statusViews[autoResult.status];
+}
+
+function buildManualStatusView(status: ComplianceOption): StatusView {
+  if (status === 'Cumple totalmente') {
+    return { key: 'ok', icon: '✅', label: status };
+  }
+  if (status === 'No cumple') {
+    return { key: 'danger', icon: '❌', label: status };
+  }
+  if (status === 'No aplica') {
+    return { key: 'neutral', icon: '—', label: status };
+  }
+  return { key: 'neutral', icon: '○', label: 'Pendiente de evaluación', hint: 'Selecciona el resultado para este estándar.' };
+}
 
 export function EvaluationItem({
   code,
@@ -82,8 +146,13 @@ export function EvaluationItem({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openReview, setOpenReview] = useState(false);
-  const [openAutoTrace, setOpenAutoTrace] = useState(false);
   const [plan, setPlan] = useState<ImprovementPlan>(initialPlan);
+
+  const phase = derivePhvaPhase(code);
+  // Evaluación automática: el estándar participa del motor o está gestionado
+  // por él (veredicto sincronizado). En ambos casos el resultado no es editable.
+  const isAutoManaged = autoResult !== undefined || autoLocked;
+  const showManualSelect = !isAutoManaged;
 
   const onDropFile = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
@@ -102,12 +171,10 @@ export function EvaluationItem({
     setIsModalOpen(false);
   };
 
-  const participatesInEngine = autoResult !== undefined;
   const currentStatus = controlledStatus ?? status;
-  const isDocumentPending = !currentStatus;
 
   const handleStatusChange = (nextStatus: ComplianceOption) => {
-    if (autoLocked) {
+    if (isAutoManaged) {
       // El veredicto automático no puede sobrescribirse manualmente.
       return;
     }
@@ -117,168 +184,73 @@ export function EvaluationItem({
     onStatusChange?.(code, nextStatus);
   };
 
-  // ── FASE 2 — Regla del plan de mejoramiento según veredicto automático ────
-  // Solo un NO_CUMPLE confirmado por el motor habilita el ingreso al plan.
-  // PENDIENTE_ANALISIS/error lo dejan deshabilitado y lo explican; NO_APLICA
-  // no muestra el botón. Los ítems fuera del motor conservan el comportamiento
-  // exacto anterior.
-  const hasConfirmedBreach = autoResult?.status === 'NO_CUMPLE';
-  const isNotApplicable = autoResult?.status === 'NO_APLICA';
-  const improvementPlanBlockedReason =
-    participatesInEngine && !hasConfirmedBreach && !isNotApplicable
-      ? 'El plan de mejoramiento se habilita cuando el motor confirme un incumplimiento (No cumple).'
-      : '';
+  // ── Estado de cumplimiento (bloque principal de la ficha) ────────────────
+  const statusView = isAutoManaged
+    ? buildEngineStatusView(autoResult ?? null, autoLoading, autoError)
+    : buildManualStatusView(currentStatus);
 
-  const canOpenImprovementPlan = participatesInEngine ? hasConfirmedBreach : Boolean(currentStatus);
-  const hideImprovementPlan = participatesInEngine && isNotApplicable;
+  // ── Plan de mejoramiento: visible siempre, habilitado solo con NO_CUMPLE ──
+  const resultIsNoCumple = isAutoManaged
+    ? autoResult?.status === 'NO_CUMPLE'
+    : currentStatus === 'No cumple';
+  const canOpenImprovementPlan = resultIsNoCumple && !readOnly;
 
   return (
-    <article className={`evaluation-item ${hasError ? 'evaluation-item--error' : ''}`.trim()}>
-      <div className="evaluation-item__header">
-        <div className="evaluation-item__heading">
-          <h3 className="evaluation-item__title">
-            {code} · {title}
-          </h3>
-          {headerAction}
-        </div>
-        <span className="evaluation-item__weight">Peso: {weight}%</span>
-      </div>
-
-      <section className="review-panel">
-        <button
-          type="button"
-          className="review-panel__toggle"
-          onClick={() => setOpenReview((current) => !current)}
-          aria-expanded={openReview}
-        >
-          <span className="label">Modo de revisión</span>
-          <span className={`review-panel__chevron ${openReview ? 'open' : ''}`.trim()}>
-            <Icons.chevronDown />
+    <article className={`phva-card ${hasError ? 'phva-card--error' : ''}`.trim()}>
+      {/* A. Encabezado: código (identificador), fase, título y peso secundario */}
+      <header className="phva-card__header">
+        <div className="phva-card__header-top">
+          <span className="phva-card__code">{code}</span>
+          <span className={`phva-card__phase phva-card__phase--${phase.toLowerCase()}`}>
+            {PHVA_PHASE_LABEL[phase]}
           </span>
-        </button>
-
-        <div className={`review-panel__content ${openReview ? 'open' : ''}`.trim()}>
-          <div className="review-panel__body">
-            <div className="field">
-              <span className="label">Instrucciones de verificación</span>
-              <p className="evaluation-item__text whitespace-pre-line">{modeReview}</p>
-            </div>
-            <div className="field">
-              <span className="label">Criterio</span>
-              <p className="evaluation-item__text whitespace-pre-line">{criteria}</p>
-            </div>
-          </div>
+          <span className="phva-card__weight">Peso: {weight}%</span>
         </div>
+        <h3 className="phva-card__title">{title}</h3>
+        {headerAction ? <div className="phva-card__header-action">{headerAction}</div> : null}
+      </header>
+
+      {/* B. Bloque principal de cumplimiento (foco visual de la ficha) */}
+      <section
+        className={`phva-card__status phva-card__status--${statusView.key}`}
+        aria-live="polite"
+      >
+        <span className="phva-card__status-icon" aria-hidden>
+          {statusView.icon}
+        </span>
+        <div className="phva-card__status-body">
+          <span className="phva-card__status-kind">
+            {isAutoManaged ? 'Evaluación automática' : 'Evaluación manual'}
+          </span>
+          <strong className="phva-card__status-value">{statusView.label}</strong>
+          {statusView.hint ? <span className="phva-card__status-hint">{statusView.hint}</span> : null}
+        </div>
+        {isAutoManaged && autoError && !autoLoading ? (
+          <Button type="button" variant="ghost" onClick={onRetryAutoEvaluation}>
+            Reintentar
+          </Button>
+        ) : null}
       </section>
 
-      {participatesInEngine ? (
-        <section className="auto-evaluation" aria-live="polite">
-          <div className="auto-evaluation__header">
-            <span className="label">Resultado automático</span>
-            {autoLoading ? (
-              <span className="muted">Cargando evaluación…</span>
-            ) : autoError ? (
-              <span className="badge badge--warning">Error al consultar evaluación</span>
-            ) : autoResult ? (
-              <span className={PHVA_AUTO_STATUS_BADGE_CLASS[autoResult.status]}>
-                {PHVA_AUTO_STATUS_LABEL[autoResult.status]}
-              </span>
-            ) : (
-              <span className="badge badge--warning">Pendiente de análisis</span>
-            )}
-            {autoError && !autoLoading ? (
-              <Button type="button" variant="ghost" onClick={onRetryAutoEvaluation}>
-                Reintentar
-              </Button>
-            ) : null}
-          </div>
-
-          {autoResult?.status === 'PENDIENTE_ANALISIS' && autoResult.missingInformation.length > 0 ? (
-            <div className="auto-evaluation__missing">
-              <span className="label">Información faltante</span>
-              <ul>
-                {autoResult.missingInformation.map((message) => (
-                  <li key={message}>{message}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {autoResult && autoResult.findings.length > 0 ? (
-            <div className="auto-evaluation__findings">
-              {autoResult.findings.map((finding) => (
-                <div key={`${finding.source}:${finding.title}`} className="auto-evaluation__finding">
-                  <strong>{finding.title}</strong>
-                  <p className="muted">{finding.description}</p>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {autoResult && autoResult.ruleTrace.length > 0 ? (
-            <div className="auto-evaluation__trace">
-              <button
-                type="button"
-                className="review-panel__toggle"
-                onClick={() => setOpenAutoTrace((current) => !current)}
-                aria-expanded={openAutoTrace}
-              >
-                <span className="label">Requisitos evaluados por el motor</span>
-                <span className={`review-panel__chevron ${openAutoTrace ? 'open' : ''}`.trim()}>
-                  <Icons.chevronDown />
-                </span>
-              </button>
-              {openAutoTrace ? (
-                <ul className="auto-evaluation__trace-list">
-                  {autoResult.ruleTrace.map((trace) => (
-                    <li key={trace.requirement}>
-                      <span
-                        className={`badge ${
-                          trace.satisfied === true
-                            ? 'badge--success'
-                            : trace.satisfied === false
-                              ? 'badge--warning'
-                              : 'badge--info'
-                        }`}
-                      >
-                        {trace.satisfied === true ? '✓' : trace.satisfied === false ? '✗' : '—'}
-                      </span>
-                      <span>{trace.requirement}</span>
-                      {trace.evidence ? <small className="muted">{trace.evidence}</small> : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
-
-          {improvementPlanBlockedReason ? (
-            <p className="muted auto-evaluation__hint">{improvementPlanBlockedReason}</p>
-          ) : null}
-        </section>
-      ) : null}
-
-      <div className="grid grid-2">
-        <label className="field">
-          <span className="label">
-            Resultado de evaluación{participatesInEngine ? ' (automático)' : ''}
-          </span>
-          <Select
-            value={currentStatus}
-            disabled={readOnly || autoLocked}
-            onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}
-          >
-            <option value="" disabled>
-              Selecciona una opción
-            </option>
-            <option value="Cumple totalmente">Cumple totalmente</option>
-            <option value="No cumple">No cumple</option>
-            <option value="No aplica">No aplica</option>
-          </Select>
-          {participatesInEngine && autoLocked ? (
-            <span className="muted">Determinado automáticamente por el motor según la gestión avanzada.</span>
-          ) : null}
-        </label>
+      {/* D. Resultado manual: select existente solo para estándares sin motor */}
+      <div className={showManualSelect ? 'grid grid-2' : 'phva-card__single'}>
+        {showManualSelect ? (
+          <label className="field">
+            <span className="label">Resultado de evaluación</span>
+            <Select
+              value={currentStatus}
+              disabled={readOnly}
+              onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}
+            >
+              <option value="" disabled>
+                Selecciona una opción
+              </option>
+              <option value="Cumple totalmente">Cumple totalmente</option>
+              <option value="No cumple">No cumple</option>
+              <option value="No aplica">No aplica</option>
+            </Select>
+          </label>
+        ) : null}
 
         <div className="field">
           <span className="label">Evidencia</span>
@@ -306,23 +278,55 @@ export function EvaluationItem({
         </div>
       </div>
 
-      {isDocumentPending && !participatesInEngine ? (
-        <p className="muted" style={{ marginTop: '.5rem' }}>Documento pendiente por cargar/evaluar.</p>
-      ) : null}
+      {/* Guía de verificación (colapsable, común a ambos modos) */}
+      <section className="review-panel">
+        <button
+          type="button"
+          className="review-panel__toggle"
+          onClick={() => setOpenReview((current) => !current)}
+          aria-expanded={openReview}
+        >
+          <span className="label">Modo de revisión</span>
+          <span className={`review-panel__chevron ${openReview ? 'open' : ''}`.trim()}>
+            <Icons.chevronDown />
+          </span>
+        </button>
 
-      <div className="actions" style={{ justifyContent: 'flex-end' }}>
-        {hideImprovementPlan ? null : (
-          <Button type="button" disabled={!canOpenImprovementPlan || readOnly} onClick={() => setIsModalOpen(true)}>
-            Ingresar plan de mejoramiento
-          </Button>
-        )}
-      </div>
+        <div className={`review-panel__content ${openReview ? 'open' : ''}`.trim()}>
+          <div className="review-panel__body">
+            <div className="field">
+              <span className="label">Instrucciones de verificación</span>
+              <p className="phva-card__text whitespace-pre-line">{modeReview}</p>
+            </div>
+            <div className="field">
+              <span className="label">Criterio</span>
+              <p className="phva-card__text whitespace-pre-line">{criteria}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* E. Plan de mejoramiento: siempre visible, habilitado solo con NO_CUMPLE */}
+      <footer className="phva-card__footer">
+        <Button
+          type="button"
+          variant={canOpenImprovementPlan ? 'primary' : 'secondary'}
+          disabled={!canOpenImprovementPlan}
+          title={
+            canOpenImprovementPlan
+              ? 'Ingresar plan de mejoramiento'
+              : readOnly
+                ? 'Modo solo visualización para manager'
+                : 'Disponible cuando el resultado sea No cumple'
+          }
+          onClick={() => setIsModalOpen(true)}
+        >
+          Ingresar plan de mejoramiento
+        </Button>
+      </footer>
 
       <Modal isOpen={isModalOpen} title={`Plan de mejoramiento · ${code}`} onClose={closeModal}>
         <div className="form-grid">
-          <p className="muted">
-            Plan de mejoramiento derivado del incumplimiento detectado por el motor para {code} · {title}.
-          </p>
           <label className="field">
             <span className="label">Actividad a implementar</span>
             <Input
