@@ -1,5 +1,5 @@
-import type { DragEvent, ReactNode } from 'react';
-import { useId, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Icons } from './Icons';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -25,7 +25,7 @@ type EvaluationItemProps = {
   /**
    * Resultado automático del motor para este estándar.
    * `undefined` → el estándar NO participa del motor (evaluación manual).
-   * `null`      → participa pero aún sin respuesta (cargando o con error).
+   * `null`      → participa pero aún sin resultado (cargando o con error).
    */
   autoResult?: PhvaAutoEvaluationResult | null;
   /** true mientras el motor está respondiendo para este estándar. */
@@ -79,12 +79,13 @@ function derivePhvaPhase(code: string): PhvaPhase {
   return 'PLANEAR';
 }
 
-/** Vista del bloque central de cumplimiento (zona protagonista de la ficha). */
+/** Vista del bloque central de cumplimiento (protagonista de la ficha). */
 type StatusView = {
   key: 'ok' | 'danger' | 'pending' | 'neutral' | 'loading' | 'error';
   icon: string;
   label: string;
-  hint?: string;
+  /** Mensaje breve de interpretación del estado (ZONA 3). */
+  interpretation: string;
 };
 
 function buildEngineStatusView(
@@ -93,34 +94,84 @@ function buildEngineStatusView(
   error: boolean,
 ): StatusView {
   if (loading) {
-    return { key: 'loading', icon: '⏳', label: 'Cargando evaluación…' };
+    return { key: 'loading', icon: '⏳', label: 'Cargando evaluación…', interpretation: 'Consultando la gestión registrada para este estándar.' };
   }
   if (error) {
-    return { key: 'error', icon: '⚠', label: 'Error al consultar evaluación' };
+    return {
+      key: 'error',
+      icon: '⚠',
+      label: 'Error al consultar evaluación',
+      interpretation: 'No fue posible obtener el resultado de este estándar. Intenta nuevamente.',
+    };
   }
   if (!autoResult) {
-    return { key: 'pending', icon: '⚠', label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS };
+    return {
+      key: 'pending',
+      icon: '⏳',
+      label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS,
+      interpretation: 'Este estándar requiere información adicional para determinar su resultado.',
+    };
   }
   const statusViews: Record<PhvaAutoResultStatus, StatusView> = {
-    CUMPLE_TOTALMENTE: { key: 'ok', icon: '✓', label: PHVA_AUTO_STATUS_LABEL.CUMPLE_TOTALMENTE },
-    NO_CUMPLE: { key: 'danger', icon: '⚠', label: PHVA_AUTO_STATUS_LABEL.NO_CUMPLE },
-    PENDIENTE_ANALISIS: { key: 'pending', icon: '⏳', label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS },
-    NO_APLICA: { key: 'neutral', icon: '—', label: PHVA_AUTO_STATUS_LABEL.NO_APLICA },
+    CUMPLE_TOTALMENTE: {
+      key: 'ok',
+      icon: '✓',
+      label: PHVA_AUTO_STATUS_LABEL.CUMPLE_TOTALMENTE,
+      interpretation: 'El sistema identifica que este estándar cumple con las condiciones evaluadas.',
+    },
+    NO_CUMPLE: {
+      key: 'danger',
+      icon: '⚠',
+      label: PHVA_AUTO_STATUS_LABEL.NO_CUMPLE,
+      interpretation: 'Este estándar requiere acciones de mejora. Revisa la gestión asociada y define las acciones correspondientes.',
+    },
+    PENDIENTE_ANALISIS: {
+      key: 'pending',
+      icon: '⏳',
+      label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS,
+      interpretation: 'Este estándar requiere información adicional para determinar su resultado.',
+    },
+    NO_APLICA: {
+      key: 'neutral',
+      icon: '—',
+      label: PHVA_AUTO_STATUS_LABEL.NO_APLICA,
+      interpretation: 'Este estándar no aplica para las condiciones actuales de la empresa.',
+    },
   };
   return statusViews[autoResult.status];
 }
 
 function buildManualStatusView(status: ComplianceOption): StatusView {
   if (status === 'Cumple totalmente') {
-    return { key: 'ok', icon: '✓', label: status };
+    return {
+      key: 'ok',
+      icon: '✓',
+      label: status,
+      interpretation: 'El sistema identifica que este estándar cumple con las condiciones evaluadas.',
+    };
   }
   if (status === 'No cumple') {
-    return { key: 'danger', icon: '⚠', label: status };
+    return {
+      key: 'danger',
+      icon: '⚠',
+      label: status,
+      interpretation: 'Este estándar requiere acciones de mejora. Revisa la gestión asociada y define las acciones correspondientes.',
+    };
   }
   if (status === 'No aplica') {
-    return { key: 'neutral', icon: '—', label: status };
+    return {
+      key: 'neutral',
+      icon: '—',
+      label: status,
+      interpretation: 'Este estándar no aplica para las condiciones actuales de la empresa.',
+    };
   }
-  return { key: 'neutral', icon: '○', label: 'Pendiente de evaluación', hint: 'Selecciona el resultado en la zona de evaluación.' };
+  return {
+    key: 'neutral',
+    icon: '○',
+    label: 'Sin evaluar',
+    interpretation: 'Este estándar aún no cuenta con una evaluación registrada.',
+  };
 }
 
 export function EvaluationItem({
@@ -140,10 +191,7 @@ export function EvaluationItem({
   autoLocked = false,
   onRetryAutoEvaluation,
 }: EvaluationItemProps) {
-  const fileInputId = useId();
   const [status, setStatus] = useState<ComplianceOption>(controlledStatus ?? '');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openReview, setOpenReview] = useState(false);
   const [plan, setPlan] = useState<ImprovementPlan>(initialPlan);
@@ -153,15 +201,6 @@ export function EvaluationItem({
   // por él (veredicto sincronizado). En ambos casos el resultado no es editable.
   const isAutoManaged = autoResult !== undefined || autoLocked;
   const showManualSelect = !isAutoManaged;
-
-  const onDropFile = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    setIsDragOver(false);
-    const droppedFile = event.dataTransfer.files?.[0];
-    if (droppedFile) {
-      setSelectedFile(droppedFile);
-    }
-  };
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -184,12 +223,12 @@ export function EvaluationItem({
     onStatusChange?.(code, nextStatus);
   };
 
-  // ── Estado de cumplimiento (bloque central de la ficha) ──────────────────
+  // ── ZONA 2 · Estado de cumplimiento ────────────────────────────────────────
   const statusView = isAutoManaged
     ? buildEngineStatusView(autoResult ?? null, autoLoading, autoError)
     : buildManualStatusView(currentStatus);
 
-  // ── Plan de mejoramiento: visible siempre, habilitado solo con NO_CUMPLE ──
+  // ── ZONA 5 · Plan de mejoramiento: visible siempre, habilitado solo NO_CUMPLE ──
   const resultIsNoCumple = isAutoManaged
     ? autoResult?.status === 'NO_CUMPLE'
     : currentStatus === 'No cumple';
@@ -197,7 +236,7 @@ export function EvaluationItem({
 
   return (
     <article className={`phva-card ${hasError ? 'phva-card--error' : ''}`.trim()}>
-      {/* ZONA 1 · HEADER: código (identificador), fase, peso y título */}
+      {/* ZONA 1 · ENCABEZADO: código, fase, peso, origen y título */}
       <header className="phva-card__header">
         <div className="phva-card__meta">
           <span className="phva-card__code">{code}</span>
@@ -205,13 +244,16 @@ export function EvaluationItem({
             {PHVA_PHASE_LABEL[phase]}
           </span>
           <span className="phva-card__weight">Peso {weight}%</span>
+          <span
+            className={`phva-card__origin phva-card__origin--${isAutoManaged ? 'auto' : 'manual'}`}
+          >
+            {isAutoManaged ? 'Automática' : 'Manual'}
+          </span>
         </div>
         <h3 className="phva-card__title">{title}</h3>
-        <p className="phva-card__criteria">{criteria}</p>
-        {headerAction ? <div className="phva-card__header-action">{headerAction}</div> : null}
       </header>
 
-      {/* ZONA 2 · ESTADO DE CUMPLIMIENTO (bloque central grande) */}
+      {/* ZONA 2 · ESTADO PRINCIPAL (protagonista de la ficha) */}
       <section
         className={`phva-card__status phva-card__status--${statusView.key}`}
         aria-live="polite"
@@ -224,7 +266,6 @@ export function EvaluationItem({
             {isAutoManaged ? 'Evaluación automática' : 'Evaluación manual'}
           </span>
           <strong className="phva-card__status-value">{statusView.label}</strong>
-          {statusView.hint ? <span className="phva-card__status-hint">{statusView.hint}</span> : null}
         </div>
         {isAutoManaged && autoError && !autoLoading ? (
           <Button type="button" variant="ghost" onClick={onRetryAutoEvaluation}>
@@ -233,61 +274,53 @@ export function EvaluationItem({
         ) : null}
       </section>
 
-      {/* ZONA 3 · EVALUACIÓN + ACCIÓN */}
+      {/* ZONA 3 · INTERPRETACIÓN breve del estado */}
+      <section className={`phva-card__interpretation phva-card__interpretation--${statusView.key}`}>
+        <p>{statusView.interpretation}</p>
+      </section>
+
+      {/* ZONA 4 · GESTIÓN CENTRALIZADA (reemplaza cualquier concepto de evidencia).
+          El botón reutiliza la acción real de navegación provista por la página
+          (headerAction → rutas existentes de Gestión Avanzada). Si la página no
+          provee navegación funcional, no se muestra ningún botón. */}
+      <section className="phva-card__centralized">
+        <div className="phva-card__centralized-body">
+          <span className="phva-card__zone-label">Gestión centralizada</span>
+          <p className="phva-card__centralized-text">
+            La información, los soportes y el diligenciamiento de este estándar se administran
+            desde Gestión Avanzada.
+          </p>
+        </div>
+        {headerAction ? <div className="phva-card__centralized-action">{headerAction}</div> : null}
+      </section>
+
+      {/* ZONA 5 · EVALUACIÓN + ACCIONES */}
       <div className="phva-card__bottom">
         <section className="phva-card__evaluation">
-          <span className="phva-card__zone-label">Evaluación</span>
-          <div className="phva-card__evaluation-grid">
-            {showManualSelect ? (
-              <label className="field">
-                <span className="label">Estado actual</span>
-                <Select
-                  value={currentStatus}
-                  disabled={readOnly}
-                  onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}
-                >
-                  <option value="" disabled>
-                    Selecciona una opción
-                  </option>
-                  <option value="Cumple totalmente">Cumple totalmente</option>
-                  <option value="No cumple">No cumple</option>
-                  <option value="No aplica">No aplica</option>
-                </Select>
-              </label>
-            ) : (
-              <div className="field">
-                <span className="label">Estado actual</span>
-                <p className="phva-card__auto-note">
-                  Determinado automáticamente por el motor según la gestión avanzada.
-                </p>
-              </div>
-            )}
-
-            <div className="field">
-              <span className="label">Evidencia</span>
-              <label
-                htmlFor={fileInputId}
-                className={`upload-zone ${isDragOver ? 'upload-zone--active' : ''}`.trim()}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setIsDragOver(true);
-                }}
-                onDragLeave={() => setIsDragOver(false)}
-                onDrop={onDropFile}
+          {showManualSelect ? (
+            <label className="field">
+              <span className="label">Estado actual</span>
+              <Select
+                value={currentStatus}
+                disabled={readOnly}
+                onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}
               >
-                <input
-                  id={fileInputId}
-                  type="file"
-                  className="upload-zone__input"
-                  disabled={readOnly}
-                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                />
-                <span className="upload-zone__title">Arrastra y suelta un archivo</span>
-                <span className="muted">{readOnly ? 'Solo visualización para manager' : 'o haz clic para seleccionarlo'}</span>
-                {selectedFile ? <span className="upload-zone__file">Archivo: {selectedFile.name}</span> : null}
-              </label>
+                <option value="" disabled>
+                  Selecciona una opción
+                </option>
+                <option value="Cumple totalmente">Cumple totalmente</option>
+                <option value="No cumple">No cumple</option>
+                <option value="No aplica">No aplica</option>
+              </Select>
+            </label>
+          ) : (
+            <div className="field">
+              <span className="label">Estado actual</span>
+              <p className="phva-card__auto-note">
+                Determinado automáticamente por el motor según la gestión avanzada.
+              </p>
             </div>
-          </div>
+          )}
 
           {/* Guía de verificación (colapsable) */}
           <section className="review-panel">
@@ -318,9 +351,7 @@ export function EvaluationItem({
           </section>
         </section>
 
-        {/* Zona de acciones separada dentro de la ficha */}
         <footer className="phva-card__action">
-          <span className="phva-card__zone-label">Acción</span>
           <Button
             type="button"
             variant={canOpenImprovementPlan ? 'primary' : 'secondary'}

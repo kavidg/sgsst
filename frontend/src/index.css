@@ -383,6 +383,16 @@ a { color: inherit; }
   border-radius:999px;
   font-variant-numeric:tabular-nums;
 }
+.phva-card__origin {
+  font-size:.68rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  padding:.22rem .55rem;
+  border-radius:999px;
+}
+.phva-card__origin--auto { background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; }
+.phva-card__origin--manual { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
 .phva-card__title { margin:.15rem 0 0; font-size:1.15rem; font-weight:750; color:#0f172a; line-height:1.3; }
 .phva-card__criteria {
   margin:0;
@@ -439,6 +449,34 @@ a { color: inherit; }
 .phva-card__status--loading { background:#f8fafc; color:#64748b; border-left:6px solid #94a3b8; }
 .phva-card__status--error { background:#fff7ed; color:#9a3412; border-left:6px solid #ea580c; }
 
+/* ZONA 3 · INTERPRETACIÓN — mensaje breve alineado al estado */
+.phva-card__interpretation {
+  padding:.7rem 1.2rem;
+  border-bottom:1px solid #e5e7eb;
+}
+.phva-card__interpretation p { margin:0; font-size:.86rem; line-height:1.5; color:#475569; }
+.phva-card__interpretation--ok { background:#fbfefb; border-left:3px solid #bbf7d0; }
+.phva-card__interpretation--danger { background:#fffbfb; border-left:3px solid #fecaca; }
+.phva-card__interpretation--pending,
+.phva-card__interpretation--loading { background:#fffdf7; border-left:3px solid #fde68a; }
+.phva-card__interpretation--neutral { background:#fcfdfe; border-left:3px solid #e2e8f0; }
+.phva-card__interpretation--error { background:#fffcf8; border-left:3px solid #fed7aa; }
+
+/* ZONA 4 · GESTIÓN CENTRALIZADA — referencia a Gestión Avanzada (sin evidencia) */
+.phva-card__centralized {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding:.85rem 1.2rem;
+  background:#f8faff;
+  border-bottom:1px solid #e5e7eb;
+}
+.phva-card__centralized-body { display:grid; gap:.15rem; min-width:0; }
+.phva-card__centralized-text { margin:0; font-size:.84rem; color:#475569; line-height:1.45; }
+.phva-card__centralized-action { flex-shrink:0; }
+.phva-card__centralized-action .btn { white-space:nowrap; }
+
 /* ZONA 3 · EVALUACIÓN + ACCIÓN */
 .phva-card__bottom {
   display:grid;
@@ -457,7 +495,6 @@ a { color: inherit; }
   margin-bottom:.45rem;
 }
 .phva-card__evaluation { display:grid; gap:.75rem; min-width:0; }
-.phva-card__evaluation-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.9rem; }
 .phva-card__auto-note { margin:.25rem 0 0; font-size:.85rem; color:#475569; }
 .phva-card__action {
   display:flex;
@@ -477,14 +514,14 @@ a { color: inherit; }
 /* Responsive: apilar zonas y controles en pantallas pequeñas */
 @media (max-width: 760px) {
   .phva-card__bottom { grid-template-columns:1fr; }
-  .phva-card__evaluation-grid { grid-template-columns:1fr; }
   .phva-card__action { align-items:stretch; }
   .phva-card__action .btn { width:100%; }
   .phva-card__status-value { font-size:1.2rem; }
   .phva-card__status { padding:1.1rem 1rem; }
   .phva-card__status-icon { width:2.6rem; height:2.6rem; font-size:1.4rem; }
   .phva-card__weight { margin-left:0; }
-  .phva-card__header-action { justify-content:flex-start; }
+  .phva-card__centralized { flex-direction:column; align-items:stretch; }
+  .phva-card__centralized-action .btn { width:100%; white-space:normal; }
 }
 
 /* FASE 2 — Panel de resultado automático del PHVA Evaluation Engine (solo lectura). */
