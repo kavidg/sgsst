@@ -60,6 +60,20 @@ import { ProgramsModule } from './modules/programs/programs.module';
 import { OccupationalExamModule } from './modules/occupational-exam/occupational-exam.module';
 import { MedicalRecommendationModule } from './modules/medical-recommendation/medical-recommendation.module';
 import { EpidemiologicalSurveillanceModule } from './modules/epidemiological-surveillance/epidemiological-surveillance.module';
+// FASE 30D-2: módulo de perfiles de cargo (3.1.3).
+import { JobProfileModule } from './modules/job-profile/job-profile.module';
+import { HealthPromotionModule } from './modules/health-promotion/health-promotion.module';
+// FASE 30F: OccupationalMedicalRecordCustody (3.1.5) — Control de custodia de
+// historias clínicas ocupacionales (registro administrativo, sin contenido clínico).
+import { OccupationalMedicalRecordCustodyModule } from './modules/occupational-medical-record-custody/occupational-medical-record-custody.module';
+// FASE 33: WorkRestriction (3.1.6) — Restricciones y recomendaciones
+// médico-laborales (registro administrativo, sin contenido clínico).
+import { WorkRestrictionModule } from './modules/work-restriction/work-restriction.module';
+import { WorkplaceSanitaryConditionsModule } from './modules/workplace-sanitary-conditions/workplace-sanitary-conditions.module';
+import { WasteManagementModule } from './modules/waste-management/waste-management.module';
+// FASE 35B: infraestructura estadística de enfermedad laboral (sin scoring —
+// 3.3.4/3.3.5 permanecen PLANNED; los providers llegan en 35C/35D).
+import { OccupationalDiseaseStatisticalCaseModule } from './modules/occupational-disease-statistical-case/occupational-disease-statistical-case.module';
 
 @Module({
   imports: [
@@ -125,5 +139,24 @@ import { EpidemiologicalSurveillanceModule } from './modules/epidemiological-sur
     OccupationalExamModule,
     MedicalRecommendationModule,
     EpidemiologicalSurveillanceModule,
+    // FASE 30D-2: JobProfile (3.1.3) — CRUD tenant-aware de perfiles de cargo.
+    JobProfileModule,
+    // FASE 30E: HealthPromotion (3.1.2) — CRUD tenant-aware de actividades de
+    // promoción y prevención en salud.
+    HealthPromotionModule,
+    // FASE 30F: OccupationalMedicalRecordCustody (3.1.5) — Control de custodia
+    // de historias clínicas ocupacionales (sin contenido clínico).
+    OccupationalMedicalRecordCustodyModule,
+    // FASE 33: WorkRestriction (3.1.6) — Restricciones y recomendaciones
+    // médico-laborales (sin contenido clínico).
+    WorkRestrictionModule,
+    // FASE 34B: WorkplaceSanitaryConditions (3.1.8) — Agua potable, servicios
+    // sanitarios y disposición de basuras (metadata-only).
+    WorkplaceSanitaryConditionsModule,
+    // FASE 34C: WasteManagement (3.1.9) — Eliminación adecuada de residuos
+    // sólidos, líquidos o gaseosos (metadata-only).
+    WasteManagementModule,
+    // FASE 35B: casos estadísticos de enfermedad laboral (infraestructura base).
+    OccupationalDiseaseStatisticalCaseModule,
   ],
 }) export class AppModule {}

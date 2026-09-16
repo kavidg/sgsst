@@ -4,7 +4,10 @@ import { Model, Types } from 'mongoose';
 import { OccupationalExam, OccupationalExamDocument, ExamStatus } from './schemas/occupational-exam.schema';
 import { CreateOccupationalExamDto } from './dto/create-occupational-exam.dto';
 import { UpdateOccupationalExamDto } from './dto/update-occupational-exam.dto';
+import { ExamOccupationalContextDto } from './dto/exam-occupational-context.dto';
 import { Employee, EmployeeDocument } from '../employees/schemas/employee.schema';
+import { JobProfile, JobProfileDocument } from '../job-profile/schemas/job-profile.schema';
+import { Risk, RiskDocument } from '../risks/schemas/risk.schema';
 
 // ── Tipos para estadísticas agregadas ──
 
@@ -45,6 +48,11 @@ export class OccupationalExamService {
     private readonly examModel: Model<OccupationalExamDocument>,
     @InjectModel(Employee.name)
     private readonly employeeModel: Model<EmployeeDocument>,
+    // FASE 30D-2 (3.1.3): modelos para validar el contexto PRE-examen.
+    @InjectModel(JobProfile.name)
+    private readonly jobProfileModel: Model<JobProfileDocument>,
+    @InjectModel(Risk.name)
+    private readonly riskModel: Model<RiskDocument>,
   ) {}
 
   /**
@@ -62,9 +70,17 @@ export class OccupationalExamService {
       throw new BadRequestException('El empleado especificado no existe o no pertenece a esta empresa');
     }
 
+    const payload: Record<string, unknown> = { ...dto, companyId };
+    if (dto.occupationalContext) {
+      payload.occupationalContext = await this.validateOccupationalContext(
+        companyId,
+        dto.occupationalContext,
+        dto.examDate,
+      );
+    }
+
     const created = new this.examModel({
-      ...dto,
-      companyId,
+      ...payload,
       employeeId: new Types.ObjectId(dto.employeeId),
     });
     return created.save();
@@ -124,8 +140,17 @@ export class OccupationalExamService {
       }
     }
 
+    const payload: Record<string, unknown> = { ...dto };
+    if (dto.occupationalContext) {
+      payload.occupationalContext = await this.validateOccupationalContext(
+        companyId,
+        dto.occupationalContext,
+        dto.examDate,
+      );
+    }
+
     const exam = await this.examModel
-      .findOneAndUpdate({ _id: id, companyId }, dto, { new: true, runValidators: true })
+      .findOneAndUpdate({ _id: id, companyId }, payload, { new: true, runValidators: true })
       .exec();
 
     if (!exam) {
@@ -280,6 +305,77 @@ export class OccupationalExamService {
       hazardCoverage,
       hazardCoveragePending,
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // FASE 30D-2 — Contexto PRE-examen (3.1.3)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Valida y normaliza el contexto PRE-examen de un examen:
+   * - jobProfileId debe referenciar un JobProfile del MISMO tenant;
+   * - riskIds deben referenciar riesgos (Risk) del MISMO tenant;
+   * - coherencia temporal: providedAt <= examDate cuando ambas fechas existen.
+   *
+   * Devuelve el objeto normalizado con ObjectIds y Date (para persistir).
+   */
+  private async validateOccupationalContext(
+    companyId: Types.ObjectId,
+    context: ExamOccupationalContextDto,
+    examDate?: string,
+  ): Promise<Record<string, unknown>> {
+    const normalized: Record<string, unknown> = {
+      providedToEvaluator: context.providedToEvaluator ?? false,
+      providedBy: context.providedBy ?? '',
+    };
+
+    if (context.jobProfileId) {
+      const profile = await this.jobProfileModel
+        .findOne({ _id: new Types.ObjectId(context.jobProfileId), companyId })
+        .select('_id')
+        .lean()
+        .exec();
+      if (!profile) {
+        throw new BadRequestException(
+          'El JobProfile del contexto no existe o no pertenece a esta empresa',
+        );
+      }
+      normalized.jobProfileId = new Types.ObjectId(context.jobProfileId);
+    }
+
+    const riskIds = context.riskIds ?? [];
+    if (riskIds.length > 0) {
+      const uniqueIds = [...new Set(riskIds)];
+      const found = await this.riskModel
+        .find({ _id: { $in: uniqueIds.map((id) => new Types.ObjectId(id)) }, companyId })
+        .select('_id')
+        .lean()
+        .exec();
+      if (found.length !== uniqueIds.length) {
+        throw new BadRequestException(
+          'Uno o más riesgos del contexto no existen o no pertenecen a esta empresa',
+        );
+      }
+      normalized.riskIds = uniqueIds.map((id) => new Types.ObjectId(id));
+    }
+
+    if (context.providedAt) {
+      const providedAt = new Date(context.providedAt);
+      if (Number.isNaN(providedAt.getTime())) {
+        throw new BadRequestException('providedAt no es una fecha válida');
+      }
+      if (examDate) {
+        const exam = new Date(examDate);
+        if (!Number.isNaN(exam.getTime()) && providedAt.getTime() > exam.getTime()) {
+          throw new BadRequestException(
+            'La evidencia PRE-examen no puede ser posterior al examen (providedAt <= examDate)',
+          );
+        }
+      }
+      normalized.providedAt = providedAt;
+    }
+
+    return normalized;
   }
 
   private buildDistribution<T>(

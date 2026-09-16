@@ -53,6 +53,15 @@ import { SociodemographicManagementPage } from './pages/SociodemographicManageme
 import { OccupationalExamManagementPage } from './pages/OccupationalExamManagementPage';
 import { MedicalRecommendationManagementPage } from './pages/MedicalRecommendationManagementPage';
 import { OccupationalEvaluationManagementPage } from './pages/OccupationalEvaluationManagementPage';
+import { JobProfilesPage } from './pages/JobProfilesPage';
+import { HealthPromotionPage } from './pages/HealthPromotionPage';
+import { OccupationalMedicalRecordCustodyPage } from './pages/OccupationalMedicalRecordCustodyPage';
+// FASE 33 (3.1.6): Restricciones y recomendaciones médico-laborales.
+import { WorkRestrictionsPage } from './pages/WorkRestrictionsPage';
+import { WorkplaceSanitaryConditionsPage } from './pages/WorkplaceSanitaryConditionsPage';
+import { WasteManagementPage } from './pages/WasteManagementPage';
+// FASE 35B: infraestructura estadística de enfermedad laboral (sin scoring).
+import { OccupationalDiseaseStatisticalCasesPage } from './pages/OccupationalDiseaseStatisticalCasesPage';
 import { DoPage } from './pages/documents/DoPage';
 import { CheckPage } from './pages/documents/CheckPage';
 import { ActPage } from './pages/documents/ActPage';
@@ -743,6 +752,99 @@ function App() {
     </>
   );
 
+  // FASE 30D-3 (3.1.3): Perfiles de cargo. Lectura permitida a owner/admin/manager
+  // (el backend habilita GET a esos roles); escritura solo owner/admin. Desde el
+  // PHVA (Hacer → 3.1.3) llegan también managers en modo solo lectura.
+  const renderJobProfilesRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <JobProfilesPage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
+
+  // FASE 30E (3.1.2): Promoción y prevención en salud. Lectura para
+  // owner/admin/manager (GET del backend); escritura solo owner/admin.
+  const renderHealthPromotionRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <HealthPromotionPage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
+
+  // FASE 30G (3.1.5): Custodia de historias clínicas ocupacionales. Lectura para
+  // owner/admin/manager (GET del backend); escritura solo owner/admin.
+  const renderCustodyRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <OccupationalMedicalRecordCustodyPage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
+
+  // FASE 33 (3.1.6): Restricciones y recomendaciones médico-laborales. Lectura
+  // para owner/admin/manager; escritura solo owner/admin (backend es autoridad).
+  const renderWorkRestrictionsRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <WorkRestrictionsPage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
+
+  // FASE 34B (3.1.8): Condiciones sanitarias del lugar de trabajo. Lectura
+  // para owner/admin/manager; escritura solo owner/admin (backend es autoridad).
+  const renderWorkplaceSanitaryConditionsRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <WorkplaceSanitaryConditionsPage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
+
+  // FASE 34C (3.1.9): Gestión de residuos. Lectura para owner/admin/manager;
+  // escritura solo owner/admin (backend es autoridad).
+  const renderWasteManagementRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <WasteManagementPage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
+
+  // FASE 35B: Casos estadísticos de enfermedad laboral. Lectura para
+  // owner/admin/manager; escritura solo owner/admin (backend es autoridad).
+  // SIN métricas de prevalencia/incidencia ni scoring 3.3.4/3.3.5 (fases 35C/35D).
+  const renderOccupationalDiseaseStatisticalCasesRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <OccupationalDiseaseStatisticalCasesPage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
+
   if (!currentUser) {
     return (
       <main className="auth-wrap"><div className="card">
@@ -846,6 +948,14 @@ function App() {
         />
         <Route path="/users" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderUsersPage()} />
         <Route path="/employees" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEmployeesRoutePage()} />
+        <Route path="/job-profiles" element={renderJobProfilesRoutePage()} />
+        <Route path="/health-promotion" element={renderHealthPromotionRoutePage()} />
+        <Route path="/occupational-medical-record-custody" element={renderCustodyRoutePage()} />
+        <Route path="/work-restrictions" element={renderWorkRestrictionsRoutePage()} />
+        <Route path="/workplace-sanitary-conditions" element={renderWorkplaceSanitaryConditionsRoutePage()} />
+        <Route path="/waste-management" element={renderWasteManagementRoutePage()} />
+        {/* FASE 35B: infraestructura estadística de enfermedad laboral (sin scoring). */}
+        <Route path="/occupational-disease-statistical-cases" element={renderOccupationalDiseaseStatisticalCasesRoutePage()} />
         <Route
           path="/company-configuration"
           element={

@@ -81,7 +81,8 @@ export class RiskMethodologyProvider implements ComplianceProvider {
         ],
         pending: 0,
         completed: 0,
-        phases: { plan: 0 } as Partial<Record<CompliancePhaseKey, number>>,
+        // 4.1.1 pertenece a la fase HACER del PHVA (catálogo phva: 'HACER').
+        phases: { do: 0 } as Partial<Record<CompliancePhaseKey, number>>,
       };
     }
 
@@ -255,7 +256,8 @@ export class RiskMethodologyProvider implements ComplianceProvider {
       findings,
       pending: activeMethodologies.length === 0 ? 1 : 0,
       completed: activeMethodologies.length > 0 ? 1 : 0,
-      phases: { plan: percentage } as Partial<Record<CompliancePhaseKey, number>>,
+      // 4.1.1 pertenece a la fase HACER del PHVA (catálogo phva: 'HACER').
+      phases: { do: percentage } as Partial<Record<CompliancePhaseKey, number>>,
     };
   }
 }

@@ -3,10 +3,13 @@ import {
   AbsenteeismModel,
   AbsenteeismType,
   EmployeeModel,
+  ScheduledWorkDataModel,
   createAbsenteeism,
   deleteAbsenteeism,
   fetchAbsenteeismByCompany,
   fetchEmployees,
+  fetchScheduledWorkData,
+  upsertScheduledWorkData,
 } from '../api';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -43,8 +46,15 @@ interface AbsenteeismFormState {
   tipo: AbsenteeismType;
   fechaInicio: string;
   fechaFin: string;
+  medicalIncapacity: boolean;
   descripcion: string;
   soporte: File | null;
+}
+
+/** FASE 35E-2: estado del denominador mensual de 3.3.6 (días de trabajo programados). */
+interface ScheduledWorkState {
+  period: string;
+  scheduledWorkDays: string;
 }
 
 interface FilterState {
@@ -76,8 +86,20 @@ const emptyForm: AbsenteeismFormState = {
   tipo: 'ENFERMEDAD',
   fechaInicio: '',
   fechaFin: '',
+  medicalIncapacity: true,
   descripcion: '',
   soporte: null,
+};
+
+/** Mes en curso en formato YYYY-MM (zona local, coherente con el input month). */
+function currentMonthPeriod(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+const emptyScheduledWork: ScheduledWorkState = {
+  period: currentMonthPeriod(),
+  scheduledWorkDays: '',
 };
 
 const defaultFilters: FilterState = {
@@ -96,6 +118,11 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
   const [form, setForm] = useState<AbsenteeismFormState>(emptyForm);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [lastSync, setLastSync] = useState('');
+  // FASE 35E-2 (3.3.6): denominador mensual "días de trabajo programados".
+  const [scheduledWork, setScheduledWork] = useState<ScheduledWorkDataModel[]>([]);
+  const [scheduledForm, setScheduledForm] = useState<ScheduledWorkState>(emptyScheduledWork);
+  const [scheduledSaving, setScheduledSaving] = useState(false);
+  const [scheduledMessage, setScheduledMessage] = useState('');
 
   const employeeNames = useMemo(() => new Map(employees.map((employee) => [employee._id, employee.name])), [employees]);
 
@@ -203,10 +230,15 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
     setError('');
 
     try {
-      const [absenteeismData, employeeData] = await Promise.all([fetchAbsenteeismByCompany(token, companyId), fetchEmployees(token)]);
+      const [absenteeismData, employeeData, scheduledData] = await Promise.all([
+        fetchAbsenteeismByCompany(token, companyId),
+        fetchEmployees(token),
+        fetchScheduledWorkData(token, companyId).catch(() => [] as ScheduledWorkDataModel[]),
+      ]);
 
       setRecords(absenteeismData);
       setEmployees(employeeData);
+      setScheduledWork(scheduledData);
       setForm((prev) => ({ ...prev, userId: prev.userId || employeeData[0]?._id || '' }));
       setLastSync(new Date().toLocaleString('es-CO'));
     } catch (requestError) {
@@ -251,6 +283,7 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
         tipo: form.tipo,
         fechaInicio: form.fechaInicio,
         fechaFin: form.fechaFin,
+        medicalIncapacity: form.tipo === 'PERMISO' ? undefined : form.medicalIncapacity,
         descripcion: form.descripcion || undefined,
         soporte: form.soporte?.name,
       });
@@ -273,6 +306,36 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible eliminar el ausentismo.');
       setLoading(false);
+    }
+  };
+
+  /** FASE 35E-2: guarda el denominador mensual (upsert idempotente owner/admin). */
+  const handleSaveScheduledWork = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setScheduledSaving(true);
+    setScheduledMessage('');
+
+    const days = Number(scheduledForm.scheduledWorkDays);
+    if (!/\d{4}-(0[1-9]|1[0-2])/.test(scheduledForm.period) || !Number.isInteger(days) || days < 0) {
+      setScheduledMessage('Período YYYY-MM y días programados (entero ≥ 0) son obligatorios.');
+      setScheduledSaving(false);
+      return;
+    }
+
+    try {
+      await upsertScheduledWorkData(token, {
+        period: scheduledForm.period,
+        scheduledWorkDays: days,
+      });
+      setScheduledMessage(`Días programados guardados para ${scheduledForm.period}.`);
+      const refreshed = await fetchScheduledWorkData(token, companyId).catch(() => [] as ScheduledWorkDataModel[]);
+      setScheduledWork(refreshed);
+    } catch (requestError) {
+      setScheduledMessage(
+        requestError instanceof Error ? requestError.message : 'No fue posible guardar los días programados.',
+      );
+    } finally {
+      setScheduledSaving(false);
     }
   };
 
@@ -335,6 +398,62 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
         columns={4}
       />
 
+      {/* FASE 35E-2 (3.3.6): denominador mensual — días de trabajo programados */}
+      <Card title="Días de trabajo programados (denominador del indicador 3.3.6)">
+        <div className="grid grid-2">
+          <form onSubmit={handleSaveScheduledWork} className="form-grid">
+            <div className="grid grid-2">
+              <label className="field">
+                <span className="label">Mes</span>
+                <Input
+                  type="month"
+                  value={scheduledForm.period}
+                  onChange={(event) => setScheduledForm((prev) => ({ ...prev, period: event.target.value }))}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span className="label">Días programados</span>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={scheduledForm.scheduledWorkDays}
+                  onChange={(event) => setScheduledForm((prev) => ({ ...prev, scheduledWorkDays: event.target.value }))}
+                  required
+                />
+              </label>
+            </div>
+            <div className="actions">
+              <Button type="submit" disabled={scheduledSaving}>Guardar días programados</Button>
+            </div>
+            {scheduledMessage ? <p className="muted">{scheduledMessage}</p> : null}
+          </form>
+
+          <div>
+            <p className="label" style={{ margin: 0, fontSize: '0.82rem' }}>Valor del mes en curso</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.25rem 0 0.5rem' }}>
+              {scheduledWork.find((entry) => entry.period === currentMonthPeriod())?.scheduledWorkDays ?? '—'}
+            </p>
+            <p className="label" style={{ margin: 0, fontSize: '0.82rem' }}>Histórico reciente</p>
+            {scheduledWork.length ? (
+              <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
+                {scheduledWork.slice(0, 6).map((entry) => (
+                  <li key={entry._id}>
+                    {entry.period}: {entry.scheduledWorkDays} días
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+                Sin registros. El indicador 3.3.6 requiere el denominador del mes: no se inventa ni se
+                sustituye por headcount u horas trabajadas.
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
+
       {/* Gráficos */}
       <div className="grid grid-2">
         <Card title="Días perdidos por mes">
@@ -393,6 +512,7 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
             <th className="border border-black p-3">Fecha inicio</th>
             <th className="border border-black p-3">Fecha fin</th>
             <th className="border border-black p-3">Días</th>
+            <th className="border border-black p-3">Incapacidad médica</th>
             <th className="border border-black p-3">Acciones</th>
           </tr>
         </thead>
@@ -405,6 +525,15 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
               <td className="border border-black p-3">{new Date(record.fechaFin).toLocaleDateString('es-CO')}</td>
               <td className="border border-black p-3">{record.dias}</td>
               <td className="border border-black p-3">
+                {record.tipo === 'PERMISO'
+                  ? 'No aplica'
+                  : record.medicalIncapacity === undefined
+                    ? 'Sin clasificar'
+                    : record.medicalIncapacity
+                      ? 'Sí'
+                      : 'No'}
+              </td>
+              <td className="border border-black p-3">
                 <div className="actions">
                   <Button type="button" variant="danger" onClick={() => handleDelete(record._id)}>
                     Eliminar
@@ -415,7 +544,7 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
           ))}
           {!filteredRecords.length ? (
             <tr>
-              <td className="border border-black p-3" colSpan={6}>No hay ausentismos registrados para los filtros seleccionados.</td>
+              <td className="border border-black p-3" colSpan={7}>No hay ausentismos registrados para los filtros seleccionados.</td>
             </tr>
           ) : null}
         </tbody>
@@ -482,6 +611,19 @@ export function AbsenteeismPage({ token }: AbsenteeismPageProps) {
               <Input type="date" value={form.fechaFin} onChange={(event) => setForm((prev) => ({ ...prev, fechaFin: event.target.value }))} required />
             </label>
           </div>
+
+          {form.tipo !== 'PERMISO' ? (
+            <label className="field">
+              <span className="label">¿Corresponde a incapacidad médica (laboral o común)?</span>
+              <Select
+                value={form.medicalIncapacity ? 'si' : 'no'}
+                onChange={(event) => setForm((prev) => ({ ...prev, medicalIncapacity: event.target.value === 'si' }))}
+              >
+                <option value="si">Sí — cuenta para el indicador 3.3.6</option>
+                <option value="no">No — ausencia administrativa</option>
+              </Select>
+            </label>
+          ) : null}
 
           <label className="field">
             <span className="label">Descripción</span>

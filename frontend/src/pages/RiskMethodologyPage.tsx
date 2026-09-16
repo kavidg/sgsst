@@ -2,7 +2,13 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   fetchStandardAnalysis,
+  fetchRiskMethodologies,
+  createRiskMethodology,
+  updateRiskMethodology,
+  deleteRiskMethodology,
   type StandardAnalysisResponse,
+  type RiskMethodologyModel,
+  type CreateRiskMethodologyPayload,
 } from '../api';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -31,26 +37,9 @@ interface RiskMethodologyPageProps {
   role?: string;
 }
 
-interface Methodology {
-  _id: string;
-  companyId: string;
-  name: string;
-  version: string;
-  description?: string;
-  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
-  effectiveFrom?: string;
-  reviewDate?: string;
-  reviewFrequencyMonths?: number;
-  responsible?: string;
-  identificationCriteria?: string;
-  evaluationCriteria?: string;
-  valuationCriteria?: string;
-  probabilityScale?: string;
-  consequenceScale?: string;
-  riskLevelRules?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+// FASE 4.1.1-2: el modelo Methodology proviene del cliente API estándar
+// (apiFetch → BACKEND_URL, Bearer token, manejo de errores unificado).
+type Methodology = RiskMethodologyModel;
 
 const TABS: SidebarTabItem[] = [
   { id: 'metodologias', label: 'Metodologías', icon: '📋' },
@@ -112,11 +101,7 @@ export function RiskMethodologyPage({ token, role }: RiskMethodologyPageProps) {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/risks/methodologies', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('Error loading methodologies');
-      const data = await response.json();
+      const data = await fetchRiskMethodologies(token);
       setMethodologies(data);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible cargar las metodologías.');
@@ -187,23 +172,30 @@ export function RiskMethodologyPage({ token, role }: RiskMethodologyPageProps) {
     setError('');
 
     try {
-      const url = editingId
-        ? `/api/risks/methodologies/${editingId}`
-        : '/api/risks/methodologies';
-      const method = editingId ? 'PATCH' : 'POST';
+      // Patrón hermano (HazardousSubstancePage): los campos vacíos del
+      // formulario se envían como undefined, no como '' (el backend aplica
+      // default '' en el schema, pero las fechas deben quedar ausentes).
+      const payload: CreateRiskMethodologyPayload = {
+        name: form.name,
+        version: form.version,
+        description: form.description || undefined,
+        status: form.status,
+        effectiveFrom: form.effectiveFrom || undefined,
+        reviewDate: form.reviewDate || undefined,
+        reviewFrequencyMonths: form.reviewFrequencyMonths,
+        responsible: form.responsible || undefined,
+        identificationCriteria: form.identificationCriteria || undefined,
+        evaluationCriteria: form.evaluationCriteria || undefined,
+        valuationCriteria: form.valuationCriteria || undefined,
+        probabilityScale: form.probabilityScale || undefined,
+        consequenceScale: form.consequenceScale || undefined,
+        riskLevelRules: form.riskLevelRules || undefined,
+      };
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(form),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || 'Error guardando metodología');
+      if (editingId) {
+        await updateRiskMethodology(token, editingId, payload);
+      } else {
+        await createRiskMethodology(token, payload);
       }
 
       resetForm();
@@ -240,11 +232,7 @@ export function RiskMethodologyPage({ token, role }: RiskMethodologyPageProps) {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`/api/risks/methodologies/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('Error eliminando metodología');
+      await deleteRiskMethodology(token, id);
       if (editingId === id) resetForm();
       await loadData();
     } catch (requestError) {

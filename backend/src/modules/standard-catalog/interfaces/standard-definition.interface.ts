@@ -20,6 +20,25 @@ export type PhvaPhase = 'PLANEAR' | 'HACER' | 'VERIFICAR' | 'ACTUAR';
  */
 export type ImplementationStatus = 'IMPLEMENTED' | 'PARTIAL' | 'PLANNED';
 
+/**
+ * Clasificación normativa del estándar dentro del catálogo interno.
+ *
+ * - `OFFICIAL`      → estándar puntuable de la Resolución 0312.
+ * - `DUPLICATE`     → código interno que duplica semánticamente otro estándar
+ *                     oficial/ya existente (no entra al scoring 0312).
+ * - `COMPLEMENTARY` → funcionalidad complementaria del SaaS, no puntuable.
+ * - `PHANTOM`       → código sin equivalente normativo real.
+ * - `OUT_OF_SCOPE`  → SCOPE-1: infraestructura técnica existente (módulo y/o
+ *                     provider) pero excluida del alcance aprobado por los
+ *                     socios; no es parte visible del producto ni puntúa.
+ */
+export type CatalogClassification =
+  | 'OFFICIAL'
+  | 'DUPLICATE'
+  | 'COMPLEMENTARY'
+  | 'PHANTOM'
+  | 'OUT_OF_SCOPE';
+
 /** Metadatos de prioridad estáticos (config, sin lógica). */
 export interface StandardPriorityMetadata {
   /** Criticidad normativa del estándar (Resolución 0312). */
@@ -91,4 +110,23 @@ export interface StandardDefinition {
   modeReview?: string;
   /** Sección del PHVA a la que pertenece el estándar (opcional). */
   section?: StandardSection;
+  /**
+   * Clasificación normativa del estándar (opcional).
+   * Ausente = implícitamente OFFICIAL para estándares preexistentes.
+   * Solo se puebla explícitamente en DUPLICATE / COMPLEMENTARY / PHANTOM.
+   */
+  classification?: CatalogClassification;
+  /**
+   * Código del estándar equivalente cuando classification = DUPLICATE.
+   * P. ej. '1.1.3' para un duplicado de la asignación de recursos.
+   */
+  duplicateOf?: string;
+  /**
+   * Nivel de semántica de mapeo del provider (FASE 30B+).
+   * - EXACT → evidencia coincide semánticamente con el estándar normativo.
+   * - PARTIAL → evidencia existe pero no cubre el estándar completo o es semánticamente imprecisa.
+   * - MISSING → provider aún no implementado o sin evidencia.
+   * Ausente = sin proveedor o sin clasificación semántica aún.
+   */
+  semantic?: 'EXACT' | 'PARTIAL' | 'MISSING';
 }

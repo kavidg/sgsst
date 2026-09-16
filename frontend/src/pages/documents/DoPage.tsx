@@ -34,22 +34,27 @@ const condicionesSalud: EvaluationEntry[] = [
       'Existe perfil sociodemográfico documentado, actualizado y utilizado como insumo para la planificación de actividades de promoción y prevención en salud laboral.',
   },
   {
+    // FASE 30E: 3.1.2 corresponde a "Promoción y prevención en salud" (texto
+    // legacy alineado con el catálogo). Los exámenes médicos ocupacionales son
+    // el estándar 3.1.4 y NO son evidencia de este estándar.
     code: '3.1.2',
-    title: 'Exámenes médicos ocupacionales',
+    title: 'Promoción y prevención en salud',
     weight: 3,
     modeReview:
-      'Solicitar evidencias de exámenes médicos de ingreso, periódicos y de egreso según el riesgo del cargo, verificando cumplimiento de periodicidad y custodia de historias clínicas ocupacionales.',
+      'Verificar la existencia de actividades de promoción y prevención en salud (según el diagnóstico de condiciones de salud y los peligros/riesgos prioritarios) con evidencia de ejecución real: fecha, responsable, participantes y registro de la actividad.',
     criteria:
-      'La organización ejecuta evaluaciones médicas ocupacionales conforme a la normatividad y garantiza confidencialidad, trazabilidad y seguimiento de resultados.',
+      'La organización planifica y ejecuta actividades reales de promoción y prevención en salud dirigidas a la población trabajadora, con población objetivo definida, responsables, participantes alcanzados y evidencia de ejecución durante el período evaluado.',
   },
   {
+    // FASE 30D-3: 3.1.3 corresponde a "Información al médico de los perfiles de
+    // cargo" (texto legacy alineado con el catálogo; ver metadata oficial).
     code: '3.1.3',
-    title: 'Seguimiento a recomendaciones médicas',
+    title: 'Información al médico de perfiles de cargo',
     weight: 3,
     modeReview:
-      'Revisar el mecanismo para gestionar recomendaciones o restricciones médicas y confirmar evidencia de ajustes laborales, reubicaciones o controles implementados.',
+      'Solicitar los perfiles de cargo con su información funcional, condiciones de trabajo y peligros asociados, y verificar que dicha información fue suministrada al médico para la realización de las evaluaciones médicas ocupacionales.',
     criteria:
-      'Se evidencia gestión oportuna de recomendaciones médicas ocupacionales, con acciones documentadas y monitoreo de su efectividad.',
+      'La organización dispone de perfiles de cargo estructurados y evidencia de que su información fue suministrada al médico evaluador en las evaluaciones médicas ocupacionales.',
   },
   {
     code: '3.1.4',
@@ -249,6 +254,8 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
               headerAction={
+                // FASE 30D-3: 3.1.3 abre la pantalla propia de perfiles de cargo
+                // (JobProfiles); nunca el módulo legacy de recomendaciones médicas.
                 ['3.1.1', '3.1.2', '3.1.3', '3.1.4', '3.2.1', '3.2.2', '3.3.1', '3.3.2', '3.3.3', '4.1.1', '4.1.2', '4.1.3', '4.1.4'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     ⚡ Entrar a Gestión avanzada
@@ -373,12 +380,14 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
       navigate('/sociodemographic-management', { state: { source: 'phva-3.1.1' } });
       return;
     }
+    // FASE 30E: 3.1.2 (Promoción y prevención en salud) abre su pantalla propia.
+    // Nunca navega al módulo legacy de exámenes ocupacionales.
     if (item.code === '3.1.2') {
-      navigate('/occupational-exam-management', { state: { source: 'phva-3.1.2' } });
+      navigate('/health-promotion', { state: { source: 'phva-3.1.2' } });
       return;
     }
     if (item.code === '3.1.3') {
-      navigate('/medical-recommendation-management', { state: { source: 'phva-3.1.3' } });
+      navigate('/job-profiles', { state: { source: 'phva-3.1.3' } });
       return;
     }
     if (item.code === '3.1.4') {

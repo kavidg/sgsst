@@ -29,6 +29,23 @@ export class Absenteeism {
   @Prop({ required: true })
   dias!: number;
 
+  /**
+   * FASE 35E-2 (3.3.6): naturaleza del ausentismo — señal ESTRUCTURADA y
+   * opcional de incapacidad médica (incapacidad laboral o común). Es metadata
+   * estadística categórica: NUNCA almacena contenido clínico (diagnóstico,
+   * CIE, historia clínica, síntomas, tratamiento).
+   *
+   * - undefined/null (registros históricos): señal inequívoca NO disponible →
+   *   el provider de 3.3.6 NO los cuenta automáticamente (Accidente ≠
+   *   automáticamente incapacidad; PERMISO no se infiere) — compatibilidad
+   *   hacia atrás sin inventar inferencias ni modificar datos existentes.
+   * - true: el registro declara días de incapacidad médica → cuenta para el
+   *   numerador de 3.3.6.
+   * - false: ausencia administrativa sin incapacidad médica → no cuenta.
+   */
+  @Prop({ type: Boolean })
+  medicalIncapacity?: boolean;
+
   @Prop()
   descripcion?: string;
 

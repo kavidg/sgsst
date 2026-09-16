@@ -25,8 +25,6 @@ export const PHASE_PREFIXES: Record<CompliancePhaseKey, string[]> = {
   check: [
     // VERIFICAR — estándares fuera del capítulo 6 (BLOQUE 4F-C)
     '2.6.1',  // Rendición de cuentas
-    '3.3.2',  // Medición indicadores salud
-    '4.2.2',  // Verificación medidas de control
     // VERIFICAR — capítulo 6 (prefix original)
     '6.',
   ],

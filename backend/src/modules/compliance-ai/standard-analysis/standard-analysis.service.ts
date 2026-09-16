@@ -16,7 +16,6 @@ import { OccupationalEvaluationStandardAnalyzer } from './analyzers/occupational
 import { AbsenteeismStandardAnalyzer } from './analyzers/absenteeism-standard.analyzer';
 import { DiseaseInvestigationStandardAnalyzer } from './analyzers/disease-investigation-standard.analyzer';
 import { EpidemiologicalSurveillanceStandardAnalyzer } from './analyzers/epidemiological-surveillance-standard.analyzer';
-import { IndicatorHealthStandardAnalyzer } from './analyzers/indicator-health-standard.analyzer';
 import { CaseInterventionStandardAnalyzer } from './analyzers/case-intervention-standard.analyzer';
 import { RiskMethodologyStandardAnalyzer } from './analyzers/risk-methodology-standard.analyzer';
 import { WorkerParticipationStandardAnalyzer } from './analyzers/worker-participation-standard.analyzer';
@@ -41,6 +40,15 @@ import { IncidentActionsStandardAnalyzer } from './analyzers/incident-actions-st
 import { ImprovementPlanStandardAnalyzer } from './analyzers/improvement-plan-standard.analyzer';
 import { InductionReinductionStandardAnalyzer } from './analyzers/induction-reinduction-standard.analyzer';
 import { HealthIndicatorsStandardAnalyzer } from './analyzers/health-indicators-standard.analyzer';
+// FASE 34B: analyzer 3.1.8 — Agua potable, servicios sanitarios y disposición de basuras (EXACT).
+import { WorkplaceSanitaryConditionsStandardAnalyzer } from './analyzers/workplace-sanitary-conditions-standard.analyzer';
+// FASE 34C: analyzer 3.1.9 — Eliminación adecuada de residuos sólidos, líquidos o gaseosos (EXACT).
+import { WasteManagementStandardAnalyzer } from './analyzers/waste-management-standard.analyzer';
+// SCOPE-1: los analyzers 3.3.4/3.3.5/3.3.6 (DiseasePrevalenceStandardAnalyzer,
+// DiseaseIncidenceStandardAnalyzer, MedicalAbsenteeismStandardAnalyzer) se
+// conservan en analyzers/ con sus tests, pero NO se registran: esos estándares
+// quedaron fuera del alcance aprobado por los socios y no son análisis activo
+// del producto. analyze() responde 404 si se les consulta.
 
 /**
  * Servicio de análisis inteligente de estándares PHVA.
@@ -76,7 +84,6 @@ export class StandardAnalysisService {
     this.register(new AbsenteeismStandardAnalyzer());
     this.register(new DiseaseInvestigationStandardAnalyzer());
     this.register(new EpidemiologicalSurveillanceStandardAnalyzer());
-    this.register(new IndicatorHealthStandardAnalyzer());
     this.register(new CaseInterventionStandardAnalyzer());
     this.register(new RiskMethodologyStandardAnalyzer());
     this.register(new WorkerParticipationStandardAnalyzer());
@@ -101,13 +108,19 @@ export class StandardAnalysisService {
     this.register(new ImprovementPlanStandardAnalyzer());
     this.register(new InductionReinductionStandardAnalyzer());
     this.register(new HealthIndicatorsStandardAnalyzer());
+    // FASE 34B: analyzer EXACT para 3.1.8.
+    this.register(new WorkplaceSanitaryConditionsStandardAnalyzer());
+    // FASE 34C: analyzer EXACT para 3.1.9.
+    this.register(new WasteManagementStandardAnalyzer());
+    // SCOPE-1: los analyzers 3.3.4/3.3.5/3.3.6 ya no se registran (fuera del
+    // alcance aprobado). Código y tests conservados como infraestructura futura.
   }
 
   /**
    * Registra un analyzer para un código de estándar.
    */
   private register(analyzer: StandardAnalyzer): void {
-    const testCodes = ['1.2.2', '2.9.1', '2.11.1', '2.7.1', '2.5.1', '2.6.1', '2.8.1', '2.10.1', '3.1.1', '3.1.2', '3.1.3', '3.1.4', '3.2.1', '3.2.2', '3.3.1', '3.3.2', '3.3.3', '4.1.1', '4.1.2', '4.1.3', '4.1.4', '4.2.1', '4.2.2', '4.2.3', '4.2.4', '4.2.5', '4.2.6', '4.3.1', '4.4.1', '5.1.1', '5.1.2', '6.1.1', '6.1.2', '6.1.3', '6.1.4', '7.1.1', '7.1.2', '7.1.3', '7.1.4'];
+    const testCodes = ['1.2.2', '2.9.1', '2.11.1', '2.7.1', '2.5.1', '2.6.1', '2.8.1', '2.10.1', '3.1.1', '3.1.2', '3.1.3', '3.1.4', '3.1.8', '3.1.9', '3.2.1', '3.2.2', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.3.5', '3.3.6', '4.1.1', '4.1.2', '4.1.3', '4.1.4', '4.2.1', '4.2.2', '4.2.3', '4.2.4', '4.2.5', '4.2.6', '4.3.1', '4.4.1', '5.1.1', '5.1.2', '6.1.1', '6.1.2', '6.1.3', '6.1.4', '7.1.1', '7.1.2', '7.1.3', '7.1.4'];
     for (const code of testCodes) {
       if (analyzer.supports(code)) {
         this.analyzers.set(code, analyzer);

@@ -25,6 +25,17 @@
     "src/modules/contracting/**/*.ts",
     "src/modules/change-management/**/*.ts",
     "src/modules/incidents/**/*.ts",
-    "src/modules/epidemiological-surveillance/**/*.ts"
+    "src/modules/epidemiological-surveillance/**/*.ts",
+    "src/modules/job-profile/**/*.ts",
+    "src/modules/health-promotion/**/*.ts",
+    "src/modules/employees/**/*.ts",
+    "src/modules/occupational-exam/**/*.ts",
+    "src/modules/occupational-medical-record-custody/**/*.ts",
+    "src/modules/work-restriction/**/*.ts",
+    "src/modules/workplace-sanitary-conditions/**/*.ts",
+    "src/modules/waste-management/**/*.ts",
+    "src/modules/occupational-disease-statistical-case/**/*.ts",
+    "src/modules/risks/risk-methodology.service.spec.ts",
+    "src/modules/risks/risk-integrity.spec.ts"
   ]
 }

@@ -9,11 +9,14 @@ import {
   IsString,
   Min,
   Validate,
+  ValidateNested,
   ValidatorConstraint,
   ValidatorConstraintInterface,
   ValidationArguments,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ExamType, ExamStatus, FitnessStatus } from '../schemas/occupational-exam.schema';
+import { ExamOccupationalContextDto } from './exam-occupational-context.dto';
 
 /**
  * Validador personalizado: si followUpRequired es true, followUpDate es obligatorio.
@@ -115,6 +118,13 @@ export class UpdateOccupationalExamDto {
   @IsOptional()
   @IsDateString()
   communicationDate?: string;
+
+  // ── FASE 30D-2: Contexto PRE-examen (3.1.3) ──
+  /** Evidencia de información del perfil de cargo suministrada al evaluador. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ExamOccupationalContextDto)
+  occupationalContext?: ExamOccupationalContextDto;
 
   // Validadores de consistencia
   @Validate(FollowUpDateRequiredValidator)

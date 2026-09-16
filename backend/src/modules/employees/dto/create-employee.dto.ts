@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
 import { EducationLevel, EthnicGroup, Gender, HousingType, MaritalStatus, WorkSchedule } from '../schemas/employee.schema';
 
 export class CreateEmployeeDto {
@@ -85,4 +85,10 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   workCenter?: string;
+
+  // ── Relación con JobProfile (3.1.3, FASE 30D-2) ──
+  /** Perfil de cargo estructurado (debe pertenecer a la misma empresa). */
+  @IsOptional()
+  @IsMongoId()
+  jobProfileId?: string;
 }

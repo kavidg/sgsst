@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { BulkEmployeeItemDto } from './dto/bulk-create-employees.dto';
 import { Employee, EmployeeDocument } from './schemas/employee.schema';
+import { JobProfile, JobProfileDocument } from '../job-profile/schemas/job-profile.schema';
 
 // ── Tipos para estadísticas sociodemográficas ──
 
@@ -47,10 +48,20 @@ export class EmployeesService {
   constructor(
     @InjectModel(Employee.name)
     private readonly employeeModel: Model<EmployeeDocument>,
+    // FASE 30D-2: JobProfile para validar la relación Employee → JobProfile (3.1.3).
+    @InjectModel(JobProfile.name)
+    private readonly jobProfileModel: Model<JobProfileDocument>,
   ) {}
 
   async create(companyId: Types.ObjectId, dto: CreateEmployeeDto): Promise<Employee> {
-    const created = new this.employeeModel({ ...dto, companyId });
+    await this.assertJobProfileInCompany(companyId, dto.jobProfileId);
+    const created = new this.employeeModel({
+      ...dto,
+      ...(dto.jobProfileId
+        ? { jobProfileId: new Types.ObjectId(dto.jobProfileId) }
+        : {}),
+      companyId,
+    });
     return created.save();
   }
 
@@ -141,8 +152,18 @@ export class EmployeesService {
   }
 
   async update(id: string, companyId: Types.ObjectId, dto: UpdateEmployeeDto): Promise<Employee> {
+    await this.assertJobProfileInCompany(companyId, dto.jobProfileId);
     const employee = await this.employeeModel
-      .findOneAndUpdate({ _id: id, companyId }, dto, { new: true, runValidators: true })
+      .findOneAndUpdate(
+        { _id: id, companyId },
+        {
+          ...dto,
+          ...(dto.jobProfileId
+            ? { jobProfileId: new Types.ObjectId(dto.jobProfileId) }
+            : {}),
+        },
+        { new: true, runValidators: true },
+      )
       .exec();
 
     if (!employee) {
@@ -150,6 +171,68 @@ export class EmployeesService {
     }
 
     return employee;
+  }
+
+  // ── FASE 30D-2: Relación Employee → JobProfile (3.1.3) ──
+
+  /** Asocia un JobProfile del MISMO tenant a un empleado. */
+  async assignJobProfile(
+    employeeId: string,
+    companyId: Types.ObjectId,
+    jobProfileId: string,
+  ): Promise<Employee> {
+    await this.assertJobProfileInCompany(companyId, jobProfileId);
+    const employee = await this.employeeModel
+      .findOneAndUpdate(
+        { _id: employeeId, companyId },
+        { jobProfileId: new Types.ObjectId(jobProfileId) },
+        { new: true, runValidators: true },
+      )
+      .exec();
+
+    if (!employee) {
+      throw new NotFoundException(`Employee with id ${employeeId} not found`);
+    }
+    return employee;
+  }
+
+  /** Desasocia el JobProfile de un empleado (sin borrar el perfil). */
+  async unassignJobProfile(employeeId: string, companyId: Types.ObjectId): Promise<Employee> {
+    const employee = await this.employeeModel
+      .findOneAndUpdate(
+        { _id: employeeId, companyId },
+        { $unset: { jobProfileId: '' } },
+        { new: true, runValidators: true },
+      )
+      .exec();
+
+    if (!employee) {
+      throw new NotFoundException(`Employee with id ${employeeId} not found`);
+    }
+    return employee;
+  }
+
+  /**
+   * Valida que un jobProfileId (si se provee) exista y pertenezca a la MISMA
+   * empresa. Evita referencias cross-tenant Employee ↔ JobProfile.
+   */
+  private async assertJobProfileInCompany(
+    companyId: Types.ObjectId,
+    jobProfileId?: string,
+  ): Promise<void> {
+    if (!jobProfileId) return;
+
+    const profile = await this.jobProfileModel
+      .findOne({ _id: new Types.ObjectId(jobProfileId), companyId })
+      .select('_id')
+      .lean()
+      .exec();
+
+    if (!profile) {
+      throw new BadRequestException(
+        'El JobProfile especificado no existe o no pertenece a esta empresa',
+      );
+    }
   }
 
   async remove(id: string, companyId: Types.ObjectId): Promise<void> {

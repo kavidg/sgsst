@@ -182,7 +182,7 @@ export function OccupationalExamManagementPage({ token }: Props) {
               🏥 Exámenes médicos ocupacionales
             </h1>
             <p style={{ margin: '.35rem 0 0', fontSize: '.9rem', color: '#64748b' }}>
-              Gestión y monitoreo de exámenes médicos ocupacionales — Estándar 3.1.2
+              Gestión y monitoreo de exámenes médicos ocupacionales — Estándar 3.1.4
             </p>
           </div>
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
@@ -238,7 +238,7 @@ export function OccupationalExamManagementPage({ token }: Props) {
             No hay trabajadores registrados
           </p>
           <p style={{ margin: '.35rem 0 0', fontSize: '.85rem', color: '#64748b' }}>
-            Registra trabajadores en el módulo de Empleados para comenzar a gestionar los exámenes médicos ocupacionales del estándar 3.1.2.
+            Registra trabajadores en el módulo de Empleados para comenzar a gestionar los exámenes médicos ocupacionales del estándar 3.1.4.
           </p>
           <Button type="button" onClick={() => navigate('/employees')} style={{ marginTop: '.75rem' }}>
             Ir a Empleados
@@ -258,7 +258,7 @@ export function OccupationalExamManagementPage({ token }: Props) {
             No hay exámenes médicos registrados
           </p>
           <p style={{ margin: '.35rem 0 0', fontSize: '.85rem', color: '#64748b' }}>
-            Registra exámenes médicos ocupacionales en el módulo de Empleados para evaluar el cumplimiento del estándar 3.1.2.
+            Registra exámenes médicos ocupacionales en el módulo de Empleados para evaluar el cumplimiento del estándar 3.1.4.
           </p>
           <Button type="button" onClick={() => navigate('/employees')} style={{ marginTop: '.75rem' }}>
             Ir a Empleados
@@ -459,11 +459,11 @@ export function OccupationalExamManagementPage({ token }: Props) {
               <ComplianceResultCard
                 token={token}
                 module="occupational-exam"
-                standardCode="3.1.2"
+                standardCode="3.1.4"
                 standardTitle="Exámenes médicos ocupacionales"
                 actionRoute="/occupational-exam-management"
               />
-              <ComplianceAIInsight token={token} standardCode="3.1.2" />
+              <ComplianceAIInsight token={token} standardCode="3.1.4" />
             </div>
           </section>
 

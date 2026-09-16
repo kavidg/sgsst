@@ -4,22 +4,28 @@ import { StandardDefinition, StandardLevel } from '../interfaces/standard-defini
  * CATÁLOGO MAESTRO DE ESTÁNDARES MÍNIMOS SG-SST (60 estándares).
  *
  * Única fuente de verdad del catálogo normativo. Los códigos 1.1.1–7.1.4
- * corresponden a los 50 estándares VERIFICADOS en la plataforma (PHVA
- * documental + Evaluación Inicial + módulos avanzados). Los 10 restantes
- * (1.1.9, 1.1.10, 2.12.1, 2.13.1, 3.3.4, 3.4.1, 4.3.1, 4.4.1, 5.2.1, 7.2.1)
- * son ítems del anexo de la Resolución 0312 de 2019 que aún no tienen módulo
- * en la plataforma: se registran con `moduleRoute: ''` y se incorporarán en
- * una fase posterior de integración.
+ * corresponden a los estándares VERIFICADOS en la plataforma (PHVA
+ * documental + Evaluación Inicial + módulos avanzados). Los 9 restantes
+ * (1.1.9, 1.1.10, 2.12.1, 2.13.1, 3.4.1, 4.3.1, 4.4.1, 5.2.1, 7.2.1) son
+ * ítems del anexo de la Resolución 0312 de 2019 que aún no tienen módulo en
+ * la plataforma: se registran con `moduleRoute: ''` y se incorporarán en una
+ * fase posterior de integración. 3.3.4/3.3.5/3.3.6 conservan el módulo y la
+ * infraestructura técnica construida en las fases 35C-2/35D-2/35E-2, pero
+ * quedaron FUERA DEL ALCANCE aprobado por los socios (SCOPE-1): se marcan
+ * `classification: 'OUT_OF_SCOPE'` + `implementationStatus: 'PLANNED'`, con
+ * providers/analyzers desregistrados del scoring.
  *
  * Los niveles 7 y 21 se derivan por `applicableLevels` (catalog-7.ts y
  * catalog-21.ts) para no duplicar definiciones.
  *
  * NOTA DE PESOS: `normativeWeight` conserva el peso normativo original. Los
- * 50 códigos implementados de la plataforma suman exactamente 100 (escala
- * PHVA). Los 10 ítems PLANNED del anexo añaden 1 punto cada uno, por lo que el
- * catálogo de 60 suma 110: es intencional. El peso EFECTIVO que usa el sistema
- * se calcula automáticamente (utils/effective-weights.ts) solo sobre los
- * estándares IMPLEMENTED/PARTIAL y siempre suma exactamente 100.
+ * 50 códigos implementados originales de la plataforma suman exactamente 100
+ * (escala PHVA). Los ítems PLANNED del anexo añaden 1 punto cada uno; con el
+ * peso normativo original de los códigos implementados posteriormente, la
+ * suma de la plataforma supera 100 y los anexos añaden los suyos: es
+ * intencional. El peso EFECTIVO que usa el sistema se calcula automáticamente
+ * (utils/effective-weights.ts) solo sobre los estándares IMPLEMENTED/PARTIAL
+ * y siempre suma exactamente 100.
  */
 export const CATALOG_60: readonly StandardDefinition[] = [
   // ───────────────────────── CAPÍTULO 1. RECURSOS ─────────────────────────
@@ -183,8 +189,10 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '1.1.9',
     implementationStatus: 'PLANNED',
+    classification: 'DUPLICATE',
+    duplicateOf: '1.1.3',
     title: 'Asignación de recursos financieros al SG-SST',
-    description: 'Ítem del anexo Resolución 0312: asignación presupuestal específica para el SG-SST. Sin módulo en la plataforma aún.',
+    description: 'Duplicado semántico de 1.1.3 (Asignación de recursos). Subdivisión interna, no estándar puntuable independiente de la Resolución 0312.',
     chapter: 'Recursos',
     phva: 'PLANEAR',
     normativeWeight: 1,
@@ -195,8 +203,10 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '1.1.10',
     implementationStatus: 'PLANNED',
+    classification: 'DUPLICATE',
+    duplicateOf: '1.1.3',
     title: 'Asignación de recursos técnicos y de otra índole',
-    description: 'Ítem del anexo Resolución 0312: recursos técnicos, tecnológicos y de otra índole para el SG-SST. Sin módulo en la plataforma aún.',
+    description: 'Duplicado semántico de 1.1.3 (Asignación de recursos). Subdivisión interna, no estándar puntuable independiente de la Resolución 0312.',
     chapter: 'Recursos',
     phva: 'PLANEAR',
     normativeWeight: 1,
@@ -471,8 +481,9 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '2.12.1',
     implementationStatus: 'PLANNED',
+    classification: 'COMPLEMENTARY',
     title: 'Plan estratégico de seguridad vial',
-    description: 'Ítem del anexo Resolución 0312: plan estratégico de seguridad vial para empresas obligadas. Sin módulo en la plataforma aún.',
+    description: 'Requisito complementario (Artículo 32). No es estándar puntuable independiente de la Tabla de Valores de la Resolución 0312.',
     chapter: 'Gestión integral del SG-SST',
     phva: 'PLANEAR',
     normativeWeight: 1,
@@ -483,8 +494,9 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '2.13.1',
     implementationStatus: 'PLANNED',
+    classification: 'COMPLEMENTARY',
     title: 'Prevención de accidentes en industrias mayores',
-    description: 'Ítem del anexo Resolución 0312: prevención de accidentes mayores en industrias de alto riesgo. Sin módulo en la plataforma aún.',
+    description: 'Requisito complementario (Artículo 33). No es estándar puntuable independiente de la Tabla de Valores de la Resolución 0312.',
     chapter: 'Gestión integral del SG-SST',
     phva: 'HACER',
     normativeWeight: 1,
@@ -514,45 +526,57 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '3.1.2',
+    // FASE 30E: 3.1.2 (Promoción y prevención en salud) se implementa con
+    // infraestructura real y provider EXACT (health-promotion). Antes su
+    // metadata heredaba el texto legacy de exámenes médicos ocupacionales
+    // (WRONG_MAPPING detectado en 30B-2/30C). El peso normativo NO cambia (3.0).
     implementationStatus: 'IMPLEMENTED',
-    title: 'Exámenes médicos ocupacionales',
-    description: 'Evaluaciones médicas ocupacionales de ingreso, periódicos y de egreso según el riesgo del cargo.',
+    title: 'Promoción y prevención en salud',
+    description: 'Actividades de promoción y prevención de la salud en el trabajo según el diagnóstico de condiciones de salud y los peligros/riesgos prioritarios.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 3,
     applicableLevels: ['7', '21', '60'],
-    moduleRoute: '/documents/do',
+    moduleRoute: '/health-promotion',
+    validationProvider: 'health-promotion.provider',
     priorityMetadata: { criticality: 'ALTA', estimatedEffort: 'MEDIO' },
-    // FASE 7.7.B.1 — Textos tomados de DoPage (condicionesSalud).
     criteria:
-      'La organización ejecuta evaluaciones médicas ocupacionales conforme a la normatividad y garantiza confidencialidad, trazabilidad y seguimiento de resultados.',
+      'La organización planifica y ejecuta actividades reales de promoción y prevención en salud dirigidas a la población trabajadora, con población objetivo definida, responsables, participantes alcanzados y evidencia de ejecución durante el período evaluado.',
     modeReview:
-      'Solicitar evidencias de exámenes médicos de ingreso, periódicos y de egreso según el riesgo del cargo, verificando cumplimiento de periodicidad y custodia de historias clínicas ocupacionales.',
+      'Verificar la existencia de actividades de promoción y prevención en salud (según el diagnóstico de condiciones de salud y los peligros/riesgos prioritarios) con evidencia de ejecución real: fecha, responsable, participantes y registro de la actividad. La planificación sin ejecución, los exámenes médicos ocupacionales o las recomendaciones médicas NO sustituyen esta evidencia.',
     section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
   },
   {
     code: '3.1.3',
+    // FASE 30D-2: 3.1.3 pasa de PLANNED a IMPLEMENTED con provider EXACT
+    // (job-profile-medical-information) tras construir la infraestructura:
+    // - JobProfile (entidad tenant-aware de perfiles de cargo);
+    // - Employee.jobProfileId (relación estructurada empleado → perfil);
+    // - associatedHazardIds referenciando la matriz Risk (sin duplicación);
+    // - occupationalContext PRE-examen en OccupationalExam (evidencia C4 real).
+    // El peso normativo NO cambia (3.0). La UI de gestión (moduleRoute
+    // '/job-profiles') queda como deuda de integración frontend.
     implementationStatus: 'IMPLEMENTED',
-    title: 'Seguimiento a recomendaciones médicas',
-    description: 'Gestión oportuna de recomendaciones y restricciones médicas ocupacionales.',
+    title: 'Información al médico de perfiles de cargo',
+    description: 'Información de perfiles de cargo y condiciones de trabajo suministrada al médico evaluador para la interpretación de los resultados de las evaluaciones médicas.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 3,
     applicableLevels: ['60'],
-    moduleRoute: '/documents/do',
+    moduleRoute: '/job-profiles',
+    validationProvider: 'job-profile-medical-information.provider',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
-    // FASE 7.7.B.1 — Textos tomados de DoPage (condicionesSalud).
     criteria:
-      'Se evidencia gestión oportuna de recomendaciones médicas ocupacionales, con acciones documentadas y monitoreo de su efectividad.',
+      'La organización dispone de perfiles de cargo con la información de funciones, condiciones de trabajo, peligros/riesgos asociados e información relevante para la valoración médica ocupacional, y esa información se suministra al médico para la realización de las evaluaciones médicas ocupacionales.',
     modeReview:
-      'Revisar el mecanismo para gestionar recomendaciones o restricciones médicas y confirmar evidencia de ajustes laborales, reubicaciones o controles implementados.',
+      'Verificar que existan perfiles de cargo estructurados y asociados a los trabajadores, que incluyan condiciones de trabajo y peligros/riesgos, y que exista constancia de que esa información fue suministrada al médico evaluador (evidencia PRE-examen vinculada a cada evaluación médica ocupacional).',
     section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
   },
   {
     code: '3.1.4',
     implementationStatus: 'IMPLEMENTED',
-    title: 'Realización de Evaluaciones Médicas Ocupacionales',
-    description: 'Evaluaciones médicas ocupacionales con periodicidad, peligros relacionados y comunicación al trabajador.',
+    title: 'Evaluaciones médicas ocupacionales',
+    description: 'Realización de evaluaciones médicas ocupacionales de ingreso, periódicas y de egreso con periodicidad según riesgo, peligros relacionados y comunicación de resultados.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 3,
@@ -566,10 +590,124 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
   },
   {
+    code: '3.1.5',
+    implementationStatus: 'IMPLEMENTED',
+    semantic: 'EXACT',
+    title: 'Custodia de historias clínicas',
+    description: 'Custodia de las historias clínicas ocupacionales con confidencialidad, integridad, disponibilidad y conservación según la normatividad.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 1,
+    applicableLevels: ['60'],
+    moduleRoute: '/occupational-medical-record-custody',
+    validationProvider: 'occupational-medical-record-custody.provider',
+    priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
+    criteria:
+      'La organización custodia las historias clínicas ocupacionales bajo condiciones controladas de confidencialidad, integridad y disponibilidad, con responsable de custodia identificado, ubicación de archivo controlada y conservación según la normatividad vigente.',
+    modeReview:
+      'Verificar que existan registros de custodia de historias clínicas ocupacionales con responsable designado, ubicación controlada, referencias administrativas completas y confirmación explícita de confidencialidad, integridad y disponibilidad. La revisión trabaja EXCLUSIVAMENTE con metadatos de custodia: no evalúa contenido clínico, diagnósticos, resultados médicos ni recomendaciones.',
+    section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
+  },
+  {
+    code: '3.1.6',
+    // FASE 33: 3.1.6 implementado con entidad propia WorkRestriction (metadata
+    // only, sin contenido clínico) y provider EXACT work-restriction. Frontera
+    // con 3.1.3 (información PRE-evaluación al médico vía JobProfile) intacta:
+    // 3.1.6 acredita la gestión POST-evaluación de restricciones/recomendaciones
+    // laborales. Una evidencia = un estándar de scoring.
+    implementationStatus: 'IMPLEMENTED',
+    semantic: 'EXACT',
+    title: 'Restricciones y recomendaciones médico-laborales',
+    description: 'Gestión de restricciones y recomendaciones médico-laborales emitidas por el médico evaluador, con seguimiento y ajustes laborales.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 1,
+    applicableLevels: ['60'],
+    moduleRoute: '/work-restrictions',
+    validationProvider: 'work-restriction.provider',
+    priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
+    criteria:
+      'La organización registra y gestiona administrativamente las restricciones y recomendaciones médico-laborales emitidas por el médico evaluador, con acciones laborales asociadas, responsable y seguimiento administrativo, control de vigencia y cierre trazable, sin almacenar contenido clínico.',
+    modeReview:
+      'Verificar la existencia de registros de restricciones/recomendaciones médico-laborales con acciones laborales registradas, responsable y/o seguimiento administrativo y cierre/control de vigencia. La evidencia es EXCLUSIVAMENTE administrativa (WorkRestriction): no se consumen diagnósticos, CIE, historias clínicas, tratamientos, medicamentos ni resultados clínicos, y no se infiere evidencia desde MedicalRecommendation, OccupationalExam ni JobProfile.',
+    section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
+  },
+  {
+    code: '3.1.7',
+    // FASE 32: 3.1.7 se implementa reutilizando HealthPromotionActivity con
+    // frontera normativa explícita (complianceStandard = STANDARD_3_1_7).
+    // Provider EXACT LifestyleHealthyEnvironmentProvider; una evidencia =
+    // un estándar de scoring (3.1.2 ó 3.1.7, nunca ambos).
+    implementationStatus: 'IMPLEMENTED',
+    semantic: 'EXACT',
+    title: 'Estilos de vida y entornos saludables (controles tabaquismo, alcoholismo, farmacodependencia y otros)',
+    description: 'Promoción de estilos de vida saludables y condiciones de entorno laboral que favorezcan la salud, incluyendo controles sobre tabaquismo, alcoholismo, farmacodependencia y otros factores contemplados por el estándar.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 1,
+    applicableLevels: ['60'],
+    moduleRoute: '/health-promotion',
+    validationProvider: 'lifestyle-healthy-environment.provider',
+    priorityMetadata: { criticality: 'BAJA', estimatedEffort: 'MEDIO' },
+    criteria:
+      'La organización ejecuta intervenciones clasificadas de estilos de vida y entornos saludables (controles de tabaquismo, alcoholismo, farmacodependencia y otros), con población objetivo y trabajadores alcanzados registrados, evidencia de ejecución real (fecha, responsable, participantes) y continuidad durante el período evaluado.',
+    modeReview:
+      'Verificar la existencia de actividades/intervenciones clasificadas para 3.1.7 con ejecución real: fecha, responsable, participantes alcanzados y registro documental. La cobertura se mide por participantes reales de actividades ejecutadas, no por la población objetivo convocada. Una misma actividad no puede puntuar simultáneamente 3.1.2 y 3.1.7 (una evidencia = un estándar de scoring).',
+    section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
+  },
+  {
+    code: '3.1.8',
+    // FASE 34B: 3.1.8 se implementa con módulo propio
+    // (WorkplaceSanitaryCondition). Provider EXACT; la evidencia proviene
+    // EXCLUSIVAMENTE de la colección propia — NO de EnvironmentalMeasurement,
+    // HazardousSubstance, InspectionActivity ni DocumentMaster
+    // (frontera anti-double-scoring FASE 34A).
+    implementationStatus: 'IMPLEMENTED',
+    semantic: 'EXACT',
+    title: 'Agua potable, servicios sanitarios y disposición de basuras',
+    description: 'Disponibilidad de agua potable, servicios sanitarios adecuados y manejo adecuado de residuos sólidos en el lugar de trabajo.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 1,
+    applicableLevels: ['60'],
+    moduleRoute: '/workplace-sanitary-conditions',
+    validationProvider: 'workplace-sanitary-conditions.provider',
+    priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'BAJO' },
+    criteria:
+      'La organización registra y verifica de forma trazable la disponibilidad y condición de agua potable, la existencia y condición de servicios sanitarios y el manejo/disposición de basuras en el lugar de trabajo, cubriendo los tres componentes, con estado/aptitud conforme, fecha, responsable y evidencia de verificación, y vigencia dentro de la frecuencia definida.',
+    modeReview:
+      'Verificar registros activos por componente (agua potable, servicios sanitarios, manejo de basuras) con resultado de verificación conforme, trazabilidad completa (fecha, responsable, evidencia) y verificación vigente según la frecuencia declarada. La evidencia proviene EXCLUSIVAMENTE de WorkplaceSanitaryCondition; una inspección (4.2.4), un mantenimiento (4.2.5), una medición ambiental (4.1.4), un inventario de sustancias (4.1.3) o un documento NO generan cumplimiento de 3.1.8.',
+    section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
+  },
+  {
+    code: '3.1.9',
+    // FASE 34C: 3.1.9 se implementa con módulo propio (WasteManagementRecord
+    // + WasteTypeDeclaration). Provider EXACT; la evidencia proviene
+    // EXCLUSIVAMENTE de la colección propia — NO de HazardousSubstance,
+    // EnvironmentalMeasurement, InspectionActivity ni DocumentMaster
+    // (frontera anti-double-scoring FASE 34A/34C).
+    implementationStatus: 'IMPLEMENTED',
+    semantic: 'EXACT',
+    title: 'Eliminación adecuada de residuos sólidos, líquidos o gaseosos',
+    description: 'Manejo y disposición final adecuada de residuos sólidos, líquidos y gaseosos, peligrosos y no peligrosos, generados en el lugar de trabajo.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 1,
+    applicableLevels: ['60'],
+    moduleRoute: '/waste-management',
+    validationProvider: 'waste-management.provider',
+    priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'BAJO' },
+    criteria:
+      'La organización identifica los residuos que realmente genera (sólidos, líquidos o gaseosos), los maneja (segregación, almacenamiento temporal, contención) y los elimina/dispone adecuadamente (gestor autorizado, tratamiento, disposición final), con trazabilidad completa (fecha de disposición, responsable, evidencia y destino) y continuidad dentro de la frecuencia declarada.',
+    modeReview:
+      'Verificar registros activos por tipo de residuo realmente generado (declaración explícita de la empresa) con manejo y método de disposición, trazabilidad completa (fecha, responsable, evidencia, destino) y disposición vigente según la frecuencia. La evidencia proviene EXCLUSIVAMENTE de WasteManagementRecord; una sustancia peligrosa (4.1.3), una medición ambiental (4.1.4), una inspección (4.2.4), un mantenimiento (4.2.5), un registro de condiciones sanitarias (3.1.8) o un documento NO generan cumplimiento de 3.1.9. Un residuo peligroso (hazardous=true) es clasificación operativa, no cumplimiento automático.',
+    section: { id: 'do-condiciones-salud', title: 'Condiciones de salud en el trabajo (9%)', percentage: 9 },
+  },
+  {
     code: '3.2.1',
     implementationStatus: 'IMPLEMENTED',
-    title: 'Registro de ausentismo',
-    description: 'Consolidado de ausentismo por causa médica y no médica con análisis periódico de tendencias.',
+    title: 'Reporte de accidentes de trabajo y enfermedades laborales',
+    description: 'Reporte oportuno de accidentes de trabajo y enfermedades laborales a la ARL y EPS dentro de los 2 días hábiles siguientes al evento o diagnóstico.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 2.5,
@@ -586,8 +724,8 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '3.2.2',
     implementationStatus: 'IMPLEMENTED',
-    title: 'Investigación de enfermedades laborales',
-    description: 'Investigación documentada de casos de enfermedad laboral con análisis causal y plan de acción.',
+    title: 'Investigación de incidentes, accidentes y enfermedades laborales',
+    description: 'Investigación documentada de incidentes, accidentes de trabajo y enfermedades laborales con análisis causal, responsables, acciones y seguimiento.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 2.5,
@@ -602,10 +740,22 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     section: { id: 'do-registro-investigacion', title: 'Registro e investigación (5%)', percentage: 5 },
   },
   {
+    code: '3.2.3',
+    implementationStatus: 'IMPLEMENTED',
+    title: 'Registro y análisis estadístico de accidentes y enfermedades laborales',
+    description: 'Registro y análisis estadístico de accidentes de trabajo y enfermedades laborales con tendencias y comparación entre períodos.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 2,
+    applicableLevels: ['60'],
+    moduleRoute: '/accident-statistics',
+    priorityMetadata: { criticality: 'ALTA', estimatedEffort: 'BAJO' },
+  },
+  {
     code: '3.3.1',
     implementationStatus: 'IMPLEMENTED',
-    title: 'Programas de vigilancia epidemiológica',
-    description: 'PVE priorizados según matriz de peligros con diseño metodológico, indicadores y ejecución.',
+    title: 'Medición de la frecuencia de la accidentalidad',
+    description: 'Medición de la frecuencia de la accidentalidad de trabajo calculada como número de accidentes por 100.000 horas-trabajadas.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 2,
@@ -622,26 +772,25 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '3.3.2',
     implementationStatus: 'IMPLEMENTED',
-    title: 'Medición y análisis de indicadores de salud',
-    description: 'Indicadores de salud laboral calculados, analizados y comunicados periódicamente.',
+    title: 'Medición de la severidad de la accidentalidad',
+    description: 'Medición de la severidad de la accidentalidad calculada como número de días perdidos por 100.000 horas-trabajadas.',
     chapter: 'Gestión del talento humano',
-    phva: 'VERIFICAR',
+    phva: 'HACER',
     normativeWeight: 2,
     applicableLevels: ['60'],
     moduleRoute: '/health-indicators',
     priorityMetadata: { criticality: 'BAJA', estimatedEffort: 'MEDIO' },
-    // FASE 7.7.B.1 — Textos tomados de DoPage (vigilanciaSalud).
     criteria:
-      'Se calcula, analiza y comunica periódicamente indicadores de salud laboral para definir acciones preventivas y correctivas.',
+      'Se calcula, analiza y comunica periódicamente indicadores de salud laboral: frecuencia de accidentalidad, severidad, mortalidad, prevalencia de enfermedad laboral, incidencia y ausentismo por causa médica, para definir acciones preventivas y correctivas.',
     modeReview:
-      'Verificar indicadores de salud laboral (incidencia, prevalencia, severidad, frecuencia de eventos y ausentismo) y su análisis para toma de decisiones.',
+      'Verificar indicadores de salud laboral (frecuencia, severidad, mortalidad, prevalencia, incidencia y ausentismo) y su análisis para toma de decisiones.',
     section: { id: 'do-vigilancia-salud', title: 'Vigilancia de la salud (6%)', percentage: 6 },
   },
   {
     code: '3.3.3',
     implementationStatus: 'IMPLEMENTED',
-    title: 'Intervención y seguimiento de casos',
-    description: 'Gestión integral de casos de salud laboral con trazabilidad de acciones y cierre.',
+    title: 'Medición de la mortalidad por accidentes de trabajo',
+    description: 'Medición de la mortalidad laboral calculada como número de muertes por cada 100.000 trabajadores expuestos.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 2,
@@ -656,22 +805,78 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     section: { id: 'do-vigilancia-salud', title: 'Vigilancia de la salud (6%)', percentage: 6 },
   },
   {
+    // SCOPE-1: 3.3.4 queda FUERA DEL ALCANCE aprobado por los socios
+    // (el alcance llega hasta 3.3.3 y continúa en 4.1.1). El provider
+    // DiseasePrevalenceProvider y su infraestructura (OccupationalDiseaseStatisticalCase)
+    // se conservan como infraestructura futura, desregistrados del
+    // ComplianceEngine y del StandardAnalysis: ya no puntúan ni se analizan.
     code: '3.3.4',
     implementationStatus: 'PLANNED',
-    title: 'Programas de promoción y prevención en salud',
-    description: 'Ítem del anexo Resolución 0312: programas de promoción de la salud y prevención de la enfermedad laboral. Sin módulo en la plataforma aún.',
+    classification: 'OUT_OF_SCOPE',
+    title: 'Medición de la prevalencia de enfermedad laboral',
+    description: 'Medición de la prevalencia de enfermedad laboral calculada como número de casos existentes por 1.000 trabajadores expuestos.',
     chapter: 'Gestión del talento humano',
     phva: 'HACER',
     normativeWeight: 1,
     applicableLevels: ['60'],
-    moduleRoute: '',
+    moduleRoute: '/occupational-disease-statistical-cases',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
+    // SCOPE-1: provider desregistrado del scoring. El texto FASE 35C-2 se
+    // conserva como documentación de la infraestructura futura.
+    criteria:
+      'La prevalencia de enfermedad laboral se mide a una fecha de corte: casos calificados (QUALIFIED), activos en el registro estadístico y con fecha de reconocimiento, por cada 1.000 trabajadores de referencia del mismo tenant.',
+    modeReview:
+      'Verificar que el registro estadístico de enfermedad laboral esté en uso, con calificación ocupacional vigente, fecha de reconocimiento de los casos y una población de referencia válida para el cálculo de la tasa.',
+  },
+  {
+    // SCOPE-1: 3.3.5 queda FUERA DEL ALCANCE aprobado por los socios. El
+    // provider DiseaseIncidenceProvider se conserva como infraestructura
+    // futura, desregistrado del ComplianceEngine y del StandardAnalysis.
+    code: '3.3.5',
+    implementationStatus: 'PLANNED',
+    classification: 'OUT_OF_SCOPE',
+    title: 'Medición de la incidencia de enfermedad laboral',
+    description: 'Medición de la incidencia de enfermedad laboral calculada como número de nuevos casos por 1.000 trabajadores expuestos en un período.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 1,
+    applicableLevels: ['60'],
+    moduleRoute: '/occupational-disease-statistical-cases',
+    priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
+    // SCOPE-1: provider desregistrado del scoring. El texto FASE 35D-2 se
+    // conserva como documentación de la infraestructura futura.
+    criteria:
+      'La incidencia de enfermedad laboral se mide por período: casos nuevos (primera ocurrencia estadística calificada como QUALIFIED, activos y con fecha de reconocimiento dentro del período) por cada 1.000 trabajadores de la población de referencia del mismo tenant.',
+    modeReview:
+      'Verificar que el registro estadístico identifique casos nuevos, con calificación ocupacional vigente, fecha de reconocimiento dentro del período y una población de referencia válida para el cálculo de la tasa.',
+  },
+  {
+    // SCOPE-1: 3.3.6 queda FUERA DEL ALCANCE aprobado por los socios. El
+    // provider MedicalAbsenteeismProvider y su infraestructura
+    // (CompanyPeriodScheduledWorkData) se conservan como infraestructura
+    // futura, desregistrados del ComplianceEngine y del StandardAnalysis.
+    code: '3.3.6',
+    implementationStatus: 'PLANNED',
+    classification: 'OUT_OF_SCOPE',
+    title: 'Medición del ausentismo por causa médica',
+    description: 'Medición del ausentismo laboral por causa médica calculado como proporción de días perdidos por causa médica respecto a los días laborables.',
+    chapter: 'Gestión del talento humano',
+    phva: 'HACER',
+    normativeWeight: 1,
+    applicableLevels: ['60'],
+    moduleRoute: '/absenteeism',
+    priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
+    criteria:
+      'La organización mide mensualmente el ausentismo por causa médica como la proporción entre los días de ausencia por incapacidad laboral o común del mes y los días de trabajo programados en el mes, expresada en porcentaje, con denominador declarado y trazable por período.',
+    modeReview:
+      'Verificar que exista un registro mensual de días de trabajo programados (denominador declarado) y que las ausencias por incapacidad médica estén registradas con fechas y clasificación estructurada, atribuyendo a cada mes únicamente los días correspondientes (sin doble contabilización). El indicador es metadata-only: no consume diagnósticos ni contenido clínico.',
   },
   {
     code: '3.4.1',
     implementationStatus: 'PLANNED',
+    classification: 'COMPLEMENTARY',
     title: 'Indicadores de salud y bienestar',
-    description: 'Ítem del anexo Resolución 0312: indicadores de salud y bienestar de la población trabajadora. Sin módulo en la plataforma aún.',
+    description: 'Extensión funcional complementaria del sistema. No corresponde a un estándar puntuable independiente de la Tabla de Valores.',
     chapter: 'Gestión del talento humano',
     phva: 'VERIFICAR',
     normativeWeight: 1,
@@ -687,7 +892,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     title: 'Metodología identificación de peligros',
     description: 'Metodología documentada para la identificación de peligros, evaluación y valoración de riesgos.',
     chapter: 'Procedimientos y programas',
-    phva: 'PLANEAR',
+    phva: 'HACER',
     normativeWeight: 4,
     applicableLevels: ['7', '21', '60'],
     moduleRoute: '/risks',
@@ -777,7 +982,7 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     title: 'Verificación de aplicación de medidas',
     description: 'Seguimiento al cumplimiento y efectividad de las medidas implementadas.',
     chapter: 'Procedimientos y programas',
-    phva: 'VERIFICAR',
+    phva: 'HACER',
     normativeWeight: 2.5,
     applicableLevels: ['60'],
     moduleRoute: '/risks',
@@ -864,8 +1069,10 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '4.3.1',
     implementationStatus: 'PLANNED',
+    classification: 'DUPLICATE',
+    duplicateOf: '3.2.2',
     title: 'Procedimiento de investigación de accidentes e incidentes',
-    description: 'Ítem del anexo Resolución 0312: investigación de accidentes e incidentes de trabajo con análisis causal. Sin módulo en la plataforma aún.',
+    description: 'Duplicado semántico de 3.2.2 (Investigación de enfermedades laborales). La investigación de incidentes/accidentes es un único estándar puntuable en la Resolución 0312.',
     chapter: 'Procedimientos y programas',
     phva: 'VERIFICAR',
     normativeWeight: 1,
@@ -876,8 +1083,9 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '4.4.1',
     implementationStatus: 'PLANNED',
+    classification: 'COMPLEMENTARY',
     title: 'Gestión del riesgo psicosocial',
-    description: 'Ítem del anexo Resolución 0312: evaluación e intervención del riesgo psicosocial. Sin módulo en la plataforma aún.',
+    description: 'Extensión funcional complementaria del sistema. No corresponde a un estándar puntuable independiente identificado en la Tabla de Valores de la Resolución 0312.',
     chapter: 'Procedimientos y programas',
     phva: 'HACER',
     normativeWeight: 1,
@@ -926,8 +1134,9 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '5.2.1',
     implementationStatus: 'PLANNED',
+    classification: 'COMPLEMENTARY',
     title: 'Programa de simulacros de emergencia',
-    description: 'Ítem del anexo Resolución 0312: programa de simulacros con evaluación de la respuesta. Sin módulo en la plataforma aún.',
+    description: 'Extensión funcional complementaria del plan de emergencias. No corresponde a un estándar puntuable independiente de la Tabla de Valores.',
     chapter: 'Procedimientos y programas',
     phva: 'VERIFICAR',
     normativeWeight: 1,
@@ -1086,8 +1295,10 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   {
     code: '7.2.1',
     implementationStatus: 'PLANNED',
+    classification: 'DUPLICATE',
+    duplicateOf: '7.1.4',
     title: 'Plan de mejoramiento anual del SG-SST',
-    description: 'Ítem del anexo Resolución 0312: plan de mejoramiento anual consolidado del SG-SST. Sin módulo en la plataforma aún.',
+    description: 'Duplicado semántico de 7.1.4 (Plan de mejoramiento). Subdivisión interna, no estándar puntuable independiente de la Resolución 0312.',
     chapter: 'Verificación y mejora',
     phva: 'ACTUAR',
     normativeWeight: 1,

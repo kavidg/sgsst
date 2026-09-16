@@ -165,6 +165,8 @@ export interface AbsenteeismModel {
   fechaInicio: string;
   fechaFin: string;
   dias: number;
+  /** FASE 35E-2 (3.3.6): señal estructurada de incapacidad médica (metadata estadística, no clínica). */
+  medicalIncapacity?: boolean;
   descripcion?: string;
   soporte?: string;
 }
@@ -181,8 +183,54 @@ export interface CreateAbsenteeismPayload {
   tipo: AbsenteeismType;
   fechaInicio: string;
   fechaFin: string;
+  /** FASE 35E-2 (3.3.6): declara si la ausencia corresponde a incapacidad médica (laboral o común). */
+  medicalIncapacity?: boolean;
   descripcion?: string;
   soporte?: string;
+}
+
+// ── Días de trabajo programados (3.3.6 — FASE 35E-2) ──
+//
+// Denominador normativo mensual del ausentismo por causa médica:
+// "Número de días de trabajo programados en el mes" (valor declarado/auditado
+// por período YYYY-MM). El companyId NO es autoridad del frontend: el backend
+// lo resuelve del usuario autenticado (CompanyAccessGuard).
+
+export interface ScheduledWorkDataModel {
+  _id: string;
+  companyId: string;
+  period: string;
+  scheduledWorkDays: number;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpsertScheduledWorkDataPayload {
+  period: string;
+  scheduledWorkDays: number;
+}
+
+/**
+ * Carga/actualiza los días de trabajo programados de un mes (upsert idempotente
+ * por tenant + período). WRITE: owner/admin.
+ */
+export function upsertScheduledWorkData(token: string, payload: UpsertScheduledWorkDataPayload) {
+  return apiFetch<ScheduledWorkDataModel>('/scheduled-work-data', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Histórico de días programados del tenant (ordenado por período descendente). */
+export function fetchScheduledWorkData(token: string, _companyId: string): Promise<ScheduledWorkDataModel[]> {
+  return apiFetch<ScheduledWorkDataModel[]>('/scheduled-work-data', token, { method: 'GET' });
+}
+
+/** Valor del período consultado (YYYY-MM); null si el período no tiene registro. */
+export function fetchScheduledWorkDataByPeriod(token: string, _companyId: string, period: string): Promise<ScheduledWorkDataModel | null> {
+  return apiFetch<ScheduledWorkDataModel | null>(`/scheduled-work-data/period/${period}`, token, { method: 'GET' });
 }
 
 export interface InvestigationActionPayload {
@@ -389,6 +437,8 @@ export interface EmployeeModel {
   contractType: string;
   status: string;
   companyId: string;
+  /** Perfil de cargo estructurado (JobProfile) — FASE 30D-2, estándar 3.1.3. */
+  jobProfileId?: string;
   // Campos sociodemográficos (3.1.1) — todos opcionales
   birthDate?: string;
   gender?: 'MASCULINO' | 'FEMENINO' | 'OTRO';
@@ -411,6 +461,8 @@ export interface CreateEmployeePayload {
   area: string;
   contractType: string;
   status: string;
+  // Perfil de cargo estructurado (3.1.3) — opcional
+  jobProfileId?: string;
   // Campos sociodemográficos (3.1.1) — todos opcionales
   birthDate?: string;
   gender?: 'MASCULINO' | 'FEMENINO' | 'OTRO';
@@ -442,6 +494,8 @@ interface UpdateEmployeePayload {
   area?: string;
   contractType?: string;
   status?: string;
+  // Perfil de cargo estructurado (3.1.3) — opcional
+  jobProfileId?: string;
   // Campos sociodemográficos (3.1.1) — todos opcionales
   birthDate?: string;
   gender?: 'MASCULINO' | 'FEMENINO' | 'OTRO';
@@ -779,6 +833,907 @@ export function deleteEmployee(token: string, id: string) {
   return apiFetch<void>(`/employees/${id}`, token, { method: 'DELETE' });
 }
 
+// ── Employee → JobProfile (3.1.3, FASE 30D-2) ──
+
+/** Asocia un JobProfile del mismo tenant al empleado. */
+export function assignEmployeeJobProfile(token: string, id: string, jobProfileId: string) {
+  return apiFetch<EmployeeModel>(`/employees/${id}/job-profile`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ jobProfileId }),
+  });
+}
+
+/** Desasocia el JobProfile del empleado. */
+export function unassignEmployeeJobProfile(token: string, id: string) {
+  return apiFetch<EmployeeModel>(`/employees/${id}/job-profile`, token, { method: 'DELETE' });
+}
+
+// ── Job Profiles (3.1.3 — Información al médico de perfiles de cargo) ──
+//
+// Un JobProfile representa SEMÁNTICAMENTE el perfil de un cargo (información
+// funcional + condiciones de trabajo + peligros de la matriz Risk + información
+// relevante para valoración médica ocupacional). Es información DEL CARGO, no
+// información clínica. `associatedHazardIds` referencia la matriz Risk existente
+// (nunca duplica registros de riesgo).
+
+export interface JobProfileModel {
+  _id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  description: string;
+  functions: string[];
+  responsibilities: string[];
+  workConditions: string[];
+  associatedHazardIds: string[];
+  medicalRelevantInformation: string;
+  active: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateJobProfilePayload {
+  code: string;
+  name: string;
+  description?: string;
+  functions?: string[];
+  responsibilities?: string[];
+  workConditions?: string[];
+  associatedHazardIds?: string[];
+  medicalRelevantInformation?: string;
+  active?: boolean;
+}
+
+export interface UpdateJobProfilePayload {
+  code?: string;
+  name?: string;
+  description?: string;
+  functions?: string[];
+  responsibilities?: string[];
+  workConditions?: string[];
+  associatedHazardIds?: string[];
+  medicalRelevantInformation?: string;
+  active?: boolean;
+}
+
+export function fetchJobProfiles(token: string, params?: { active?: boolean }): Promise<JobProfileModel[]> {
+  const query = new URLSearchParams();
+  if (params?.active !== undefined) query.set('active', String(params.active));
+  const qs = query.toString();
+  return apiFetch<JobProfileModel[]>(`/job-profiles${qs ? '?' + qs : ''}`, token, { method: 'GET' });
+}
+
+export function fetchJobProfile(token: string, id: string): Promise<JobProfileModel> {
+  return apiFetch<JobProfileModel>(`/job-profiles/${id}`, token, { method: 'GET' });
+}
+
+export function createJobProfile(token: string, payload: CreateJobProfilePayload): Promise<JobProfileModel> {
+  return apiFetch<JobProfileModel>('/job-profiles', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateJobProfile(token: string, id: string, payload: UpdateJobProfilePayload): Promise<JobProfileModel> {
+  return apiFetch<JobProfileModel>(`/job-profiles/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deactivateJobProfile(token: string, id: string): Promise<JobProfileModel> {
+  return apiFetch<JobProfileModel>(`/job-profiles/${id}/deactivate`, token, { method: 'PATCH' });
+}
+
+export function reactivateJobProfile(token: string, id: string, payload: { active: true }): Promise<JobProfileModel> {
+  return apiFetch<JobProfileModel>(`/job-profiles/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+// ── Health Promotion (3.1.2 — Promoción y prevención en salud) ──
+//
+// Actividad REAL de promoción/prevención dirigida a la población trabajadora.
+// NO representa exámenes médicos, recomendaciones, capacitación general ni
+// indicadores. Los trabajadores (target/participants) y riesgos referencian
+// IDs reales del tenant (Employee / Risk).
+
+export type HealthPromotionCategoryType =
+  | 'HEALTH_PROMOTION'
+  | 'DISEASE_PREVENTION'
+  | 'HEALTH_EDUCATION'
+  | 'HEALTH_CAMPAIGN'
+  | 'HEALTH_SCREENING'
+  | 'HEALTH_VACCINATION'
+  | 'HEALTH_WELLNESS';
+
+export type HealthPromotionStatusType = 'PLANNED' | 'COMPLETED' | 'CANCELLED';
+
+/**
+ * FASE 32 — frontera normativa anti-double-scoring: a qué estándar puntúa la
+ * actividad (3.1.2 promoción/prevención ó 3.1.7 estilos de vida y entornos
+ * saludables). Una evidencia = un estándar de scoring.
+ */
+export type HealthPromotionComplianceStandardType = 'STANDARD_3_1_2' | 'STANDARD_3_1_7';
+
+/** FASE 32 — tema específico de la intervención 3.1.7 (tipificación explícita). */
+export type LifestyleTopicType =
+  | 'SMOKING_CONTROL'
+  | 'ALCOHOL_CONTROL'
+  | 'SUBSTANCE_DEPENDENCY_CONTROL'
+  | 'HEALTHY_LIFESTYLE'
+  | 'HEALTHY_ENVIRONMENT'
+  | 'OTHER';
+
+export interface HealthPromotionActivityModel {
+  _id: string;
+  companyId: string;
+  code: string;
+  title: string;
+  description: string;
+  category: HealthPromotionCategoryType;
+  objective: string;
+  activityDate?: string;
+  responsible: string;
+  targetPopulation: string;
+  targetEmployeeIds: string[];
+  participantEmployeeIds: string[];
+  relatedRiskIds: string[];
+  evidence: string;
+  status: HealthPromotionStatusType;
+  /** FASE 32 — estándar al que puntúa (3.1.2 por defecto/legacy). */
+  complianceStandard?: HealthPromotionComplianceStandardType;
+  /** FASE 32 — tema 3.1.7 (solo actividades clasificadas 3.1.7). */
+  lifestyleTopic?: LifestyleTopicType;
+  active: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateHealthPromotionPayload {
+  code: string;
+  title: string;
+  description?: string;
+  category?: HealthPromotionCategoryType;
+  objective?: string;
+  activityDate?: string;
+  responsible?: string;
+  targetPopulation?: string;
+  targetEmployeeIds?: string[];
+  participantEmployeeIds?: string[];
+  relatedRiskIds?: string[];
+  evidence?: string;
+  status?: HealthPromotionStatusType;
+  /** FASE 32 — clasificación normativa (inmutable tras crear). */
+  complianceStandard?: HealthPromotionComplianceStandardType;
+  /** FASE 32 — tema 3.1.7. */
+  lifestyleTopic?: LifestyleTopicType;
+  active?: boolean;
+}
+
+export interface UpdateHealthPromotionPayload {
+  code?: string;
+  title?: string;
+  description?: string;
+  category?: HealthPromotionCategoryType;
+  objective?: string;
+  activityDate?: string;
+  responsible?: string;
+  targetPopulation?: string;
+  targetEmployeeIds?: string[];
+  participantEmployeeIds?: string[];
+  relatedRiskIds?: string[];
+  evidence?: string;
+  status?: HealthPromotionStatusType;
+  active?: boolean;
+}
+
+export function fetchHealthPromotionActivities(token: string, params?: { active?: boolean; status?: string; category?: string }): Promise<HealthPromotionActivityModel[]> {
+  const query = new URLSearchParams();
+  if (params?.active !== undefined) query.set('active', String(params.active));
+  if (params?.status) query.set('status', params.status);
+  if (params?.category) query.set('category', params.category);
+  const qs = query.toString();
+  return apiFetch<HealthPromotionActivityModel[]>(`/health-promotion${qs ? '?' + qs : ''}`, token, { method: 'GET' });
+}
+
+export function fetchHealthPromotionActivity(token: string, id: string): Promise<HealthPromotionActivityModel> {
+  return apiFetch<HealthPromotionActivityModel>(`/health-promotion/${id}`, token, { method: 'GET' });
+}
+
+export function createHealthPromotionActivity(token: string, payload: CreateHealthPromotionPayload): Promise<HealthPromotionActivityModel> {
+  return apiFetch<HealthPromotionActivityModel>('/health-promotion', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateHealthPromotionActivity(token: string, id: string, payload: UpdateHealthPromotionPayload): Promise<HealthPromotionActivityModel> {
+  return apiFetch<HealthPromotionActivityModel>(`/health-promotion/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deactivateHealthPromotionActivity(token: string, id: string): Promise<HealthPromotionActivityModel> {
+  return apiFetch<HealthPromotionActivityModel>(`/health-promotion/${id}/deactivate`, token, { method: 'PATCH' });
+}
+
+export function reactivateHealthPromotionActivity(token: string, id: string): Promise<HealthPromotionActivityModel> {
+  return apiFetch<HealthPromotionActivityModel>(`/health-promotion/${id}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ active: true }),
+  });
+}
+
+// ── Estilos de vida y entornos saludables (3.1.7 — FASE 32) ──
+// Mismo dominio HealthPromotionActivity con frontera complianceStandard.
+// Las funciones 3.1.7 simplemente fijan la clasificación normativa; el
+// backend es la autoridad (el campo es inmutable y los providers filtran
+// por él). Update NUNCA envía complianceStandard (inmutable).
+
+export function createLifestyleHealthyEnvironmentActivity(token: string, payload: Omit<CreateHealthPromotionPayload, 'complianceStandard'> & { lifestyleTopic?: LifestyleTopicType }): Promise<HealthPromotionActivityModel> {
+  return createHealthPromotionActivity(token, { ...payload, complianceStandard: 'STANDARD_3_1_7' });
+}
+
+export function updateLifestyleHealthyEnvironmentActivity(token: string, id: string, payload: Omit<UpdateHealthPromotionPayload, 'complianceStandard'> & { lifestyleTopic?: LifestyleTopicType }): Promise<HealthPromotionActivityModel> {
+  return updateHealthPromotionActivity(token, id, payload);
+}
+
+export function deactivateLifestyleHealthyEnvironmentActivity(token: string, id: string): Promise<HealthPromotionActivityModel> {
+  return deactivateHealthPromotionActivity(token, id);
+}
+
+export function reactivateLifestyleHealthyEnvironmentActivity(token: string, id: string): Promise<HealthPromotionActivityModel> {
+  return reactivateHealthPromotionActivity(token, id);
+}
+
+// ── Occupational Medical Record Custody (3.1.5 — FASE 30G) ──
+
+export type CustodyRecordType =
+  | 'INITIAL_OCCUPATIONAL_EXAM'
+  | 'PERIODIC_OCCUPATIONAL_EXAM'
+  | 'EXIT_OCCUPATIONAL_EXAM'
+  | 'OTHER_OCCUPATIONAL_RECORD';
+
+export type CustodyStatusType = 'IN_CUSTODY' | 'TRANSFERRED' | 'ARCHIVED' | 'RELEASED';
+
+/**
+ * Registro de CUSTODIA de historia clínica ocupacional (3.1.5).
+ *
+ * Solo METADATOS administrativos de custodia: responsable, ubicación,
+ * estado y fechas. NUNCA contiene contenido clínico (diagnósticos,
+ * resultados, recomendaciones).
+ */
+export interface OccupationalMedicalRecordCustodyModel {
+  _id: string;
+  employeeId: string;
+  recordReference: string;
+  recordType: CustodyRecordType;
+  custodyStatus: CustodyStatusType;
+  custodianName: string;
+  custodianRole?: string;
+  custodyStartDate: string;
+  retentionUntil?: string;
+  storageLocationReference: string;
+  accessControlDescription?: string;
+  confidentialityConfirmed: boolean;
+  integrityConfirmed: boolean;
+  availabilityConfirmed: boolean;
+  notes?: string;
+  active: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface CreateOccupationalMedicalRecordCustodyPayload {
+  employeeId: string;
+  recordReference: string;
+  recordType: CustodyRecordType;
+  custodyStatus?: CustodyStatusType;
+  custodianName: string;
+  custodianRole?: string;
+  custodyStartDate: string;
+  retentionUntil?: string;
+  storageLocationReference: string;
+  accessControlDescription?: string;
+  confidentialityConfirmed?: boolean;
+  integrityConfirmed?: boolean;
+  availabilityConfirmed?: boolean;
+  notes?: string;
+  active?: boolean;
+}
+
+export interface UpdateOccupationalMedicalRecordCustodyPayload {
+  employeeId?: string;
+  recordReference?: string;
+  recordType?: CustodyRecordType;
+  custodyStatus?: CustodyStatusType;
+  custodianName?: string;
+  custodianRole?: string;
+  custodyStartDate?: string;
+  retentionUntil?: string;
+  storageLocationReference?: string;
+  accessControlDescription?: string;
+  confidentialityConfirmed?: boolean;
+  integrityConfirmed?: boolean;
+  availabilityConfirmed?: boolean;
+  notes?: string;
+  active?: boolean;
+}
+
+export function fetchOccupationalMedicalRecordCustody(token: string, params?: { active?: boolean; employeeId?: string; custodyStatus?: string; recordType?: string; limit?: number; skip?: number }): Promise<OccupationalMedicalRecordCustodyModel[]> {
+  const query = new URLSearchParams();
+  if (params?.active !== undefined) query.set('active', String(params.active));
+  if (params?.employeeId) query.set('employeeId', params.employeeId);
+  if (params?.custodyStatus) query.set('custodyStatus', params.custodyStatus);
+  if (params?.recordType) query.set('recordType', params.recordType);
+  if (params?.limit !== undefined) query.set('limit', String(params.limit));
+  if (params?.skip !== undefined) query.set('skip', String(params.skip));
+  const qs = query.toString();
+  return apiFetch<{ success: boolean; data: OccupationalMedicalRecordCustodyModel[]; count: number }>(
+    `/occupational-medical-record-custody${qs ? '?' + qs : ''}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function fetchOneOccupationalMedicalRecordCustody(token: string, id: string): Promise<OccupationalMedicalRecordCustodyModel> {
+  return apiFetch<{ success: boolean; data: OccupationalMedicalRecordCustodyModel }>(
+    `/occupational-medical-record-custody/${id}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function createOccupationalMedicalRecordCustody(token: string, payload: CreateOccupationalMedicalRecordCustodyPayload): Promise<OccupationalMedicalRecordCustodyModel> {
+  return apiFetch<{ success: boolean; data: OccupationalMedicalRecordCustodyModel }>(
+    '/occupational-medical-record-custody',
+    token,
+    { method: 'POST', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function updateOccupationalMedicalRecordCustody(token: string, id: string, payload: UpdateOccupationalMedicalRecordCustodyPayload): Promise<OccupationalMedicalRecordCustodyModel> {
+  return apiFetch<{ success: boolean; data: OccupationalMedicalRecordCustodyModel }>(
+    `/occupational-medical-record-custody/${id}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function deactivateOccupationalMedicalRecordCustody(token: string, id: string): Promise<OccupationalMedicalRecordCustodyModel> {
+  return apiFetch<{ success: boolean; data: OccupationalMedicalRecordCustodyModel; message: string }>(
+    `/occupational-medical-record-custody/${id}/deactivate`,
+    token,
+    { method: 'PATCH' },
+  ).then((res) => res.data);
+}
+
+// ── Work Restrictions (3.1.6 — FASE 33) ──
+
+/**
+ * Restricciones y recomendaciones médico-laborales (3.1.6).
+ * Solo METADATOS administrativos/operativos: tipo, estado, fechas,
+ * responsable, acciones laborales y seguimiento. NUNCA contiene contenido
+ * clínico (diagnósticos, CIE, historias clínicas, tratamientos,
+ * medicamentos, resultados clínicos).
+ */
+export type RestrictionTypeType =
+  | 'TEMPORARY_RESTRICTION'
+  | 'PERMANENT_RESTRICTION'
+  | 'WORK_RECOMMENDATION'
+  | 'JOB_ADJUSTMENT'
+  | 'OTHER';
+
+export type RestrictionStatusType = 'ACTIVE' | 'FOLLOW_UP' | 'CLOSED' | 'CANCELLED';
+
+export interface WorkRestrictionModel {
+  _id: string;
+  employeeId: string;
+  restrictionType: RestrictionTypeType;
+  status: RestrictionStatusType;
+  receivedAt: string;
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+  responsibleUserId?: string;
+  actions?: string;
+  followUpDate?: string;
+  followUpStatus?: string;
+  evidence?: string;
+  active: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface CreateWorkRestrictionPayload {
+  employeeId: string;
+  restrictionType: RestrictionTypeType;
+  status?: RestrictionStatusType;
+  receivedAt: string;
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+  responsibleUserId?: string;
+  actions?: string;
+  followUpDate?: string;
+  followUpStatus?: string;
+  evidence?: string;
+  active?: boolean;
+}
+
+export interface UpdateWorkRestrictionPayload {
+  employeeId?: string;
+  restrictionType?: RestrictionTypeType;
+  status?: RestrictionStatusType;
+  receivedAt?: string;
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+  responsibleUserId?: string;
+  actions?: string;
+  followUpDate?: string;
+  followUpStatus?: string;
+  evidence?: string;
+  active?: boolean;
+}
+
+export function fetchWorkRestrictions(token: string, params?: { active?: boolean; employeeId?: string; status?: string; restrictionType?: string; limit?: number; skip?: number }): Promise<WorkRestrictionModel[]> {
+  const query = new URLSearchParams();
+  if (params?.active !== undefined) query.set('active', String(params.active));
+  if (params?.employeeId) query.set('employeeId', params.employeeId);
+  if (params?.status) query.set('status', params.status);
+  if (params?.restrictionType) query.set('restrictionType', params.restrictionType);
+  if (params?.limit !== undefined) query.set('limit', String(params.limit));
+  if (params?.skip !== undefined) query.set('skip', String(params.skip));
+  const qs = query.toString();
+  return apiFetch<{ success: boolean; data: WorkRestrictionModel[]; count: number }>(
+    `/work-restrictions${qs ? '?' + qs : ''}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function fetchOneWorkRestriction(token: string, id: string): Promise<WorkRestrictionModel> {
+  return apiFetch<{ success: boolean; data: WorkRestrictionModel }>(
+    `/work-restrictions/${id}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function createWorkRestriction(token: string, payload: CreateWorkRestrictionPayload): Promise<WorkRestrictionModel> {
+  return apiFetch<{ success: boolean; data: WorkRestrictionModel }>(
+    '/work-restrictions',
+    token,
+    { method: 'POST', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function updateWorkRestriction(token: string, id: string, payload: UpdateWorkRestrictionPayload): Promise<WorkRestrictionModel> {
+  return apiFetch<{ success: boolean; data: WorkRestrictionModel }>(
+    `/work-restrictions/${id}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function deactivateWorkRestriction(token: string, id: string): Promise<WorkRestrictionModel> {
+  return apiFetch<{ success: boolean; data: WorkRestrictionModel; message: string }>(
+    `/work-restrictions/${id}/deactivate`,
+    token,
+    { method: 'PATCH' },
+  ).then((res) => res.data);
+}
+
+// ── Workplace Sanitary Conditions (3.1.8 — FASE 34B) ──
+
+/**
+ * Condiciones sanitarias del lugar de trabajo (3.1.8).
+ * METADATA-ONLY: condición verificada de agua potable, servicios sanitarios y
+ * manejo de basuras. NUNCA contiene información clínica ni datos sensibles de
+ * trabajadores.
+ */
+export type SanitaryConditionTypeType =
+  | 'POTABLE_WATER'
+  | 'SANITARY_SERVICE'
+  | 'GARBAGE_MANAGEMENT';
+
+export type SanitaryConditionStatusType = 'OPERATIONAL' | 'DEFICIENT' | 'OUT_OF_SERVICE';
+
+export type SanitaryConditionResultType = 'APT' | 'NOT_APT' | 'INCONCLUSIVE';
+
+export type SanitaryConditionFrequencyType = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
+
+export interface WorkplaceSanitaryConditionModel {
+  _id: string;
+  conditionType: SanitaryConditionTypeType;
+  code: string;
+  description: string;
+  location: string;
+  status: SanitaryConditionStatusType;
+  conditionResult: SanitaryConditionResultType;
+  lastVerificationDate: string;
+  nextVerificationDate?: string;
+  verificationFrequency: SanitaryConditionFrequencyType;
+  responsible: string;
+  evidenceUrl?: string;
+  observations?: string;
+  active: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface CreateWorkplaceSanitaryConditionPayload {
+  conditionType: SanitaryConditionTypeType;
+  code: string;
+  description: string;
+  location: string;
+  status?: SanitaryConditionStatusType;
+  conditionResult?: SanitaryConditionResultType;
+  lastVerificationDate: string;
+  nextVerificationDate?: string;
+  verificationFrequency?: SanitaryConditionFrequencyType;
+  responsible: string;
+  evidenceUrl?: string;
+  observations?: string;
+  active?: boolean;
+}
+
+export interface UpdateWorkplaceSanitaryConditionPayload {
+  conditionType?: SanitaryConditionTypeType;
+  code?: string;
+  description?: string;
+  location?: string;
+  status?: SanitaryConditionStatusType;
+  conditionResult?: SanitaryConditionResultType;
+  lastVerificationDate?: string;
+  nextVerificationDate?: string;
+  verificationFrequency?: SanitaryConditionFrequencyType;
+  responsible?: string;
+  evidenceUrl?: string;
+  observations?: string;
+  active?: boolean;
+}
+
+export function fetchWorkplaceSanitaryConditions(token: string, params?: { active?: boolean; conditionType?: string; status?: string; conditionResult?: string; limit?: number; skip?: number }): Promise<WorkplaceSanitaryConditionModel[]> {
+  const query = new URLSearchParams();
+  if (params?.active !== undefined) query.set('active', String(params.active));
+  if (params?.conditionType) query.set('conditionType', params.conditionType);
+  if (params?.status) query.set('status', params.status);
+  if (params?.conditionResult) query.set('conditionResult', params.conditionResult);
+  if (params?.limit !== undefined) query.set('limit', String(params.limit));
+  if (params?.skip !== undefined) query.set('skip', String(params.skip));
+  const qs = query.toString();
+  return apiFetch<{ success: boolean; data: WorkplaceSanitaryConditionModel[]; count: number }>(
+    `/workplace-sanitary-conditions${qs ? '?' + qs : ''}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function fetchOneWorkplaceSanitaryCondition(token: string, id: string): Promise<WorkplaceSanitaryConditionModel> {
+  return apiFetch<{ success: boolean; data: WorkplaceSanitaryConditionModel }>(
+    `/workplace-sanitary-conditions/${id}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function createWorkplaceSanitaryCondition(token: string, payload: CreateWorkplaceSanitaryConditionPayload): Promise<WorkplaceSanitaryConditionModel> {
+  return apiFetch<{ success: boolean; data: WorkplaceSanitaryConditionModel }>(
+    '/workplace-sanitary-conditions',
+    token,
+    { method: 'POST', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function updateWorkplaceSanitaryCondition(token: string, id: string, payload: UpdateWorkplaceSanitaryConditionPayload): Promise<WorkplaceSanitaryConditionModel> {
+  return apiFetch<{ success: boolean; data: WorkplaceSanitaryConditionModel }>(
+    `/workplace-sanitary-conditions/${id}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function deactivateWorkplaceSanitaryCondition(token: string, id: string): Promise<WorkplaceSanitaryConditionModel> {
+  return apiFetch<{ success: boolean; data: WorkplaceSanitaryConditionModel; message: string }>(
+    `/workplace-sanitary-conditions/${id}/deactivate`,
+    token,
+    { method: 'PATCH' },
+  ).then((res) => res.data);
+}
+
+// ── Waste Management (3.1.9 — FASE 34C) ──
+
+/**
+ * Gestión de residuos generados por la operación (3.1.9).
+ * METADATA-ONLY: identificación, manejo, disposición y trazabilidad de
+ * residuos sólidos, líquidos o gaseosos. NUNCA contiene información clínica
+ * ni resultados de mediciones ambientales (eso vive en EnvironmentalMeasurement).
+ * hazardous = true es clasificación operativa, NO cumplimiento automático.
+ */
+export type WasteTypeType = 'SOLID' | 'LIQUID' | 'GASEOUS';
+
+export type WasteManagementStatusType = 'PLANNED' | 'ACTIVE' | 'SUSPENDED';
+
+export type WasteDisposalFrequencyType = 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
+
+export interface WasteManagementRecordModel {
+  _id: string;
+  code: string;
+  wasteType: WasteTypeType;
+  hazardous: boolean;
+  source: string;
+  generationDescription: string;
+  handlingMethod: string;
+  disposalMethod?: string;
+  disposalDestination?: string;
+  disposalFrequency: WasteDisposalFrequencyType;
+  lastDisposalDate?: string;
+  nextDisposalDate?: string;
+  responsible: string;
+  evidenceUrl?: string;
+  observations?: string;
+  status: WasteManagementStatusType;
+  active: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface WasteTypeDeclarationModel {
+  _id: string;
+  companyId: string;
+  declaredWasteTypes: WasteTypeType[];
+  updatedBy?: string;
+}
+
+export interface CreateWasteManagementRecordPayload {
+  code: string;
+  wasteType: WasteTypeType;
+  hazardous?: boolean;
+  source: string;
+  generationDescription: string;
+  handlingMethod: string;
+  disposalMethod?: string;
+  disposalDestination?: string;
+  disposalFrequency?: WasteDisposalFrequencyType;
+  lastDisposalDate?: string;
+  nextDisposalDate?: string;
+  responsible: string;
+  evidenceUrl?: string;
+  observations?: string;
+  status?: WasteManagementStatusType;
+  active?: boolean;
+}
+
+export interface UpdateWasteManagementRecordPayload {
+  code?: string;
+  wasteType?: WasteTypeType;
+  hazardous?: boolean;
+  source?: string;
+  generationDescription?: string;
+  handlingMethod?: string;
+  disposalMethod?: string;
+  disposalDestination?: string;
+  disposalFrequency?: WasteDisposalFrequencyType;
+  lastDisposalDate?: string;
+  nextDisposalDate?: string;
+  responsible?: string;
+  evidenceUrl?: string;
+  observations?: string;
+  status?: WasteManagementStatusType;
+  active?: boolean;
+}
+
+export function fetchWasteManagementRecords(token: string, params?: { active?: boolean; wasteType?: string; hazardous?: boolean; status?: string; limit?: number; skip?: number }): Promise<WasteManagementRecordModel[]> {
+  const query = new URLSearchParams();
+  if (params?.active !== undefined) query.set('active', String(params.active));
+  if (params?.wasteType) query.set('wasteType', params.wasteType);
+  if (params?.hazardous !== undefined) query.set('hazardous', String(params.hazardous));
+  if (params?.status) query.set('status', params.status);
+  if (params?.limit !== undefined) query.set('limit', String(params.limit));
+  if (params?.skip !== undefined) query.set('skip', String(params.skip));
+  const qs = query.toString();
+  return apiFetch<{ success: boolean; data: WasteManagementRecordModel[]; count: number }>(
+    `/waste-management${qs ? '?' + qs : ''}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function fetchOneWasteManagementRecord(token: string, id: string): Promise<WasteManagementRecordModel> {
+  return apiFetch<{ success: boolean; data: WasteManagementRecordModel }>(
+    `/waste-management/${id}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function createWasteManagementRecord(token: string, payload: CreateWasteManagementRecordPayload): Promise<WasteManagementRecordModel> {
+  return apiFetch<{ success: boolean; data: WasteManagementRecordModel }>(
+    '/waste-management',
+    token,
+    { method: 'POST', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function updateWasteManagementRecord(token: string, id: string, payload: UpdateWasteManagementRecordPayload): Promise<WasteManagementRecordModel> {
+  return apiFetch<{ success: boolean; data: WasteManagementRecordModel }>(
+    `/waste-management/${id}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function deactivateWasteManagementRecord(token: string, id: string): Promise<WasteManagementRecordModel> {
+  return apiFetch<{ success: boolean; data: WasteManagementRecordModel; message: string }>(
+    `/waste-management/${id}/deactivate`,
+    token,
+    { method: 'PATCH' },
+  ).then((res) => res.data);
+}
+
+export function declareWasteTypes(token: string, declaredWasteTypes: WasteTypeType[]): Promise<WasteTypeDeclarationModel> {
+  return apiFetch<{ success: boolean; data: WasteTypeDeclarationModel }>(
+    '/waste-management/declared-types',
+    token,
+    { method: 'POST', body: JSON.stringify({ declaredWasteTypes }) },
+  ).then((res) => res.data);
+}
+
+export function fetchDeclaredWasteTypes(token: string): Promise<WasteTypeDeclarationModel | null> {
+  return apiFetch<{ success: boolean; data: WasteTypeDeclarationModel | null }>(
+    '/waste-management/declared-types',
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+// ── Occupational Disease Statistical Cases (FASE 35B — infraestructura
+// estadística de enfermedad laboral; SIN scoring 3.3.4/3.3.5 en esta fase) ──
+
+export type OccupationalDiseaseQualificationType =
+  | 'QUALIFIED'
+  | 'UNDER_REVIEW'
+  | 'NOT_QUALIFIED'
+  | 'DISCARDED';
+
+export type OccupationalDiseaseCaseStatusType = 'OPEN' | 'CLOSED';
+
+export interface OccupationalDiseaseStatisticalCaseModel {
+  _id: string;
+  companyId: string;
+  statisticalCaseId: string;
+  employeeId?: string | null;
+  occupationalQualification: OccupationalDiseaseQualificationType;
+  recognitionDate?: string | null;
+  caseStatus: OccupationalDiseaseCaseStatusType;
+  period: string;
+  periodYear: number;
+  periodMonth: number;
+  firstOccurrence: boolean;
+  investigationRef?: string | null;
+  active: boolean;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOccupationalDiseaseStatisticalCasePayload {
+  statisticalCaseId: string;
+  employeeId?: string;
+  occupationalQualification: OccupationalDiseaseQualificationType;
+  recognitionDate?: string;
+  firstOccurrence?: boolean;
+  investigationRef?: string;
+}
+
+export interface UpdateOccupationalDiseaseStatisticalCasePayload {
+  occupationalQualification?: OccupationalDiseaseQualificationType;
+  recognitionDate?: string;
+  employeeId?: string;
+  investigationRef?: string;
+  active?: boolean;
+}
+
+export function fetchOccupationalDiseaseStatisticalCases(
+  token: string,
+  params?: {
+    active?: boolean;
+    caseStatus?: string;
+    occupationalQualification?: string;
+    period?: string;
+    year?: string;
+    statisticalCaseId?: string;
+    limit?: number;
+    skip?: number;
+  },
+): Promise<OccupationalDiseaseStatisticalCaseModel[]> {
+  const query = new URLSearchParams();
+  if (params?.active !== undefined) query.set('active', String(params.active));
+  if (params?.caseStatus) query.set('caseStatus', params.caseStatus);
+  if (params?.occupationalQualification) query.set('occupationalQualification', params.occupationalQualification);
+  if (params?.period) query.set('period', params.period);
+  if (params?.year) query.set('year', params.year);
+  if (params?.statisticalCaseId) query.set('statisticalCaseId', params.statisticalCaseId);
+  if (params?.limit !== undefined) query.set('limit', String(params.limit));
+  if (params?.skip !== undefined) query.set('skip', String(params.skip));
+  const qs = query.toString();
+  return apiFetch<{ success: boolean; data: OccupationalDiseaseStatisticalCaseModel[]; count: number }>(
+    `/occupational-disease-statistical-cases${qs ? '?' + qs : ''}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function fetchOneOccupationalDiseaseStatisticalCase(
+  token: string,
+  id: string,
+): Promise<OccupationalDiseaseStatisticalCaseModel> {
+  return apiFetch<{ success: boolean; data: OccupationalDiseaseStatisticalCaseModel }>(
+    `/occupational-disease-statistical-cases/${id}`,
+    token,
+    { method: 'GET' },
+  ).then((res) => res.data);
+}
+
+export function createOccupationalDiseaseStatisticalCase(
+  token: string,
+  payload: CreateOccupationalDiseaseStatisticalCasePayload,
+): Promise<OccupationalDiseaseStatisticalCaseModel> {
+  return apiFetch<{ success: boolean; data: OccupationalDiseaseStatisticalCaseModel }>(
+    '/occupational-disease-statistical-cases',
+    token,
+    { method: 'POST', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function updateOccupationalDiseaseStatisticalCase(
+  token: string,
+  id: string,
+  payload: UpdateOccupationalDiseaseStatisticalCasePayload,
+): Promise<OccupationalDiseaseStatisticalCaseModel> {
+  return apiFetch<{ success: boolean; data: OccupationalDiseaseStatisticalCaseModel }>(
+    `/occupational-disease-statistical-cases/${id}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  ).then((res) => res.data);
+}
+
+export function closeOccupationalDiseaseStatisticalCase(
+  token: string,
+  id: string,
+): Promise<OccupationalDiseaseStatisticalCaseModel> {
+  return apiFetch<{ success: boolean; data: OccupationalDiseaseStatisticalCaseModel; message: string }>(
+    `/occupational-disease-statistical-cases/${id}/close`,
+    token,
+    { method: 'PATCH' },
+  ).then((res) => res.data);
+}
+
+export function reopenOccupationalDiseaseStatisticalCase(
+  token: string,
+  id: string,
+): Promise<OccupationalDiseaseStatisticalCaseModel> {
+  return apiFetch<{ success: boolean; data: OccupationalDiseaseStatisticalCaseModel; message: string }>(
+    `/occupational-disease-statistical-cases/${id}/reopen`,
+    token,
+    { method: 'PATCH' },
+  ).then((res) => res.data);
+}
+
+export function deactivateOccupationalDiseaseStatisticalCase(
+  token: string,
+  id: string,
+): Promise<OccupationalDiseaseStatisticalCaseModel> {
+  return apiFetch<{ success: boolean; data: OccupationalDiseaseStatisticalCaseModel; message: string }>(
+    `/occupational-disease-statistical-cases/${id}/deactivate`,
+    token,
+    { method: 'PATCH' },
+  ).then((res) => res.data);
+}
+
+export function reactivateOccupationalDiseaseStatisticalCase(
+  token: string,
+  id: string,
+): Promise<OccupationalDiseaseStatisticalCaseModel> {
+  return apiFetch<{ success: boolean; data: OccupationalDiseaseStatisticalCaseModel; message: string }>(
+    `/occupational-disease-statistical-cases/${id}/reactivate`,
+    token,
+    { method: 'PATCH' },
+  ).then((res) => res.data);
+}
+
 // ── Sociodemographic Stats ──
 
 export interface DistributionEntry {
@@ -814,6 +1769,19 @@ export type ExamType = 'ENTRY' | 'PERIODIC' | 'EXIT' | 'POST_INCAPACITY' | 'CHAN
 export type ExamStatusType = 'SCHEDULED' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
 export type FitnessStatusType = 'FIT' | 'FIT_WITH_RESTRICTIONS' | 'UNFIT' | 'PENDING' | 'NOT_REPORTED';
 
+export interface ExamOccupationalContext {
+  /** Perfil de cargo (JobProfile) considerado para la evaluación. */
+  jobProfileId?: string;
+  /** Riesgos (Risk) del perfil considerados para la evaluación. */
+  riskIds?: string[];
+  /** Indica que la información fue suministrada/disponibilizada al evaluador (PRE-examen). */
+  providedToEvaluator?: boolean;
+  /** Fecha en que la información fue suministrada (PRE-examen). */
+  providedAt?: string;
+  /** Actor (uid) que suministró/disponibilizó la información. */
+  providedBy?: string;
+}
+
 export interface OccupationalExam {
   _id: string;
   companyId: string;
@@ -825,6 +1793,9 @@ export interface OccupationalExam {
   fitnessStatus?: FitnessStatusType;
   followUpRequired: boolean;
   followUpDate?: string;
+  // FASE 30D-2 (3.1.3): contexto PRE-examen opcional (evidencia de suministro del
+  // perfil de cargo al médico evaluador). No inferir de workerAcknowledged/communicationDate.
+  occupationalContext?: ExamOccupationalContext;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -838,6 +1809,8 @@ export interface CreateOccupationalExamPayload {
   fitnessStatus?: FitnessStatusType;
   followUpRequired?: boolean;
   followUpDate?: string;
+  // FASE 30D-2 (3.1.3): contexto PRE-examen opcional.
+  occupationalContext?: ExamOccupationalContext;
 }
 
 export interface OccupationalExamStats {
@@ -5954,4 +6927,69 @@ export function updateEnvironmentalMeasurement(token: string, id: string, payloa
 
 export function deleteEnvironmentalMeasurement(token: string, id: string): Promise<void> {
   return apiFetch<void>(`/risks/environmental-measurements/${id}`, token, { method: 'DELETE' });
+}
+
+// ==================== RISK METHODOLOGY (4.1.1) ====================
+
+/** Metodología de identificación de peligros (estándar 4.1.1). */
+export interface RiskMethodologyModel {
+  _id: string;
+  companyId: string;
+  name: string;
+  version: string;
+  description?: string;
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  effectiveFrom?: string;
+  reviewDate?: string;
+  reviewFrequencyMonths?: number;
+  responsible?: string;
+  identificationCriteria?: string;
+  evaluationCriteria?: string;
+  valuationCriteria?: string;
+  probabilityScale?: string;
+  consequenceScale?: string;
+  riskLevelRules?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Payload de creación de metodología (companyId se resuelve server-side). */
+export interface CreateRiskMethodologyPayload {
+  name: string;
+  version: string;
+  description?: string;
+  status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  effectiveFrom?: string;
+  reviewDate?: string;
+  reviewFrequencyMonths?: number;
+  responsible?: string;
+  identificationCriteria?: string;
+  evaluationCriteria?: string;
+  valuationCriteria?: string;
+  probabilityScale?: string;
+  consequenceScale?: string;
+  riskLevelRules?: string;
+}
+
+/** Payload de actualización parcial de metodología (PATCH). */
+export interface UpdateRiskMethodologyPayload extends Partial<CreateRiskMethodologyPayload> {}
+
+export function fetchRiskMethodologies(token: string): Promise<RiskMethodologyModel[]> {
+  return apiFetch<RiskMethodologyModel[]>('/risks/methodologies', token, { method: 'GET' });
+}
+
+export function fetchRiskMethodology(token: string, id: string): Promise<RiskMethodologyModel> {
+  return apiFetch<RiskMethodologyModel>(`/risks/methodologies/${id}`, token, { method: 'GET' });
+}
+
+export function createRiskMethodology(token: string, payload: CreateRiskMethodologyPayload): Promise<RiskMethodologyModel> {
+  return apiFetch<RiskMethodologyModel>('/risks/methodologies', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateRiskMethodology(token: string, id: string, payload: UpdateRiskMethodologyPayload): Promise<RiskMethodologyModel> {
+  return apiFetch<RiskMethodologyModel>(`/risks/methodologies/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteRiskMethodology(token: string, id: string): Promise<void> {
+  return apiFetch<void>(`/risks/methodologies/${id}`, token, { method: 'DELETE' });
 }

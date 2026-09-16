@@ -129,6 +129,13 @@ export class Employee {
   /** Centro de trabajo. */
   @Prop({ type: String })
   workCenter?: string;
+
+  // ── Relación estructurada con el perfil de cargo (3.1.3, FASE 30D-2) ──
+  // `position` (texto libre) se conserva por compatibilidad con datos
+  // históricos. `jobProfileId` agrega la relación estructurada opcional con
+  // un JobProfile del MISMO tenant (validado en EmployeesService).
+  @Prop({ type: Types.ObjectId, ref: 'JobProfile' })
+  jobProfileId?: Types.ObjectId;
 }
 
 export const EmployeeSchema = SchemaFactory.createForClass(Employee);

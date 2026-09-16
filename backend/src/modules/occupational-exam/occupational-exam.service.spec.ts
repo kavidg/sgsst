@@ -6,32 +6,73 @@ import { Types } from 'mongoose';
 
 // ── Mock helpers ──
 
-function createMockModel() {
+/** Campos del schema OccupationalExam (modo estricto de Mongoose). */
+const EXAM_SCHEMA_FIELDS = [
+  'companyId',
+  'employeeId',
+  'examType',
+  'examDate',
+  'status',
+  'nextDueDate',
+  'fitnessStatus',
+  'followUpRequired',
+  'followUpDate',
+  'periodicityMonths',
+  'relatedHazards',
+  'workerAcknowledged',
+  'communicationDate',
+  'occupationalContext',
+] as const;
+
+function createMockModel(allowedFields?: readonly string[]) {
   const docs: Record<string, unknown>[] = [];
   let idCounter = 1;
 
-  const model = {
-    find: mock.fn(() => ({
-      sort: mock.fn(() => ({
-        exec: mock.fn(() => Promise.resolve(docs)),
-      })),
-      exec: mock.fn(() => Promise.resolve(docs)),
-    })),
-    findOne: mock.fn(() => ({
-      exec: mock.fn(() => Promise.resolve(docs[0] ?? null)),
-    })),
-    findOneAndUpdate: mock.fn(() => ({
-      exec: mock.fn(() => Promise.resolve(docs[0] ?? null)),
-    })),
-    findOneAndDelete: mock.fn(() => ({
-      exec: mock.fn(() => Promise.resolve(docs[0] ?? null)),
-    })),
-    save: mock.fn(function (this: Record<string, unknown>) {
-      this._id = new Types.ObjectId(String(idCounter++));
-      docs.push(this);
-      return Promise.resolve(this);
-    }),
+  // Cadenas compatibles con find().sort().exec(), find().select().lean().exec(),
+  // findOne().exec() y findOne().select().lean().exec().
+  function chainFind() {
+    const chain: Record<string, unknown> = {};
+    chain.sort = mock.fn(() => chain);
+    chain.select = mock.fn(() => chain);
+    chain.lean = mock.fn(() => chain);
+    chain.exec = mock.fn(() => Promise.resolve(docs));
+    return chain;
+  }
+
+  function chainFindOne() {
+    const chain: Record<string, unknown> = {};
+    chain.select = mock.fn(() => chain);
+    chain.lean = mock.fn(() => chain);
+    chain.exec = mock.fn(() => Promise.resolve(docs[0] ?? null));
+    return chain;
+  }
+
+  // Mock construible (new model(fields)) como el Model real de Mongoose.
+  function nextObjectId() {
+    const hex = (idCounter++).toString(16).padStart(24, '0');
+    return new Types.ObjectId(hex);
+  }
+  const model: any = function Model(this: Record<string, unknown>, fields?: Record<string, unknown>) {
+    Object.assign(this, fields ?? {});
   };
+  model.prototype.save = function save(this: Record<string, unknown>) {
+    this._id = nextObjectId();
+    if (allowedFields) {
+      // Simula el modo estricto de Mongoose: los campos fuera del schema se omiten.
+      const filtered: Record<string, unknown> = {};
+      for (const key of Object.keys(this)) {
+        if ((allowedFields as readonly string[]).includes(key)) filtered[key] = this[key];
+      }
+      Object.keys(this).forEach((key) => delete this[key]);
+      Object.assign(this, filtered);
+    }
+    docs.push(this);
+    return Promise.resolve(this);
+  };
+  model.find = mock.fn((..._args: unknown[]) => chainFind());
+  model.findOne = mock.fn((..._args: unknown[]) => chainFindOne());
+  model.findOneAndUpdate = mock.fn((..._args: unknown[]) => chainFindOne());
+  model.findOneAndDelete = mock.fn((..._args: unknown[]) => chainFindOne());
 
   return { model, docs };
 }
@@ -50,12 +91,16 @@ describe('OccupationalExamService', () => {
   let service: OccupationalExamService;
   let examModel: ReturnType<typeof createMockModel>;
   let employeeModel: ReturnType<typeof createMockModel>;
+  let jobProfileModel: ReturnType<typeof createMockModel>;
+  let riskModel: ReturnType<typeof createMockModel>;
   const companyId = createCompanyId();
   const employeeId = createEmployeeId();
 
   beforeEach(() => {
-    examModel = createMockModel();
+    examModel = createMockModel([...EXAM_SCHEMA_FIELDS]);
     employeeModel = createMockModel();
+    jobProfileModel = createMockModel();
+    riskModel = createMockModel();
 
     // Pre-populate employee model with a valid employee
     employeeModel.docs.push({
@@ -72,6 +117,8 @@ describe('OccupationalExamService', () => {
     service = new OccupationalExamService(
       examModel.model as never,
       employeeModel.model as never,
+      jobProfileModel.model as never,
+      riskModel.model as never,
     );
   });
 
@@ -253,5 +300,105 @@ describe('OccupationalExamService', () => {
     // Extra fields should not be stored (Mongoose strips them)
     assert.equal((result as unknown as Record<string, unknown>).diagnosis, undefined);
     assert.equal((result as unknown as Record<string, unknown>).clinicalNotes, undefined);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // FASE 30D-2 — Contexto PRE-examen (3.1.3)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it('CONTEXT-001: crea examen con contexto PRE-examen válido (perfil del mismo tenant)', async () => {
+    const profileId = new Types.ObjectId('64b0000000000000000000c1');
+    const riskId = new Types.ObjectId('64b0000000000000000000c2');
+    jobProfileModel.docs.push({ _id: profileId, companyId });
+    riskModel.docs.push({ _id: riskId, companyId });
+
+    const dto = {
+      employeeId: String(employeeId),
+      examType: ExamType.ENTRY,
+      status: ExamStatus.COMPLETED,
+      examDate: '2025-01-10',
+      occupationalContext: {
+        jobProfileId: String(profileId),
+        riskIds: [String(riskId)],
+        providedToEvaluator: true,
+        providedAt: '2025-01-01',
+        providedBy: 'uid-evaluador',
+      },
+    };
+
+    const result = await service.create(companyId, dto);
+    assert.ok(result);
+    const ctx = (result as unknown as Record<string, unknown>).occupationalContext as Record<string, unknown>;
+    assert.ok(ctx, 'contexto persistido');
+    assert.equal(ctx.providedToEvaluator, true);
+    assert.ok(ctx.jobProfileId instanceof Types.ObjectId, 'jobProfileId normalizado a ObjectId');
+    assert.ok(ctx.providedAt instanceof Date, 'providedAt normalizado a Date');
+  });
+
+  it('CONTEXT-002: rechaza contexto con perfil de otra empresa (cross-tenant)', async () => {
+    const otherProfileId = new Types.ObjectId('64b0000000000000000000c3');
+    // jobProfileModel NO contiene el perfil de la empresa → validación falla.
+    const dto = {
+      employeeId: String(employeeId),
+      examType: ExamType.ENTRY,
+      status: ExamStatus.SCHEDULED,
+      occupationalContext: {
+        jobProfileId: String(otherProfileId),
+        providedToEvaluator: true,
+        providedAt: '2025-01-01',
+        providedBy: 'uid',
+      },
+    };
+    await assert.rejects(
+      () => service.create(companyId, dto),
+      (err: Error) => {
+        assert.ok(err.message.includes('JobProfile del contexto'));
+        return true;
+      },
+    );
+  });
+
+  it('CONTEXT-003: rechaza evidencia posterior al examen (providedAt > examDate)', async () => {
+    const profileId = new Types.ObjectId('64b0000000000000000000c4');
+    jobProfileModel.docs.push({ _id: profileId, companyId });
+    const dto = {
+      employeeId: String(employeeId),
+      examType: ExamType.ENTRY,
+      status: ExamStatus.COMPLETED,
+      examDate: '2025-01-10',
+      occupationalContext: {
+        jobProfileId: String(profileId),
+        providedToEvaluator: true,
+        providedAt: '2026-01-01', // posterior al examen
+        providedBy: 'uid',
+      },
+    };
+    await assert.rejects(
+      () => service.create(companyId, dto),
+      /providedAt <= examDate/,
+    );
+  });
+
+  it('CONTEXT-004: rechaza riesgos del contexto de otra empresa', async () => {
+    const profileId = new Types.ObjectId('64b0000000000000000000c5');
+    const otherRiskId = new Types.ObjectId('64b0000000000000000000c6');
+    jobProfileModel.docs.push({ _id: profileId, companyId });
+    // riskModel no contiene el riesgo → validación falla.
+    const dto = {
+      employeeId: String(employeeId),
+      examType: ExamType.ENTRY,
+      status: ExamStatus.SCHEDULED,
+      occupationalContext: {
+        jobProfileId: String(profileId),
+        riskIds: [String(otherRiskId)],
+        providedToEvaluator: true,
+        providedAt: '2025-01-01',
+        providedBy: 'uid',
+      },
+    };
+    await assert.rejects(
+      () => service.create(companyId, dto),
+      /riesgos del contexto/,
+    );
   });
 });

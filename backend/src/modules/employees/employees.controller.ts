@@ -19,6 +19,7 @@ import { UsersService } from '../users/users.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { BulkCreateEmployeesDto } from './dto/bulk-create-employees.dto';
+import { AssignJobProfileDto } from './dto/assign-job-profile.dto';
 import { EmployeesService } from './employees.service';
 
 @Controller('employees')
@@ -80,6 +81,28 @@ export class EmployeesController {
   async remove(@Req() request: RequestWithUser, @Param('id') id: string) {
     const companyId = await this.resolveCompanyId(request);
     return this.employeesService.remove(id, companyId);
+  }
+
+  // ── FASE 30D-2: Relación Employee → JobProfile (3.1.3) ──
+
+  /** Asocia un JobProfile del mismo tenant al empleado. */
+  @Patch(':id/job-profile')
+  @Roles('owner', 'admin')
+  async assignJobProfile(
+    @Req() request: RequestWithUser,
+    @Param('id') id: string,
+    @Body() dto: AssignJobProfileDto,
+  ) {
+    const companyId = await this.resolveCompanyId(request);
+    return this.employeesService.assignJobProfile(id, companyId, dto.jobProfileId);
+  }
+
+  /** Desasocia el JobProfile del empleado. */
+  @Delete(':id/job-profile')
+  @Roles('owner', 'admin')
+  async unassignJobProfile(@Req() request: RequestWithUser, @Param('id') id: string) {
+    const companyId = await this.resolveCompanyId(request);
+    return this.employeesService.unassignJobProfile(id, companyId);
   }
 
   private async resolveCompanyId(request: RequestWithUser): Promise<Types.ObjectId> {

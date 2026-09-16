@@ -19,6 +19,20 @@ const links: SidebarLink[] = [
   { to: '/companies', label: 'Empresas', icon: Icons.companies },
   { to: '/users', label: 'Usuarios', icon: Icons.users },
   { to: '/employees', label: 'Empleados', icon: Icons.users },
+  { to: '/job-profiles', label: 'Perfiles de cargo', icon: Icons.user },
+  { to: '/health-promotion', label: 'Prom. y prevención', icon: Icons.file },
+  // FASE 32: 3.1.7 — Estilos de vida y entornos saludables (mismo módulo con
+  // frontera normativa; la clasificación 3.1.7 vive en el backend).
+  { to: '/health-promotion?standard=3.1.7', label: 'Estilos de vida', icon: Icons.file },
+  { to: '/occupational-medical-record-custody', label: 'Custodia HC', icon: Icons.file },
+  // FASE 33: 3.1.6 — Restricciones y recomendaciones médico-laborales (owner/admin).
+  { to: '/work-restrictions', label: 'Restricciones méd-lab', icon: Icons.file },
+  // FASE 34B: 3.1.8 — Agua potable, servicios sanitarios y disposición de basuras (owner/admin).
+  { to: '/workplace-sanitary-conditions', label: 'Condiciones sanitarias', icon: Icons.file },
+  // FASE 34C: 3.1.9 — Eliminación adecuada de residuos sólidos, líquidos o gaseosos (owner/admin).
+  { to: '/waste-management', label: 'Gestión de residuos', icon: Icons.file },
+  // FASE 35B: Casos estadísticos de enfermedad laboral (owner/admin; sin scoring — base 3.3.4/3.3.5).
+  { to: '/occupational-disease-statistical-cases', label: 'Enfermedad laboral (casos)', icon: Icons.file },
   { to: '/company-configuration', label: 'Empresa', icon: Icons.building },
   { to: '/implementation-wizard', label: 'Implementación', icon: Icons.chart },
   // LEGACY (FASE 3.4.1): la ruta /evaluations apunta a una página legacy rota
@@ -59,6 +73,21 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
     ? managerLinks
     : links.filter((link) => {
       if (link.to === '/companies') return role === 'owner';
+      if (link.to === '/job-profiles') return role === 'owner' || role === 'admin';
+      if (link.to === '/health-promotion') return role === 'owner' || role === 'admin';
+      // FASE 32: 3.1.7 — mismo módulo, alcance estilos de vida (owner/admin).
+      if (link.to === '/health-promotion?standard=3.1.7') return role === 'owner' || role === 'admin';
+      // FASE 33: 3.1.6 — Restricciones méd-lab (owner/admin).
+      if (link.to === '/work-restrictions') return role === 'owner' || role === 'admin';
+      // FASE 34B: 3.1.8 — Condiciones sanitarias (owner/admin).
+      if (link.to === '/workplace-sanitary-conditions') return role === 'owner' || role === 'admin';
+      // FASE 34C: 3.1.9 — Gestión de residuos (owner/admin).
+      if (link.to === '/waste-management') return role === 'owner' || role === 'admin';
+      // FASE 35B: Casos estadísticos de enfermedad laboral (owner/admin; lectura +manager en página).
+      if (link.to === '/occupational-disease-statistical-cases') return role === 'owner' || role === 'admin';
+      // 3.1.5 (FASE 30G): visible para owner/admin (gestión); manager accede
+      // vía PHVA — Hacer. Igual patrón que health-promotion.
+      if (link.to === '/occupational-medical-record-custody') return role === 'owner' || role === 'admin';
       if (link.to === '/my-communications') return role === 'member';
       return true;
     });

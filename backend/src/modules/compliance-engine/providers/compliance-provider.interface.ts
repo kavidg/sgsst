@@ -27,6 +27,12 @@ export interface ProviderComplianceResult {
   alerts?: ComplianceAlertDto[];
   /** Cantidad de ítems vencidos (planes anuales e inspecciones). */
   overdue?: number;
+  /**
+   * Metadata estadística opcional del provider (FASE 35C-2, 3.3.4):
+   * numerador, denominador, fecha de corte, unidad y factor de escala.
+   * Additiva y opcional: ningún provider existente se ve afectado.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 /**

@@ -106,3 +106,70 @@ export const AWP_CONSOLIDATED_SOURCES = [
   'sst-objectives',
   'initial-evaluation',
 ];
+
+// ─── FASE 30A/30B-2: Scoring Boundary ───────────────────────────────────────
+
+/**
+ * Módulos cuyo estándar asociado tiene classification DUPLICATE, COMPLEMENTARY
+ * o PHANTOM. Estos módulos NO deben contribuir al cálculo de cumplimiento
+ * global (phases → PHASE_WEIGHTS → overall score).
+ *
+ * Regla: classification === 'DUPLICATE' | 'COMPLEMENTARY' | 'PHANTOM'
+ *        → exclude from scoring.
+ */
+export const SCORING_EXCLUDED_MODULES: ReadonlySet<string> = new Set([
+  // DUPLICATE → 1.1.10 (duplicate of 1.1.3)
+  'emergencies',
+  // DUPLICATE → 4.3.1 (duplicate of 3.2.2)
+  'control-verification-standard',
+  // COMPLEMENTARY → 4.4.1
+  'emergency-management',
+]);
+
+/**
+ * Módulos cuyo mapping semántico es PARTIAL o WRONG_MAPPING.
+ * Estos módulos existen técnicamente y producen hallazgos/diagnósticos,
+ * pero NO deben contribuir al cálculo de cumplimiento porque su evidencia
+ * no representa adecuadamente el estándar normativo.
+ *
+ * Regla: semantic status === 'PARTIAL' | 'WRONG_MAPPING'
+ *        → exclude from scoring.
+ *
+ * FASE 30B-2: Estos providers fueron auditados y clasificados como PARTIAL
+ * porque su evidencia no corresponde exactamente al estándar oficial:
+ * - occupational-exam → 3.1.2 (promoción y prevención ≠ exámenes médicos)
+ * - medical-recommendation → 3.1.3 (recomendaciones ≠ información al médico)
+ * - health-indicators → 3.3.2 (indicadores genéricos ≠ severidad específica)
+ *
+ * NOTA: disease-investigation (3.2.2) fue clasificado como EXACT/VALID_REUSE
+ * y SÍ puede scorear.
+ */
+export const SCORING_INELIGIBLE_MODULES: ReadonlySet<string> = new Set([
+  // PARTIAL → 3.1.2: Promoción y prevención ≠ exámenes médicos ocupacionales
+  'occupational-exam',
+  // PARTIAL → 3.1.3: Información al médico ≠ recomendaciones médicas
+  'medical-recommendation',
+  // PARTIAL → 3.3.2: Severidad de accidentalidad ≠ indicadores genéricos de salud
+  'health-indicators',
+]);
+
+/**
+
+/**
+ * Filtra resultados de providers eliminando los módulos excluidos del scoring.
+ * Los módulos excluidos conservan su funcionalidad técnica pero NO contribuyen
+ * al cálculo global de cumplimiento.
+ *
+ * Combina:
+ * - SCORING_EXCLUDED_MODULES: DUPLICATE / COMPLEMENTARY / PHANTOM
+ * - SCORING_INELIGIBLE_MODULES: PARTIAL / WRONG_MAPPING
+ */
+export function filterScoringEligible<T extends { module: string }>(
+  results: readonly T[],
+): T[] {
+  return results.filter(
+    (result) =>
+      !SCORING_EXCLUDED_MODULES.has(result.module) &&
+      !SCORING_INELIGIBLE_MODULES.has(result.module),
+  );
+}

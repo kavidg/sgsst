@@ -19,47 +19,53 @@ const VALID_COMPANY_ID = '507f1f77bcf86cd799439011';
 
 function createMockMethodologyModel(data: any[] = []) {
   const store = [...data];
-  return {
-    find: (query: any) => ({
-      sort: () => ({
-        exec: async () => store.filter((item) =>
-          !query.companyId || item.companyId?.toString() === query.companyId?.toString()
-        ),
-      }),
+  // FASE 4.1.1-2: el mock es construible (`new model(doc)`) para soportar el
+  // flujo real del servicio: `new this.methodologyModel({...})` + `save()`.
+  const model: any = function (doc: any) {
+    return {
+      ...doc,
+      save: async () => {
+        doc._id = doc._id || 'new-id-' + Date.now();
+        store.push(doc);
+        return doc;
+      },
+    };
+  };
+  model.find = (query: any) => ({
+    sort: () => ({
+      exec: async () => store.filter((item) =>
+        !query.companyId || item.companyId?.toString() === query.companyId?.toString()
+      ),
     }),
-    findOne: (query: any) => ({
-      exec: async () => store.find((item) =>
+  });
+  model.findOne = (query: any) => ({
+    exec: async () => store.find((item) =>
+      item._id === query._id &&
+      (!query.companyId || item.companyId?.toString() === query.companyId?.toString())
+    ) ?? null,
+  });
+  model.findOneAndUpdate = (query: any, update: any, options: any) => ({
+    exec: async () => {
+      const idx = store.findIndex((item) =>
         item._id === query._id &&
         (!query.companyId || item.companyId?.toString() === query.companyId?.toString())
-      ) ?? null,
-    }),
-    save: async function (this: any) {
-      this._id = this._id || 'new-id-' + Date.now();
-      store.push(this);
-      return this;
+      );
+      if (idx === -1) return null;
+      Object.assign(store[idx], update.$set || update);
+      return store[idx];
     },
-    findOneAndUpdate: (query: any, update: any, options: any) => ({
-      exec: async () => {
-        const idx = store.findIndex((item) =>
-          item._id === query._id &&
-          (!query.companyId || item.companyId?.toString() === query.companyId?.toString())
-        );
-        if (idx === -1) return null;
-        Object.assign(store[idx], update.$set || update);
-        return store[idx];
-      },
-    }),
-    findOneAndDelete: (query: any) => ({
-      exec: async () => {
-        const idx = store.findIndex((item) =>
-          item._id === query._id &&
-          (!query.companyId || item.companyId?.toString() === query.companyId?.toString())
-        );
-        if (idx === -1) return null;
-        return store.splice(idx, 1)[0];
-      },
-    }),
-  } as any;
+  });
+  model.findOneAndDelete = (query: any) => ({
+    exec: async () => {
+      const idx = store.findIndex((item) =>
+        item._id === query._id &&
+        (!query.companyId || item.companyId?.toString() === query.companyId?.toString())
+      );
+      if (idx === -1) return null;
+      return store.splice(idx, 1)[0];
+    },
+  });
+  return model;
 }
 
 // Since RiskMethodologyService depends on Mongoose injection,

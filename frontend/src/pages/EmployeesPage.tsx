@@ -13,6 +13,13 @@ import {
   createOccupationalExam,
   updateOccupationalExam,
   deleteOccupationalExam,
+  assignEmployeeJobProfile,
+  unassignEmployeeJobProfile,
+  fetchJobProfiles,
+  fetchRisks,
+  fetchMyProfile,
+  type JobProfileModel,
+  type RiskModel,
   type OccupationalExam,
   type ExamType,
   type ExamStatusType,
@@ -21,6 +28,7 @@ import {
 } from '../api';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { HazardPicker } from '../components/HazardPicker';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
@@ -34,6 +42,7 @@ interface EmployeeFormState {
   name: string;
   document: string;
   position: string;
+  jobProfileId: string;
   area: string;
   contractType: string;
   status: string;
@@ -62,6 +71,7 @@ const emptyEmployee: EmployeeFormState = {
   name: '',
   document: '',
   position: '',
+  jobProfileId: '',
   area: '',
   contractType: '',
   status: 'Activo',
@@ -190,6 +200,11 @@ interface ExamFormState {
   fitnessStatus: string;
   followUpRequired: string;
   followUpDate: string;
+  // ── Contexto ocupacional PRE-examen (3.1.3, FASE 30D-2) ──
+  contextJobProfileId: string;
+  contextRiskIds: string[];
+  contextProvidedToEvaluator: boolean;
+  contextProvidedAt: string;
 }
 
 const emptyExamForm: ExamFormState = {
@@ -199,7 +214,11 @@ const emptyExamForm: ExamFormState = {
   nextDueDate: '',
   fitnessStatus: '',
   followUpRequired: 'false',
-  followUpDate: ''
+  followUpDate: '',
+  contextJobProfileId: '',
+  contextRiskIds: [],
+  contextProvidedToEvaluator: false,
+  contextProvidedAt: '',
 };
 
 // ── Profile indicator helpers ──
@@ -258,6 +277,11 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
   const [examFormLoading, setExamFormLoading] = useState(false);
 
+  // ── FASE 30D-2/30D-3 (3.1.3): perfiles de cargo, matriz de riesgos y actor ──
+  const [jobProfiles, setJobProfiles] = useState<JobProfileModel[]>([]);
+  const [risks, setRisks] = useState<RiskModel[]>([]);
+  const [actorUid, setActorUid] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadEmployees = async () => {
@@ -274,8 +298,26 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
     }
   };
 
+  // FASE 30D-2: carga de perfiles de cargo + riesgos (matriz) + identidad del actor.
+  const loadSupportData = async () => {
+    try {
+      const [profileData, riskData, profile] = await Promise.all([
+        fetchJobProfiles(token),
+        fetchRisks(token),
+        fetchMyProfile(token),
+      ]);
+      setJobProfiles(profileData);
+      setRisks(riskData);
+      if (profile) setActorUid(profile.firebaseUid ?? '');
+    } catch {
+      // Los datos de soporte no bloquean la pantalla principal de empleados.
+    }
+  };
+
   useEffect(() => {
     void loadEmployees();
+    void loadSupportData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, token]);
 
   const resetForm = () => {
@@ -319,13 +361,59 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
       if (editingEmployeeId) {
         await updateEmployee(token, editingEmployeeId, payload);
       } else {
-        await createEmployee(token, payload);
+        const created = await createEmployee(token, payload);
+        // FASE 30D-2 (3.1.3): si se seleccionó un perfil de cargo al crear,
+        // se asocia con el endpoint dedicado tras la creación del empleado.
+        if (form.jobProfileId) {
+          await assignEmployeeJobProfile(token, created._id, form.jobProfileId);
+        }
       }
 
       resetForm();
       await loadEmployees();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No fue posible guardar empleado.');
+      setLoading(false);
+    }
+  };
+
+  // ── FASE 30D-2/30D-3: relación Employee → JobProfile (3.1.3) ──
+
+  /** Asigna o cambia el perfil de cargo de un empleado existente (endpoint dedicado). */
+  const handleAssignProfile = async () => {
+    if (!editingEmployeeId) {
+      setError('Guarda primero el empleado para poder asignarle un perfil de cargo.');
+      return;
+    }
+    if (!form.jobProfileId) {
+      setError('Selecciona un perfil de cargo para asignar.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await assignEmployeeJobProfile(token, editingEmployeeId, form.jobProfileId);
+      setError('');
+      await loadEmployees();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No fue posible asignar el perfil de cargo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Desasocia el perfil de cargo del empleado (endpoint dedicado). */
+  const handleUnassignProfile = async () => {
+    if (!editingEmployeeId) return;
+    setLoading(true);
+    setError('');
+    try {
+      await unassignEmployeeJobProfile(token, editingEmployeeId);
+      setForm((prev) => ({ ...prev, jobProfileId: '' }));
+      await loadEmployees();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No fue posible quitar el perfil de cargo.');
+    } finally {
       setLoading(false);
     }
   };
@@ -337,6 +425,7 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
       name: employee.name,
       document: employee.document,
       position: employee.position,
+      jobProfileId: employee.jobProfileId ?? '',
       area: employee.area,
       contractType: employee.contractType,
       status: employee.status,
@@ -499,6 +588,28 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
       return;
     }
 
+    // ── Contexto PRE-examen (3.1.3, FASE 30D-2/30D-3) ──
+    // La evidencia C4 SOLO es válida con perfil + providedToEvaluator + fecha +
+    // actor y coherencia providedAt <= examDate. No se infiere de otros campos.
+    if (examForm.contextProvidedToEvaluator) {
+      if (!examForm.contextJobProfileId) {
+        setExamsError('Para registrar evidencia PRE-examen selecciona el perfil de cargo utilizado en la evaluación.');
+        return;
+      }
+      if (!examForm.contextProvidedAt) {
+        setExamsError('Indica la fecha en que la información del perfil fue suministrada al médico/evaluador.');
+        return;
+      }
+      if (examForm.examDate && examForm.contextProvidedAt > examForm.examDate) {
+        setExamsError('La evidencia PRE-examen no puede ser posterior al examen (providedAt debe ser <= examDate).');
+        return;
+      }
+      if (!actorUid) {
+        setExamsError('No fue posible identificar al usuario responsable (providedBy). Recarga la página e inténtalo de nuevo.');
+        return;
+      }
+    }
+
     setExamFormLoading(true);
     setExamsError('');
 
@@ -513,6 +624,17 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
       if (examForm.fitnessStatus) payload.fitnessStatus = examForm.fitnessStatus as FitnessStatusType;
       payload.followUpRequired = examForm.followUpRequired === 'true';
       if (examForm.followUpDate) payload.followUpDate = examForm.followUpDate;
+
+      // Contexto ocupacional PRE-examen: se envía siempre (derivado del estado
+      // del formulario). Si el usuario desmarca la evidencia, se persiste la
+      // remoción (no se deja evidencia residual).
+      payload.occupationalContext = {
+        jobProfileId: examForm.contextJobProfileId || undefined,
+        riskIds: examForm.contextRiskIds,
+        providedToEvaluator: examForm.contextProvidedToEvaluator,
+        providedAt: examForm.contextProvidedAt || undefined,
+        providedBy: examForm.contextProvidedToEvaluator ? actorUid : '',
+      };
 
       if (editingExamId) {
         await updateOccupationalExam(token, editingExamId, payload);
@@ -541,7 +663,44 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
       fitnessStatus: exam.fitnessStatus ?? '',
       followUpRequired: String(exam.followUpRequired),
       followUpDate: exam.followUpDate ? exam.followUpDate.slice(0, 10) : '',
+      contextJobProfileId: exam.occupationalContext?.jobProfileId ?? '',
+      contextRiskIds: [...(exam.occupationalContext?.riskIds ?? [])],
+      contextProvidedToEvaluator: exam.occupationalContext?.providedToEvaluator === true,
+      contextProvidedAt: exam.occupationalContext?.providedAt ? exam.occupationalContext.providedAt.slice(0, 10) : '',
     });
+  };
+
+  // ── FASE 30D-2/30D-3: contexto ocupacional del examen (3.1.3) ──
+
+  /** Al elegir un perfil, preselecciona sus peligros asociados (matriz Risk). */
+  const handleExamContextProfileChange = (profileId: string) => {
+    setExamForm((prev) => {
+      const profile = jobProfiles.find((p) => p._id === profileId);
+      return {
+        ...prev,
+        contextJobProfileId: profileId,
+        contextRiskIds: profile ? [...(profile.associatedHazardIds ?? [])] : prev.contextRiskIds,
+      };
+    });
+  };
+
+  const toggleContextRisk = (riskId: string) => {
+    setExamForm((prev) => ({
+      ...prev,
+      contextRiskIds: prev.contextRiskIds.includes(riskId)
+        ? prev.contextRiskIds.filter((id) => id !== riskId)
+        : [...prev.contextRiskIds, riskId],
+    }));
+  };
+
+  /** Al marcar/desmarcar la evidencia se limpian los campos dependientes al desmarcar. */
+  const handleContextProvidedToggle = (checked: boolean) => {
+    setExamForm((prev) => ({
+      ...prev,
+      contextProvidedToEvaluator: checked,
+      // Si se desmarca no se envía evidencia falsa ni fecha huérfana.
+      contextProvidedAt: checked ? prev.contextProvidedAt : '',
+    }));
   };
 
   const handleDeleteExam = async (examId: string) => {
@@ -563,6 +722,12 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
     setEditingExamId(null);
     setExamForm(emptyExamForm);
   };
+
+  // ── FASE 30D-3 (3.1.3): derivados para la UI de perfil de cargo ──
+  const editingEmployee = editingEmployeeId ? employees.find((e) => e._id === editingEmployeeId) ?? null : null;
+  const assignedProfileId = editingEmployee?.jobProfileId ?? '';
+  const assignedProfile = assignedProfileId ? jobProfiles.find((p) => p._id === assignedProfileId) ?? null : null;
+  const profileById = new Map(jobProfiles.map((p) => [p._id, p]));
 
   return (
     <section className="grid">
@@ -609,6 +774,42 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
                   <option value="No activo">No activo</option>
                 </Select>
               </label>
+
+              {/* ── FASE 30D-2/30D-3 (3.1.3): Perfil de cargo estructurado ── */}
+              <label className="field" style={{ gridColumn: 'span 2' }}>
+                <span className="label">Perfil de cargo (estructurado — 3.1.3)</span>
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Select
+                    value={form.jobProfileId}
+                    onChange={(e) => updateField('jobProfileId', e.target.value)}
+                    style={{ flex: 1, minWidth: 220 }}
+                  >
+                    <option value="">— Sin perfil de cargo —</option>
+                    {jobProfiles.filter((p) => p.active).map((profile) => (
+                      <option key={profile._id} value={profile._id}>{profile.code} — {profile.name}</option>
+                    ))}
+                    {assignedProfile && !assignedProfile.active ? (
+                      <option value={assignedProfile._id}>{assignedProfile.code} — {assignedProfile.name} (inactivo)</option>
+                    ) : null}
+                  </Select>
+                  <Button type="button" variant="secondary" style={{ fontSize: '.75rem' }} onClick={() => void handleAssignProfile()}>
+                    {assignedProfile ? 'Cambiar perfil' : 'Asignar perfil'}
+                  </Button>
+                  {assignedProfile ? (
+                    <Button type="button" variant="danger" style={{ fontSize: '.75rem' }} onClick={() => void handleUnassignProfile()}>
+                      Quitar perfil
+                    </Button>
+                  ) : null}
+                </div>
+                <span style={{ fontSize: '.75rem', color: '#64748b', display: 'block', marginTop: '.25rem' }}>
+                  Complementa el campo "Cargo" (texto libre) con el perfil estructurado del puesto. El perfil y el empleado deben pertenecer a la misma empresa.
+                </span>
+              </label>
+              {editingEmployee && editingEmployee.position && !editingEmployee.jobProfileId ? (
+                <div style={{ gridColumn: 'span 2', padding: '.5rem .75rem', borderRadius: '.375rem', background: '#fffbeb', border: '1px solid #fde68a', fontSize: '.8rem', color: '#92400e' }}>
+                  ⚠ Este trabajador tiene un cargo registrado ({editingEmployee.position}), pero no tiene un perfil de cargo estructurado. Asócialo para que la información esté disponible en la evaluación médica ocupacional (3.1.3).
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -760,27 +961,52 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
             <th className="border border-black p-3">Área</th>
             <th className="border border-black p-3">Estado</th>
             <th className="border border-black p-3">Perfil</th>
+            <th className="border border-black p-3">Perfil de cargo</th>
             <th className="border border-black p-3">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          {employees.map((employee) => (
-            <tr key={employee._id}>
-              <td className="border border-black p-3">{employee.name}</td>
-              <td className="border border-black p-3">{employee.document}</td>
-              <td className="border border-black p-3">{employee.position}</td>
-              <td className="border border-black p-3">{employee.area}</td>
-              <td className="border border-black p-3">{employee.status}</td>
-              <td className="border border-black p-3"><ProfileBadge employee={employee} /></td>
-              <td className="border border-black p-3">                  <div className="actions">
+          {employees.map((employee) => {
+            const empProfile = employee.jobProfileId ? profileById.get(employee.jobProfileId) ?? null : null;
+            return (
+              <tr key={employee._id}>
+                <td className="border border-black p-3">{employee.name}</td>
+                <td className="border border-black p-3">{employee.document}</td>
+                <td className="border border-black p-3">{employee.position}</td>
+                <td className="border border-black p-3">{employee.area}</td>
+                <td className="border border-black p-3">{employee.status}</td>
+                <td className="border border-black p-3"><ProfileBadge employee={employee} /></td>
+                <td className="border border-black p-3">
+                  {empProfile ? (
+                    <div>
+                      <div style={{ fontSize: '.8rem', fontWeight: 600 }}>
+                        {empProfile.code} — {empProfile.name}
+                      </div>
+                      {!empProfile.active ? <div style={{ fontSize: '.7rem', color: '#d97706' }}>perfil inactivo</div> : null}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '.8rem' }}>
+                      <span style={{ color: '#94a3b8' }}>—</span>
+                      {employee.position ? (
+                        <div style={{ fontSize: '.72rem', color: '#b45309', marginTop: '.15rem' }} title="Tiene cargo registrado pero no un perfil de cargo estructurado">
+                          ⚠ cargo sin perfil estructurado
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </td>
+                <td className="border border-black p-3">                  <div className="actions">
                   <Button type="button" variant="secondary" onClick={() => handleEdit(employee)}>Editar</Button>
                   <Button type="button" onClick={() => void openExams(employee)} style={{ fontSize: '.75rem' }}>📋 Exámenes</Button>
-                  <Button type="button" variant="danger" onClick={() => handleDelete(employee._id)}>Eliminar</Button>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {!employees.length ? <tr><td className="border border-black p-3" colSpan={7}>No hay empleados registrados.</td></tr> : null}
+                    <Button type="button" variant="secondary" onClick={() => handleEdit(employee)}>Editar</Button>
+                    <Button type="button" onClick={() => void openExams(employee)} style={{ fontSize: '.75rem' }}>📋 Exámenes</Button>
+                    <Button type="button" variant="danger" onClick={() => handleDelete(employee._id)}>Eliminar</Button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+          {!employees.length ? <tr><td className="border border-black p-3" colSpan={8}>No hay empleados registrados.</td></tr> : null}
         </tbody>
       </Table>
 
@@ -843,6 +1069,94 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
                   </label>
                 )}
               </div>
+
+              {/* ── Sección 3.1.3: Contexto ocupacional PRE-examen ── */}
+              <div style={{ marginTop: '.75rem', padding: '.75rem', borderRadius: 8, border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                <h5 style={{ margin: '0 0 .25rem', fontSize: '.9rem', fontWeight: 700, color: '#1e293b' }}>
+                  🩺 Contexto ocupacional para la evaluación médica (3.1.3)
+                </h5>
+                <p style={{ margin: '0 0 .75rem', fontSize: '.78rem', color: '#64748b' }}>
+                  Información del perfil de cargo puesta a disposición del médico evaluador como parte del proceso PRE-examen.
+                  La evidencia es válida solo si se registran el perfil, el marcado de suministro, la fecha y el responsable.
+                </p>
+                <div className="grid grid-2">
+                  <label className="field">
+                    <span className="label">Perfil de cargo utilizado</span>
+                    <Select
+                      value={examForm.contextJobProfileId}
+                      onChange={(e) => handleExamContextProfileChange(e.target.value)}
+                    >
+                      <option value="">— Sin perfil de cargo —</option>
+                      {jobProfiles.filter((p) => p.active).map((profile) => (
+                        <option key={profile._id} value={profile._id}>{profile.code} — {profile.name}</option>
+                      ))}
+                      {(() => {
+                        const current = jobProfiles.find((p) => p._id === examForm.contextJobProfileId);
+                        return current && !current.active ? (
+                          <option value={current._id}>{current.code} — {current.name} (inactivo)</option>
+                        ) : null;
+                      })()}
+                    </Select>
+                  </label>
+                  <div className="field" style={{ justifyContent: 'center' }}>
+                    {(() => {
+                      const profile = jobProfiles.find((p) => p._id === examForm.contextJobProfileId);
+                      if (!profile) return null;
+                      const hazardCount = profile.associatedHazardIds?.length ?? 0;
+                      return (
+                        <p style={{ margin: 0, fontSize: '.8rem', color: '#475569' }}>
+                          Perfil <strong>{profile.code} — {profile.name}</strong> con {hazardCount} peligro(s) asociado(s).
+                          {hazardCount > 0 ? ' Se preseleccionaron abajo; puedes ajustarlos.' : ''}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <span className="label">Peligros considerados para la evaluación (matriz de riesgos)</span>
+                    <HazardPicker risks={risks} selected={examForm.contextRiskIds} onToggle={toggleContextRisk} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '.5rem', padding: '.6rem .75rem', borderRadius: 8, border: '1px solid #e2e8f0', backgroundColor: examForm.contextProvidedToEvaluator ? '#eff6ff' : '#fff' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={examForm.contextProvidedToEvaluator}
+                      onChange={(e) => handleContextProvidedToggle(e.target.checked)}
+                      style={{ marginTop: '.15rem' }}
+                    />
+                    <span style={{ fontSize: '.85rem', fontWeight: 600, color: '#1e293b' }}>
+                      Información del perfil suministrada al médico/evaluador
+                    </span>
+                  </label>
+
+                  {examForm.contextProvidedToEvaluator ? (
+                    <div className="grid grid-2" style={{ marginTop: '.5rem' }}>
+                      <label className="field">
+                        <span className="label">Fecha de suministro *</span>
+                        <Input
+                          type="date"
+                          max={examForm.examDate || undefined}
+                          value={examForm.contextProvidedAt}
+                          onChange={(e) => setExamForm((prev) => ({ ...prev, contextProvidedAt: e.target.value }))}
+                          required
+                        />
+                      </label>
+                      <div className="field" style={{ justifyContent: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '.78rem', color: '#475569' }}>
+                          Se registrará evidencia PRE-examen válida (C4): perfil + suministro + fecha + responsable
+                          (<span title={actorUid}>uid…{actorUid.slice(-6) || '—'}</span>).
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p style={{ margin: '.4rem 0 0', fontSize: '.75rem', color: '#94a3b8' }}>
+                      No se registrará evidencia de suministro PRE-examen. La existencia del examen o de una recomendación médica NO constituye esta evidencia.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="actions">
                 <Button type="submit" disabled={examFormLoading}>{editingExamId ? 'Actualizar' : 'Crear examen'}</Button>
                 {editingExamId ? <Button type="button" variant="secondary" onClick={cancelExamEdit}>Cancelar</Button> : null}
@@ -871,6 +1185,7 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
                   <th className="border border-black p-3">Próxima</th>
                   <th className="border border-black p-3">Aptitud</th>
                   <th className="border border-black p-3">Seguimiento</th>
+                  <th className="border border-black p-3">Evidencia 3.1.3</th>
                   <th className="border border-black p-3">Acciones</th>
                 </tr>
               </thead>
@@ -910,6 +1225,35 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
                             {exam.followUpDate ? `📅 ${new Date(exam.followUpDate).toLocaleDateString('es-CO')}` : '⚠ Pendiente'}
                           </span>
                         ) : '—'}
+                      </td>
+                      <td className="border border-black p-3">
+                        {(() => {
+                          const ctx = exam.occupationalContext;
+                          const valid =
+                            !!ctx &&
+                            ctx.providedToEvaluator === true &&
+                            !!ctx.jobProfileId &&
+                            !!ctx.providedAt &&
+                            !!ctx.providedBy;
+                          const partial =
+                            !!ctx &&
+                            (!!ctx.jobProfileId || (ctx.riskIds?.length ?? 0) > 0 || ctx.providedToEvaluator === true);
+                          if (valid) {
+                            return (
+                              <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: '.72rem', fontWeight: 600, color: '#15803d', backgroundColor: '#f0fdf4' }}>
+                                ✓ Evidencia PRE-examen
+                              </span>
+                            );
+                          }
+                          if (partial) {
+                            return (
+                              <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: '.72rem', fontWeight: 600, color: '#b45309', backgroundColor: '#fffbeb' }}>
+                                ⚠ Contexto sin evidencia
+                              </span>
+                            );
+                          }
+                          return <span style={{ color: '#94a3b8', fontSize: '.8rem' }}>—</span>;
+                        })()}
                       </td>
                       <td className="border border-black p-3">
                         <div className="actions">

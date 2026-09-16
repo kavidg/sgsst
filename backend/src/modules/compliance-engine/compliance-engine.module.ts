@@ -57,6 +57,14 @@ import { OccupationalExamProvider } from './providers/occupational-exam.provider
 import { OccupationalExam, OccupationalExamSchema } from '../../modules/occupational-exam/schemas/occupational-exam.schema';
 import { MedicalRecommendationProvider } from './providers/medical-recommendation.provider';
 import { MedicalRecommendation, MedicalRecommendationSchema } from '../../modules/medical-recommendation/schemas/medical-recommendation.schema';
+import { JobProfileMedicalInformationProvider } from './providers/job-profile-medical-information.provider';
+import { JobProfile, JobProfileSchema } from '../job-profile/schemas/job-profile.schema';
+// FASE 30E: HealthPromotion (3.1.2 — Promoción y prevención en salud).
+import { HealthPromotionProvider } from './providers/health-promotion.provider';
+import {
+  HealthPromotionActivity,
+  HealthPromotionActivitySchema,
+} from '../health-promotion/schemas/health-promotion-activity.schema';
 import { OccupationalEvaluationProvider } from './providers/occupational-evaluation.provider';
 import { AbsenteeismProvider } from './providers/absenteeism.provider';
 import { Absenteeism, AbsenteeismSchema } from '../../modules/absenteeism/schemas/absenteeism.schema';
@@ -78,6 +86,22 @@ import { HazardousSubstance, HazardousSubstanceSchema } from '../risks/schemas/h
 import { HazardousSubstanceProvider } from './providers/hazardous-substance.provider';
 import { EnvironmentalMeasurement, EnvironmentalMeasurementSchema } from '../risks/schemas/environmental-measurement.schema';
 import { EnvironmentalMeasurementProvider } from './providers/environmental-measurement.provider';
+// FASE 34B: provider EXACT para 3.1.8 — Agua potable, servicios sanitarios y disposición de basuras.
+import { WorkplaceSanitaryConditionsProvider } from './providers/workplace-sanitary-conditions.provider';
+import {
+  WorkplaceSanitaryCondition,
+  WorkplaceSanitaryConditionSchema,
+} from '../workplace-sanitary-conditions/schemas/workplace-sanitary-condition.schema';
+// FASE 34C: provider EXACT para 3.1.9 — Eliminación adecuada de residuos sólidos, líquidos o gaseosos.
+import { WasteManagementProvider } from './providers/waste-management.provider';
+import {
+  WasteManagementRecord,
+  WasteManagementRecordSchema,
+} from '../waste-management/schemas/waste-management-record.schema';
+import {
+  WasteTypeDeclaration,
+  WasteTypeDeclarationSchema,
+} from '../waste-management/schemas/waste-type-declaration.schema';
 import { ControlImplementationProvider } from './providers/control-implementation.provider';
 import { ControlVerificationProvider } from './providers/control-verification.provider';
 import { ProceduresProvider } from './providers/procedures.provider';
@@ -98,6 +122,35 @@ import { IncidentActionsProvider } from './providers/incident-actions.provider';
 import { ImprovementPlanProvider } from './providers/improvement-plan.provider';
 import { InductionReinductionProvider } from './providers/induction-reinduction.provider';
 import { HealthIndicatorsProvider } from './providers/health-indicators.provider';
+import { AccidentReportingProvider } from './providers/accident-reporting.provider';
+import { AccidentFrequencyProvider } from './providers/accident-frequency.provider';
+import { AccidentMortalityProvider } from './providers/accident-mortality.provider';
+// SCOPE-1: 3.3.4/3.3.5/3.3.6 quedaron FUERA DEL ALCANCE aprobado por los
+// socios. Los providers DiseasePrevalenceProvider, DiseaseIncidenceProvider y
+// MedicalAbsenteeismProvider (fases 35C-2/35D-2/35E-2) se conservan en el
+// repositorio como infraestructura futura, pero NO se registran en este módulo
+// (no se instancian, no consultan Mongo, no aportan findings ni scoring).
+import { AccidentStatisticsProvider } from './providers/accident-statistics.provider';
+import { AccidentSeverityProvider } from './providers/accident-severity.provider';
+// FASE 30F: provider EXACT para 3.1.5 — Custodia de historias clínicas ocupacionales.
+import { OccupationalMedicalRecordCustodyProvider } from './providers/occupational-medical-record-custody.provider';
+// FASE 32: provider 3.1.7 — Estilos de vida y entornos saludables (EXACT).
+import { LifestyleHealthyEnvironmentProvider } from './providers/lifestyle-healthy-environment.provider';
+// FASE 33: provider 3.1.6 — Restricciones y recomendaciones médico-laborales (EXACT).
+import { WorkRestrictionProvider } from './providers/work-restriction.provider';
+import {
+  OccupationalMedicalRecordCustody,
+  OccupationalMedicalRecordCustodySchema,
+} from '../occupational-medical-record-custody/schemas/occupational-medical-record-custody.schema';
+// FASE 33: WorkRestriction (3.1.6) — consumido por WorkRestrictionProvider.
+import {
+  WorkRestriction,
+  WorkRestrictionSchema,
+} from '../work-restriction/schemas/work-restriction.schema';
+// SCOPE-1: los schemas OccupationalDiseaseStatisticalCase (3.3.4/3.3.5) y
+// CompanyPeriodScheduledWorkData (3.3.6) se desregistran de este módulo junto
+// con sus providers. Las colecciones y sus módulos propios permanecen intactos
+// (infraestructura futura, no compartida con estándares aprobados).
 import { SstEpp, SstEppSchema } from '../phva-advanced/schemas/phva-advanced-epp.schema';
 import { SstEmergencies, SstEmergenciesSchema } from '../phva-advanced/schemas/phva-advanced-emergencies.schema';
 import { IndicatorDefinition, IndicatorDefinitionSchema } from '../indicators/schemas/indicator-definition.schema';
@@ -130,6 +183,10 @@ import { SstInduction, SstInductionSchema } from '../risks/schemas/sst-induction
       { name: OccupationalExam.name, schema: OccupationalExamSchema },
       // Schema de Recomendaciones Médicas requerido por MedicalRecommendationProvider.
       { name: MedicalRecommendation.name, schema: MedicalRecommendationSchema },
+      // Schema de JobProfile requerido por JobProfileMedicalInformationProvider (FASE 30D-2).
+      { name: JobProfile.name, schema: JobProfileSchema },
+      // Schema de actividades de promoción/prevención requerido por HealthPromotionProvider (FASE 30E).
+      { name: HealthPromotionActivity.name, schema: HealthPromotionActivitySchema },
       // Schema de Ausentismo requerido por AbsenteeismProvider.
       { name: Absenteeism.name, schema: AbsenteeismSchema },
       // Schema de Incidentes requerido por DiseaseInvestigationProvider.
@@ -154,7 +211,38 @@ import { SstInduction, SstInductionSchema } from '../risks/schemas/sst-induction
       { name: AccountabilityCommitment.name, schema: AccountabilityCommitmentSchema },
       { name: SgstProgram.name, schema: SgstProgramSchema },
       { name: SstInduction.name, schema: SstInductionSchema },
+      // FASE 30F: OccupationalMedicalRecordCustody (3.1.5).
+      {
+        name: OccupationalMedicalRecordCustody.name,
+        schema: OccupationalMedicalRecordCustodySchema,
+      },
+      // FASE 32: HealthPromotionActivity reutilizado por el provider 3.1.7
+      // (LifestyleHealthyEnvironmentProvider) con frontera complianceStandard.
       { name: InspectionActivity.name, schema: InspectionActivitySchema },
+      // FASE 33: WorkRestriction (3.1.6) requerido por WorkRestrictionProvider.
+      { name: WorkRestriction.name, schema: WorkRestrictionSchema },
+      // FASE 34B: WorkplaceSanitaryCondition (3.1.8) requerido por
+      // WorkplaceSanitaryConditionsProvider. Colección propia; NO reutiliza
+      // EnvironmentalMeasurement ni InspectionActivity (frontera anti-double-scoring).
+      {
+        name: WorkplaceSanitaryCondition.name,
+        schema: WorkplaceSanitaryConditionSchema,
+      },
+      // FASE 34C: WasteManagementRecord + WasteTypeDeclaration (3.1.9)
+      // requeridos por WasteManagementProvider. Colecciones propias; NO
+      // reutilizan HazardousSubstance ni EnvironmentalMeasurement (frontera
+      // anti-double-scoring).
+      {
+        name: WasteManagementRecord.name,
+        schema: WasteManagementRecordSchema,
+      },
+      {
+        name: WasteTypeDeclaration.name,
+        schema: WasteTypeDeclarationSchema,
+      },
+      // SCOPE-1: los tokens OccupationalDiseaseStatisticalCase y
+      // CompanyPeriodScheduledWorkData fueron desregistrados con sus providers
+      // (3.3.4/3.3.5/3.3.6 fuera del alcance aprobado).
     ]),
     EvaluationsModule,
     AnnualWorkPlanModule,
@@ -206,6 +294,10 @@ import { SstInduction, SstInductionSchema } from '../risks/schemas/sst-induction
     SociodemographicProvider,
     OccupationalExamProvider,
     MedicalRecommendationProvider,
+    JobProfileMedicalInformationProvider,
+    HealthPromotionProvider,
+    // FASE 32: 3.1.7 — Estilos de vida y entornos saludables (EXACT).
+    LifestyleHealthyEnvironmentProvider,
     OccupationalEvaluationProvider,
     AbsenteeismProvider,
     DiseaseInvestigationProvider,
@@ -235,6 +327,23 @@ import { SstInduction, SstInductionSchema } from '../risks/schemas/sst-induction
     ImprovementPlanProvider,
     InductionReinductionProvider,
     HealthIndicatorsProvider,
+    AccidentReportingProvider,
+    AccidentFrequencyProvider,
+    AccidentMortalityProvider,
+    AccidentStatisticsProvider,
+    AccidentSeverityProvider,
+    // FASE 30F: provider EXACT para 3.1.5.
+    OccupationalMedicalRecordCustodyProvider,
+    // FASE 33: provider EXACT para 3.1.6.
+    WorkRestrictionProvider,
+    // FASE 34B: provider EXACT para 3.1.8.
+    WorkplaceSanitaryConditionsProvider,
+    // FASE 34C: provider EXACT para 3.1.9.
+    WasteManagementProvider,
+    // SCOPE-1: DiseasePrevalenceProvider (3.3.4), DiseaseIncidenceProvider
+    // (3.3.5) y MedicalAbsenteeismProvider (3.3.6) desregistrados del engine
+    // — estándares fuera del alcance aprobado. Código conservado como
+    // infraestructura futura en providers/.
   ],
   // Exportado para que ComplianceTimelineModule pueda reutilizar getOverview()
   // como fuente única de datos del timeline.

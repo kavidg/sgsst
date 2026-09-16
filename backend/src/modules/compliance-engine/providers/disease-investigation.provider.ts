@@ -13,10 +13,11 @@ import { ComplianceProvider, ProviderComplianceResult } from './compliance-provi
 
 /**
  * Evaluación automática del estándar 3.2.2
- * "Investigación de enfermedades laborales".
+ * "Investigación de incidentes, accidentes de trabajo y enfermedades laborales".
  *
  * Evalúa la trazabilidad administrativa de la investigación de
- * enfermedades laborales conforme a la Resolución 0312 de 2019.
+ * incidentes, accidentes y enfermedades laborales conforme a la
+ * Resolución 0312 de 2019.
  *
  * Criterios y pesos (15/20/20/20/10/10/5):
  * - Registro de casos:                   15%
@@ -27,8 +28,8 @@ import { ComplianceProvider, ProviderComplianceResult } from './compliance-provi
  * - Evidencia:                           10%
  * - Cierre y seguimiento:                 5%
  *
- * NO_DATA: sin investigaciones de enfermedades laborales.
- * Filtra exclusivamente investigationType = DISEASE.
+ * NO_DATA: sin investigaciones registradas.
+ * Filtra investigationType = ACCIDENT | DISEASE.
  */
 @Injectable()
 export class DiseaseInvestigationProvider implements ComplianceProvider {
@@ -43,10 +44,10 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
   async getCompliance(companyId: string): Promise<ProviderComplianceResult> {
     const companyObjectId = new Types.ObjectId(companyId);
 
-    const diseases = await this.incidentModel
+    const incidents = await this.incidentModel
       .find({
         companyId: companyObjectId,
-        investigationType: InvestigationType.DISEASE,
+        investigationType: { $in: [InvestigationType.ACCIDENT, InvestigationType.DISEASE] },
       })
       .sort({ date: -1 })
       .exec();
@@ -54,7 +55,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
     const now = new Date();
 
     // ── NO_DATA ──
-    if (diseases.length === 0) {
+    if (incidents.length === 0) {
       return {
         module: DiseaseInvestigationProvider.MODULE,
         percentage: 0,
@@ -63,9 +64,9 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
           {
             id: 'disease-investigation-no-data',
             module: DiseaseInvestigationProvider.MODULE,
-            title: 'Sin investigaciones de enfermedades laborales',
+            title: 'Sin investigaciones de incidentes/accidentes/enfermedades',
             description:
-              'No existen investigaciones de enfermedades laborales registradas para evaluar el cumplimiento del estándar 3.2.2. Registrar casos de enfermedad laboral para evaluar la trazabilidad administrativa.',
+              'No existen investigaciones de incidentes, accidentes de trabajo o enfermedades laborales registradas. El estándar 3.2.2 requiere investigación documentada con análisis causal.',
             priority: FindingPriority.HIGH,
             status: 'OPEN',
             responsible: '',
@@ -80,7 +81,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
       };
     }
 
-    const total = diseases.length;
+    const total = incidents.length;
 
     // ══════════════════════════════════════════════════════════
     // CRITERIO 1 — Registro de casos (15%)
@@ -96,7 +97,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
     // Evalúa que exista investigationDate.
     // Proporción de investigaciones con fecha formal.
     // ══════════════════════════════════════════════════════════
-    const withFormalResearch = diseases.filter(
+    const withFormalResearch = incidents.filter(
       (d) => d.investigationDate != null,
     ).length;
     const formalResearchScore = withFormalResearch / total;
@@ -109,7 +110,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
     // rootCauses O immediateCauses O relatedFactors.
     // ══════════════════════════════════════════════════════════
     let causalCount = 0;
-    for (const d of diseases) {
+    for (const d of incidents) {
       const hasRoot = (d.rootCauses?.length ?? 0) > 0;
       const hasImmediate = (d.immediateCauses?.length ?? 0) > 0;
       const hasFactors = (d.relatedFactors?.length ?? 0) > 0;
@@ -130,7 +131,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
     let completedActions = 0;
     let overdueActions = 0;
 
-    for (const d of diseases) {
+    for (const d of incidents) {
       const allActions = [
         ...(d.correctiveActions ?? []),
         ...(d.preventiveActions ?? []),
@@ -145,7 +146,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
       }
     }
 
-    const withActions = diseases.filter(
+    const withActions = incidents.filter(
       (d) =>
         (d.correctiveActions?.length ?? 0) > 0 ||
         (d.preventiveActions?.length ?? 0) > 0,
@@ -157,7 +158,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
     //
     // Evalúa si existe responsible asignado.
     // ══════════════════════════════════════════════════════════
-    const withResponsible = diseases.filter(
+    const withResponsible = incidents.filter(
       (d) => d.responsible != null && d.responsible !== '',
     ).length;
     const responsibleScore = withResponsible / total;
@@ -167,7 +168,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
     //
     // Evalúa si existe evidencia documental.
     // ══════════════════════════════════════════════════════════
-    const withEvidence = diseases.filter(
+    const withEvidence = incidents.filter(
       (d) => (d.evidence?.length ?? 0) > 0,
     ).length;
     const evidenceScore = withEvidence / total;
@@ -177,7 +178,7 @@ export class DiseaseInvestigationProvider implements ComplianceProvider {
     //
     // Evalúa proporción de investigaciones cerradas.
     // ══════════════════════════════════════════════════════════
-    const closedInvestigations = diseases.filter(
+    const closedInvestigations = incidents.filter(
       (d) => d.closureDate != null,
     ).length;
     const closureScore = closedInvestigations / total;

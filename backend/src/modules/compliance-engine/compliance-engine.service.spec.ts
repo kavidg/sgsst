@@ -46,11 +46,12 @@ function buildService(): ComplianceEngineService {
     {} as never, // SociodemographicProvider
     {} as never, // OccupationalExamProvider
     {} as never, // MedicalRecommendationProvider
+    {} as never, // HealthPromotionProvider (FASE 30E)
     {} as never, // OccupationalEvaluationProvider
+    {} as never, // JobProfileMedicalInformationProvider (FASE 30D-2)
     {} as never, // AbsenteeismProvider
     {} as never, // DiseaseInvestigationProvider
     {} as never, // EpidemiologicalSurveillanceProvider
-    {} as never, // CaseInterventionProvider
     {} as never, // RiskMethodologyProvider
     {} as never, // WorkerParticipationProvider
     {} as never, // HazardousSubstanceProvider
@@ -75,6 +76,19 @@ function buildService(): ComplianceEngineService {
     {} as never, // ImprovementPlanProvider
     {} as never, // InductionReinductionProvider
     {} as never, // HealthIndicatorsProvider
+    {} as never, // AccidentReportingProvider (FASE 30B-1)
+    {} as never, // AccidentFrequencyProvider (FASE 30B-1)
+    {} as never, // AccidentMortalityProvider (FASE 30B-1)
+    {} as never, // AccidentStatisticsProvider (FASE 30C)
+    {} as never, // AccidentSeverityProvider (FASE 30C)
+    {} as never, // OccupationalMedicalRecordCustodyProvider (FASE 30F/30G)
+    {} as never, // LifestyleHealthyEnvironmentProvider (FASE 32)
+    {} as never, // WorkRestrictionProvider (FASE 33)
+    {} as never, // WorkplaceSanitaryConditionsProvider (FASE 34B)
+    {} as never, // WasteManagementProvider (FASE 34C)
+    // SCOPE-1: DiseasePrevalenceProvider (35C-2), DiseaseIncidenceProvider
+    // (35D-2) y MedicalAbsenteeismProvider (35E-2) desregistrados — fuera del
+    // alcance aprobado; el constructor ya no los recibe.
   );
 }
 
@@ -918,14 +932,11 @@ describe('VERIFICAR-IND: Independencia CHECK ≠ DO ≠ PLAN', () => {
 
 describe('VERIFICAR-GAP: Estándares con phva=VERIFICAR no capturados por PHASE_PREFIXES.check', () => {
   // KNOWN GAP: El catálogo catalog-60.ts clasifica como phva="VERIFICAR" los
-  // estándares 2.6.1, 3.3.2 y 4.2.2. Sin embargo, PHASE_PREFIXES.check = ['6.']
-  // solo captura estándares cuyo code empieza con "6.". Los estándares 2.6.x,
-  // 3.3.x y 4.2.x NO son capturados por EvaluationsProvider.computePhases().
+  // estándares 2.6.1 y 4.2.2. Sin embargo, PHASE_PREFIXES.check = ['6.']
+  // solo captura estándares cuyo code empieza con "6.". Los estándares 2.6.x
+  // y 4.2.x NO son capturados por EvaluationsProvider.computePhases().
   //
-  // Esto significa que el cálculo actual de phases.check NO incluye:
-  //   - 2.6.1 Rendición de cuentas
-  //   - 3.3.2 Medición indicadores salud
-  //   - 4.2.2 Verificación medidas de control
+  // 3.3.2 fue corregido a HACER en FASE 27.3 y movido a PHASE_PREFIXES.do.
   //
   // No se corrige en este bloque porque requiere una decisión arquitectónica
   // explícita sobre si PHASE_PREFIXES.check debe expandirse.
@@ -936,8 +947,10 @@ describe('VERIFICAR-GAP: Estándares con phva=VERIFICAR no capturados por PHASE_
   it('GAP documentado: 3.3.2 no empieza con 6.', () => {
     assert.ok(!'3.3.2'.startsWith('6.'));
   });
-  it('GAP documentado: 4.2.2 no empieza con 6.', () => {
+  it('4.2.2 ya no necesita ser capturado por check (FASE 30A — PHVA corregido a HACER)', () => {
     assert.ok(!'4.2.2'.startsWith('6.'));
+    // 4.2.2 ahora es HACER y se captura por '4.' en do
+    assert.ok(PHASE_PREFIXES.do.some((p: string) => '4.2.2'.startsWith(p)));
   });
 });
 
@@ -1212,7 +1225,7 @@ describe('ACTUAR-7.21: PHASE_PREFIXES.act = ["7."] cubre todos los estándares A
   });
 
   it('No existen estándares ACTUAR fuera del prefijo 7.', () => {
-    // Documentación: estos estándares están clasificados como VERIFICAR, no ACTUAR
+    // Documentación: estos estándares no son ACTUAR
     const nonActuarCodes = ['2.6.1', '3.3.2', '4.2.2'];
     for (const code of nonActuarCodes) {
       assert.ok(!code.startsWith('7.'), `${code} NO debe empezar con 7.`);
@@ -1303,18 +1316,16 @@ describe('PREFIX-ALIGN-3: PHASE_PREFIXES.check captura estándares VERIFICAR', (
       '2.6.1 debe ser capturado por un prefix de check',
     );
   });
-  it('3.3.2 (Medición indicadores salud) es capturado por check', () => {
-
+  it('3.3.2 (Indicadores salud) es capturado por do (FASE 27.3 — PHVA corregido a HACER)', () => {
     assert.ok(
-      PHASE_PREFIXES.check.some((p: string) => '3.3.2'.startsWith(p)),
-      '3.3.2 debe ser capturado por un prefix de check',
+      PHASE_PREFIXES.do.some((p: string) => '3.3.2'.startsWith(p)),
+      '3.3.2 debe ser capturado por un prefix de do',
     );
   });
-  it('4.2.2 (Verificación medidas control) es capturado por check', () => {
-
+  it('4.2.2 (Verificación medidas control) es capturado por do (FASE 30A — PHVA corregido a HACER)', () => {
     assert.ok(
-      PHASE_PREFIXES.check.some((p: string) => '4.2.2'.startsWith(p)),
-      '4.2.2 debe ser capturado por un prefix de check',
+      PHASE_PREFIXES.do.some((p: string) => '4.2.2'.startsWith(p)),
+      '4.2.2 debe ser capturado por un prefix de do',
     );
   });
   it('6.1.1 (Indicadores SG-SST) sigue siendo capturado por check', () => {
@@ -1386,7 +1397,9 @@ describe('PREFIX-ALIGN-6: Estructura de PHASE_PREFIXES', () => {
 
   it('check contiene exactamente los prefixes esperados', () => {
 
-    const expectedCheck = ['2.6.1', '3.3.2', '4.2.2', '6.'];
+    // FASE 27.3: 3.3.2 removido de check (PHVA corregido a HACER)
+    // FASE 30A: 4.2.2 removido de check (PHVA corregido a HACER)
+    const expectedCheck = ['2.6.1', '6.'];
     assert.deepEqual(PHASE_PREFIXES.check, expectedCheck);
   });
 

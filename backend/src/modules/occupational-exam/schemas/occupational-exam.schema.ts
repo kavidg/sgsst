@@ -46,6 +46,43 @@ export enum FitnessStatus {
 }
 
 /**
+ * Contexto PRE-examen de una evaluación médica ocupacional (3.1.3 — FASE 30D-2).
+ *
+ * Evidencia explícita de que la información del perfil de cargo fue
+ * considerada/suministrada para la evaluación médica ocupacional. Cuando está
+ * completo demuestra: qué perfil de cargo se utilizó (jobProfileId), qué
+ * riesgos se consideraron (riskIds), cuándo fue suministrado al médico
+ * evaluador (providedAt) y quién realizó la acción (providedBy).
+ *
+ * NO almacena información clínica ni resultados médicos.
+ */
+@Schema({ _id: false })
+export class ExamOccupationalContext {
+  /** Perfil de cargo (JobProfile) considerado para la evaluación. */
+  @Prop({ type: Types.ObjectId, ref: 'JobProfile' })
+  jobProfileId?: Types.ObjectId;
+
+  /** Riesgos (Risk) del perfil considerados para la evaluación. */
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Risk' }], default: [] })
+  riskIds?: Types.ObjectId[];
+
+  /** Indica que la información fue suministrada/disponibilizada al evaluador. */
+  @Prop({ type: Boolean, default: false })
+  providedToEvaluator?: boolean;
+
+  /** Fecha en que la información fue suministrada (PRE-examen). */
+  @Prop({ type: Date })
+  providedAt?: Date;
+
+  /** Actor (uid) que suministró/disponibilizó la información. */
+  @Prop({ type: String, default: '' })
+  providedBy?: string;
+}
+
+export const ExamOccupationalContextSchema =
+  SchemaFactory.createForClass(ExamOccupationalContext);
+
+/**
  * Modelo de examen médico ocupacional.
  *
  * Propósito: trazabilidad administrativa de exámenes médicos ocupacionales
@@ -82,7 +119,7 @@ export class OccupationalExam {
   @Prop({ required: true, enum: Object.values(ExamType) })
   examType!: ExamType;
 
-  /** Fecha en que se realizó (o se realizó) el examen. */
+  /** Fecha en que se realizó (o se realizará) el examen. */
   @Prop({ type: Date })
   examDate?: Date;
 
@@ -125,6 +162,13 @@ export class OccupationalExam {
   /** Fecha administrativa de comunicación de resultados al trabajador. */
   @Prop({ type: Date })
   communicationDate?: Date;
+
+  // ── FASE 30D-2: Contexto PRE-examen (3.1.3) ──
+  // Opcional: los exámenes históricos sin contexto siguen siendo registros
+  // administrativos válidos (C4 = 0 para ellos; NO se inventa evidencia
+  // retroactiva).
+  @Prop({ type: ExamOccupationalContextSchema })
+  occupationalContext?: ExamOccupationalContext;
 }
 
 export const OccupationalExamSchema = SchemaFactory.createForClass(OccupationalExam);

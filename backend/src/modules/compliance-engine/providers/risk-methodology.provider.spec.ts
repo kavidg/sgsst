@@ -1,22 +1,20 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { RiskMethodologyStatus } from '../../risks/schemas/risk-methodology.schema';
+import { RiskMethodologyProvider } from './risk-methodology.provider';
 
 /**
  * Tests del RiskMethodologyProvider — Estándar 4.1.1
  * Metodología identificación de peligros.
  *
- * Valida:
+ * Valida (comportamiento real contra el provider):
  * - NO_DATA
- * - Existencia
- * - Estado ACTIVE
- * - Campos completos
- * - Vigencia/revisión
- * - Findings
- * - PHVA contribution (plan, NOT do)
+ * - PHVA contribution: 4.1.1 → phases.do (HACER), NUNCA phases.plan
  * - Tenant isolation
- * - Privacy
- * - Module name
+ *
+ * Nota FASE 4.1.1-2: los demás placeholders "verified by code review" se
+ * conservan (deuda documentada); la corrección de fase exige pruebas reales
+ * de comportamiento sobre result.phases.
  */
 
 const VALID_COMPANY_ID = '507f1f77bcf86cd799439011';
@@ -35,15 +33,24 @@ function createMockMethodologyModel(data: any[] = []) {
 }
 
 describe('RiskMethodologyProvider', () => {
-  describe('Module', () => {
-    it('reports module risk-methodology', () => {
-      // Verified by code review: private static readonly MODULE = 'risk-methodology'
-      assert.ok(true);
-    });
+  /** Metodología completa y vigente para escenarios con datos. */
+  function buildCompleteMethodology(companyId: string) {
+    return {
+      companyId,
+      name: 'GTC 45',
+      version: '1.0',
+      status: RiskMethodologyStatus.ACTIVE,
+      identificationCriteria: 'Inspecciones y recorridos',
+      evaluationCriteria: 'Matriz de riesgos',
+      valuationCriteria: 'Nivel de riesgo P×C',
+    };
+  }
 
-    it('contributes to phases.plan (NOT phases.do)', () => {
-      // Verified by code review: phases: { plan: percentage }
-      assert.ok(true);
+  describe('Module', () => {
+    it('reports module risk-methodology', async () => {
+      const provider = new RiskMethodologyProvider(createMockMethodologyModel([]) as never);
+      const result = await provider.getCompliance(VALID_COMPANY_ID);
+      assert.equal(result.module, 'risk-methodology');
     });
   });
 
@@ -122,14 +129,52 @@ describe('RiskMethodologyProvider', () => {
   });
 
   describe('PHVA Contribution', () => {
-    it('contributes to phases.plan', () => {
-      // Verified by code review: phases: { plan: percentage }
-      assert.ok(true);
+    it('4.1.1 → do: contribuye a phases.do con el porcentaje técnico (HACER)', async () => {
+      const model = createMockMethodologyModel([buildCompleteMethodology(VALID_COMPANY_ID)]);
+      const provider = new RiskMethodologyProvider(model as never);
+      const result = await provider.getCompliance(VALID_COMPANY_ID);
+
+      assert.ok(result.phases, 'phases presente');
+      assert.equal(typeof result.phases.do, 'number', 'phases.do numérico');
+      assert.equal(result.phases.do, result.percentage, 'phases.do = porcentaje técnico');
+      assert.ok((result.phases.do ?? 0) > 0, 'contribución positiva');
     });
 
-    it('does NOT contribute to phases.do, phases.check, or phases.act', () => {
-      // Verified by code review: only 'plan' key in phases object
-      assert.ok(true);
+    it('4.1.1 → NOT plan: no contribuye a phases.plan, check ni act', async () => {
+      const model = createMockMethodologyModel([buildCompleteMethodology(VALID_COMPANY_ID)]);
+      const provider = new RiskMethodologyProvider(model as never);
+      const result = await provider.getCompliance(VALID_COMPANY_ID);
+
+      assert.equal(result.phases?.plan, undefined, '4.1.1 NO pertenece a PLANEAR');
+      assert.equal(result.phases?.check, undefined);
+      assert.equal(result.phases?.act, undefined);
+    });
+
+    it('NO_DATA también contribuye 0 a phases.do (nunca plan)', async () => {
+      const provider = new RiskMethodologyProvider(createMockMethodologyModel([]) as never);
+      const result = await provider.getCompliance(VALID_COMPANY_ID);
+
+      assert.equal(result.status, 'NO_DATA');
+      assert.equal(result.phases?.do, 0);
+      assert.equal(result.phases?.plan, undefined);
+    });
+
+    it('tenant isolation: solo agrega metodologías del companyId consultado', async () => {
+      const OTHER_COMPANY = '507f1f77bcf86cd799439099';
+      const model = createMockMethodologyModel([
+        buildCompleteMethodology(VALID_COMPANY_ID),
+        buildCompleteMethodology(OTHER_COMPANY),
+      ]);
+      const provider = new RiskMethodologyProvider(model as never);
+
+      const own = await provider.getCompliance(VALID_COMPANY_ID);
+      const other = await provider.getCompliance(OTHER_COMPANY);
+
+      // Cada tenant ve su propia metodología; ninguna ve la del otro.
+      assert.ok((own.percentage ?? 0) > 0, 'tenant A ve su metodología');
+      assert.ok((other.percentage ?? 0) > 0, 'tenant B ve su metodología');
+      assert.notEqual(own.status, 'NO_DATA');
+      assert.notEqual(other.status, 'NO_DATA');
     });
   });
 
