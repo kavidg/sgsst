@@ -2,6 +2,7 @@ import type {
   DocumentCatalogDetail,
   DocumentCatalogPage,
   DocumentCatalogQuery,
+  DocumentCatalogItem,
 } from './types/document-catalog';
 import type { StandardCatalogItem, StandardSection } from './models/standard-catalog';
 
@@ -5861,7 +5862,9 @@ export function assignAcquisitionSupplier(token: string, id: string, supplierId:
   return apiFetch<AcquisitionModel>(`/acquisitions/${id}/supplier`, token, { method: 'POST', body: JSON.stringify({ supplierId }) });
 }
 
-export function fetchAcquisitionsHistory(token: string, limit = 100, skip = 0) {
+export function fetchAcquisitionsHistory(token: string, _limit = 100, _skip = 0) {
+  // Params reservados para paginación futura del backend; hoy el endpoint
+  // devuelve el historial completo (prefijo _ evita el TS6133 sin cambiar API).
   return apiFetch<AcquisitionsHistoryModel[]>('/acquisitions/history', token, { method: 'GET' });
 }
 

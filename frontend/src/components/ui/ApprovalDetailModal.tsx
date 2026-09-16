@@ -1,6 +1,6 @@
 import { Button } from './Button';
 import { Modal } from './Modal';
-import { ApprovalStatusBadge, APPROVAL_STATUS_LABELS, APPROVAL_STATUS_COLORS, APPROVAL_STATUS_ICONS } from './ApprovalStatusBadge';
+import { ApprovalStatusBadge, APPROVAL_STATUS_COLORS, APPROVAL_STATUS_ICONS } from './ApprovalStatusBadge';
 
 type HistoryEntry = {
   _id: string;

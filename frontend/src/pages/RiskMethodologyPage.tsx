@@ -297,7 +297,7 @@ export function RiskMethodologyPage({ token, role }: RiskMethodologyPageProps) {
           { label: 'Total metodologías', value: metrics.total, variant: 'info' },
           { label: 'Activas', value: metrics.active, variant: metrics.active > 0 ? 'success' : 'warning' },
           { label: 'Borradores', value: metrics.draft, variant: 'info' },
-          { label: 'Archivadas', value: metrics.archived, variant: 'muted' },
+          { label: 'Archivadas', value: metrics.archived, variant: 'default' },
           { label: 'Con revisión', value: metrics.withReviewDate, variant: 'info' },
           { label: 'Con criterios completos', value: metrics.withCriteria, variant: metrics.withCriteria > 0 ? 'success' : 'warning' },
         ]}

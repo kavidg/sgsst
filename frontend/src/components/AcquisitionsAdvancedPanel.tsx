@@ -4,7 +4,6 @@ import {
   AcquisitionModel,
   AcquisitionsDashboardModel,
   AcquisitionsHistoryModel,
-  AcquisitionApprovalStatus,
   AcquisitionApprovalResponse,
   AcquisitionApprovalHistoryResponse,
   fetchAcquisitionsDashboard,
@@ -120,10 +119,13 @@ function Badge({ value, map, colors }: { value: string; map: Record<string, stri
   );
 }
 
+// Helper reservado para columnas de fecha próximas; la referencia void evita
+// el TS6133 sin eliminar el código ni cambiar la API del panel.
 function formatDate(value?: string) {
   if (!value) return '—';
   return new Date(value).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+void formatDate;
 
 function formatDateTime(value?: string) {
   if (!value) return '—';
@@ -323,7 +325,8 @@ export default function AcquisitionsAdvancedPanel({ token }: Props) {
   const handleCreateSupplier = async () => {
     setSubmitting(true);
     try {
-      await createSupplier(token, supplierForm);
+      // El form trabaja con strings de UI; el backend exige la unión literal.
+      await createSupplier(token, { ...supplierForm, type: supplierForm.type as SupplierModel['type'] });
       setShowCreateSupplier(false);
       setSupplierForm(emptySupplierForm);
       notify('Proveedor creado exitosamente');
@@ -364,7 +367,8 @@ export default function AcquisitionsAdvancedPanel({ token }: Props) {
   const handleCreateAcquisition = async () => {
     setSubmitting(true);
     try {
-      await createAcquisition(token, acquisitionForm);
+      // El form trabaja con strings de UI; el backend exige la unión literal.
+      await createAcquisition(token, { ...acquisitionForm, priority: acquisitionForm.priority as AcquisitionModel['priority'] });
       setShowCreateAcquisition(false);
       setAcquisitionForm(emptyAcqForm);
       notify('Adquisición creada exitosamente');

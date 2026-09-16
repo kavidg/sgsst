@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   EnvironmentalMeasurementModel,
   CreateEnvironmentalMeasurementPayload,
@@ -13,7 +12,6 @@ import {
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { useCompanyContext } from '../context/CompanyContext';
 import {
   AdvancedPageLayout,
   AdvancedHeader,
@@ -22,7 +20,6 @@ import {
   AdvancedTabsSidebar,
   AdvancedTabsContent,
   type SidebarTabItem,
-  type HeaderAction,
 } from '../components/advanced-layout';
 import {
   MEASUREMENT_TYPE_LABELS,
@@ -56,8 +53,6 @@ function formatDate(value: string | undefined | null): string {
 }
 
 export function EnvironmentalMeasurementPage({ token, role }: EnvironmentalMeasurementPageProps) {
-  const navigate = useNavigate();
-  const { companyId } = useCompanyContext();
   const [measurements, setMeasurements] = useState<EnvironmentalMeasurementModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -152,7 +147,7 @@ export function EnvironmentalMeasurementPage({ token, role }: EnvironmentalMeasu
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const payload: CreateEnvironmentalMeasurementPayload = {
-      measurementType: form.measurementType as any,
+      measurementType: form.measurementType,
       description: form.description,
       area: form.area,
       measurementDate: form.measurementDate,
@@ -164,7 +159,7 @@ export function EnvironmentalMeasurementPage({ token, role }: EnvironmentalMeasu
       complianceResult: form.complianceResult || undefined,
       methodInstrument: form.methodInstrument || undefined,
       observations: form.observations || undefined,
-      status: form.status as any,
+      status: form.status,
     };
 
     try {
@@ -214,11 +209,11 @@ export function EnvironmentalMeasurementPage({ token, role }: EnvironmentalMeasu
     return (
       <AdvancedPageLayout>
         <AdvancedHeader
-          code="SST-EM-414"
-          title="Mediciones ambientales"
-          badge="📋 4.1.4"
-          subtitle="Evidencia de mediciones ambientales ocupacionales"
-          onBack={() => navigate('/documents/do')}
+          backPath="/documents/do"
+          moduleCode="4.1.4"
+          moduleTitle="Mediciones ambientales"
+          description="Evidencia de mediciones ambientales ocupacionales"
+          statusBadge={<span className="badge badge--info">📋 Estándar 4.1.4</span>}
         />
         <AdvancedSection title="Sin registros">
           <p style={{ color: '#64748b', margin: '1rem 0' }}>
@@ -236,11 +231,11 @@ export function EnvironmentalMeasurementPage({ token, role }: EnvironmentalMeasu
   return (
     <AdvancedPageLayout>
       <AdvancedHeader
-        code="SST-EM-414"
-        title="Mediciones ambientales"
-        badge="📋 4.1.4"
-        subtitle="Evidencia de mediciones ambientales ocupacionales"
-        onBack={() => navigate('/documents/do')}
+        backPath="/documents/do"
+        moduleCode="4.1.4"
+        moduleTitle="Mediciones ambientales"
+        description="Evidencia de mediciones ambientales ocupacionales"
+        statusBadge={<span className="badge badge--info">📋 Estándar 4.1.4</span>}
       />
 
       <AdvancedKpiGrid
@@ -254,9 +249,9 @@ export function EnvironmentalMeasurementPage({ token, role }: EnvironmentalMeasu
       />
 
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-        <AdvancedTabsSidebar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+        <AdvancedTabsSidebar items={TABS} activeId={activeTab} onSelect={setActiveTab} />
 
-        <AdvancedTabsContent activeTab={activeTab}>
+        <AdvancedTabsContent>
           {activeTab === 'mediciones' && (
             <AdvancedSection title="Mediciones ambientales">
               {canEdit && (
@@ -368,30 +363,30 @@ export function EnvironmentalMeasurementPage({ token, role }: EnvironmentalMeasu
               {intelligenceError && <p style={{ color: '#dc2626' }}>{intelligenceError}</p>}
               {intelligence && (
                 <div>
-                  <p><strong>Resumen:</strong> {intelligence.summary}</p>
-                  {intelligence.keyIssues && intelligence.keyIssues.length > 0 && (
+                  <p><strong>Resumen:</strong> {intelligence.analysis.summary}</p>
+                  {intelligence.analysis.keyIssues.length > 0 && (
                     <div style={{ marginTop: '1rem' }}>
                       <strong>Problemas principales:</strong>
                       <ul>
-                        {intelligence.keyIssues.map((issue, i) => (
-                          <li key={i}><strong>[{issue.priority}]</strong> {issue.title} — {issue.recommendation}</li>
+                        {intelligence.analysis.keyIssues.map((issue) => (
+                          <li key={issue.id}><strong>[{issue.priority}]</strong> {issue.title} — {issue.recommendation}</li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  {intelligence.quickWins && intelligence.quickWins.length > 0 && (
+                  {intelligence.analysis.quickWins.length > 0 && (
                     <div style={{ marginTop: '1rem' }}>
                       <strong>Quick wins:</strong>
                       <ul>
-                        {intelligence.quickWins.map((w, i) => <li key={i}>{w}</li>)}
+                        {intelligence.analysis.quickWins.map((w) => <li key={w}>{w}</li>)}
                       </ul>
                     </div>
                   )}
-                  {intelligence.nextSteps && intelligence.nextSteps.length > 0 && (
+                  {intelligence.analysis.nextSteps.length > 0 && (
                     <div style={{ marginTop: '1rem' }}>
                       <strong>Próximos pasos:</strong>
                       <ul>
-                        {intelligence.nextSteps.map((s, i) => <li key={i}>{s}</li>)}
+                        {intelligence.analysis.nextSteps.map((s) => <li key={s}>{s}</li>)}
                       </ul>
                     </div>
                   )}
@@ -413,29 +408,66 @@ export function EnvironmentalMeasurementPage({ token, role }: EnvironmentalMeasu
       <form onSubmit={handleSubmit} style={{ marginBottom: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px' }}>
         <h4>{editingId ? 'Editar medición' : 'Nueva medición'}</h4>
         <div className="form-grid">
-          <Select label="Tipo de medición" value={form.measurementType} onChange={(e) => setForm({ ...form, measurementType: e.target.value })} required>
-            {Object.entries(MEASUREMENT_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </Select>
-          <Input label="Descripción" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
-          <Input label="Área / Ubicación" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} required />
-          <Input label="Fecha" type="date" value={form.measurementDate} onChange={(e) => setForm({ ...form, measurementDate: e.target.value })} required />
-          <Input label="Responsable" value={form.responsible} onChange={(e) => setForm({ ...form, responsible: e.target.value })} />
-          <Input label="Resultado" type="number" value={form.resultValue} onChange={(e) => setForm({ ...form, resultValue: e.target.value })} />
-          <Input label="Unidad" value={form.resultUnit} onChange={(e) => setForm({ ...form, resultUnit: e.target.value })} placeholder="dB, lux, °C, mg/m³" />
-          <Input label="Límite normativo" type="number" value={form.regulatoryLimit} onChange={(e) => setForm({ ...form, regulatoryLimit: e.target.value })} />
-          <Input label="Unidad del límite" value={form.regulatoryLimitUnit} onChange={(e) => setForm({ ...form, regulatoryLimitUnit: e.target.value })} />
-          <Select label="Comparación normativa" value={form.complianceResult} onChange={(e) => setForm({ ...form, complianceResult: e.target.value })}>
-            <option value="">Sin definir</option>
-            {Object.entries(COMPLIANCE_RESULT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </Select>
-          <Input label="Método / Instrumento" value={form.methodInstrument} onChange={(e) => setForm({ ...form, methodInstrument: e.target.value })} />
-          <Select label="Estado" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-            {Object.entries(MEASUREMENT_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </Select>
+          <div className="field">
+            <label className="label" htmlFor="em-type">Tipo de medición</label>
+            <Select id="em-type" value={form.measurementType} onChange={(e) => setForm({ ...form, measurementType: e.target.value })} required>
+              {Object.entries(MEASUREMENT_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </Select>
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-description">Descripción</label>
+            <Input id="em-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-area">Área / Ubicación</label>
+            <Input id="em-area" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} required />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-date">Fecha</label>
+            <Input id="em-date" type="date" value={form.measurementDate} onChange={(e) => setForm({ ...form, measurementDate: e.target.value })} required />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-responsible">Responsable</label>
+            <Input id="em-responsible" value={form.responsible} onChange={(e) => setForm({ ...form, responsible: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-result">Resultado</label>
+            <Input id="em-result" type="number" value={form.resultValue} onChange={(e) => setForm({ ...form, resultValue: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-unit">Unidad</label>
+            <Input id="em-unit" value={form.resultUnit} onChange={(e) => setForm({ ...form, resultUnit: e.target.value })} placeholder="dB, lux, °C, mg/m³" />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-limit">Límite normativo</label>
+            <Input id="em-limit" type="number" value={form.regulatoryLimit} onChange={(e) => setForm({ ...form, regulatoryLimit: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-limit-unit">Unidad del límite</label>
+            <Input id="em-limit-unit" value={form.regulatoryLimitUnit} onChange={(e) => setForm({ ...form, regulatoryLimitUnit: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-compliance">Comparación normativa</label>
+            <Select id="em-compliance" value={form.complianceResult} onChange={(e) => setForm({ ...form, complianceResult: e.target.value })}>
+              <option value="">Sin definir</option>
+              {Object.entries(COMPLIANCE_RESULT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </Select>
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-method">Método / Instrumento</label>
+            <Input id="em-method" value={form.methodInstrument} onChange={(e) => setForm({ ...form, methodInstrument: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="em-status">Estado</label>
+            <Select id="em-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              {Object.entries(MEASUREMENT_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </Select>
+          </div>
         </div>
         <div style={{ marginTop: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Observaciones</label>
+          <label className="label" htmlFor="em-observations">Observaciones</label>
           <textarea
+            id="em-observations"
             value={form.observations}
             onChange={(e) => setForm({ ...form, observations: e.target.value })}
             rows={3}

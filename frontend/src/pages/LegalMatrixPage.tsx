@@ -976,7 +976,7 @@ function HistoryTab({ history }: { history: LegalHistoryModel[] }) {
 }
 
 // ==================== ADVANCED MANAGEMENT SHEET ====================
-function AdvancedPanel({ matrix, compliance, autoCompliance, token, onRefresh }: {
+export function AdvancedPanel({ matrix, compliance, autoCompliance, token, onRefresh }: {
   matrix: CompanyLegalMatrixModel | null;
   compliance: LegalMatrixComplianceModel | null;
   autoCompliance: { complies: boolean; reasons: string[]; score: number } | null;

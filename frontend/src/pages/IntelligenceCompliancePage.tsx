@@ -341,7 +341,7 @@ export function IntelligenceCompliancePage({ token }: Props) {
               <DistributionBlock title="🕐 Jornada laboral" entries={socioStats.workScheduleDistribution} />
               <DistributionBlock title="🏠 Tipo de vivienda" entries={socioStats.housingTypeDistribution} />
               <DistributionBlock title="🌍 Grupo étnico" entries={socioStats.ethnicGroupDistribution} />
-              <DistributionBlock title="♿ Discapacidad" entries={socioStats.disabilityDistribution} />
+              <DistributionBlock title="♿ Discapacidad" entries={socioStats.disabilityDistribution.map(d => ({ label: d.value, count: d.count }))} />
               <DistributionBlock title="📊 Estrato" entries={socioStats.socioeconomicStratumDistribution.map(d => ({ label: `Estrato ${d.stratum}`, count: d.count }))} />
               <DistributionBlock title="👨‍👩‍👧 Personas a cargo" entries={socioStats.dependentsDistribution} />
             </div>

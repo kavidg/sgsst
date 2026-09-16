@@ -309,7 +309,7 @@ export function WorkerParticipationPage({ token, role }: WorkerParticipationPage
           { label: 'Total registros', value: metrics.total, variant: 'info' },
           { label: 'Completados', value: metrics.completed, variant: metrics.completed > 0 ? 'success' : 'warning' },
           { label: 'Borradores', value: metrics.draft, variant: 'info' },
-          { label: 'Cancelados', value: metrics.cancelled, variant: 'muted' },
+          { label: 'Cancelados', value: metrics.cancelled, variant: 'default' },
           { label: 'Con participantes', value: metrics.withParticipants, variant: metrics.withParticipants > 0 ? 'success' : 'warning' },
           { label: 'Con riesgo', value: metrics.withRisk, variant: 'info' },
         ]}

@@ -297,23 +297,6 @@ export function DocumentManagementPage({ token }: Props) {
     if (tab === 'approvals') { void loadPendingApprovals(); void loadMasterDocuments(); }
   }, [tab, loadPanelData, loadCatalog, loadExpirationItems, loadArchived, loadPendingApprovals, loadMasterDocuments]);
 
-  // BLOQUE 5.1 — resolver instancias vinculadas cuando la pestaña Aprobaciones
-  // carga documentos master y el catálogo no está disponible.
-  useEffect(() => {
-    if (tab !== 'approvals' || masterDocuments.length === 0) return;
-    // Solo resolver si no tenemos todas las instancias en catálogo o resolvedInstances.
-    const unresolved = masterDocuments.filter((doc) => {
-      if (catalogPage?.items.some((item) => item.documentMasterId === doc._id)) return false;
-      if (resolvedInstances.has(doc._id)) return false;
-      return true;
-    });
-    if (unresolved.length === 0) return;
-    // Resolver en paralelo, sin bloquear la UI.
-    void Promise.allSettled(
-      unresolved.map((doc) => resolveLinkedInstance(doc._id)),
-    );
-  }, [tab, masterDocuments, catalogPage, resolvedInstances, resolveLinkedInstance]);
-
   // SPRINT FRONT-6B — tras generar un documento: cierra el modal y refresca el
   // catálogo (el DocumentGenerationEngine ya persistió la DocumentInstance).
   // El refresco conserva los filtros activos de la pestaña Documentos.
@@ -463,6 +446,23 @@ export function DocumentManagementPage({ token }: Props) {
       setResolvingMasterId(null);
     }
   }, [token, catalogPage, resolvedInstances]);
+
+  // BLOQUE 5.1 — resolver instancias vinculadas cuando la pestaña Aprobaciones
+  // carga documentos master y el catálogo no está disponible.
+  useEffect(() => {
+    if (tab !== 'approvals' || masterDocuments.length === 0) return;
+    // Solo resolver si no tenemos todas las instancias en catálogo o resolvedInstances.
+    const unresolved = masterDocuments.filter((doc) => {
+      if (catalogPage?.items.some((item) => item.documentMasterId === doc._id)) return false;
+      if (resolvedInstances.has(doc._id)) return false;
+      return true;
+    });
+    if (unresolved.length === 0) return;
+    // Resolver en paralelo, sin bloquear la UI.
+    void Promise.allSettled(
+      unresolved.map((doc) => resolveLinkedInstance(doc._id)),
+    );
+  }, [tab, masterDocuments, catalogPage, resolvedInstances, resolveLinkedInstance]);
 
   return (
     <div className="doc-mgmt">

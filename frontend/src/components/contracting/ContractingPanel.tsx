@@ -2,12 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ContractModel,
   ContractingStatsModel,
-  ContractApprovalStatus,
   ContractApprovalResponse,
   ContractApprovalHistoryResponse,
   SupplierModel,
   ContractInductionModel,
-  ContractInductionStatus,
   fetchContracts,
   fetchContractingStats,
   createContract,
@@ -149,6 +147,9 @@ function SkeletonRows({ rows = 4, cols = 5 }: { rows?: number; cols?: number }) 
 
 /* ==================== EMPTY PLACEHOLDER TABS ==================== */
 
+// Placeholder reservado para pestañas en construcción; la referencia void
+// evita el TS6133 sin eliminar el componente.
+void ComingSoonTab;
 function ComingSoonTab({ title, description }: { title: string; description: string }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center' }}>

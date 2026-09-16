@@ -88,7 +88,7 @@ export function ComplianceResultCard({ token, module: moduleKey, standardCode, s
   }
 
   const statusInfo = STATUS_MAP[moduleData.level] ?? STATUS_MAP.MEDIUM;
-  const noData = moduleData.level === 'NO_DATA' || moduleData.compliance === 0;
+  const noData = moduleData.compliance === 0;
 
   return (
     <div className="crc-card">

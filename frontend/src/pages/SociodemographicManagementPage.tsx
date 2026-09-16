@@ -158,7 +158,7 @@ export function SociodemographicManagementPage({ token }: Props) {
   const computeGaps = (): GapEntry[] => {
     if (!stats || totalWorkers === 0) return [];
 
-    const countFromDistribution = (entries: Array<{ label: string; count: number }>) =>
+    const countFromDistribution = (entries: ReadonlyArray<{ label?: string; value?: string; count: number }>) =>
       entries.reduce((sum, e) => sum + e.count, 0);
 
     const gaps: GapEntry[] = [
@@ -382,7 +382,7 @@ export function SociodemographicManagementPage({ token }: Props) {
                 <DistributionBlock title="🕐 Jornada laboral" entries={stats?.workScheduleDistribution} />
                 <DistributionBlock title="🏠 Tipo de vivienda" entries={stats?.housingTypeDistribution} />
                 <DistributionBlock title="🌍 Grupo étnico" entries={stats?.ethnicGroupDistribution} />
-                <DistributionBlock title="♿ Discapacidad" entries={stats?.disabilityDistribution} />
+                <DistributionBlock title="♿ Discapacidad" entries={stats?.disabilityDistribution.map(d => ({ label: d.value, count: d.count }))} />
                 <DistributionBlock
                   title="📊 Estrato"
                   entries={stats?.socioeconomicStratumDistribution.map(d => ({ label: `Estrato ${d.stratum}`, count: d.count }))}

@@ -1,6 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ChangeRequestModel,
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';import { ChangeRequestModel,
   ChangeManagementStatsModel,
   ChangeApprovalResponse,
   ChangeApprovalHistoryResponse,
@@ -18,7 +16,7 @@ import {
 } from '../../api';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
-import { ApprovalStatusBadge, APPROVAL_STATUS_LABELS, APPROVAL_STATUS_COLORS, APPROVAL_STATUS_ICONS } from '../ui/ApprovalStatusBadge';
+import { ApprovalStatusBadge } from '../ui/ApprovalStatusBadge';
 import { ApprovalDetailModal } from '../ui/ApprovalDetailModal';
 import { ApprovalRejectModal } from '../ui/ApprovalRejectModal';
 import { ApprovalAdjustmentsModal } from '../ui/ApprovalAdjustmentsModal';
@@ -455,9 +453,12 @@ export default function ChangeManagementPanel({ token }: Props) {
   /* ==================== RENDER ==================== */
 
   const isHighImpact = changeForm.impactLevel !== 'LOW';
+  // Regla de edición reservada para la UI de edición (el setter/estado
+  // showEditChange ya gobierna la visibilidad del formulario).
   const isChangeEditable = showEditChange
     ? showEditChange.status === 'DRAFT' || showEditChange.status === 'REJECTED'
     : true;
+  void isChangeEditable;
 
   return (
     <div className="acq-panel">
@@ -813,9 +814,7 @@ export default function ChangeManagementPanel({ token }: Props) {
         status={approvalDetail?.approvalStatus ?? approvalDetailChange?.approvalStatus}
         history={approvalHistory?.history as Array<{ _id: string; action: string; actor?: { userId: string; name?: string; email?: string }; previousStatus: string; newStatus: string; reason?: string; createdAt: string }> | undefined}
         historyLoading={approvalHistoryLoading}
-        canSubmit={canSubmitApproval && approvalDetailChange ? (approvalDetailChange.status === 'DRAFT' || approvalDetailChange.status === 'REJECTED' || (approvalDetail?.approvalStatus === 'ADJUSTMENTS_REQUESTED')) : false}
-        canDecide={canDecide && approvalDetail?.approvalStatus === 'PENDING_APPROVAL'}
-        loading={approvalLoading}
+        loading={approvalDetailLoading}
         onSubmit={approvalDetailChange && approvalDetail ? () => void handleSubmitApproval(approvalDetailChange._id) : undefined}
         onApprove={canDecide && approvalDetail?.approvalStatus === 'PENDING_APPROVAL' && approvalDetailChange ? () => setShowApproveModal(approvalDetailChange) : undefined}
         onReject={canDecide && approvalDetail?.approvalStatus === 'PENDING_APPROVAL' && approvalDetailChange ? () => setShowRejectModal(approvalDetailChange) : undefined}

@@ -1,9 +1,8 @@
-import { FormEvent, useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   type IndicatorDefinition,
   type IndicatorDashboardItem,
-  type IndicatorMeasurementStatus,
   type IndicatorDashboardResponse,
   type StandardAnalysisResponse,
   fetchIndicators,
@@ -13,7 +12,6 @@ import {
   fetchStandardAnalysis,
 } from '../api';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { useCompanyContext } from '../context/CompanyContext';
 import {
