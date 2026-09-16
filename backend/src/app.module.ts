@@ -74,6 +74,7 @@ import { WasteManagementModule } from './modules/waste-management/waste-manageme
 // FASE 35B: infraestructura estadística de enfermedad laboral (sin scoring —
 // 3.3.4/3.3.5 permanecen PLANNED; los providers llegan en 35C/35D).
 import { OccupationalDiseaseStatisticalCaseModule } from './modules/occupational-disease-statistical-case/occupational-disease-statistical-case.module';
+import { PhvaEvaluationEngineModule } from './modules/phva-evaluation-engine/phva-evaluation-engine.module';
 
 @Module({
   imports: [
@@ -158,5 +159,8 @@ import { OccupationalDiseaseStatisticalCaseModule } from './modules/occupational
     WasteManagementModule,
     // FASE 35B: casos estadísticos de enfermedad laboral (infraestructura base).
     OccupationalDiseaseStatisticalCaseModule,
+    // FASE 1 Motor PHVA: evaluación automática por estándar (solo consulta).
+    // NO modifica el flujo manual, NO persiste en Evaluation, NO genera alertas.
+    PhvaEvaluationEngineModule,
   ],
 }) export class AppModule {}
