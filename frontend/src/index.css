@@ -323,98 +323,168 @@ a { color: inherit; }
 .evaluation-item { display:grid; gap:1rem; }
 
 /* ==========================================================================
-   FASE 3 — Ficha PHVA tipo centro de control de cumplimiento.
-   Sustituye la presentación de fila por una ficha estructurada:
-   encabezado (código/fase/título/peso) + bloque de cumplimiento prominente
-   + controles + plan de mejoramiento. Sin gradientes ni sombras pesadas.
+   FASE 3 (rediseño v2) — Ficha PHVA tipo CENTRO DE CONTROL.
+   Tres zonas claramente diferenciadas: header (código/fase/peso/título) →
+   bloque central grande de cumplimiento → zona inferior (evaluación + acción).
+   El estado es el protagonista visual: icono y texto grandes, banda por estado.
    ========================================================================== */
 .phva-card {
   display:grid;
-  gap:.9rem;
+  gap:0;
   background:#fff;
   border:1px solid #e5e7eb;
-  border-radius:1rem;
-  padding:1.1rem;
+  border-radius:1.1rem;
+  overflow:hidden;
   transition:border-color .15s ease, box-shadow .15s ease;
 }
-.phva-card:hover { border-color:#cbd5e1; }
+.phva-card:hover { border-color:#cbd5e1; box-shadow:0 6px 18px rgba(15,23,42,.07); }
 .phva-card:focus-within { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.12); }
 .phva-card--error { border-color:#ef4444; }
-.phva-card--error:focus-within { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
 
-/* A. Encabezado: código como identificador, fase como badge, peso secundario */
-.phva-card__header { display:grid; gap:.35rem; }
-.phva-card__header-top { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+/* ZONA 1 · HEADER — banda superior con identidad propia */
+.phva-card__header {
+  display:grid;
+  gap:.3rem;
+  padding:1rem 1.2rem .9rem;
+  background:linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-bottom:1px solid #e5e7eb;
+}
+.phva-card__meta { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
 .phva-card__code {
   font-size:.95rem;
-  font-weight:700;
-  letter-spacing:.02em;
+  font-weight:800;
+  letter-spacing:.03em;
   color:#fff;
   background:#0f172a;
-  border-radius:.5rem;
-  padding:.15rem .55rem;
+  border-radius:.55rem;
+  padding:.22rem .65rem;
   font-variant-numeric:tabular-nums;
 }
 .phva-card__phase {
-  font-size:.72rem;
-  font-weight:700;
+  font-size:.7rem;
+  font-weight:800;
   text-transform:uppercase;
-  letter-spacing:.06em;
-  padding:.15rem .55rem;
+  letter-spacing:.09em;
+  padding:.2rem .6rem;
   border-radius:999px;
+  border:1px solid transparent;
 }
-.phva-card__phase--planear { background:#eff6ff; color:#1d4ed8; }
-.phva-card__phase--hacer { background:#ecfeff; color:#0e7490; }
-.phva-card__phase--verificar { background:#f5f3ff; color:#6d28d9; }
-.phva-card__phase--actuar { background:#fff7ed; color:#c2410c; }
+.phva-card__phase--planear { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.phva-card__phase--hacer { background:#ecfeff; color:#0e7490; border-color:#a5f3fc; }
+.phva-card__phase--verificar { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+.phva-card__phase--actuar { background:#fff7ed; color:#c2410c; border-color:#fed7aa; }
 .phva-card__weight {
   margin-left:auto;
-  font-size:.8rem;
-  font-weight:600;
+  font-size:.78rem;
+  font-weight:700;
   color:#64748b;
+  background:#f1f5f9;
+  padding:.2rem .6rem;
+  border-radius:999px;
   font-variant-numeric:tabular-nums;
 }
-.phva-card__title { margin:0; font-size:1.05rem; font-weight:650; color:#0f172a; line-height:1.35; }
-.phva-card__header-action { display:flex; justify-content:flex-end; }
+.phva-card__title { margin:.15rem 0 0; font-size:1.15rem; font-weight:750; color:#0f172a; line-height:1.3; }
+.phva-card__criteria {
+  margin:0;
+  font-size:.85rem;
+  color:#64748b;
+  line-height:1.45;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.phva-card__header-action { display:flex; justify-content:flex-end; padding-top:.25rem; }
 
-/* B. Bloque principal de cumplimiento (foco visual de la ficha) */
+/* ZONA 2 · ESTADO DE CUMPLIMIENTO — bloque central grande (protagonista) */
 .phva-card__status {
   display:flex;
   align-items:center;
-  gap:.75rem;
-  border:1px solid transparent;
-  border-radius:.75rem;
-  padding:.7rem .9rem;
+  gap:1rem;
+  padding:1.4rem 1.2rem;
+  border-bottom:1px solid #e5e7eb;
 }
-.phva-card__status-icon { font-size:1.15rem; line-height:1; }
-.phva-card__status-body { display:grid; gap:.1rem; min-width:0; }
-.phva-card__status-kind { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; opacity:.75; }
-.phva-card__status-value { font-size:1rem; font-weight:700; line-height:1.3; }
-.phva-card__status-hint { font-size:.8rem; opacity:.8; }
-.phva-card__status--ok { background:#f0fdf4; border-color:#bbf7d0; color:#166534; }
-.phva-card__status--danger { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
-.phva-card__status--pending { background:#fffbeb; border-color:#fde68a; color:#92400e; }
-.phva-card__status--neutral { background:#f8fafc; border-color:#e2e8f0; color:#475569; }
-.phva-card__status--loading { background:#f8fafc; border-color:#e2e8f0; color:#64748b; }
-.phva-card__status--error { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+.phva-card__status-icon {
+  font-size:1.7rem;
+  line-height:1;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:3.1rem;
+  height:3.1rem;
+  border-radius:999px;
+  background:rgba(255,255,255,.75);
+  border:2px solid currentColor;
+  flex-shrink:0;
+}
+.phva-card__status-body { display:grid; gap:.15rem; min-width:0; }
+.phva-card__status-kind {
+  font-size:.72rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  opacity:.8;
+}
+.phva-card__status-value {
+  font-size:1.45rem;
+  font-weight:800;
+  line-height:1.2;
+  letter-spacing:-.01em;
+}
+.phva-card__status-hint { font-size:.82rem; opacity:.85; }
+.phva-card__status--ok { background:#f0fdf4; color:#166534; border-left:6px solid #22c55e; }
+.phva-card__status--danger { background:#fef2f2; color:#991b1b; border-left:6px solid #ef4444; }
+.phva-card__status--pending { background:#fffbeb; color:#92400e; border-left:6px solid #f59e0b; }
+.phva-card__status--neutral { background:#f8fafc; color:#475569; border-left:6px solid #cbd5e1; }
+.phva-card__status--loading { background:#f8fafc; color:#64748b; border-left:6px solid #94a3b8; }
+.phva-card__status--error { background:#fff7ed; color:#9a3412; border-left:6px solid #ea580c; }
 
-/* Controles y textos internos */
-.phva-card__single { display:grid; gap:.9rem; }
+/* ZONA 3 · EVALUACIÓN + ACCIÓN */
+.phva-card__bottom {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:1rem;
+  padding:1rem 1.2rem 1.1rem;
+  background:#fcfcfd;
+}
+.phva-card__zone-label {
+  font-size:.68rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  color:#94a3b8;
+  display:block;
+  margin-bottom:.45rem;
+}
+.phva-card__evaluation { display:grid; gap:.75rem; min-width:0; }
+.phva-card__evaluation-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.9rem; }
+.phva-card__auto-note { margin:.25rem 0 0; font-size:.85rem; color:#475569; }
+.phva-card__action {
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  align-items:flex-end;
+  min-width:220px;
+}
+.phva-card__action .btn { min-width:220px; }
 .phva-card__text { margin:0; font-size:.875rem; color:#475569; }
-.phva-card__footer { display:flex; justify-content:flex-end; }
 .phva-card .btn:focus-visible,
 .phva-card .review-panel__toggle:focus-visible {
   outline:2px solid #2563eb;
   outline-offset:2px;
 }
 
-/* Responsive: apilar verticalmente en pantallas pequeñas */
-@media (max-width: 720px) {
-  .phva-card { padding:.85rem; }
-  .phva-card .grid.grid-2 { grid-template-columns:1fr; }
+/* Responsive: apilar zonas y controles en pantallas pequeñas */
+@media (max-width: 760px) {
+  .phva-card__bottom { grid-template-columns:1fr; }
+  .phva-card__evaluation-grid { grid-template-columns:1fr; }
+  .phva-card__action { align-items:stretch; }
+  .phva-card__action .btn { width:100%; }
+  .phva-card__status-value { font-size:1.2rem; }
+  .phva-card__status { padding:1.1rem 1rem; }
+  .phva-card__status-icon { width:2.6rem; height:2.6rem; font-size:1.4rem; }
   .phva-card__weight { margin-left:0; }
   .phva-card__header-action { justify-content:flex-start; }
-  .phva-card__footer .btn { width:100%; }
 }
 
 /* FASE 2 — Panel de resultado automático del PHVA Evaluation Engine (solo lectura). */

@@ -79,7 +79,7 @@ function derivePhvaPhase(code: string): PhvaPhase {
   return 'PLANEAR';
 }
 
-/** Vista del bloque principal de cumplimiento (única fuente visual del estado). */
+/** Vista del bloque central de cumplimiento (zona protagonista de la ficha). */
 type StatusView = {
   key: 'ok' | 'danger' | 'pending' | 'neutral' | 'loading' | 'error';
   icon: string;
@@ -102,9 +102,9 @@ function buildEngineStatusView(
     return { key: 'pending', icon: '⚠', label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS };
   }
   const statusViews: Record<PhvaAutoResultStatus, StatusView> = {
-    CUMPLE_TOTALMENTE: { key: 'ok', icon: '✅', label: PHVA_AUTO_STATUS_LABEL.CUMPLE_TOTALMENTE },
-    NO_CUMPLE: { key: 'danger', icon: '❌', label: PHVA_AUTO_STATUS_LABEL.NO_CUMPLE },
-    PENDIENTE_ANALISIS: { key: 'pending', icon: '⚠', label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS },
+    CUMPLE_TOTALMENTE: { key: 'ok', icon: '✓', label: PHVA_AUTO_STATUS_LABEL.CUMPLE_TOTALMENTE },
+    NO_CUMPLE: { key: 'danger', icon: '⚠', label: PHVA_AUTO_STATUS_LABEL.NO_CUMPLE },
+    PENDIENTE_ANALISIS: { key: 'pending', icon: '⏳', label: PHVA_AUTO_STATUS_LABEL.PENDIENTE_ANALISIS },
     NO_APLICA: { key: 'neutral', icon: '—', label: PHVA_AUTO_STATUS_LABEL.NO_APLICA },
   };
   return statusViews[autoResult.status];
@@ -112,15 +112,15 @@ function buildEngineStatusView(
 
 function buildManualStatusView(status: ComplianceOption): StatusView {
   if (status === 'Cumple totalmente') {
-    return { key: 'ok', icon: '✅', label: status };
+    return { key: 'ok', icon: '✓', label: status };
   }
   if (status === 'No cumple') {
-    return { key: 'danger', icon: '❌', label: status };
+    return { key: 'danger', icon: '⚠', label: status };
   }
   if (status === 'No aplica') {
     return { key: 'neutral', icon: '—', label: status };
   }
-  return { key: 'neutral', icon: '○', label: 'Pendiente de evaluación', hint: 'Selecciona el resultado para este estándar.' };
+  return { key: 'neutral', icon: '○', label: 'Pendiente de evaluación', hint: 'Selecciona el resultado en la zona de evaluación.' };
 }
 
 export function EvaluationItem({
@@ -184,7 +184,7 @@ export function EvaluationItem({
     onStatusChange?.(code, nextStatus);
   };
 
-  // ── Estado de cumplimiento (bloque principal de la ficha) ────────────────
+  // ── Estado de cumplimiento (bloque central de la ficha) ──────────────────
   const statusView = isAutoManaged
     ? buildEngineStatusView(autoResult ?? null, autoLoading, autoError)
     : buildManualStatusView(currentStatus);
@@ -197,20 +197,21 @@ export function EvaluationItem({
 
   return (
     <article className={`phva-card ${hasError ? 'phva-card--error' : ''}`.trim()}>
-      {/* A. Encabezado: código (identificador), fase, título y peso secundario */}
+      {/* ZONA 1 · HEADER: código (identificador), fase, peso y título */}
       <header className="phva-card__header">
-        <div className="phva-card__header-top">
+        <div className="phva-card__meta">
           <span className="phva-card__code">{code}</span>
           <span className={`phva-card__phase phva-card__phase--${phase.toLowerCase()}`}>
             {PHVA_PHASE_LABEL[phase]}
           </span>
-          <span className="phva-card__weight">Peso: {weight}%</span>
+          <span className="phva-card__weight">Peso {weight}%</span>
         </div>
         <h3 className="phva-card__title">{title}</h3>
+        <p className="phva-card__criteria">{criteria}</p>
         {headerAction ? <div className="phva-card__header-action">{headerAction}</div> : null}
       </header>
 
-      {/* B. Bloque principal de cumplimiento (foco visual de la ficha) */}
+      {/* ZONA 2 · ESTADO DE CUMPLIMIENTO (bloque central grande) */}
       <section
         className={`phva-card__status phva-card__status--${statusView.key}`}
         aria-live="polite"
@@ -232,98 +233,111 @@ export function EvaluationItem({
         ) : null}
       </section>
 
-      {/* D. Resultado manual: select existente solo para estándares sin motor */}
-      <div className={showManualSelect ? 'grid grid-2' : 'phva-card__single'}>
-        {showManualSelect ? (
-          <label className="field">
-            <span className="label">Resultado de evaluación</span>
-            <Select
-              value={currentStatus}
-              disabled={readOnly}
-              onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}
-            >
-              <option value="" disabled>
-                Selecciona una opción
-              </option>
-              <option value="Cumple totalmente">Cumple totalmente</option>
-              <option value="No cumple">No cumple</option>
-              <option value="No aplica">No aplica</option>
-            </Select>
-          </label>
-        ) : null}
+      {/* ZONA 3 · EVALUACIÓN + ACCIÓN */}
+      <div className="phva-card__bottom">
+        <section className="phva-card__evaluation">
+          <span className="phva-card__zone-label">Evaluación</span>
+          <div className="phva-card__evaluation-grid">
+            {showManualSelect ? (
+              <label className="field">
+                <span className="label">Estado actual</span>
+                <Select
+                  value={currentStatus}
+                  disabled={readOnly}
+                  onChange={(event) => handleStatusChange(event.target.value as ComplianceOption)}
+                >
+                  <option value="" disabled>
+                    Selecciona una opción
+                  </option>
+                  <option value="Cumple totalmente">Cumple totalmente</option>
+                  <option value="No cumple">No cumple</option>
+                  <option value="No aplica">No aplica</option>
+                </Select>
+              </label>
+            ) : (
+              <div className="field">
+                <span className="label">Estado actual</span>
+                <p className="phva-card__auto-note">
+                  Determinado automáticamente por el motor según la gestión avanzada.
+                </p>
+              </div>
+            )}
 
-        <div className="field">
-          <span className="label">Evidencia</span>
-          <label
-            htmlFor={fileInputId}
-            className={`upload-zone ${isDragOver ? 'upload-zone--active' : ''}`.trim()}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setIsDragOver(true);
-            }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={onDropFile}
-          >
-            <input
-              id={fileInputId}
-              type="file"
-              className="upload-zone__input"
-              disabled={readOnly}
-              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-            />
-            <span className="upload-zone__title">Arrastra y suelta un archivo</span>
-            <span className="muted">{readOnly ? 'Solo visualización para manager' : 'o haz clic para seleccionarlo'}</span>
-            {selectedFile ? <span className="upload-zone__file">Archivo: {selectedFile.name}</span> : null}
-          </label>
-        </div>
-      </div>
-
-      {/* Guía de verificación (colapsable, común a ambos modos) */}
-      <section className="review-panel">
-        <button
-          type="button"
-          className="review-panel__toggle"
-          onClick={() => setOpenReview((current) => !current)}
-          aria-expanded={openReview}
-        >
-          <span className="label">Modo de revisión</span>
-          <span className={`review-panel__chevron ${openReview ? 'open' : ''}`.trim()}>
-            <Icons.chevronDown />
-          </span>
-        </button>
-
-        <div className={`review-panel__content ${openReview ? 'open' : ''}`.trim()}>
-          <div className="review-panel__body">
             <div className="field">
-              <span className="label">Instrucciones de verificación</span>
-              <p className="phva-card__text whitespace-pre-line">{modeReview}</p>
-            </div>
-            <div className="field">
-              <span className="label">Criterio</span>
-              <p className="phva-card__text whitespace-pre-line">{criteria}</p>
+              <span className="label">Evidencia</span>
+              <label
+                htmlFor={fileInputId}
+                className={`upload-zone ${isDragOver ? 'upload-zone--active' : ''}`.trim()}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setIsDragOver(true);
+                }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={onDropFile}
+              >
+                <input
+                  id={fileInputId}
+                  type="file"
+                  className="upload-zone__input"
+                  disabled={readOnly}
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                />
+                <span className="upload-zone__title">Arrastra y suelta un archivo</span>
+                <span className="muted">{readOnly ? 'Solo visualización para manager' : 'o haz clic para seleccionarlo'}</span>
+                {selectedFile ? <span className="upload-zone__file">Archivo: {selectedFile.name}</span> : null}
+              </label>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* E. Plan de mejoramiento: siempre visible, habilitado solo con NO_CUMPLE */}
-      <footer className="phva-card__footer">
-        <Button
-          type="button"
-          variant={canOpenImprovementPlan ? 'primary' : 'secondary'}
-          disabled={!canOpenImprovementPlan}
-          title={
-            canOpenImprovementPlan
-              ? 'Ingresar plan de mejoramiento'
-              : readOnly
-                ? 'Modo solo visualización para manager'
-                : 'Disponible cuando el resultado sea No cumple'
-          }
-          onClick={() => setIsModalOpen(true)}
-        >
-          Ingresar plan de mejoramiento
-        </Button>
-      </footer>
+          {/* Guía de verificación (colapsable) */}
+          <section className="review-panel">
+            <button
+              type="button"
+              className="review-panel__toggle"
+              onClick={() => setOpenReview((current) => !current)}
+              aria-expanded={openReview}
+            >
+              <span className="label">Modo de revisión</span>
+              <span className={`review-panel__chevron ${openReview ? 'open' : ''}`.trim()}>
+                <Icons.chevronDown />
+              </span>
+            </button>
+
+            <div className={`review-panel__content ${openReview ? 'open' : ''}`.trim()}>
+              <div className="review-panel__body">
+                <div className="field">
+                  <span className="label">Instrucciones de verificación</span>
+                  <p className="phva-card__text whitespace-pre-line">{modeReview}</p>
+                </div>
+                <div className="field">
+                  <span className="label">Criterio</span>
+                  <p className="phva-card__text whitespace-pre-line">{criteria}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        {/* Zona de acciones separada dentro de la ficha */}
+        <footer className="phva-card__action">
+          <span className="phva-card__zone-label">Acción</span>
+          <Button
+            type="button"
+            variant={canOpenImprovementPlan ? 'primary' : 'secondary'}
+            disabled={!canOpenImprovementPlan}
+            title={
+              canOpenImprovementPlan
+                ? 'Ingresar plan de mejoramiento'
+                : readOnly
+                  ? 'Modo solo visualización para manager'
+                  : 'Disponible cuando el resultado sea No cumple'
+            }
+            onClick={() => setIsModalOpen(true)}
+          >
+            Plan de mejoramiento
+          </Button>
+        </footer>
+      </div>
 
       <Modal isOpen={isModalOpen} title={`Plan de mejoramiento · ${code}`} onClose={closeModal}>
         <div className="form-grid">
