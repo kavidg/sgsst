@@ -321,6 +321,40 @@ a { color: inherit; }
 .plan-next-action__button:hover { transform:translateY(-1px); box-shadow:0 6px 14px rgba(37,99,235,.22); }
 
 .evaluation-item { display:grid; gap:1rem; }
+
+/* FASE 2 — Panel de resultado automático del PHVA Evaluation Engine (solo lectura). */
+.auto-evaluation {
+  border:1px solid #e2e8f0;
+  border-radius:.9rem;
+  background:#f8fafc;
+  padding:.75rem .9rem;
+  display:grid;
+  gap:.5rem;
+}
+.auto-evaluation__header { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+.auto-evaluation__header .label { margin-right:auto; }
+.auto-evaluation__missing ul { margin:.25rem 0 0; padding-left:1.1rem; }
+.auto-evaluation__missing li { font-size:.85rem; color:#475569; }
+.auto-evaluation__findings { display:grid; gap:.5rem; }
+.auto-evaluation__finding {
+  border-left:3px solid #ef4444;
+  background:#fff;
+  border-radius:.5rem;
+  padding:.5rem .75rem;
+}
+.auto-evaluation__finding strong { display:block; font-size:.9rem; color:#0f172a; }
+.auto-evaluation__finding p { margin:.15rem 0 0; font-size:.85rem; }
+.auto-evaluation__trace { border-top:1px dashed #e2e8f0; padding-top:.5rem; }
+.auto-evaluation__trace-list {
+  list-style:none;
+  margin:.5rem 0 0;
+  padding:0;
+  display:grid;
+  gap:.4rem;
+}
+.auto-evaluation__trace-list li { display:flex; align-items:baseline; gap:.5rem; font-size:.85rem; color:#334155; flex-wrap:wrap; }
+.auto-evaluation__trace-list small { flex-basis:100%; padding-left:2rem; }
+.auto-evaluation__hint { margin:0; font-size:.82rem; }
 .evaluation-item--error {
   border:1px solid #ef4444;
   border-radius:.85rem;
