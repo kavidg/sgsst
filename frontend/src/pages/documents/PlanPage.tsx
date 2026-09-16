@@ -66,6 +66,8 @@ import { usePhvaCatalog } from '../../hooks/usePhvaCatalog';
 import { mergeCatalogItems } from './utils/mergeCatalogItems';
 import { groupCatalogItems } from './utils/groupCatalogItems';
 import { shouldUseCatalogSet, hasCatalogSectionItems, catalogItemToEvaluationItem } from './utils/shouldUseCatalogSet';
+import { usePhvaEvaluationEngine } from '../../hooks/usePhvaEvaluationEngine';
+import type { PhvaAutoEvaluationResult } from '../../services/phva-evaluation-engine.service';
 import type { StandardSection } from '../../models/standard-catalog';
 import type { PhvaCatalogItem } from '../../services/phva-catalog.service';
 import CommunicationAdvancedPanel from '../../components/CommunicationAdvancedPanel';
@@ -1253,8 +1255,19 @@ function SpecialPensionAdvancedPanel({ token, readOnly, onComplianceChange, onDi
 }
 
 
-function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement, token }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void; token?: string }) {
-  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus } = useDocumentsEvaluation();
+type EngineEvaluationState = {
+  results: Record<string, PhvaAutoEvaluationResult>;
+  loading: boolean;
+  error: boolean;
+  refresh: () => Promise<void>;
+};
+
+function EvaluationSection({ title, items, children, sectionId, readOnly = false, onOpenAdvancedManagement, engine }: { title: string; items: EvaluationEntry[]; children?: ReactNode; sectionId: string; readOnly?: boolean; onOpenAdvancedManagement?: (item: EvaluationEntry) => void; engine: EngineEvaluationState }) {
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, engineManagedCodes } = useDocumentsEvaluation();
+
+  // FASE 2 — Resultados automáticos del motor (una sola consulta por empresa,
+  // cargada en PlanPage y compartida por todas las secciones).
+  const { results: autoResults, loading: autoLoading, error: autoError, refresh: refreshAutoEvaluations } = engine;
 
   useEffect(() => {
     registerSection(sectionId, { title, items: items.map((item) => ({ code: item.code, weight: item.weight })) });
@@ -1263,7 +1276,9 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
   return (
     <Card title={title} className={sectionErrors.has(sectionId) ? 'card--error' : ''}>
       <div className="evaluation-list">
-        {items.map((item, index) => (
+        {items.map((item, index) => {
+          const autoResult = autoResults[item.code];
+          return (
           <div key={item.code} className="evaluation-list__row">
             <EvaluationItem
               {...item}
@@ -1271,6 +1286,11 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               hasError={missingCodes.has(item.code)}
               readOnly={readOnly}
               onStatusChange={(code, status) => setAnswerStatus(code, status)}
+              autoResult={autoResult ?? null}
+              autoLoading={autoLoading && !autoResult}
+              autoError={autoError && !autoResult}
+              autoLocked={engineManagedCodes.has(item.code)}
+              onRetryAutoEvaluation={() => void refreshAutoEvaluations()}
               headerAction={
                 ['1.1.1', '1.1.2', '1.1.3', '1.1.4', '1.1.5', '1.1.6', '1.1.7', '1.1.8', '1.2.1', '1.2.2', '1.2.3', '2.1.1', '2.2.1', '2.3.1', '2.4.1', '2.5.1', '2.6.1', '2.7.1', '2.8.1', '2.9.1', '2.10.1', '2.11.1', '3.1.1'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
@@ -1282,7 +1302,8 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
 
             {index < items.length - 1 ? <hr className="evaluation-list__divider" /> : null}
           </div>
-        ))}
+          );
+        })}
       </div>
       {children}
     </Card>
@@ -1291,7 +1312,25 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
 
 export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean; token?: string }) {
   const navigate = useNavigate();
-  const { totalCompliance, sectionCompliance, setAnswerStatus } = useDocumentsEvaluation();
+  const { totalCompliance, sectionCompliance, setAnswerStatus, setEngineVerdict } = useDocumentsEvaluation();
+
+  // FASE 2 — Motor de evaluación automática: UNA sola consulta por empresa
+  // activa, compartida por todas las secciones de la página.
+  const engine = usePhvaEvaluationEngine(token);
+  const { results: autoResults } = engine;
+
+  // Sincroniza los veredictos definitivos (CUMPLE/NO_CUMPLE/NO_APLICA) con el
+  // estado del PHVA (respuestas visibles + módulo Evaluations).
+  // PENDIENTE_ANALISIS no se sincroniza: no hay veredicto definitivo que
+  // persistir y el ítem queda como "Pendiente de análisis".
+  useEffect(() => {
+    for (const [code, result] of Object.entries(autoResults)) {
+      if (result.status !== 'PENDIENTE_ANALISIS') {
+        setEngineVerdict(code, result.status);
+      }
+    }
+  }, [autoResults, setEngineVerdict]);
+
   const [advancedManagementItem, setAdvancedManagementItem] = useState<EvaluationEntry | null>(null);
   const [advancedManagementDirty, setAdvancedManagementDirty] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -1447,7 +1486,7 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
         sectionId="plan-recursos"
         readOnly={readOnly}
         onOpenAdvancedManagement={onOpenAdvancedManagement}
-        token={token}
+        engine={engine}
       />
       <EvaluationSection
         title={catalogSections['plan-capacitacion']?.title ?? 'Capacitación en el SG-SST (6%)'}
@@ -1455,9 +1494,9 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
         sectionId="plan-capacitacion"
         readOnly={readOnly}
         onOpenAdvancedManagement={onOpenAdvancedManagement}
-        token={token}
+        engine={engine}
       />
-      <EvaluationSection title={catalogSections['plan-gestion-integral']?.title ?? 'Gestión Integral del SG-SST (15%)'} items={integralManagement} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} token={token}>
+      <EvaluationSection title={catalogSections['plan-gestion-integral']?.title ?? 'Gestión Integral del SG-SST (15%)'} items={integralManagement} sectionId="plan-gestion-integral" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} engine={engine}>
         <div className="plan-next-action">
           <Button type="button" className="plan-next-action__button" onClick={() => navigate('/documents/do')}>
             Siguiente → Hacer
@@ -1487,6 +1526,9 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
             saveRequest={saveRequest}
             discardRequest={discardRequest}
             onSaved={() => {
+              // FASE 2: tras guardar Gestión avanzada el veredicto automático
+              // puede cambiar → refresca los resultados del motor.
+              void engine.refresh();
               if (closeAfterSave) closeAdvancedManagement();
             }}
           />

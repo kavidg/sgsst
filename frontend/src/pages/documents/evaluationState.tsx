@@ -6,6 +6,19 @@ type AnswerValue = {
   status: string;
 };
 
+// FASE 2 — Motor de evaluación automática: veredictos crudos que devuelve el
+// backend (AutoResultStatus). Los códigos gestionados por el motor se
+// sincronizan a los estados visibles existentes y NO participan de la
+// validación manual (validateAll): su resultado lo determina el motor.
+export type EngineVerdict = 'CUMPLE_TOTALMENTE' | 'NO_CUMPLE' | 'NO_APLICA' | 'PENDIENTE_ANALISIS';
+
+/** Veredicto automático → estado visible del PHVA (solo veredictos definitivos). */
+const ENGINE_VERDICT_TO_VISIBLE: Partial<Record<EngineVerdict, string>> = {
+  CUMPLE_TOTALMENTE: 'Cumple totalmente',
+  NO_CUMPLE: 'No cumple',
+  NO_APLICA: 'No aplica',
+};
+
 type AnswersState = Record<string, AnswerValue>;
 
 type SectionItem = {
@@ -36,6 +49,10 @@ type DocumentsEvaluationContextValue = {
   validateAll: () => ValidationResult;
   totalCompliance: SectionCompliance;
   sectionCompliance: SectionCompliance[];
+  /** FASE 2: códigos cuyo veredicto administra el motor (no seleccionables). */
+  engineManagedCodes: Set<string>;
+  /** FASE 2: registra el veredicto automático de un estándar gestionado. */
+  setEngineVerdict: (code: string, verdict: EngineVerdict) => void;
 };
 
 const STORAGE_KEY = 'sgsst-documents-answers';
@@ -66,6 +83,9 @@ export function DocumentsEvaluationProvider({ children, token, userId }: { child
   const [sections, setSections] = useState<Record<string, { title: string; items: SectionItem[] }>>({});
   const [missingCodes, setMissingCodes] = useState<Set<string>>(new Set());
   const [sectionErrors, setSectionErrors] = useState<Set<string>>(new Set());
+  // FASE 2: códigos cuyo resultado administra el motor (sincronizados desde
+  // usePhvaEvaluationEngine). No participan de validateAll ni del select.
+  const [engineManagedCodes, setEngineManagedCodes] = useState<Set<string>>(new Set());
 
   // Empresa a la que pertenecen las respuestas actuales en memoria.
   // Evita que al cambiar de empresa se filtren respuestas de la anterior.
@@ -172,11 +192,55 @@ export function DocumentsEvaluationProvider({ children, token, userId }: { child
     }
   }, [token, userId, companyId]);
 
+  const setEngineVerdict = useCallback((code: string, verdict: EngineVerdict) => {
+    setEngineManagedCodes((current) => {
+      if (current.has(code)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(code);
+      return next;
+    });
+
+    const visibleStatus = ENGINE_VERDICT_TO_VISIBLE[verdict];
+    if (!visibleStatus) {
+      // PENDIENTE_ANALISIS: sin veredicto definitivo no se persiste ni se marca
+      // como respondido (el motor aún no puede concluir de forma segura).
+      return;
+    }
+
+    setAnswers((current) => {
+      const next = { ...current, [code]: { status: visibleStatus } };
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+
+    setMissingCodes((current) => {
+      if (!current.has(code)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.delete(code);
+      return next;
+    });
+
+    // Misma sincronización con el módulo Evaluations que el flujo manual.
+    if (token && userId && companyId) {
+      saveEvaluation(token, userId, companyId, code, visibleStatus).catch((requestError) => {
+        console.warn(`[PHVA] No se pudo sincronizar el veredicto automático de ${code} en el backend.`, requestError);
+      });
+    }
+  }, [token, userId, companyId]);
+
   const validateAll = useCallback((): ValidationResult => {
     const missing: string[] = [];
 
     Object.entries(answers).forEach(([code, value]) => {
-      if (!value.status) {
+      // Los códigos gestionados por el motor no bloquean el flujo manual: su
+      // veredicto puede ser PENDIENTE_ANALISIS legítimamente.
+      if (!value.status && !engineManagedCodes.has(code)) {
         missing.push(code);
       }
     });
@@ -239,8 +303,10 @@ export function DocumentsEvaluationProvider({ children, token, userId }: { child
       validateAll,
       totalCompliance,
       sectionCompliance,
+      engineManagedCodes,
+      setEngineVerdict,
     }),
-    [answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, validateAll, totalCompliance, sectionCompliance],
+    [answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, validateAll, totalCompliance, sectionCompliance, engineManagedCodes, setEngineVerdict],
   );
 
   return <DocumentsEvaluationContext.Provider value={value}>{children}</DocumentsEvaluationContext.Provider>;
