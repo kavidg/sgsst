@@ -59,6 +59,7 @@ import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { PhvaPhaseTabs } from '../../components/phva/PhvaPhaseTabs';
 import { Modal } from '../../components/ui/Modal';
 import { Sheet } from '../../components/ui/Sheet';
 import { useDocumentsEvaluation } from './evaluationState';
@@ -1475,6 +1476,13 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
 
   return (
     <div className="grid">
+      <PhvaPhaseTabs
+        complianceByPhase={{
+          plan: {
+            standardsCount: financialResources.length + training.length + integralManagement.length,
+          },
+        }}
+      />
       <ComplianceProgress
         total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}

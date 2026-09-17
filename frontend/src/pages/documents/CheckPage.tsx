@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
+import { PhvaPhaseTabs } from '../../components/phva/PhvaPhaseTabs';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useDocumentsEvaluation } from './evaluationState';
@@ -130,6 +131,14 @@ export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
 
   return (
     <div className="grid">
+      <PhvaPhaseTabs
+        complianceByPhase={{
+          check: {
+            percentage: sectionCompliance.find((s) => s.sectionId === 'check-verificacion')?.percentage,
+            standardsCount: verificacionItemsMerged.length,
+          },
+        }}
+      />
       <ComplianceProgress
         total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}

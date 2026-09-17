@@ -5,6 +5,7 @@ import { EvaluationItem } from '../../components/EvaluationItem';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { PhvaPhaseTabs } from '../../components/phva/PhvaPhaseTabs';
 import { useDocumentsEvaluation } from './evaluationState';
 import { usePhvaCatalog } from '../../hooks/usePhvaCatalog';
 import { mergeCatalogItems } from './utils/mergeCatalogItems';
@@ -434,6 +435,20 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
 
   return (
     <div className="grid">
+      <PhvaPhaseTabs
+        complianceByPhase={{
+          do: {
+            standardsCount: [
+              ...condicionesSaludItems,
+              ...registroInvestigacionItems,
+              ...vigilanciaSaludItems,
+              ...identificacionPeligrosItems,
+              ...medidasControlItems,
+              ...gestionAmenazasItems,
+            ].length,
+          },
+        }}
+      />
       <ComplianceProgress
         total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}

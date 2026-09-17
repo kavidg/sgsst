@@ -449,6 +449,110 @@ a { color: inherit; }
 .phva-card__status--loading { background:#f8fafc; color:#64748b; border-left:6px solid #94a3b8; }
 .phva-card__status--error { background:#fff7ed; color:#9a3412; border-left:6px solid #ea580c; }
 
+/* FASE 5.2 · SELECTOR DEL CICLO PHVA — pestañas de fase (solo navegación) */
+.phva-tabs {
+  display:grid;
+  gap:.6rem;
+}
+.phva-tabs__title {
+  margin:0;
+  font-size:.72rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  color:#94a3b8;
+}
+.phva-tabs__list {
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0,1fr));
+  gap:.6rem;
+}
+.phva-tabs__tab {
+  position:relative;
+  display:grid;
+  gap:.1rem;
+  padding:.8rem 1rem .9rem;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:.9rem;
+  text-decoration:none;
+  transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.phva-tabs__tab:hover {
+  border-color:#cbd5e1;
+  box-shadow:0 4px 14px rgba(15,23,42,.06);
+  transform:translateY(-1px);
+}
+.phva-tabs__tab:focus-visible {
+  outline:2px solid #2563eb;
+  outline-offset:2px;
+}
+.phva-tabs__label {
+  font-size:.8rem;
+  font-weight:800;
+  letter-spacing:.06em;
+  color:#334155;
+}
+.phva-tabs__weight {
+  position:absolute;
+  top:.7rem;
+  right:.85rem;
+  font-size:.72rem;
+  font-weight:800;
+  color:#64748b;
+  background:#f1f5f9;
+  padding:.15rem .5rem;
+  border-radius:999px;
+  font-variant-numeric:tabular-nums;
+}
+.phva-tabs__description {
+  font-size:.76rem;
+  color:#64748b;
+  line-height:1.35;
+}
+.phva-tabs__dynamic {
+  display:flex;
+  flex-wrap:wrap;
+  gap:.35rem .6rem;
+  margin-top:.3rem;
+}
+.phva-tabs__compliance {
+  font-size:.72rem;
+  font-weight:700;
+  color:#166534;
+  background:#f0fdf4;
+  border-radius:999px;
+  padding:.1rem .5rem;
+  font-variant-numeric:tabular-nums;
+}
+.phva-tabs__count {
+  font-size:.72rem;
+  font-weight:600;
+  color:#475569;
+  background:#f8fafc;
+  border-radius:999px;
+  padding:.1rem .5rem;
+}
+.phva-tabs__indicator {
+  position:absolute;
+  left:1rem;
+  right:1rem;
+  bottom:0;
+  height:3px;
+  border-radius:3px 3px 0 0;
+  background:transparent;
+}
+.phva-tabs__tab--active {
+  background:linear-gradient(180deg, #eef4ff 0%, #ffffff 85%);
+  border-color:#93c5fd;
+  box-shadow:0 6px 18px rgba(37,99,235,.10);
+}
+.phva-tabs__tab--active .phva-tabs__label { color:#1d4ed8; }
+.phva-tabs__tab--active .phva-tabs__indicator { background:#2563eb; }
+
 /* ZONA 3 · INTERPRETACIÓN — mensaje breve alineado al estado */
 .phva-card__interpretation {
   padding:.7rem 1.2rem;
@@ -509,6 +613,15 @@ a { color: inherit; }
 .phva-card .review-panel__toggle:focus-visible {
   outline:2px solid #2563eb;
   outline-offset:2px;
+}
+
+/* Responsive del selector PHVA: tablet 2×2, móvil 1 columna */
+@media (max-width: 980px) {
+  .phva-tabs__list { grid-template-columns:repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 560px) {
+  .phva-tabs__list { grid-template-columns:1fr; }
+  .phva-tabs__tab { padding:.75rem .85rem .85rem; }
 }
 
 /* Responsive: apilar zonas y controles en pantallas pequeñas */

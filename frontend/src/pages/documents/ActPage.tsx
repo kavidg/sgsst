@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
+import { PhvaPhaseTabs } from '../../components/phva/PhvaPhaseTabs';
 import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -145,6 +146,14 @@ export function ActPage({ readOnly = false }: { readOnly?: boolean }) {
 
   return (
     <div className="grid">
+      <PhvaPhaseTabs
+        complianceByPhase={{
+          act: {
+            percentage: sectionCompliance.find((s) => s.sectionId === 'act-mejoramiento')?.percentage,
+            standardsCount: actuarItems.length,
+          },
+        }}
+      />
       <ComplianceProgress
         total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
         sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
