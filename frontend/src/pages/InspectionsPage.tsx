@@ -22,7 +22,8 @@ export function InspectionsPage({ token }: InspectionsPageProps) {
 
   const allData = [...activitiesData, ...scheduleData];
   const totalActividades = allData.length;
-  const ejecutadas = allData.filter((a) => a.status === 'completed').length;
+  // NORMALIZACIÓN: el backend devuelve el estado canónico ('COMPLETED').
+  const ejecutadas = allData.filter((a) => a.status === 'COMPLETED').length;
   const pendientes = totalActividades - ejecutadas;
   const cumplimiento = totalActividades > 0 ? Math.round((ejecutadas / totalActividades) * 100) : 0;
 

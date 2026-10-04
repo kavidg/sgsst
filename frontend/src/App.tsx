@@ -33,6 +33,8 @@ import { DiseaseInvestigationManagementPage } from './pages/DiseaseInvestigation
 import { RisksPage } from './pages/RisksPage';
 import { TrainingsPage } from './pages/TrainingsPage';
 import { InspectionsPage } from './pages/InspectionsPage';
+// V1 4.2.5 — Mantenimiento: página propia (no reutiliza /inspections).
+import { MaintenancePage } from './pages/MaintenancePage';
 import { AbsenteeismPage } from './pages/AbsenteeismPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { EvaluationsPage } from './pages/evaluations/EvaluationsPage';
@@ -60,6 +62,9 @@ import { OccupationalMedicalRecordCustodyPage } from './pages/OccupationalMedica
 import { WorkRestrictionsPage } from './pages/WorkRestrictionsPage';
 import { WorkplaceSanitaryConditionsPage } from './pages/WorkplaceSanitaryConditionsPage';
 import { WasteManagementPage } from './pages/WasteManagementPage';
+// E3 (3.2.3): panel de registro y análisis estadístico de accidentalidad
+// (solo lectura; fuente operativa: dominio Incident).
+import { AccidentStatisticsPage } from './pages/accident-statistics/AccidentStatisticsPage';
 // FASE 35B: infraestructura estadística de enfermedad laboral (sin scoring).
 import { OccupationalDiseaseStatisticalCasesPage } from './pages/OccupationalDiseaseStatisticalCasesPage';
 import { DoPage } from './pages/documents/DoPage';
@@ -78,6 +83,25 @@ import { EppManagementPage } from './pages/EppManagementPage';
 import { EmergenciesPage } from './pages/EmergenciesPage';
 import { EpidemiologicalSurveillancePage } from './pages/EpidemiologicalSurveillancePage';
 import { HealthIndicatorsPage } from './pages/HealthIndicatorsPage';
+// E4-A (6.1.1): Gestión Avanzada de Indicadores SG-SST.
+import { IndicatorsPage } from './pages/IndicatorsPage';
+// E3 (6.1.2): Gestión Avanzada de Auditoría anual SG-SST.
+import { AnnualAuditPage } from './pages/AnnualAuditPage';
+// E3 (6.1.3): Revisión por la dirección — página de gestión avanzada del
+// estándar (fuente oficial del score: provider 'management-review-direction').
+import { ManagementReviewDirectionPage } from './pages/ManagementReviewDirectionPage';
+// E3 (6.1.4): Planificación de auditorías COPASST — página de gestión avanzada
+// del estándar (fuente oficial del score: provider 'copasst-audit-planning').
+import { CopasstAuditPlanningPage } from './pages/CopasstAuditPlanningPage';
+// E3 (7.1.1): Acciones preventivas y correctivas — página de gestión avanzada
+// del estándar (fuente oficial del score: provider 'corrective-preventive-actions').
+import { CorrectivePreventiveActionsPage } from './pages/CorrectivePreventiveActionsPage';
+// E3 (7.1.2): Acciones de mejora de la alta dirección — gestión avanzada del
+// estándar (fuente oficial del score: provider 'management-improvement-actions').
+import { ManagementImprovementActionsPage } from './pages/ManagementImprovementActionsPage';
+// E3 (7.1.4): Plan de mejoramiento — página de gestión avanzada del estándar
+// (fuente oficial del score: provider 'improvement-plan').
+import { ImprovementPlansPage } from './pages/ImprovementPlansPage';
 import { CaseInterventionPage } from './pages/CaseInterventionPage';
 import { RiskMethodologyPage } from './pages/RiskMethodologyPage';
 import { WorkerParticipationPage } from './pages/WorkerParticipationPage';
@@ -689,10 +713,13 @@ function App() {
   const renderIncidentsRoutePage = () => (
     <>
       {renderSharedHeader()}
-      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-        <IncidentsPage token={idToken} />
+      {/* E3 (7.1.3): lectura owner/admin/manager (backend GET); escritura
+          owner/admin (page oculta mutaciones para manager); member conserva el
+          mensaje de acceso básico (sin gestión avanzada). */}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <IncidentsPage token={idToken} role={profile?.role} />
       ) : (
-        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
       )}
     </>
   );
@@ -741,13 +768,26 @@ function App() {
       )}
     </>
   );
+  // V1 4.2.5 — Mantenimiento: lectura para owner/admin/manager (el backend
+  // habilita GET a esos roles); escritura solo owner/admin (el botón de
+  // registro/acciones se oculta para manager vía `role`).
+  const renderMaintenanceRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <MaintenancePage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
   const renderRisksRoutePage = () => (
     <>
       {renderSharedHeader()}
-      {(profile?.role === 'owner' || profile?.role === 'admin') && activeCompanyId ? (
-        <RisksPage token={idToken} />
+      {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <RisksPage token={idToken} role={profile?.role} />
       ) : (
-        <p>Este módulo está disponible para owner o admin con empresa activa.</p>
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
       )}
     </>
   );
@@ -825,6 +865,22 @@ function App() {
       {renderSharedHeader()}
       {(profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
         <WasteManagementPage token={idToken} role={profile?.role} />
+      ) : (
+        <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
+      )}
+    </>
+  );
+
+  // E3 (3.2.3): lectura owner/admin/manager (backend GET); member sin acceso
+  // a la Gestión Avanzada (patrón de estándares avanzados). Sin CRUD paralelo:
+  // los registros se gestionan desde /incidents.
+  const renderAccidentStatisticsRoutePage = () => (
+    <>
+      {renderSharedHeader()}
+      {profile?.role === 'member' ? (
+        <Navigate to="/dashboard" replace />
+      ) : (profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'manager') && activeCompanyId ? (
+        <AccidentStatisticsPage token={idToken} role={profile?.role} />
       ) : (
         <p>Este módulo está disponible para owner, admin o manager con empresa activa.</p>
       )}
@@ -954,6 +1010,8 @@ function App() {
         <Route path="/work-restrictions" element={renderWorkRestrictionsRoutePage()} />
         <Route path="/workplace-sanitary-conditions" element={renderWorkplaceSanitaryConditionsRoutePage()} />
         <Route path="/waste-management" element={renderWasteManagementRoutePage()} />
+        {/* E3 (3.2.3): panel estadístico de accidentalidad (solo lectura). */}
+        <Route path="/accident-statistics" element={renderAccidentStatisticsRoutePage()} />
         {/* FASE 35B: infraestructura estadística de enfermedad laboral (sin scoring). */}
         <Route path="/occupational-disease-statistical-cases" element={renderOccupationalDiseaseStatisticalCasesRoutePage()} />
         <Route
@@ -991,13 +1049,18 @@ function App() {
           }
         />
         <Route path="/evaluations" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderEvaluationsRoutePage()} />
-        <Route path="/risks" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderRisksRoutePage()} />
+        {/* ETAPA 5D (4.2.2): manager consulta /risks en modo lectura — el backend
+            ya restringe escritura a owner/admin (RolesGuard + assertCanWrite) y
+            renderRisksRoutePage ya soporta manager read-only. */}
+        <Route path="/risks" element={renderRisksRoutePage()} />
         <Route path="/documents" element={renderDocumentsRoutePage(<DocumentsPage token={idToken} />)} />
         <Route path="/documents/plan" element={renderDocumentsRoutePage(<PlanPage readOnly={profile?.role === 'manager'} token={idToken} />)} />
         <Route path="/documents/do" element={renderDocumentsRoutePage(<DoPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/documents/check" element={renderDocumentsRoutePage(<CheckPage readOnly={profile?.role === 'manager'} />)} />
         <Route path="/documents/act" element={renderDocumentsRoutePage(<ActPage readOnly={profile?.role === 'manager'} />)} />
-        <Route path="/incidents" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderIncidentsRoutePage()} />
+        {/* E3 (7.1.3): manager accede en modo lectura (sin redirect); member
+            conserva el comportamiento básico actual. */}
+        <Route path="/incidents" element={renderIncidentsRoutePage()} />
         <Route path="/disease-investigation-management" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <DiseaseInvestigationManagementPage token={idToken} />} />
         <Route path="/epidemiological-surveillance" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : <EpidemiologicalSurveillancePage token={idToken} role={profile?.role} />} />
         <Route path="/health-indicators" element={<HealthIndicatorsPage token={idToken} role={profile?.role} />} />
@@ -1010,8 +1073,82 @@ function App() {
         <Route path="/absenteeism" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderAbsenteeismRoutePage()} />
         <Route path="/trainings" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderTrainingsRoutePage()} />
         <Route path="/inspections" element={profile?.role === 'manager' ? <Navigate to="/dashboard" replace /> : renderInspectionsRoutePage()} />
+        {/* V1 4.2.5 — Mantenimiento (entidad propia; 4.2.4 sigue en /inspections). */}
+        <Route path="/maintenance" element={renderMaintenanceRoutePage()} />
         <Route path="/epp" element={<EppManagementPage token={idToken} role={profile?.role} />} />
         <Route path="/emergencies" element={<EmergenciesPage token={idToken} role={profile?.role} />} />
+        {/* E4-A (6.1.1): Indicadores SG-SST — lectura owner/admin/manager/member;
+            la escritura la resuelve el backend (owner/admin). */}
+        <Route path="/indicators" element={<IndicatorsPage token={idToken} role={profile?.role} />} />
+        {/* E3 (6.1.2): Auditoría anual — lectura owner/admin/manager/member;
+            la escritura la resuelve el backend (owner/admin). */}
+        <Route path="/annual-audit" element={<AnnualAuditPage token={idToken} role={profile?.role} />} />
+        {/* E3 (6.1.3): Revisión por la dirección — lectura owner/admin/manager/member;
+            la escritura la resuelve el backend (owner/admin). */}
+        <Route path="/management-review-direction" element={<ManagementReviewDirectionPage token={idToken} role={profile?.role} />} />
+        {/* E3 (6.1.4): Planificación auditorías COPASST — lectura owner/admin/manager
+            (backend GET); escritura owner/admin. Manager accede vía PHVA → Verificar. */}
+        <Route path="/copasst-audit-planning" element={<CopasstAuditPlanningPage token={idToken} role={profile?.role} />} />
+        {/* E3 (7.1.1): Acciones preventivas y correctivas — lectura owner/admin/manager
+            (backend GET); escritura owner/admin; member SIN acceso (patrón de
+            redirección del router). */}
+        {/* E3 (7.1.2): Acciones de mejora de la alta dirección — lectura
+            owner/admin/manager (backend GET); escritura owner/admin; member SIN
+            acceso (patrón de redirección del router). */}
+        <Route
+          path="/management-improvement-actions"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <ManagementImprovementActionsPage token={idToken} role={profile?.role} />
+                ) : (
+                  <p>Selecciona una empresa para gestionar las acciones de mejora de la alta dirección.</p>
+                )}
+              </>
+            )
+          }
+        />
+        <Route
+          path="/corrective-preventive-actions"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <CorrectivePreventiveActionsPage token={idToken} role={profile?.role} />
+                ) : (
+                  <p>Selecciona una empresa para gestionar las acciones preventivas y correctivas.</p>
+                )}
+              </>
+            )
+          }
+        />
+        {/* E3 (7.1.4): Plan de mejoramiento — lectura owner/admin/manager
+            (backend GET); escritura owner/admin; member SIN acceso (patrón de
+            redirección del router). */}
+        <Route
+          path="/improvement-plans"
+          element={
+            profile?.role === 'member' ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <>
+                {renderSharedHeader()}
+                {activeCompanyId ? (
+                  <ImprovementPlansPage token={idToken} role={profile?.role} />
+                ) : (
+                  <p>Selecciona una empresa para gestionar el plan de mejoramiento.</p>
+                )}
+              </>
+            )
+          }
+        />
         <Route
           path="/my-communications"
           element={

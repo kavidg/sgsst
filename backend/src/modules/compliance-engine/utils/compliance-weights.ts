@@ -151,6 +151,75 @@ export const SCORING_INELIGIBLE_MODULES: ReadonlySet<string> = new Set([
   'medical-recommendation',
   // PARTIAL → 3.3.2: Severidad de accidentalidad ≠ indicadores genéricos de salud
   'health-indicators',
+  // WRONG_MAPPING → 5.1.1: "Plan de emergencias" (catálogo) ≠ procedimientos
+  // genéricos de DocumentMaster que este provider medía. Retirado del scoring;
+  // el provider OFICIAL de 5.1.1 es ahora 'emergency-plan' (SstEmergencias,
+  // legacy-aware 5.1.1/1.1.10). Se conserva en moduleCompliance para
+  // hallazgos/diagnósticos de su evidencia documental propia (DocumentManagement
+  // y el provider NO se eliminan).
+  'procedures-doc',
+  // ESTÁNDAR 5.1.2: records-doc evaluaba 5.1.2 como wrong-mapping (registros
+  // genéricos de DocumentMaster, no brigadas). El provider OFICIAL de 5.1.2 es
+  // ahora 'emergency-brigade' (SstEmergencias.brigades[].typedMembers[]).
+  // records-doc se conserva para hallazgos/diagnósticos de registros
+  // documentales; NO se reasigna a otro estándar.
+  'records-doc',
+  // ESTÁNDAR 6.1.1: DUPLICATE del provider OFICIAL 'indicators'. Ambos medían
+  // el mismo estándar sobre el mismo dominio (IndicatorDefinition/Measurement)
+  // y contribuían DOS veces a phases.check. Desde la consolidación E1, el
+  // provider OFICIAL de 6.1.1 es 'indicators' (scoring puro dimensions:v1);
+  // management-measurement se conserva para hallazgos/diagnósticos en
+  // moduleCompliance pero NO contribuye al score oficial de fase.
+  'management-measurement',
+  // ESTÁNDAR 6.1.2 uses annual-audit as the canonical scoring source.
+  // management-review represents management/accountability review
+  // (AccountabilityMeeting) and must not contribute to the 6.1.2 score.
+  // Se conserva en moduleCompliance para hallazgos/diagnósticos; NO se
+  // reasigna a 6.1.3 en esta etapa.
+  'management-review',
+  // ESTÁNDAR 6.1.3 — WRONG_MAPPING: internal-audit puntuaba 6.1.3 a partir de
+  // documentos genéricos de DocumentMaster clasificados como AUDIT, pero eso
+  // corresponde conceptualmente a la auditoría del SG-SST, no a la revisión
+  // por la dirección. Fuentes canónicas: AnnualAudit (6.1.2, Auditoría anual)
+  // y ManagementReviewDirection (6.1.3, Revisión por la dirección, dominio
+  // propio E1 con provider oficial dimensions:v1). internal-audit se conserva
+  // en moduleCompliance para hallazgos/diagnósticos de su evidencia
+  // documental; el provider y el analyzer NO se eliminan físicamente en esta
+  // fase (el retiro del analyzer es parte de la etapa de IA posterior).
+  'internal-audit',
+  // ESTÁNDAR 6.1.4 — WRONG_MAPPING: findings-review puntuaba 6.1.4 (VERIFICAR)
+  // a partir de AccountabilityCommitment (rendición de cuentas), que no
+  // representa semánticamente la planificación de auditorías COPASST.
+  // Fuente canónica: CopasstAuditPlanning (dominio propio E1, provider oficial
+  // 'copasst-audit-planning' con scoring dimensions:v1). findings-review se
+  // conserva en moduleCompliance para hallazgos/diagnósticos de su evidencia
+  // (compromisos de seguimiento); el provider y su analyzer NO se eliminan
+  // físicamente (el retiro del analyzer del registro IA se hizo en E2) y el
+  // módulo queda SIN estándar canónico asignado — NO se reasigna a otro
+  // estándar.
+  'findings-review',
+  // ESTÁNDAR 7.1.1 — PROXY_LEGACY: corrective-preventive puntuaba 7.1.1
+  // (ACTUAR) a partir de AccountabilityCommitment (compromisos de rendición
+  // de cuentas), un proxy degradado sin tipo de acción, origen, evidencia ni
+  // verificación de eficacia. Fuente canónica: CorrectivePreventiveAction
+  // (dominio propio E1, provider oficial 'corrective-preventive-actions' con
+  // scoring dimensions:v1). corrective-preventive se conserva en
+  // moduleCompliance para compatibilidad/hallazgos; el provider y su analyzer
+  // NO se eliminan físicamente y el módulo queda SIN estándar canónico
+  // asignado — NO se reasigna a otro estándar.
+  'corrective-preventive',
+  // ESTÁNDAR 7.1.2 — PROXY_LEGACY: management-improvement puntuaba 7.1.2
+  // (ACTUAR) a partir de AccountabilityMeeting (reuniones de rendición de
+  // cuentas), un proxy existencial (existencia/completadas/recientes/
+  // participantes) sin acciones, responsables, seguimiento, evidencia ni
+  // trazabilidad de la decisión de origen. Fuente canónica:
+  // ManagementImprovementAction (dominio propio E1, provider oficial
+  // 'management-improvement-actions' con scoring dimensions:v1).
+  // management-improvement se conserva en moduleCompliance para
+  // compatibilidad/hallazgos; el provider y su analyzer NO se eliminan
+  // físicamente y el módulo queda SIN estándar canónico asignado — NO se
+  // reasigna a otro estándar.
+  'management-improvement',
 ]);
 
 /**

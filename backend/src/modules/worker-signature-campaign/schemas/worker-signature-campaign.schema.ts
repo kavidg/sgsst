@@ -115,6 +115,12 @@ export class SignatureEvidence {
   @Prop() documentVersion?: string;
   @Prop({ required: true }) signedAt!: Date;
   @Prop({ required: true }) signatureHash!: string;
+  /**
+   * Fase 2 — hash SHA-256 del payload canónico de integridad (campaignId,
+   * workerId, versión, contenido congelado, identificación, signedAt). Campo
+   * NUEVO opcional: las evidencias históricas no lo tienen y NO se recalculan.
+   */
+  @Prop() evidencePayloadHash?: string;
   @Prop() signatureMethod?: string;
   @Prop() signatureData?: string;
   @Prop() ipAddress?: string;

@@ -18,12 +18,23 @@ export interface PhaseCompliance {
 
 /**
  * Cumplimiento de un módulo fuente del SG-SST (riesgos, capacitaciones, etc.).
+ *
+ * Extensión ADITIVA (4.2.6): espejo de ModuleComplianceDto con los mismos
+ * campos opcionales. Los consumidores legacy (timeline) siguen usando solo
+ * los 4 campos obligatorios.
  */
 export interface ModuleCompliance {
   module: string;
   compliance: number;
   level: ComplianceLevel;
   lastUpdated: string;
+
+  status?: string;
+  pending?: number;
+  completed?: number;
+  overdue?: number;
+  phases?: Record<string, number>;
+  metadata?: Record<string, unknown>;
 }
 
 /**

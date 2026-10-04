@@ -30,6 +30,10 @@ import {
   fetchComplianceWithAcceptance,
   processRenewals,
   fetchAcceptanceHistory,
+  sendResponsibilitiesAcceptance,
+  fetchResponsibilitiesAcceptanceStatus,
+  ResponsibilitiesAcceptanceDispatch,
+  ResponsibilitiesAcceptanceStatusModel,
 
   ResponsibilityAcceptanceModel,
   AcceptanceStatsModel,
@@ -347,6 +351,38 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(''), 2800);
+  };
+
+  // ── Fase 1 — Enviar a aceptación (1.1.2): selección de trabajadores activos ──
+  const eligibleAcceptanceEmployees = employees.filter((employee) => employee.status === 'Activo' && !!employee.document?.trim());
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [acceptanceDispatching, setAcceptanceDispatching] = useState(false);
+  const [acceptanceDispatch, setAcceptanceDispatch] = useState<ResponsibilitiesAcceptanceDispatch[] | null>(null);
+  const [acceptanceRejected, setAcceptanceRejected] = useState<Array<{ employeeId: string; reason: string }>>([]);
+  const [acceptanceWorkerStatuses, setAcceptanceWorkerStatuses] = useState<ResponsibilitiesAcceptanceStatusModel[]>([]);
+  const loadAcceptanceStatuses = useCallback(async () => {
+    if (!token) return;
+    const statusData = await fetchResponsibilitiesAcceptanceStatus(token).catch(() => null);
+    setAcceptanceWorkerStatuses(statusData?.statuses ?? []);
+  }, [token]);
+  useEffect(() => { void loadAcceptanceStatuses(); }, [loadAcceptanceStatuses]);
+  const acceptanceStatusByDocument = new Map(acceptanceWorkerStatuses.map((worker) => [worker.identification, worker.workerStatus]));
+  // FASE 3A — estado de entrega por documento (para columna de la tabla).
+  const acceptanceDeliveryByDocument = new Map(acceptanceWorkerStatuses.map((worker) => [worker.identification, worker]));
+  const handleSendToAcceptance = async () => {
+    if (!token || !selectedEmployeeIds.length) { notify('Selecciona al menos un trabajador activo.'); return; }
+    setAcceptanceDispatching(true);
+    try {
+      const result = await sendResponsibilitiesAcceptance(token, selectedEmployeeIds);
+      setAcceptanceDispatch(result.results);
+      setAcceptanceRejected(result.rejected);
+      notify(`✅ ${result.results.length} trabajador(es) enviado(s) a aceptación (v${result.version}). Reutilizada(s): ${result.results.filter((r) => r.reused).length}.`);
+      void loadAcceptanceStatuses();
+    } catch (e: any) {
+      notify('Error al enviar a aceptación: ' + (e.message || ''));
+    } finally {
+      setAcceptanceDispatching(false);
+    }
   };
 
   const addAudit = (entry: AuditEntry) => {
@@ -1481,6 +1517,191 @@ export default function AdvancedManagementPage({ token, role }: { token: string;
                 ]}
                 columns={4}
               />
+
+              {/* ======== Fase 1 — Enviar a aceptación (trabajadores del módulo Empleados) ======== */}
+              {(approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED') && eligibleAcceptanceEmployees.length > 0 && (
+                <div className="advanced-page__section">
+                  <h4>📤 Enviar a aceptación — Trabajadores (Empleados)</h4>
+                  <p className="muted">
+                    Selecciona trabajadores ACTIVOS del módulo de Empleados. Cada uno recibirá un enlace
+                    seguro único (sin usuario/contraseña) para revisar, aceptar y firmar SUS
+                    responsabilidades de la versión aprobada. Si el trabajador tiene correo corporativo,
+                    el enlace se envía por email automáticamente; si falla el envío (o no hay correo),
+                    copia el enlace para entregarlo manualmente — la campaña y el enlace siguen vigentes.
+                  </p>
+                  <table className="advanced-table" style={{ width: '100%', fontSize: '.85rem' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '2rem' }}>
+                          <input
+                            type="checkbox"
+                            aria-label="Seleccionar todos"
+                            checked={eligibleAcceptanceEmployees.every((employee) => selectedEmployeeIds.includes(employee._id))}
+                            onChange={(e) => setSelectedEmployeeIds(e.target.checked ? eligibleAcceptanceEmployees.map((employee) => employee._id) : [])}
+                          />
+                        </th>
+                        <th>Trabajador</th>
+                        <th>Cargo</th>
+                        <th>Área</th>
+                        <th>Email</th>
+                        <th>Entrega email</th>
+                        <th>WhatsApp</th>
+                        <th>Entrega WhatsApp</th>
+                        <th>Estado aceptación</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eligibleAcceptanceEmployees.map((employee) => {
+                        const workerStatus = acceptanceStatusByDocument.get(employee.document);
+                        return (
+                          <tr key={employee._id}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                aria-label={`Seleccionar ${employee.name}`}
+                                checked={selectedEmployeeIds.includes(employee._id)}
+                                onChange={(e) => setSelectedEmployeeIds((prev) => e.target.checked ? [...prev, employee._id] : prev.filter((id) => id !== employee._id))}
+                              />
+                            </td>
+                            <td>{employee.name}</td>
+                            <td>{employee.position}</td>
+                            <td>{employee.area}</td>
+                            <td>
+                              {employee.corporateEmail
+                                ? <span style={{ fontSize: '.78rem' }}>{employee.corporateEmail}</span>
+                                : <span className="muted" title="Sin correo: use la copia manual del enlace">—</span>}
+                            </td>
+                            <td>
+                              {(() => {
+                                const delivery = acceptanceDeliveryByDocument.get(employee.document);
+                                if (!delivery?.emailDeliveryStatus) {
+                                  return employee.corporateEmail
+                                    ? <span className="muted" style={{ fontSize: '.78rem' }}>Pendiente de envío</span>
+                                    : <span className="muted" style={{ fontSize: '.78rem' }}>Entrega manual</span>;
+                                }
+                                const cls = delivery.emailDeliveryStatus === 'SENT'
+                                  ? 'advanced-management__badge advanced-management__badge--success'
+                                  : delivery.emailDeliveryStatus === 'FAILED'
+                                    ? 'advanced-management__badge advanced-management__badge--danger'
+                                    : 'advanced-management__badge advanced-management__badge--warning';
+                                return (
+                                  <span
+                                    className={cls}
+                                    title={delivery.emailErrorCode ? `Error: ${delivery.emailErrorCode}` : undefined}
+                                  >
+                                    {delivery.emailDeliveryStatus === 'SENT' && delivery.emailSentAt
+                                      ? `Enviado ${new Date(delivery.emailSentAt).toLocaleString()}`
+                                      : delivery.emailDeliveryStatus}
+                                  </span>
+                                );
+                              })()}
+                            </td>
+                            <td>
+                              {employee.mobilePhone
+                                ? <span style={{ fontSize: '.78rem' }}>•••{employee.mobilePhone.slice(-2)}</span>
+                                : <span className="muted" title="Sin número: use la copia manual del enlace">—</span>}
+                            </td>
+                            <td>
+                              {(() => {
+                                const delivery = acceptanceDeliveryByDocument.get(employee.document);
+                                if (!employee.mobilePhone) {
+                                  return <span className="muted" style={{ fontSize: '.78rem' }}>Sin número</span>;
+                                }
+                                if (!delivery?.whatsappDeliveryStatus) {
+                                  return <span className="muted" style={{ fontSize: '.78rem' }}>Pendiente de envío</span>;
+                                }
+                                const waStatus = delivery.whatsappDeliveryStatus;
+                                // Fase 3B-2A: SENT = Meta aceptó el mensaje (NO entrega al teléfono);
+                                // DELIVERED/READ solo llegan vía webhook de Meta.
+                                const waLabels: Record<string, string> = {
+                                  SENT: 'Enviado',
+                                  DELIVERED: 'Entregado',
+                                  READ: 'Leído',
+                                  FAILED: 'Fallido',
+                                };
+                                const cls = waStatus === 'FAILED'
+                                  ? 'advanced-management__badge advanced-management__badge--danger'
+                                  : waStatus === 'SENT' || waStatus === 'DELIVERED' || waStatus === 'READ'
+                                    ? 'advanced-management__badge advanced-management__badge--success'
+                                    : 'advanced-management__badge advanced-management__badge--warning';
+                                return (
+                                  <span
+                                    className={cls}
+                                    title={delivery.whatsappErrorCode ? `Error: ${delivery.whatsappErrorCode}` : undefined}
+                                  >
+                                    {waStatus === 'SENT' && delivery.whatsappSentAt
+                                      ? `Enviado ${new Date(delivery.whatsappSentAt).toLocaleString()}`
+                                      : (waLabels[waStatus] ?? waStatus)}
+                                  </span>
+                                );
+                              })()}
+                            </td>
+                            <td><span className={statusBadgeClass(workerStatus)}>{workerStatus || 'No enviado'}</span></td>
+                          </tr>
+                       );
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="actions" style={{ marginTop: '.75rem' }}>
+                    <Button type="button" variant="primary" disabled={acceptanceDispatching || !selectedEmployeeIds.length} onClick={handleSendToAcceptance}>
+                      {acceptanceDispatching ? 'Enviando…' : `📤 Enviar a aceptación (${selectedEmployeeIds.length})`}
+                    </Button>
+                  </div>
+
+                  {acceptanceDispatch && acceptanceDispatch.length > 0 && (
+                    <div className="advanced-page__section" style={{ marginTop: '1rem' }}>
+                      <h5>🔗 Enlaces seguros generados (entrega manual)</h5>
+                      <ul style={{ fontSize: '.85rem', lineHeight: 1.7 }}>
+                        {acceptanceDispatch.map((dispatch) => (
+                          <li key={dispatch.campaignId + dispatch.employeeId}>
+                            <strong>{dispatch.employeeName}</strong>{dispatch.reused ? ' (campaña existente reutilizada)' : ' (nueva)'}: <code>{window.location.origin}{dispatch.signUrl}</code>
+                            {dispatch.emailDelivery?.attempted && dispatch.emailDelivery.status === 'SENT' && (
+                              <span className="advanced-management__badge advanced-management__badge--success" style={{ marginLeft: '.5rem' }}>📧 Correo enviado</span>
+                            )}
+                            {dispatch.emailDelivery?.attempted && dispatch.emailDelivery.status !== 'SENT' && (
+                              <span
+                                className="advanced-management__badge advanced-management__badge--danger"
+                                style={{ marginLeft: '.5rem' }}
+                                title={dispatch.emailDelivery.errorCode ? `Error: ${dispatch.emailDelivery.errorCode}` : undefined}
+                              >
+                                📧 Fallo envío{dispatch.emailDelivery.errorCode ? ` (${dispatch.emailDelivery.errorCode})` : ''}
+                              </span>
+                            )}
+                            {dispatch.whatsappDelivery?.attempted && dispatch.whatsappDelivery.status === 'SENT' && (
+                              <span className="advanced-management__badge advanced-management__badge--success" style={{ marginLeft: '.5rem' }}>💬 WhatsApp enviado</span>
+                            )}
+                            {dispatch.whatsappDelivery?.attempted && dispatch.whatsappDelivery.status !== 'SENT' && (
+                              <span
+                                className="advanced-management__badge advanced-management__badge--danger"
+                                style={{ marginLeft: '.5rem' }}
+                                title={dispatch.whatsappDelivery.errorCode ? `Error: ${dispatch.whatsappDelivery.errorCode}` : undefined}
+                              >
+                                💬 Fallo WhatsApp{dispatch.whatsappDelivery.errorCode ? ` (${dispatch.whatsappDelivery.errorCode})` : ''}
+                              </span>
+                            )}
+                            {!dispatch.emailDelivery?.attempted && (
+                              <span className="muted" style={{ marginLeft: '.5rem', fontSize: '.78rem' }}>(sin email: entrega manual)</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="muted" style={{ fontSize: '.8rem' }}>
+                        El trabajador se identifica con su documento real y firma; la evidencia queda en
+                        worker-signature-campaign (SignatureEvidence).
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {acceptanceRejected.length > 0 && (
+                <div className="advanced-page__banner advanced-page__banner--warning">
+                  ⚠️ {acceptanceRejected.length} empleado(s) no pudieron enviarse: {acceptanceRejected.map((rejected) => rejected.reason).join(' · ')}
+                  <div className="actions" style={{ marginTop: '.5rem' }}>
+                    <Button type="button" variant="ghost" onClick={() => setAcceptanceRejected([])}>Cerrar</Button>
+                  </div>
+                </div>
+              )}
 
               {/* Approval-dependent content */}
               {(approvalStatus === 'APPROVED' || approvalStatus === 'APPROVED_AND_SIGNED') && acceptanceStats && acceptanceStats.total === 0 && (

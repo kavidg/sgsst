@@ -18,6 +18,13 @@ export interface PhvaCatalogItem {
   code: string;
   /** Título legible del estándar. */
   title: string;
+  /**
+   * Descripción / criterio de cumplimiento (E4 — aditivo: habilita los campos
+   * reales de búsqueda del buscador PHVA; el backend siempre lo expone).
+   */
+  description?: string;
+  /** Capítulo normativo (E4 — aditivo; p. ej. 'Recursos'). */
+  chapter?: string;
   /** Criterio de cumplimiento del estándar (opcional, solo si existe). */
   criteria?: string;
   /** Modo de revisión / verificación (opcional, solo si existe). */
@@ -45,6 +52,8 @@ export async function fetchPhvaCatalog(level: string, token: string): Promise<Ph
   return response.standards.map((standard: StandardCatalogItem) => ({
     code: standard.code,
     title: standard.title,
+    description: standard.description,
+    chapter: standard.chapter,
     criteria: standard.criteria,
     modeReview: standard.modeReview,
     section: standard.section,

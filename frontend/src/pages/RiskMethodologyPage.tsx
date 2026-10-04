@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import {
   fetchStandardAnalysis,
   fetchRiskMethodologies,
@@ -66,7 +66,7 @@ function formatDate(value: string | undefined | null): string {
 }
 
 export function RiskMethodologyPage({ token, role }: RiskMethodologyPageProps) {
-  const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
   const { companyId } = useCompanyContext();
   const [methodologies, setMethodologies] = useState<Methodology[]>([]);
   const [loading, setLoading] = useState(false);
@@ -243,7 +243,7 @@ export function RiskMethodologyPage({ token, role }: RiskMethodologyPageProps) {
 
   // ── Header actions ──
   const headerActions: HeaderAction[] = [
-    { label: '← Volver al PHVA', onClick: () => navigate('/documents/do'), variant: 'secondary' },
+    { label: '← Volver al PHVA', onClick: () => goBackToPhva(), variant: 'secondary' },
     { label: loading ? 'Cargando...' : '🔄 Recargar', onClick: () => void loadData(), variant: 'secondary', disabled: loading },
   ];
 

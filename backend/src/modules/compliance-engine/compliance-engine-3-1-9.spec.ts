@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import 'reflect-metadata';
 import { ComplianceEngineService } from './compliance-engine.service';
+import { EmergencyPlanProvider } from './providers/emergency-plan-compliance.provider';
 import { WasteManagementProvider } from './providers/waste-management.provider';
 import {
   filterScoringEligible,
@@ -29,9 +31,23 @@ function buildService(): ComplianceEngineService {
   // Instancia mínima: el constructor solo guarda referencias. Los providers
   // reales no se invocan aquí (no hay getOverview). Se pasa UNA instancia real
   // del provider 3.1.9 en la posición que le corresponde (última).
+  //
+  // La posición se DERIVA del constructor del engine (design:paramtypes vía
+  // reflect-metadata, activo en tsconfig.test.json): el provider 3.1.9 vive
+  // justo antes del último provider registrado (EmergencyPlanProvider, 5.1.1).
+  // Así el test es resistente a la incorporación futura de providers y no
+  // depende de una arity hardcodeada (deuda corregida: antes new Array(66)).
   const realProvider = new WasteManagementProvider({} as never, {} as never);
-  const args: unknown[] = new Array(66).fill(null).map(() => ({}));
-  args.push(realProvider);
+  const engineParamTypes: unknown[] = Reflect.getMetadata(
+    'design:paramtypes',
+    ComplianceEngineService,
+  ) ?? [];
+  assert.ok(
+    engineParamTypes.length >= 2,
+    'el constructor del engine debe exponer al menos 2 parámetros tipados',
+  );
+  const args: unknown[] = new Array(engineParamTypes.length).fill(null).map(() => ({}));
+  args[engineParamTypes.length - 2] = realProvider;
   return new (ComplianceEngineService as unknown as {
     new (...args: unknown[]): ComplianceEngineService;
   })(...args);

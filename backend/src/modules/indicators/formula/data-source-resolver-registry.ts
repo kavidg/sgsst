@@ -5,6 +5,9 @@ import {
   DataSourceModule,
   DataSourceResult,
 } from './formula-types';
+// NORMALIZACIÓN: unifica la interpretación de InspectionActivity.status con
+// ComplianceEngine, providers e indicadores.
+import { isInspectionCompleted } from '../../inspections/utils/inspection-status.util';
 
 // Schema names for @InjectModel
 const INCIDENT_MODEL = 'Incident';
@@ -236,26 +239,20 @@ export class DataSourceResolverRegistry {
       return { value: 0, available: false };
     }
 
-    const completedStatuses = [
-      'COMPLETADA', 'COMPLETED', 'FINALIZADA', 'FINALIZED',
-      'COMPLETA', 'COMPLETE', 'CERRADA', 'CLOSED',
-      'APROBADA', 'APPROVED',
-    ];
+    // NORMALIZACIÓN: unificado con el helper canónico de inspecciones
+    // (misma interpretación que ComplianceEngine y la UI).
+    const completedCount = docs.filter((d: any) =>
+      isInspectionCompleted(d.status),
+    ).length;
 
     switch (field) {
       case 'count':
         return { value: docs.length, available: true };
       case 'completedCount': {
-        const completed = docs.filter((d: any) =>
-          completedStatuses.includes((d.status || '').toUpperCase()),
-        ).length;
-        return { value: completed, available: true };
+        return { value: completedCount, available: true };
       }
       case 'completionRate': {
-        const completed = docs.filter((d: any) =>
-          completedStatuses.includes((d.status || '').toUpperCase()),
-        ).length;
-        const rate = (completed / docs.length) * 100;
+        const rate = (completedCount / docs.length) * 100;
         return { value: Math.round(rate * 100) / 100, available: true };
       }
       default:

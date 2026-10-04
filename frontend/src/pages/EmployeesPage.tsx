@@ -496,6 +496,12 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
           status: parseBulkEmployee(row['estado']),
         };
 
+        // Columnas opcionales (plantilla nueva); ausentes en archivos antiguos.
+        const corporateEmail = parseBulkEmployee(row['correo corporativo']);
+        const mobilePhone = parseBulkEmployee(row['número de celular']);
+        if (corporateEmail) data.corporateEmail = corporateEmail;
+        if (mobilePhone) data.mobilePhone = mobilePhone;
+
         const missingRequired = Object.values(data).some((field) => !field);
         if (missingRequired) return { row: index + 2, data, error: 'Todos los campos son obligatorios.' };
         if (!BULK_ALLOWED_STATUS.has(data.status)) return { row: index + 2, data, error: 'El estado debe ser "Activo" o "No activo".' };
@@ -531,7 +537,9 @@ export function EmployeesPage({ token }: EmployeesPageProps) {
   const downloadTemplate = () => {
     const worksheet = XLSX.utils.json_to_sheet([{
       nombre: 'Juan Pérez', documento: '123456789', cargo: 'Analista SST',
-      area: 'Talento humano', 'tipo de contrato': 'Indefinido', estado: 'Activo',
+      area: 'Talento humano',
+      'correo corporativo': 'jperez@empresa.com', 'número de celular': '3001234567',
+      'tipo de contrato': 'Indefinido', estado: 'Activo',
     }]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Empleados');

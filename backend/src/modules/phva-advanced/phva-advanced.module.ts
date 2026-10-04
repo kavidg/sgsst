@@ -13,8 +13,16 @@ import { UsersModule } from '../users/users.module';
 import { CommunicationModule } from '../communication/communication.module';
 import { DocumentGenerationModule } from '../document-generation/document-generation.module';
 import { CopasstModule } from '../copasst/copasst.module';
+// Fase 1 — motor de campañas de firma (exporta WorkerSignatureCampaignService,
+// requerido por ResponsibilitiesAcceptanceService).
+import { WorkerSignatureCampaignModule } from '../worker-signature-campaign/worker-signature-campaign.module';
+// Fase 3A — entrega por email (Resend) del enlace de aceptación.
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PhvaAdvancedController } from './phva-advanced.controller';
 import { PhvaAdvancedService } from './phva-advanced.service';
+// Fase 1 — flujo "Enviar a aceptación" de responsabilidades (1.1.2) sobre el
+// motor existente worker-signature-campaign (Employee como fuente única).
+import { ResponsibilitiesAcceptanceService } from './responsibilities-acceptance.service';
 import { PhvaAdvancedCopasstTrainingService } from './phva-advanced-copasst-training.service';
 import { ResponsibleSgsstVariableResolver } from './responsible-sgsst-variable-resolver.service';
 import { ResponsibleSgsstDocumentGenerator } from './responsible-sgsst-document.generator';
@@ -30,6 +38,11 @@ import { SstObjectives, SstObjectivesSchema } from './schemas/phva-advanced-sst-
 import { PolicyTemplate, PolicyTemplateSchema } from './schemas/policy-template.schema';
 import { SstEpp, SstEppSchema } from './schemas/phva-advanced-epp.schema';
 import { SstEmergencies, SstEmergenciesSchema } from './schemas/phva-advanced-emergencies.schema';
+// Etapa 3 (5.1.1) — vínculo Drill → PlanActivity y documento oficial
+// EMERGENCY_PLAN (solo lectura/validación referencial).
+import { AnnualWorkPlan, AnnualWorkPlanSchema } from '../annual-work-plan/schemas/annual-work-plan.schema';
+import { PlanActivity, PlanActivitySchema } from '../annual-work-plan/schemas/plan-activity.schema';
+import { DocumentMaster, DocumentMasterSchema } from '../document-management/schemas/document-master.schema';
 import { PolicyTemplateService } from './policy-template.service';
 import { PolicyTemplateController } from './policy-template.controller';
 import { Training, TrainingSchema } from '../trainings/schemas/training.schema';
@@ -77,6 +90,10 @@ import { CopasstTrainingDocumentGenerator } from './copasst-training-document.ge
       { name: PolicyTemplate.name, schema: PolicyTemplateSchema },
       { name: SstEpp.name, schema: SstEppSchema },
       { name: SstEmergencies.name, schema: SstEmergenciesSchema },
+      // Etapa 3 (5.1.1): modelos de validación referencial (patrón Training/InspectionActivity/Incident).
+      { name: AnnualWorkPlan.name, schema: AnnualWorkPlanSchema },
+      { name: PlanActivity.name, schema: PlanActivitySchema },
+      { name: DocumentMaster.name, schema: DocumentMasterSchema },
       { name: CompanyProfile.name, schema: CompanyProfileSchema },
       // Fase 3 — generación documental del COPASST: el resolver de dominio
       // consulta el periodo CopasstPeriod para resolver las variables de la
@@ -89,6 +106,12 @@ import { CopasstTrainingDocumentGenerator } from './copasst-training-document.ge
     // forwardRef por el grafo real de dependencias del dominio
     // (phva-advanced ↔ copasst ↔ approval-workflow ↔ phva-advanced).
     forwardRef(() => CopasstModule),
+    // Fase 1 — motor worker-signature-campaign para el flujo "Enviar a
+    // aceptación" de responsabilidades (1.1.2).
+    WorkerSignatureCampaignModule,
+    // Fase 3A — entrega de notificaciones por email (Resend) para el enlace
+    // de aceptación de 1.1.2. Exporta NotificationDeliveryService.
+    NotificationsModule.register(),
     forwardRef(() => ApprovalWorkflowModule),
     // Fase 2 — Document Generation Engine: genera el documento formal del
     // Responsable del SG-SST (1.1.1) tras la aprobación. forwardRef por el
@@ -101,6 +124,10 @@ import { CopasstTrainingDocumentGenerator } from './copasst-training-document.ge
   controllers: [PhvaAdvancedController, PolicyTemplateController],
   providers: [
     PhvaAdvancedService,
+    // Fase 1 — envío de responsabilidades (1.1.2) a aceptación/firma por
+    // trabajador (reutiliza WorkerSignatureCampaignService; Employee es la
+    // fuente única de trabajadores).
+    ResponsibilitiesAcceptanceService,
     // Fase 1 (1.1.7) — service de dominio de Capacitación COPASST.
     PhvaAdvancedCopasstTrainingService,
     PolicyTemplateService,

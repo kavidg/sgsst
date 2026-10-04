@@ -750,6 +750,13 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     applicableLevels: ['60'],
     moduleRoute: '/accident-statistics',
     priorityMetadata: { criticality: 'ALTA', estimatedEffort: 'BAJO' },
+    // Metadata de completitud (gate PHVA): criterios alineados con el
+    // provider oficial accident-statistics (C1–C4) y la descripción existente.
+    criteria:
+      'La empresa mantiene registro histórico y análisis estadístico de accidentalidad (accidentes de trabajo, enfermedades laborales e incidentes), clasificando los eventos y documentando tendencias y comparación entre períodos con la población trabajadora como referencia.',
+    modeReview:
+      'Verificar la existencia de registros estadísticos de eventos clasificados (accidente de trabajo, enfermedad laboral, incidente), con análisis temporal documentado (tendencias y comparación entre períodos) y datos de la población trabajadora como referencia.',
+    section: { id: 'do-registro-investigacion', title: 'Registro e investigación (5%)', percentage: 5 },
   },
   {
     code: '3.3.1',
@@ -1032,14 +1039,19 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '4.2.5',
+    // ETAPA 6C: provider EXACT — la evidencia proviene EXCLUSIVAMENTE de la
+    // colección propia Maintenance (frontera anti-double-scoring con 4.2.4).
     implementationStatus: 'IMPLEMENTED',
+    semantic: 'EXACT',
     title: 'Mantenimiento',
     description: 'Programa de mantenimiento preventivo y correctivo de equipos, instalaciones y herramientas.',
     chapter: 'Procedimientos y programas',
     phva: 'HACER',
     normativeWeight: 2.5,
     applicableLevels: ['60'],
-    moduleRoute: '/inspections',
+    // V1 4.2.5: módulo propio /maintenance (antes apuntaba a /inspections).
+    moduleRoute: '/maintenance',
+    validationProvider: 'maintenance.provider',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (medidasControl).
     criteria:
@@ -1050,14 +1062,20 @@ export const CATALOG_60: readonly StandardDefinition[] = [
   },
   {
     code: '4.2.6',
+    // ETAPA 4.2.6: provider EXACT — la evidencia proviene EXCLUSIVAMENTE de
+    // EppDelivery (entregas) + SstEpp (catálogo/matriz) + Employee (trabajadores).
+    // Frontera anti-double-scoring con 4.2.4/4.2.5 y con SstEpp.assignments[].
     implementationStatus: 'IMPLEMENTED',
+    semantic: 'EXACT',
     title: 'EPP',
     description: 'Matriz de EPP por cargo o tarea con entrega, reposición, capacitación y supervisión.',
     chapter: 'Procedimientos y programas',
     phva: 'HACER',
     normativeWeight: 2.5,
     applicableLevels: ['60'],
-    moduleRoute: '/risks',
+    // ETAPA 4.2.6: módulo propio /epp (antes apuntaba a /risks).
+    moduleRoute: '/epp',
+    validationProvider: 'epp.provider',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'BAJO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (medidasControl).
     criteria:
@@ -1104,7 +1122,10 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     phva: 'HACER',
     normativeWeight: 5,
     applicableLevels: ['60'],
-    moduleRoute: '/documents/do',
+    // ESTÁNDAR 5.1.1: provider OFICIAL (SstEmergencias, legacy-aware) reemplaza
+    // el wrong-mapping de procedures-doc. Peso 5, HACER e IMPLEMENTED intactos.
+    validationProvider: 'emergency-plan.provider',
+    moduleRoute: '/emergencies',
     priorityMetadata: { criticality: 'ALTA', estimatedEffort: 'MEDIO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (gestionAmenazas).
     criteria:
@@ -1122,7 +1143,11 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     phva: 'HACER',
     normativeWeight: 5,
     applicableLevels: ['60'],
-    moduleRoute: '/documents/do',
+    // ESTÁNDAR 5.1.2: provider OFICIAL (SstEmergencias.brigades[].typedMembers[])
+    // reemplaza el wrong-mapping de records-doc. Peso 5, HACER e IMPLEMENTED intactos.
+    validationProvider: 'emergency-brigade.provider',
+    semantic: 'EXACT',
+    moduleRoute: '/emergencies',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
     // FASE 7.7.B.1 — Textos tomados de DoPage (gestionAmenazas).
     criteria:
@@ -1155,7 +1180,13 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     phva: 'VERIFICAR',
     normativeWeight: 1.25,
     applicableLevels: ['60'],
-    moduleRoute: '/dashboard',
+    // ESTÁNDAR 6.1.1: provider OFICIAL (E1 — único contribuyente al score oficial;
+    // management-measurement excluido vía SCORING_INELIGIBLE_MODULES).
+    validationProvider: 'indicators.provider',
+    semantic: 'EXACT',
+    // E4-B: /indicators ya existe en el frontend — moduleRoute apunta a la
+    // Gestión Avanzada de Indicadores SG-SST.
+    moduleRoute: '/indicators',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'BAJO' },
     // FASE 7.7.B.1 — Textos tomados de CheckPage (verificacionItems).
     criteria:
@@ -1173,8 +1204,14 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     phva: 'VERIFICAR',
     normativeWeight: 1.25,
     applicableLevels: ['60'],
-    moduleRoute: '/document-management',
+    // E3 (6.1.2) — la página /annual-audit ya existe; moduleRoute apunta a la
+    // gestión avanzada real del estándar.
+    moduleRoute: '/annual-audit',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'MEDIO' },
+    // E2 (6.1.2) — provider oficial sobre el dominio propio annual-audit (E1).
+    // management-review (AccountabilityMeeting) excluido del scoring.
+    validationProvider: 'annual-audit.provider',
+    semantic: 'EXACT',
     // FASE 7.7.B.1 — Textos tomados de CheckPage (verificacionItems).
     criteria:
       'Se evidencia ejecución de auditoría anual al SG-SST con hallazgos documentados, responsables definidos y seguimiento al cierre de acciones.',
@@ -1191,8 +1228,16 @@ export const CATALOG_60: readonly StandardDefinition[] = [
     phva: 'VERIFICAR',
     normativeWeight: 1.25,
     applicableLevels: ['60'],
-    moduleRoute: '/accountability',
+    // E2 (6.1.3) — la gestión del estándar vive en su dominio propio
+    // (management-review-direction); moduleRoute ya no apunta a
+    // /accountability (mapeo erróneo histórico).
+    moduleRoute: '/management-review-direction',
     priorityMetadata: { criticality: 'MEDIA', estimatedEffort: 'BAJO' },
+    // E2 (6.1.3) — provider oficial sobre el dominio propio
+    // management-review-direction (E1). internal-audit (DocumentMaster AUDIT)
+    // excluido del scoring (WRONG_MAPPING).
+    validationProvider: 'management-review-direction.provider',
+    semantic: 'EXACT',
     // FASE 7.7.B.1 — Textos tomados de CheckPage (verificacionItems).
     criteria:
       'La alta dirección realiza revisión periódica del SG-SST y deja evidencia de decisiones y compromisos para su mejora continua.',

@@ -723,6 +723,34 @@ describe('Estado de implementación', () => {
     assert.equal(standard.normativeWeight, 0.5, 'peso normativo intacto (no se alteraron pesos)');
   });
 
+  it('E2: 6.1.2 Auditoría anual → provider propio (annual-audit) + semantic EXACT (peso intacto)', () => {
+    const standard = CATALOG_60.find((s) => s.code === '6.1.2');
+    assert.ok(standard, '6.1.2 presente en el catálogo');
+    assert.equal(standard.implementationStatus, 'IMPLEMENTED');
+    assert.equal(standard.phva, 'VERIFICAR');
+    assert.equal(standard.validationProvider, 'annual-audit.provider');
+    assert.equal(standard.semantic, 'EXACT');
+    assert.equal(standard.normativeWeight, 1.25, 'peso normativo intacto (no se alteraron pesos)');
+    // E3: la página /annual-audit existe — moduleRoute apunta a la gestión avanzada.
+    assert.equal(standard.moduleRoute, '/annual-audit');
+  });
+
+  it('E2: 6.1.3 Revisión por la dirección → provider propio (management-review-direction) + semantic EXACT (mapeo /accountability corregido)', () => {
+    const standard = CATALOG_60.find((s) => s.code === '6.1.3');
+    assert.ok(standard, '6.1.3 presente en el catálogo');
+    assert.equal(standard.implementationStatus, 'IMPLEMENTED');
+    assert.equal(standard.phva, 'VERIFICAR');
+    assert.equal(standard.validationProvider, 'management-review-direction.provider');
+    assert.equal(standard.semantic, 'EXACT');
+    assert.equal(standard.normativeWeight, 1.25, 'peso normativo intacto (no se alteraron pesos)');
+    // E2: el mapeo erróneo histórico a /accountability se corrige al dominio propio.
+    assert.equal(standard.moduleRoute, '/management-review-direction');
+    // Textos normativos intactos.
+    assert.ok(standard.title.includes('Revisión'), 'título preservado');
+    assert.ok(standard.criteria && standard.criteria.length > 0, 'criteria preservado');
+    assert.ok(standard.modeReview && standard.modeReview.length > 0, 'modeReview preservado');
+  });
+
   it('FASE 6 H-01: 3.2.2 moduleRoute → /disease-investigation-management', () => {
     const standard = CATALOG_60.find((s) => s.code === '3.2.2');
     assert.ok(standard, '3.2.2 presente en el catálogo');

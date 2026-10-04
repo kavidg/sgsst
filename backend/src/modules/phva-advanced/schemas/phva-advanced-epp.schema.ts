@@ -3,6 +3,30 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type SstEppDocument = HydratedDocument<SstEpp>;
 
+/**
+ * Identidad canónica del módulo EPP.
+ *
+ * CORRECCIÓN DE COLISIÓN (Etapa 4.2.6): este módulo se autoidentificaba con
+ * itemCode '1.2.3', pero en el catálogo normativo (catalog-60.ts) el código
+ * 1.2.3 corresponde a "Curso 50 horas SG-SST" (PLANEAR). La identidad propia
+ * y semánticamente correcta del módulo EPP es el estándar que representa:
+ * '4.2.6' (Elementos de Protección Personal, HACER).
+ *
+ * COMPATIBILIDAD DE LECTURA: los documentos históricos creados con
+ * itemCode '1.2.3' siguen siendo legibles (ver SST_EPP_LEGACY_ITEM_CODES);
+ * NINGÚN registro nuevo se genera con el identificador incorrecto y no se
+ * reescriben documentos existentes (sin migración destructiva).
+ */
+export const SST_EPP_ITEM_CODE = '4.2.6';
+
+/** Valores legacy reconocidos SOLO para lectura de documentos históricos. */
+export const SST_EPP_LEGACY_ITEM_CODES = ['1.2.3'] as const;
+
+/** true si `itemCode` es una identidad válida del módulo EPP (canónica o legacy). */
+export function isSstEppItemCode(itemCode: string): boolean {
+  return itemCode === SST_EPP_ITEM_CODE || (SST_EPP_LEGACY_ITEM_CODES as readonly string[]).includes(itemCode);
+}
+
 export enum SstEppComplianceStatus {
   COMPLIES = 'COMPLIES',
   PENDING = 'PENDING',
@@ -89,7 +113,8 @@ export class SstEppHistoryEntry {
 @Schema({ timestamps: false, collection: 'phva_advanced_epp' })
 export class SstEpp {
   @Prop({ required: true, type: Types.ObjectId, index: true }) companyId!: Types.ObjectId;
-  @Prop({ default: '1.2.3' }) itemCode!: string;
+  // Identidad canónica '4.2.6' (antes '1.2.3' — colisión con el curso 50h).
+  @Prop({ default: SST_EPP_ITEM_CODE }) itemCode!: string;
   @Prop({ default: new Date().getFullYear() }) year!: number;
   @Prop({ default: SstEppComplianceStatus.PENDING }) complianceStatus!: string;
   @Prop({ default: '' }) complianceReason!: string;

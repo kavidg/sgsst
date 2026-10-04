@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import {
   HazardousSubstanceModel,
   CreateHazardousSubstancePayload,
@@ -57,7 +57,7 @@ function formatDate(value: string | undefined | null): string {
 }
 
 export function HazardousSubstancePage({ token, role }: HazardousSubstancePageProps) {
-  const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
   const { companyId } = useCompanyContext();
   const [substances, setSubstances] = useState<HazardousSubstanceModel[]>([]);
   const [loading, setLoading] = useState(false);
@@ -249,7 +249,7 @@ export function HazardousSubstancePage({ token, role }: HazardousSubstancePagePr
 
   // ── Header actions ──
   const headerActions: HeaderAction[] = [
-    { label: '← Volver al PHVA', onClick: () => navigate('/documents/do'), variant: 'secondary' },
+    { label: '← Volver al PHVA', onClick: () => goBackToPhva(), variant: 'secondary' },
     { label: loading ? 'Cargando...' : '🔄 Recargar', onClick: () => void loadData(), variant: 'secondary', disabled: loading },
   ];
 

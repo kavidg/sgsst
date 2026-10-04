@@ -25,6 +25,7 @@
     "mongoose": "^8.9.0",
     "pizzip": "^3.2.0",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.31.0",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.1"
   },

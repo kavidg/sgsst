@@ -19,6 +19,19 @@ import { AlertsModule } from './modules/alerts/alerts.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { PhvaAdvancedModule } from './modules/phva-advanced/phva-advanced.module';
 import { CopasstModule } from './modules/copasst/copasst.module';
+// E1 (6.1.4): dominio propio de Planificación de auditorías COPASST —
+// DOMAIN FOUNDATION (sin scoring/provider/IA/frontend todavía).
+import { CopasstAuditPlanningModule } from './modules/copasst-audit-planning/copasst-audit-planning.module';
+// E1/E2 (7.1.1): dominio propio de Acciones preventivas y correctivas —
+// desde E2 es la fuente OFICIAL de scoring (provider
+// 'corrective-preventive-actions'); el proxy legacy corrective-preventive
+// (AccountabilityCommitment) quedó excluido del scoring.
+import { CorrectivePreventiveActionsModule } from './modules/corrective-preventive-actions/corrective-preventive-actions.module';
+// E1 (7.1.2): Acciones de mejora de la alta dirección — dominio propio (Opción C de E0).
+import { ManagementImprovementActionsModule } from './modules/management-improvement-actions/management-improvement-actions.module';
+// E1 (7.1.4): Plan de mejoramiento — dominio propio improvement-plans (Opción C de E0;
+// el dominio `programs`/SgstProgram permanece intacto e independiente).
+import { ImprovementPlansModule } from './modules/improvement-plans/improvement-plans.module';
 // F7B-9B/9E: CommitteeEngineModule (legacy) retirado del registro de NestJS
 // (F7B-9B) y eliminado físicamente del repositorio (F7B-9E). Sus endpoints
 // /committee-engine/* ya no existen (superficie legacy con OTP Math.random,
@@ -29,6 +42,10 @@ import { InitialEvaluationModule } from './modules/initial-evaluation/initial-ev
 import { AnnualWorkPlanModule } from './modules/annual-work-plan/annual-work-plan.module';
 import { DocumentManagementModule } from './modules/document-management/document-management.module';
 import { AccountabilityModule } from './modules/accountability/accountability.module';
+// E1 (6.1.2) — Dominio propio de Auditoría anual SG-SST.
+import { AnnualAuditModule } from './modules/annual-audit/annual-audit.module';
+// E1 (6.1.3) — Dominio propio de Revisión por la dirección.
+import { ManagementReviewDirectionModule } from './modules/management-review-direction/management-review-direction.module';
 import { LegalMatrixModule } from './modules/legal-matrix/legal-matrix.module';
 import { CommunicationModule } from './modules/communication/communication.module';
 import { CompanyProfileModule } from './modules/company-profile/company-profile.module';
@@ -75,6 +92,12 @@ import { WasteManagementModule } from './modules/waste-management/waste-manageme
 // 3.3.4/3.3.5 permanecen PLANNED; los providers llegan en 35C/35D).
 import { OccupationalDiseaseStatisticalCaseModule } from './modules/occupational-disease-statistical-case/occupational-disease-statistical-case.module';
 import { PhvaEvaluationEngineModule } from './modules/phva-evaluation-engine/phva-evaluation-engine.module';
+// V1 4.2.5 — Mantenimiento: módulo propio (entidad Maintenance). NO reutiliza
+// InspectionActivity (4.2.4); frontera anti-double-scoring del ComplianceEngine.
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+// 4.2.6 — Alternativa B: entregas de EPP (EppDelivery). SstEpp sigue siendo
+// el catálogo/matriz; el scoring de 4.2.6 NO cambia en esta etapa.
+import { EppModule } from './modules/epp/epp.module';
 
 @Module({
   imports: [
@@ -105,11 +128,21 @@ import { PhvaEvaluationEngineModule } from './modules/phva-evaluation-engine/phv
     TemplatesModule,
     PhvaAdvancedModule,
     CopasstModule,
+    // E1 (6.1.4): Planificación de auditorías COPASST (dominio propio; la
+    // fuente oficial de scoring llegará en E2 — ver findings-review WRONG_MAPPING).
+    CopasstAuditPlanningModule,
+    // E1/E2 (7.1.1): Acciones preventivas y correctivas (dominio propio;
+    // fuente oficial del score desde E2).
+    CorrectivePreventiveActionsModule,
+    ManagementImprovementActionsModule,
+    ImprovementPlansModule, // E1 (7.1.4)
     ComplianceCredentialsModule,
     InitialEvaluationModule,
     AnnualWorkPlanModule,
     DocumentManagementModule,
     AccountabilityModule,
+    AnnualAuditModule,
+    ManagementReviewDirectionModule,
     LegalMatrixModule,
     CommunicationModule,
     CompanyProfileModule,
@@ -159,6 +192,12 @@ import { PhvaEvaluationEngineModule } from './modules/phva-evaluation-engine/phv
     WasteManagementModule,
     // FASE 35B: casos estadísticos de enfermedad laboral (infraestructura base).
     OccupationalDiseaseStatisticalCaseModule,
+    // V1 4.2.5: Maintenance (4.2.5) — CRUD tenant-aware del programa de
+    // mantenimiento preventivo/correctivo (entidad propia, sin tocar 4.2.4).
+    MaintenanceModule,
+    // 4.2.6: EppDelivery (entrega/reposición por trabajador real) — catálogo
+    // sigue en SstEpp (phva-advanced); provider de scoring intacto.
+    EppModule,
     // FASE 1 Motor PHVA: evaluación automática por estándar (solo consulta).
     // NO modifica el flujo manual, NO persiste en Evaluation, NO genera alertas.
     PhvaEvaluationEngineModule,

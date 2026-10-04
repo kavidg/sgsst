@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   InternalServerErrorException,
@@ -34,6 +35,8 @@ import { UpdateResponsableSstDto } from './dto/update-responsable-sst.dto';
 import { UpdateResourceAssignmentDto } from './dto/update-resource-assignment.dto';
 import { UploadResponsableSstDocumentDto } from './dto/upload-responsable-sst-document.dto';
 import { PhvaAdvancedService } from './phva-advanced.service';
+// Fase 1 — flujo "Enviar a aceptación" de responsabilidades (1.1.2).
+import { ResponsibilitiesAcceptanceService } from './responsibilities-acceptance.service';
 import { PhvaAdvancedCopasstTrainingService } from './phva-advanced-copasst-training.service';
 import { UpdateCopasstTrainingDto } from './dto/update-copasst-training.dto';
 import { CreateCopasstTrainingEvidenceDto } from './dto/create-copasst-training-evidence.dto';
@@ -48,6 +51,27 @@ import { StorageService } from '../document-generation/services/storage.service'
 import { UpdateArlAffiliationsDto } from './dto/update-arl-affiliations.dto';
 import { ResponsibilityAssignmentEntry } from './schemas/phva-advanced-responsibilities.schema';
 import { UpdateSpecialPensionDto } from './dto/update-special-pension.dto';
+import {
+  AddEvacuationCountDto,
+  CreateBrigadeMemberDto,
+  CreateEmergencyBrigadeDto,
+  CreateEmergencyContactDto,
+  CreateEmergencyDrillDto,
+  CreateEmergencyResourceDto,
+  CreateEmergencyThreatDto,
+  CreateEvacuationRouteDto,
+  CreateMeetingPointDto,
+  UpdateBrigadeMemberDto,
+  UpdateEmergencyBrigadeDto,
+  UpdateEmergencyContactDto,
+  UpdateEmergencyDrillDto,
+  UpdateEmergencyResourceDto,
+  UpdateEmergencyThreatDto,
+  UpdateEvacuationRouteDto,
+  UpdateMeetingPointDto,
+  UpdateSstEmergenciesDto,
+} from './dto/update-emergencies.dto';
+import { UpdateSstEppDto } from './dto/update-sst-epp.dto';
 import { PHVA_SOURCE_ENTITY_RESPONSIBLE_SG_SST } from '../document-generation/types/document-generation.types';
 
 @Controller('phva-advanced')
@@ -62,6 +86,8 @@ export class PhvaAdvancedController {
     private readonly copasstTrainingService: PhvaAdvancedCopasstTrainingService,
     // Fase 4 (1.1.7) — generación documental de la Capacitación COPASST.
     private readonly copasstTrainingDocumentService: CopasstTrainingDocumentService,
+    // Fase 1 — envío de responsabilidades (1.1.2) a aceptación/firma.
+    private readonly responsibilitiesAcceptanceService: ResponsibilitiesAcceptanceService,
     // Fase 4 (1.1.7) — StorageService centralizado (reutilizado, NO se crea un
     // segundo servicio de Firebase Storage).
     private readonly storageService: StorageService,
@@ -300,6 +326,31 @@ export class PhvaAdvancedController {
     const user = await this.resolveUserFromRequest(request);
     const companyId = this.resolveCompanyId(request);
     return this.phvaAdvancedService.submitResponsibilities(companyId, user);
+  }
+
+  /**
+   * Fase 1 — "Enviar a aceptación" (1.1.2): crea (o reutiliza) una campaña de
+   * firma por trabajador seleccionado con contenido congelado y enlace
+   * público `/sign/:token`. Empleados validados tenant-safe contra Employee
+   * (fuente única); solo activos; dedup por (empresa, empleado, versión).
+   */
+  @Post('responsibilities/acceptance-campaign')
+  @Roles('owner', 'admin')
+  async sendResponsibilitiesToAcceptance(@Req() request: RequestWithUser, @Body() dto: { employeeIds: string[] }) {
+    const companyId = this.resolveCompanyId(request);
+    const employeeIds = Array.isArray(dto?.employeeIds) ? dto.employeeIds : [];
+    return this.responsibilitiesAcceptanceService.sendToAcceptance(companyId, employeeIds);
+  }
+
+  /**
+   * Fase 1 — estado de aceptación por trabajador para la versión actual.
+   * Reutiliza los estados reales de worker-signature-campaign.
+   */
+  @Get('responsibilities/acceptance-status')
+  @Roles('owner', 'admin', 'manager', 'member')
+  async getResponsibilitiesAcceptanceStatus(@Req() request: RequestWithUser) {
+    const companyId = this.resolveCompanyId(request);
+    return this.responsibilitiesAcceptanceService.getAcceptanceStatus(companyId);
   }
 
   @Post('responsibilities/approve')
@@ -1125,7 +1176,9 @@ export class PhvaAdvancedController {
 
   @Patch('epp')
   @Roles('owner', 'admin', 'manager')
-  async updateEpp(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
+  // SEGURIDAD (auditoría 4.2.6): DTO estricto con whitelist — el cliente ya no
+  // puede enviar campos de scoring (complianceStatus) ni identidad (itemCode).
+  async updateEpp(@Req() request: RequestWithUser, @Body() dto: UpdateSstEppDto) {
     const user = await this.resolveUserFromRequest(request);
     return this.phvaAdvancedService.updateEpp(this.resolveCompanyId(request), user, dto);
   }
@@ -1144,7 +1197,7 @@ export class PhvaAdvancedController {
         entityType: 'SstEpp',
         entityId: record._id.toString(),
         assignedRoles: ['owner', 'manager'],
-        comments: 'Aprobación del módulo EPP (1.2.3)',
+        comments: 'Aprobación del módulo EPP (4.2.6)',
       },
       buildApprovalActor({
         userId: request.user?._id,
@@ -1213,7 +1266,7 @@ export class PhvaAdvancedController {
 
   @Patch('emergencies')
   @Roles('owner', 'admin', 'manager')
-  async updateEmergencies(@Req() request: RequestWithUser, @Body() dto: Record<string, unknown>) {
+  async updateEmergencies(@Req() request: RequestWithUser, @Body() dto: UpdateSstEmergenciesDto) {
     const user = await this.resolveUserFromRequest(request);
     return this.phvaAdvancedService.updateEmergencies(this.resolveCompanyId(request), user, dto);
   }
@@ -1289,6 +1342,241 @@ export class PhvaAdvancedController {
       actor,
     );
     return { record, decision: result };
+  }
+
+  // ── Matriz de amenazas y vulnerabilidades (5.1.1) ──
+  // companyId SIEMPRE del contexto autenticado (resolveCompanyId), nunca del
+  // body: un threatId de otra empresa produce 404 (mismo comportamiento de
+  // seguridad que el resto del dominio). DELETE = borrado lógico.
+
+  @Post('emergencies/threats')
+  @Roles('owner', 'admin', 'manager')
+  async createEmergencyThreat(@Req() request: RequestWithUser, @Body() dto: CreateEmergencyThreatDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createEmergencyThreat(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Patch('emergencies/threats/:threatId')
+  @Roles('owner', 'admin', 'manager')
+  async updateEmergencyThreat(
+    @Req() request: RequestWithUser,
+    @Param('threatId') threatId: string,
+    @Body() dto: UpdateEmergencyThreatDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateEmergencyThreat(this.resolveCompanyId(request), user, threatId, dto);
+  }
+
+  @Delete('emergencies/threats/:threatId')
+  @Roles('owner', 'admin', 'manager')
+  async deactivateEmergencyThreat(@Req() request: RequestWithUser, @Param('threatId') threatId: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.deactivateEmergencyThreat(this.resolveCompanyId(request), user, threatId);
+  }
+
+  // ── Contactos de emergencia / cadena de llamadas (5.1.1) ──
+
+  @Post('emergencies/contacts')
+  @Roles('owner', 'admin', 'manager')
+  async createEmergencyContact(@Req() request: RequestWithUser, @Body() dto: CreateEmergencyContactDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createEmergencyContact(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Patch('emergencies/contacts/:contactId')
+  @Roles('owner', 'admin', 'manager')
+  async updateEmergencyContact(
+    @Req() request: RequestWithUser,
+    @Param('contactId') contactId: string,
+    @Body() dto: UpdateEmergencyContactDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateEmergencyContact(this.resolveCompanyId(request), user, contactId, dto);
+  }
+
+  @Delete('emergencies/contacts/:contactId')
+  @Roles('owner', 'admin', 'manager')
+  async deactivateEmergencyContact(@Req() request: RequestWithUser, @Param('contactId') contactId: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.deactivateEmergencyContact(this.resolveCompanyId(request), user, contactId);
+  }
+
+  // ── Recursos de emergencia (inventario de preparación; NO Maintenance) ──
+
+  @Post('emergencies/equipment')
+  @Roles('owner', 'admin', 'manager')
+  async createEmergencyResource(@Req() request: RequestWithUser, @Body() dto: CreateEmergencyResourceDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createEmergencyResource(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Patch('emergencies/equipment/:equipmentId')
+  @Roles('owner', 'admin', 'manager')
+  async updateEmergencyResource(
+    @Req() request: RequestWithUser,
+    @Param('equipmentId') equipmentId: string,
+    @Body() dto: UpdateEmergencyResourceDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateEmergencyResource(this.resolveCompanyId(request), user, equipmentId, dto);
+  }
+
+  @Delete('emergencies/equipment/:equipmentId')
+  @Roles('owner', 'admin', 'manager')
+  async deactivateEmergencyResource(@Req() request: RequestWithUser, @Param('equipmentId') equipmentId: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.deactivateEmergencyResource(this.resolveCompanyId(request), user, equipmentId);
+  }
+
+  // ── Brigadas: miembros tipados → Employee (5.1.2 comparte la colección) ──
+
+  @Post('emergencies/brigades/:brigadeId/members')
+  @Roles('owner', 'admin', 'manager')
+  async createBrigadeMember(
+    @Req() request: RequestWithUser,
+    @Param('brigadeId') brigadeId: string,
+    @Body() dto: CreateBrigadeMemberDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createBrigadeMember(this.resolveCompanyId(request), user, brigadeId, dto);
+  }
+
+  @Patch('emergencies/brigades/:brigadeId/members/:memberId')
+  @Roles('owner', 'admin', 'manager')
+  async updateBrigadeMember(
+    @Req() request: RequestWithUser,
+    @Param('brigadeId') brigadeId: string,
+    @Param('memberId') memberId: string,
+    @Body() dto: UpdateBrigadeMemberDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateBrigadeMember(this.resolveCompanyId(request), user, brigadeId, memberId, dto);
+  }
+
+  @Delete('emergencies/brigades/:brigadeId/members/:memberId')
+  @Roles('owner', 'admin', 'manager')
+  async deactivateBrigadeMember(
+    @Req() request: RequestWithUser,
+    @Param('brigadeId') brigadeId: string,
+    @Param('memberId') memberId: string,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.deactivateBrigadeMember(this.resolveCompanyId(request), user, brigadeId, memberId);
+  }
+
+  // ── Evacuación: rutas, puntos de encuentro y conteo ──
+
+  @Patch('emergencies/evacuation-routes/:routeId')
+  @Roles('owner', 'admin', 'manager')
+  async updateEvacuationRoute(
+    @Req() request: RequestWithUser,
+    @Param('routeId') routeId: string,
+    @Body() dto: UpdateEvacuationRouteDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateEvacuationRoute(this.resolveCompanyId(request), user, routeId, dto);
+  }
+
+  @Patch('emergencies/meeting-points/:pointId')
+  @Roles('owner', 'admin', 'manager')
+  async updateMeetingPoint(
+    @Req() request: RequestWithUser,
+    @Param('pointId') pointId: string,
+    @Body() dto: UpdateMeetingPointDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateMeetingPoint(this.resolveCompanyId(request), user, pointId, dto);
+  }
+
+  @Post('emergencies/meeting-points/:pointId/counts')
+  @Roles('owner', 'admin', 'manager')
+  async addEvacuationCount(
+    @Req() request: RequestWithUser,
+    @Param('pointId') pointId: string,
+    @Body() dto: AddEvacuationCountDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.addEvacuationCount(this.resolveCompanyId(request), user, pointId, dto);
+  }
+
+  // ── Etapa 3 (5.1.1): captura completa de brigadas, rutas, puntos y simulacros ──
+
+  @Post('emergencies/brigades')
+  @Roles('owner', 'admin', 'manager')
+  async createEmergencyBrigade(@Req() request: RequestWithUser, @Body() dto: CreateEmergencyBrigadeDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createEmergencyBrigade(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Patch('emergencies/brigades/:brigadeId')
+  @Roles('owner', 'admin', 'manager')
+  async updateEmergencyBrigade(
+    @Req() request: RequestWithUser,
+    @Param('brigadeId') brigadeId: string,
+    @Body() dto: UpdateEmergencyBrigadeDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateEmergencyBrigade(this.resolveCompanyId(request), user, brigadeId, dto);
+  }
+
+  @Delete('emergencies/brigades/:brigadeId')
+  @Roles('owner', 'admin', 'manager')
+  async deactivateEmergencyBrigade(@Req() request: RequestWithUser, @Param('brigadeId') brigadeId: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.deactivateEmergencyBrigade(this.resolveCompanyId(request), user, brigadeId);
+  }
+
+  @Post('emergencies/evacuation-routes')
+  @Roles('owner', 'admin', 'manager')
+  async createEvacuationRoute(@Req() request: RequestWithUser, @Body() dto: CreateEvacuationRouteDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createEvacuationRoute(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Delete('emergencies/evacuation-routes/:routeId')
+  @Roles('owner', 'admin', 'manager')
+  async deactivateEvacuationRoute(@Req() request: RequestWithUser, @Param('routeId') routeId: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.deactivateEvacuationRoute(this.resolveCompanyId(request), user, routeId);
+  }
+
+  @Post('emergencies/meeting-points')
+  @Roles('owner', 'admin', 'manager')
+  async createMeetingPoint(@Req() request: RequestWithUser, @Body() dto: CreateMeetingPointDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createMeetingPoint(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Delete('emergencies/meeting-points/:pointId')
+  @Roles('owner', 'admin', 'manager')
+  async deactivateMeetingPoint(@Req() request: RequestWithUser, @Param('pointId') pointId: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.deactivateMeetingPoint(this.resolveCompanyId(request), user, pointId);
+  }
+
+  @Post('emergencies/drills')
+  @Roles('owner', 'admin', 'manager')
+  async createEmergencyDrill(@Req() request: RequestWithUser, @Body() dto: CreateEmergencyDrillDto) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.createEmergencyDrill(this.resolveCompanyId(request), user, dto);
+  }
+
+  @Patch('emergencies/drills/:drillId')
+  @Roles('owner', 'admin', 'manager')
+  async updateEmergencyDrill(
+    @Req() request: RequestWithUser,
+    @Param('drillId') drillId: string,
+    @Body() dto: UpdateEmergencyDrillDto,
+  ) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.updateEmergencyDrill(this.resolveCompanyId(request), user, drillId, dto);
+  }
+
+  @Delete('emergencies/drills/:drillId')
+  @Roles('owner', 'admin', 'manager')
+  async deactivateEmergencyDrill(@Req() request: RequestWithUser, @Param('drillId') drillId: string) {
+    const user = await this.resolveUserFromRequest(request);
+    return this.phvaAdvancedService.deactivateEmergencyDrill(this.resolveCompanyId(request), user, drillId);
   }
 
   @Get('annual-work-plan')

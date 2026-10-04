@@ -5,6 +5,7 @@ import { CreateRiskDto } from './dto/create-risk.dto';
 import { UpdateRiskDto } from './dto/update-risk.dto';
 import { Risk, RiskDocument } from './schemas/risk.schema';
 import { RiskMethodology, RiskMethodologyDocument } from './schemas/risk-methodology.schema';
+import { ControlMeasure } from './schemas/control-measure.schema';
 
 @Injectable()
 export class RisksService {
@@ -17,7 +18,18 @@ export class RisksService {
 
   async create(companyId: Types.ObjectId, dto: CreateRiskDto): Promise<Risk> {
     const resolvedDto = await this.resolveMethodology(companyId, dto);
-    const created = new this.riskModel({ ...resolvedDto, companyId });
+    // ETAPA 1 (4.2.2): mapeo explícito del array opcional de controles.
+    // El flujo legacy (solo `controlMeasures` string) no cambia.
+    const { controls, ...rest } = resolvedDto as CreateRiskDto & { controls?: { id?: string; description: string; isActive?: boolean }[] };
+    const doc: Record<string, unknown> = { ...rest, companyId };
+    if (Array.isArray(controls)) {
+      doc.controls = controls.map((c) => ({
+        ...(c.id ? { _id: new Types.ObjectId(c.id) } : {}),
+        description: c.description,
+        isActive: c.isActive ?? true,
+      }));
+    }
+    const created = new this.riskModel(doc as any);
     return created.save();
   }
 
@@ -37,8 +49,19 @@ export class RisksService {
 
   async update(id: string, companyId: Types.ObjectId, dto: UpdateRiskDto): Promise<Risk> {
     const resolvedDto = await this.resolveMethodology(companyId, dto);
+    // ETAPA 1 (4.2.2): `controls` opcional — reemplazo atómico del array.
+    // Si no viene, no se toca el campo (compatibilidad con el flujo legacy).
+    const { controls, ...rest } = resolvedDto as UpdateRiskDto & { controls?: { id?: string; description: string; isActive?: boolean }[] };
+    const updatePayload: Record<string, unknown> = { ...rest };
+    if (Array.isArray(controls)) {
+      updatePayload.controls = controls.map((c) => ({
+        ...(c.id ? { _id: new Types.ObjectId(c.id) } : {}),
+        description: c.description,
+        isActive: c.isActive ?? true,
+      }));
+    }
     const risk = await this.riskModel
-      .findOneAndUpdate({ _id: id, companyId }, resolvedDto, { new: true, runValidators: true })
+      .findOneAndUpdate({ _id: id, companyId }, updatePayload, { new: true, runValidators: true })
       .exec();
 
     if (!risk) {
@@ -54,6 +77,57 @@ export class RisksService {
     if (!deletedRisk) {
       throw new NotFoundException(`Risk with id ${id} not found`);
     }
+  }
+
+  /**
+   * ETAPA 1 (PHVA 4.2.2) — Bootstrap legacy de controles estructurados.
+   *
+   * Si el riesgo NO tiene controles estructurados y SÍ tiene el string
+   * legacy `controlMeasures`, crea UN único ControlMeasure con la
+   * descripción completa del string (sin dividir por comas, sin crear
+   * múltiples controles).
+   *
+   * Garantías:
+   * - Nunca sobrescribe controles estructurados existentes.
+   * - Idempotente: llamadas repetidas no duplican.
+   * - Write explícito y controlado: SOLO persiste cuando aplica el
+   *   bootstrap. Con datos ya canónicos no hay write, por lo que puede
+   *   invocarse desde flujos de lectura sin mutaciones silenciosas.
+   *
+   * NOTA DE DESPLIEGUE: el bootstrap NO se auto-ejecuta en GET en esta
+   * etapa. Queda como método explícito para ser invocado de forma
+   * controlada (tarea de adopción o flujo de edición) — pendiente
+   * decidir el disparador definitivo cuando exista ControlVerification.
+   */
+  async bootstrapLegacyControls(risk: RiskDocument | Risk): Promise<Risk | RiskDocument> {
+    const existingControls = (risk as RiskDocument).controls ?? (risk as Risk).controls ?? [];
+
+    if (existingControls.length > 0) {
+      // Ya hay controles estructurados: nada que hacer, sin writes.
+      return risk;
+    }
+
+    const legacyText = ((risk as RiskDocument).controlMeasures ?? (risk as Risk).controlMeasures ?? '').trim();
+
+    if (!legacyText) {
+      return risk;
+    }
+
+    const bootstrapMeasure: ControlMeasure = {
+      description: legacyText,
+      isActive: true,
+    } as ControlMeasure;
+
+    // Write explícito y controlado (no en lecturas de datos canónicos).
+    const updated = await this.riskModel
+      .findOneAndUpdate(
+        { _id: (risk as RiskDocument)._id, companyId: (risk as RiskDocument).companyId },
+        { $set: { controls: [bootstrapMeasure] } },
+        { new: true, runValidators: true },
+      )
+      .exec();
+
+    return updated ?? risk;
   }
 
   /**

@@ -132,6 +132,9 @@ function buildService(record: MockRecord, options?: { legalRepresentative?: bool
     genericModel as never,
     userModel as never,
     companyProfileModel as never,
+    { findById: async () => null } as never, // planActivityModel
+    { findOne: async () => null } as never, // annualWorkPlanModel
+    { findById: async () => null } as never, // documentMasterModel
     alertsService as never,
     { send: async () => undefined } as never,
     { getPolicyTemplate: async () => null } as never,

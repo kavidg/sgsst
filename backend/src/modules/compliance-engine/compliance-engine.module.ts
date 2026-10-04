@@ -111,12 +111,29 @@ import { EppComplianceProvider } from './providers/epp-compliance.provider';
 import { ControlVerificationStandardProvider } from './providers/control-verification-standard.provider';
 import { EmergencyManagementProvider } from './providers/emergency-management.provider';
 import { ProceduresDocProvider } from './providers/procedures-doc.provider';
+// ESTÁNDAR 5.1.1: provider OFICIAL del Plan de prevención, preparación y
+// respuesta ante emergencias (fuente de verdad SstEmergencias, legacy-aware).
+import { EmergencyPlanProvider } from './providers/emergency-plan-compliance.provider';
+// ESTÁNDAR 5.1.2: provider OFICIAL de la Brigada de emergencia.
+import { EmergencyBrigadeProvider } from './providers/emergency-brigade-compliance.provider';
 import { RecordsDocProvider } from './providers/records-doc.provider';
 import { ManagementMeasurementProvider } from './providers/management-measurement.provider';
 import { ManagementReviewProvider } from './providers/management-review.provider';
 import { InternalAuditProvider } from './providers/internal-audit.provider';
+// ESTÁNDAR 6.1.3: provider OFICIAL de la Revisión por la dirección (dominio propio E1).
+import { ManagementReviewDirectionProvider } from './providers/management-review-direction-compliance.provider';
 import { FindingsReviewProvider } from './providers/findings-review.provider';
+// ESTÁNDAR 6.1.4: provider OFICIAL de la Planificación de auditorías COPASST
+// (dominio propio E1). findings-review queda excluido del scoring de este
+// estándar (WRONG_MAPPING; ver SCORING_INELIGIBLE_MODULES).
+import { CopasstAuditPlanningProvider } from './providers/copasst-audit-planning-compliance.provider';
+// ESTÁNDAR 6.1.2: provider OFICIAL de la Auditoría anual (dominio annual-audit E1).
+import { AnnualAuditComplianceProvider } from './providers/annual-audit-compliance.provider';
 import { CorrectivePreventiveProvider } from './providers/corrective-preventive.provider';
+// ESTÁNDAR 7.1.1: provider OFICIAL de las Acciones preventivas y correctivas
+// (dominio propio E1; corrective-preventive queda excluido del scoring).
+import { CorrectivePreventiveActionsProvider } from './providers/corrective-preventive-actions-compliance.provider';
+import { ManagementImprovementActionsProvider } from './providers/management-improvement-actions-compliance.provider';
 import { ManagementImprovementProvider } from './providers/management-improvement.provider';
 import { IncidentActionsProvider } from './providers/incident-actions.provider';
 import { ImprovementPlanProvider } from './providers/improvement-plan.provider';
@@ -152,13 +169,72 @@ import {
 // con sus providers. Las colecciones y sus módulos propios permanecen intactos
 // (infraestructura futura, no compartida con estándares aprobados).
 import { SstEpp, SstEppSchema } from '../phva-advanced/schemas/phva-advanced-epp.schema';
+// ETAPA 4.2.6: Employee ya importado arriba (línea 78); EppComplianceProvider
+// lo usa como denominador de cobertura (trabajadores ACTIVOS, identidad por _id).
 import { SstEmergencies, SstEmergenciesSchema } from '../phva-advanced/schemas/phva-advanced-emergencies.schema';
+// ESTÁNDAR 5.1.1: DocumentMaster para la validación del documento oficial.
+import { DocumentMaster, DocumentMasterSchema } from '../document-management/schemas/document-master.schema';
 import { IndicatorDefinition, IndicatorDefinitionSchema } from '../indicators/schemas/indicator-definition.schema';
 import { IndicatorMeasurement, IndicatorMeasurementSchema } from '../indicators/schemas/indicator-measurement.schema';
 import { AccountabilityMeeting, AccountabilityMeetingSchema } from '../accountability/schemas/accountability-meeting.schema';
 import { AccountabilityCommitment, AccountabilityCommitmentSchema } from '../accountability/schemas/accountability-commitment.schema';
+// ESTÁNDAR 6.1.4: CopasstAuditPlanning requerido por CopasstAuditPlanningProvider
+// (fuente ÚNICA del score; frontera anti-double-scoring con findings-review y
+// con 6.1.2/AnnualAudit — referencia declarativa, NUNCA consultada para puntuar).
+import {
+  CopasstAuditPlanning,
+  CopasstAuditPlanningSchema,
+} from '../copasst-audit-planning/schemas/copasst-audit-planning.schema';
+// ESTÁNDAR 7.1.1: CorrectivePreventiveAction requerido por
+// CorrectivePreventiveActionsProvider (fuente ÚNICA del score; frontera
+// anti-double-scoring con corrective-preventive/AccountabilityCommitment).
+import {
+  CorrectivePreventiveAction,
+  CorrectivePreventiveActionSchema,
+} from '../corrective-preventive-actions/schemas/corrective-preventive-action.schema';
+// ESTÁNDAR 7.1.2: ManagementImprovementAction requerido por
+// ManagementImprovementActionsProvider (fuente ÚNICA del score; frontera
+// anti-double-scoring con management-improvement/AccountabilityMeeting).
+import {
+  ManagementImprovementAction,
+  ManagementImprovementActionSchema,
+} from '../management-improvement-actions/schemas/management-improvement-action.schema';
+// ESTÁNDAR 7.1.4: ImprovementPlan requerido por ImprovementPlanProvider (fuente
+// ÚNICA del score; dominio propio E1 `improvement-plans` — SgstProgram/`programs`
+// permanece registrado e independiente).
+import {
+  ImprovementPlan,
+  ImprovementPlanSchema,
+} from '../improvement-plans/schemas/improvement-plan.schema';
+// ESTÁNDAR 7.1.4: ImprovementPlan requerido por ImprovementPlanProvider
+// (fuente ÚNICA del score; dominio propio E1 `improvement-plans` — el dominio
+// `programs`/SgstProgram permanece registrado e independiente).
+// ESTÁNDAR 6.1.2: AnnualAudit requerido por AnnualAuditComplianceProvider
+// (fuente ÚNICA del score; frontera anti-double-scoring con accountability).
+import { AnnualAudit, AnnualAuditSchema } from '../annual-audit/schemas/annual-audit.schema';
+// ESTÁNDAR 6.1.3: ManagementReviewDirection requerido por
+// ManagementReviewDirectionProvider (fuente ÚNICA del score; frontera
+// anti-double-scoring con internal-audit/DocumentMaster y accountability).
+import {
+  ManagementReviewDirection,
+  ManagementReviewDirectionSchema,
+} from '../management-review-direction/schemas/management-review-direction.schema';
 import { InspectionActivity, InspectionActivitySchema } from '../inspections/schemas/inspection-activity.schema';
 import { SstInduction, SstInductionSchema } from '../risks/schemas/sst-induction.schema';
+// ETAPA 5B (4.2.2): ControlVerification requerido por ControlVerificationProvider
+// (nueva fuente de evidencia del estándar junto con Risk.controls[]).
+import { ControlVerification, ControlVerificationSchema } from '../risks/schemas/control-verification.schema';
+// V1 4.2.5: Maintenance requerido por MaintenanceProvider. Fuente EXCLUSIVA
+// del estándar (frontera anti-double-scoring con 4.2.4/InspectionActivity).
+import { Maintenance, MaintenanceSchema } from '../maintenance/schemas/maintenance.schema';
+// ETAPA 4.2.6: EppDelivery requerido por EppComplianceProvider. Fuente ÚNICA
+// de entregas/cobertura/vigencia/trazabilidad del estándar (frontera
+// anti-double-scoring con 4.2.4/4.2.5 y con SstEpp.assignments[]).
+import { EppDelivery, EppDeliverySchema } from '../epp/schemas/epp-delivery.schema';
+// SCORING V2 4.2.6: EppApplicability requerida por EppComplianceProvider como
+// ÚNICA fuente de requisitos (qué EPP requiere cada JobProfile). Reemplaza la
+// interpretación de requiredFor en el scoring (que ya NO se consulta).
+import { EppApplicability, EppApplicabilitySchema } from '../epp/schemas/epp-applicability.schema';
 
 @Module({
   imports: [
@@ -179,6 +255,11 @@ import { SstInduction, SstInductionSchema } from '../risks/schemas/sst-induction
       { name: ChangeRequest.name, schema: ChangeRequestSchema },
       // Schema de Empleados requerido por SociodemographicProvider.
       { name: Employee.name, schema: EmployeeSchema },
+      // ETAPA 4.2.6: EppDelivery requerido por EppComplianceProvider (fuente
+      // única de entregas; frontera con InspectionActivity/Maintenance).
+      { name: EppDelivery.name, schema: EppDeliverySchema },
+      // SCORING V2 4.2.6: EppApplicability — matriz Cargo → EPP (requisitos).
+      { name: EppApplicability.name, schema: EppApplicabilitySchema },
       // Schema de Exámenes Médicos requerido por OccupationalExamProvider.
       { name: OccupationalExam.name, schema: OccupationalExamSchema },
       // Schema de Recomendaciones Médicas requerido por MedicalRecommendationProvider.
@@ -205,12 +286,43 @@ import { SstInduction, SstInductionSchema } from '../risks/schemas/sst-induction
       { name: EnvironmentalMeasurement.name, schema: EnvironmentalMeasurementSchema },
       { name: SstEpp.name, schema: SstEppSchema },
       { name: SstEmergencies.name, schema: SstEmergenciesSchema },
+      // ESTÁNDAR 5.1.1: DocumentMaster requerido por EmergencyPlanProvider
+      // (validación del documento oficial referenciado por plan.documentId;
+      // DocumentManagement NO se modifica).
+      { name: DocumentMaster.name, schema: DocumentMasterSchema },
       { name: IndicatorDefinition.name, schema: IndicatorDefinitionSchema },
       { name: IndicatorMeasurement.name, schema: IndicatorMeasurementSchema },
       { name: AccountabilityMeeting.name, schema: AccountabilityMeetingSchema },
       { name: AccountabilityCommitment.name, schema: AccountabilityCommitmentSchema },
+      // ESTÁNDAR 6.1.4: CopasstAuditPlanning — fuente ÚNICA del score del
+      // estándar (dominio propio E1; items y participación COPASST embebidos).
+      { name: CopasstAuditPlanning.name, schema: CopasstAuditPlanningSchema },
+      // ESTÁNDAR 7.1.1: CorrectivePreventiveAction — fuente ÚNICA del score del
+      // estándar 7.1.1 (no corrective-preventive/AccountabilityCommitment).
+      { name: CorrectivePreventiveAction.name, schema: CorrectivePreventiveActionSchema },
+      // ESTÁNDAR 7.1.2: ManagementImprovementAction — fuente ÚNICA del score
+      // (dominio propio E1; el proxy legacy management-improvement queda
+      // excluido del scoring vía SCORING_INELIGIBLE_MODULES).
+      { name: ManagementImprovementAction.name, schema: ManagementImprovementActionSchema },
+      // ESTÁNDAR 6.1.2: AnnualAudit — fuente ÚNICA del score del estándar
+      // (dominio propio E1; findings/actions embebidos en el documento padre).
+      { name: AnnualAudit.name, schema: AnnualAuditSchema },
+      // ESTÁNDAR 6.1.3: ManagementReviewDirection — fuente ÚNICA del score del
+      // estándar (dominio propio E1; participants/inputs/decisions embebidos).
+      {
+        name: ManagementReviewDirection.name,
+        schema: ManagementReviewDirectionSchema,
+      },
       { name: SgstProgram.name, schema: SgstProgramSchema },
+      // ESTÁNDAR 7.1.4: ImprovementPlan — fuente ÚNICA del score del estándar
+      // (dominio propio E1 improvement-plans; SgstProgram/`programs` sigue
+      // registrado para ProgramsProvider, independiente).
+      { name: ImprovementPlan.name, schema: ImprovementPlanSchema },
       { name: SstInduction.name, schema: SstInductionSchema },
+      // ETAPA 5B (4.2.2): ControlVerification — evidencia de verificación de controles.
+      { name: ControlVerification.name, schema: ControlVerificationSchema },
+      // V1 4.2.5: Maintenance — colección propia del programa de mantenimiento.
+      { name: Maintenance.name, schema: MaintenanceSchema },
       // FASE 30F: OccupationalMedicalRecordCustody (3.1.5).
       {
         name: OccupationalMedicalRecordCustody.name,
@@ -316,12 +428,36 @@ import { SstInduction, SstInductionSchema } from '../risks/schemas/sst-induction
     ControlVerificationStandardProvider,
     EmergencyManagementProvider,
     ProceduresDocProvider,
+    // ESTÁNDAR 5.1.1: provider oficial del Plan de emergencias.
+    EmergencyPlanProvider,
+    // ESTÁNDAR 5.1.2: provider OFICIAL de la brigada de emergencia (usa
+    // PhvaAdvancedModule + Employee/SstEmergencies ya registrados arriba).
+    EmergencyBrigadeProvider,
     RecordsDocProvider,
     ManagementMeasurementProvider,
     ManagementReviewProvider,
     InternalAuditProvider,
     FindingsReviewProvider,
+    // ESTÁNDAR 6.1.4: provider OFICIAL de la Planificación de auditorías
+    // COPASST (source of truth: CopasstAuditPlanning; findings-review queda
+    // excluido del scoring de este estándar).
+    CopasstAuditPlanningProvider,
+    // ESTÁNDAR 6.1.2: provider OFICIAL de la Auditoría anual (source of truth:
+    // AnnualAudit; management-review queda excluido del scoring).
+    AnnualAuditComplianceProvider,
+    // ESTÁNDAR 6.1.3: provider OFICIAL de la Revisión por la dirección
+    // (source of truth: ManagementReviewDirection; internal-audit y
+    // management-review quedan excluidos del scoring de este estándar).
+    ManagementReviewDirectionProvider,
     CorrectivePreventiveProvider,
+    // ESTÁNDAR 7.1.1: provider OFICIAL de las Acciones preventivas y
+    // correctivas (source of truth: CorrectivePreventiveAction; el proxy
+    // legacy corrective-preventive queda excluido del scoring).
+    CorrectivePreventiveActionsProvider,
+    // ESTÁNDAR 7.1.2: provider OFICIAL de las Acciones de mejora de la alta
+    // dirección (fuente ÚNICA del score; management-improvement queda
+    // excluido del scoring como PROXY_LEGACY).
+    ManagementImprovementActionsProvider,
     ManagementImprovementProvider,
     IncidentActionsProvider,
     ImprovementPlanProvider,

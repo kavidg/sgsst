@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import { ComplianceResultCard } from '../components/ComplianceResultCard';
 import { ComplianceAIInsight } from '../components/ComplianceAIInsight';
 import { Button } from '../components/ui/Button';
@@ -145,6 +146,7 @@ function StatusIndicator({ label, count, color, icon }: { label: string; count: 
 
 export function MedicalRecommendationManagementPage({ token }: Props) {
   const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -184,7 +186,7 @@ export function MedicalRecommendationManagementPage({ token }: Props) {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-            <Button type="button" variant="secondary" onClick={() => navigate('/documents/do')}>
+            <Button type="button" variant="secondary" onClick={() => goBackToPhva()}>
               ← Volver al PHVA
             </Button>
             <Button type="button" variant="secondary" onClick={() => navigate('/employees')}>
@@ -441,7 +443,7 @@ export function MedicalRecommendationManagementPage({ token }: Props) {
                 <Button type="button" variant="secondary" onClick={() => navigate('/intelligence-compliance')}>
                   Ver análisis de cumplimiento
                 </Button>
-                <Button type="button" variant="secondary" onClick={() => navigate('/documents/do')}>
+                <Button type="button" variant="secondary" onClick={() => goBackToPhva()}>
                   Volver al PHVA
                 </Button>
               </div>

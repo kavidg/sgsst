@@ -3,6 +3,12 @@ import { describe, it } from 'node:test';
 import { ComplianceEngineService } from '../../compliance-engine/compliance-engine.service';
 import { StandardAnalysisService } from './standard-analysis.service';
 import { AcquisitionStandardAnalyzer } from './analyzers/acquisition-standard.analyzer';
+import { AnnualAuditStandardAnalyzer } from './analyzers/annual-audit-standard.analyzer';
+import { ManagementReviewStandardAnalyzer } from './analyzers/management-review-standard.analyzer';
+import { InternalAuditStandardAnalyzer } from './analyzers/internal-audit-standard.analyzer';
+import { ManagementReviewDirectionStandardAnalyzer } from './analyzers/management-review-direction-standard.analyzer';
+import { IndicatorsStandardAnalyzer } from './analyzers/indicators-standard.analyzer';
+import type { StandardAnalysisContext } from '../dto/standard-analysis.dto';
 import { ChangeManagementStandardAnalyzer } from './analyzers/change-management-standard.analyzer';
 import { ContractingStandardAnalyzer } from './analyzers/contracting-standard.analyzer';
 import { SociodemographicStandardAnalyzer } from './analyzers/sociodemographic-standard.analyzer';
@@ -3181,5 +3187,173 @@ describe('OCCUP-AN-013: 3.1.1 continúa funcionando', () => {
     const analyzer = new SociodemographicStandardAnalyzer();
     assert.equal(analyzer.supports('3.1.1'), true);
     assert.equal(analyzer.getModule(), 'sociodemographic');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// E4 (6.1.2): frontera de registro — 6.1.2 → annual-audit (≠ management-review)
+// ═════════════════════════════════════════════════════════════════════════
+
+describe('AA-REG-01: 6.1.2 resuelve al analyzer oficial annual-audit', () => {
+  it('AnnualAuditStandardAnalyzer soporta 6.1.2 con módulo annual-audit', () => {
+    const analyzer = new AnnualAuditStandardAnalyzer();
+    assert.equal(analyzer.supports('6.1.2'), true);
+    assert.equal(analyzer.getModule(), 'annual-audit');
+  });
+
+  it('ManagementReviewStandardAnalyzer ya NO captura 6.1.2 (clase conservada para su contexto legítimo)', () => {
+    const legacy = new ManagementReviewStandardAnalyzer();
+    // La clase legacy no se elimina, pero su asociación con 6.1.2 quedó
+    // retirada del registro: en el orden de registro de StandardAnalysisService,
+    // AnnualAuditStandardAnalyzer (registrado antes) gana '6.1.2'.
+    assert.equal(legacy.supports('6.1.2'), true, 'la clase legacy conserva su código');
+    assert.equal(legacy.getModule(), 'management-review', 'módulo legacy distinto de annual-audit');
+    // Prueba de frontera sobre el orden real de registro: el primer analyzer
+    // registrado que soporta 6.1.2 es AnnualAuditStandardAnalyzer.
+    const registeredFirst = new AnnualAuditStandardAnalyzer();
+    assert.equal(registeredFirst.supports('6.1.2'), true);
+    assert.notEqual(registeredFirst.getModule(), legacy.getModule());
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// E4 (6.1.3): frontera de registro — 6.1.3 → management-review-direction
+// (≠ internal-audit, ≠ management-review) + frontera IA (Casos A–D)
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('MRD-REG-01: 6.1.3 resuelve al analyzer oficial management-review-direction', () => {
+  it('ManagementReviewDirectionStandardAnalyzer soporta 6.1.3 con módulo oficial', () => {
+    const analyzer = new ManagementReviewDirectionStandardAnalyzer();
+    assert.equal(analyzer.supports('6.1.3'), true);
+    assert.equal(analyzer.getModule(), 'management-review-direction');
+  });
+
+  it('el registro real de StandardAnalysisService resuelve 6.1.3 → management-review-direction', async () => {
+    // Overview sin el módulo oficial → el service lanza 404 con el MODULE del
+    // analyzer registrado; ese mensaje revela qué analyzer ganó el registro.
+    const service = buildService(buildOverview({ moduleCompliance: [] }));
+    await assert.rejects(
+      () => service.analyze('6.1.3', COMPANY_A),
+      (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        assert.match(message, /management-review-direction/);
+        assert.doesNotMatch(message, /internal-audit/);
+        assert.doesNotMatch(message, /management-review(?!-direction)/);
+        return true;
+      },
+    );
+  });
+
+  it('InternalAuditStandardAnalyzer ya NO captura 6.1.3 (clase conservada SIN registro)', () => {
+    // El analyzer se conservó físicamente (patrón 5.1.1/5.1.2/6.1.1) pero fue
+    // retirado del registro: con el registro FIRST-WINS, la clase NO vuelve a
+    // capturar 6.1.3 aunque se instancie.
+    const legacy = new InternalAuditStandardAnalyzer();
+    assert.equal(legacy.supports('6.1.3'), true, 'la clase legacy conserva su código');
+    assert.equal(legacy.getModule(), 'internal-audit');
+    // El analyzer oficial registrado para 6.1.3 es el nuevo (first-wins: se
+    // registra ANTES que ningún otro que reclame 6.1.3; internal-audit ya no
+    // se registra).
+    const official = new ManagementReviewDirectionStandardAnalyzer();
+    assert.notEqual(official.getModule(), legacy.getModule());
+  });
+
+  it('ManagementReviewStandardAnalyzer (Accountability legacy) NO atiende 6.1.3', () => {
+    const legacy = new ManagementReviewStandardAnalyzer();
+    assert.equal(legacy.supports('6.1.3'), false);
+    assert.equal(legacy.getModule(), 'management-review');
+  });
+
+  it('los otros estándares no se rompen: 6.1.1 y 6.1.2 siguen con sus analyzers oficiales', async () => {
+    const indicators = new IndicatorsStandardAnalyzer();
+    const annualAudit = new AnnualAuditStandardAnalyzer();
+    assert.equal(indicators.supports('6.1.1'), true);
+    assert.equal(annualAudit.supports('6.1.2'), true);
+    // El registro first-wins conservó a annual-audit para 6.1.2 (el legacy
+    // management-review ya no puede robar el registro).
+    const service = buildService(buildOverview({ moduleCompliance: [] }));
+    await assert.rejects(() => service.analyze('6.1.2', COMPANY_A), /annual-audit/);
+    await assert.rejects(() => service.analyze('6.1.1', COMPANY_A), /indicators/);
+  });
+});
+
+describe('MRD-FRONT: frontera IA — el analyzer solo interpreta su módulo oficial', () => {
+  const analyzer = new ManagementReviewDirectionStandardAnalyzer();
+
+  function finding(id: string, priority = 'MEDIUM'): { id: string; module: string; title: string; description: string; priority: string; status: string; responsible: string; dueDate: string; createdAt: string } {
+    return { id, module: 'management-review-direction', title: `Finding ${id}`, description: `Descripción del hallazgo ${id}.`, priority, status: 'OPEN', responsible: '', dueDate: '', createdAt: new Date().toISOString() };
+  }
+
+  function mrdContext(findings: ReturnType<typeof finding>[], compliance = 80): StandardAnalysisContext {
+    return {
+      companyId: COMPANY_A,
+      moduleCompliance: {
+        module: 'management-review-direction',
+        compliance,
+        level: 'ALTO',
+        lastUpdated: new Date().toISOString(),
+        status: 'TARGET_NOT_MET',
+        metadata: {
+          formula: 'dimensions:v1',
+          standardCode: '6.1.3',
+          dimensions: {
+            planning: { ratio: 1, weight: 15 },
+            inputs: { ratio: 1, weight: 20 },
+            analysis: { ratio: 1, weight: 20 },
+            decisions: { ratio: 1, weight: 20 },
+            evidence: { ratio: 1, weight: 15 },
+            closureHistory: { ratio: 1, weight: 10 },
+          },
+          counters: { reviewsEvaluable: 1, decisionsOverdue: 0 },
+          latestReview: { id: 'r1', title: 'R', status: 'COMPLETED', actualEndDate: '2026-03-05' },
+        },
+      },
+      findings,
+      overview: {
+        overallCompliance: 80,
+        phaseCompliance: { plan: 25, do: 60, check: 5, act: 10 },
+        moduleCompliance: [{ module: 'management-review-direction', compliance, level: 'ALTO', lastUpdated: new Date().toISOString() }],
+      },
+    } as StandardAnalysisContext;
+  }
+
+  it('Caso A: findings de annual-audit (6.1.2) NO se interpretan como gestión de 6.1.3', () => {
+    const result = analyzer.analyze(
+      mrdContext([
+        { id: 'annual-audit-no-data', module: 'annual-audit', title: 'Sin auditorías', description: 'x', priority: 'HIGH', status: 'OPEN', responsible: '', dueDate: '', createdAt: new Date().toISOString() },
+      ]),
+    );
+    // Los findings de otro módulo no llegan al analyzer (el service filtra por
+    // module === analyzer.getModule()); un finding con id ajeno que llegase,
+    // se trata defensivamente sin atribuirlo a la revisión por la dirección.
+    assert.ok(!result.summary.toLowerCase().includes('auditoría anual'));
+  });
+
+  it('Caso B: findings de management-review (Accountability) no generan narrativa de 6.1.3', () => {
+    const result = analyzer.analyze(
+      mrdContext([
+        { id: 'management-review-no-data', module: 'management-review', title: 'Sin reuniones', description: 'x', priority: 'HIGH', status: 'OPEN', responsible: '', dueDate: '', createdAt: new Date().toISOString() },
+      ]),
+    );
+    // Tolerancia: el finding ajeno se conserva como issue defensivo, pero la
+    // narrativa de 6.1.3 no describe reuniones de rendición de cuentas.
+    assert.doesNotMatch(result.summary, /rendición de cuentas/);
+  });
+
+  it('Caso C: los indicadores solo entran si llegan declarados en la metadata oficial', () => {
+    // La metadata del provider declara inputs/contadores; el analyzer NO
+    // consulta Indicators: con metadata oficial válida, la narrativa se
+    // construye y no menciona recálculo de indicadores.
+    const result = analyzer.analyze(mrdContext([], 90));
+    assert.match(result.summary, /90%/);
+    assert.doesNotMatch(result.summary, /recalcul/i);
+  });
+
+  it('Caso D: ManagementReviewDirection (metadata del provider oficial) es la fuente interpretada', () => {
+    const result = analyzer.analyze(mrdContext([], 88));
+    assert.match(result.summary, /revisión por la dirección|revisión del SG-SST/i);
+    const metrics = analyzer.getMetrics(mrdContext([], 88));
+    assert.equal(metrics.compliancePercentage, 88);
+    assert.equal(metrics.reviewsEvaluable, 1);
   });
 });

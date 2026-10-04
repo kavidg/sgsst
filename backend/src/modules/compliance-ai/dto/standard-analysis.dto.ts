@@ -86,6 +86,10 @@ export interface StandardAnalysisContext {
     compliance: number;
     level: string;
     lastUpdated: string;
+    // Extensión ADITIVA (5.1.1): metadata opcional que el provider transporte
+    // en ModuleCompliance (dimensiones/counters/details del EmergencyPlanProvider).
+    // Consumida por analyzers narrativos; los consumers legacy la ignoran.
+    metadata?: Record<string, unknown>;
   };
   /** Hallazgos del ComplianceEngine para este módulo. */
   findings: Array<{

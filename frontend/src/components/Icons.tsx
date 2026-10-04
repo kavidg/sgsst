@@ -23,4 +23,6 @@ export const Icons = {
   bell: () => <IconBase><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></IconBase>,
   user: () => <IconBase><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></IconBase>,
   building: () => <IconBase><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M9 6h.01"/><path d="M15 6h.01"/><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M9 14h.01"/><path d="M15 14h.01"/></IconBase>,
+  // E1 — Buscador del menú (Sidebar): lupa estándar.
+  search: () => <IconBase><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></IconBase>,
 };

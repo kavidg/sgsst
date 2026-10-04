@@ -6,8 +6,10 @@ import { FindingPriority } from '../enums/finding-priority.enum';
 import { classifyComplianceLevel } from '../utils/compliance-score';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
 import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
-
-const COMPLETED_STATUSES = ['ejecutada', 'completada', 'finalizada', 'closed'];
+// NORMALIZACIÓN: la fuente de verdad del estado es normalizeInspectionStatus(status).
+// `completedDate` deja de ser un estado alternativo (elimina la divergencia
+// "status=PENDING con completedDate antigua" detectada en la auditoría).
+import { isInspectionCompleted } from '../../inspections/utils/inspection-status.util';
 
 /**
  * Cumplimiento de inspecciones: proporción de actividades ejecutadas y
@@ -19,7 +21,7 @@ export class InspectionsProvider implements ComplianceProvider {
 
   async getCompliance(companyId: string): Promise<ProviderComplianceResult> {
     const activities = await this.inspectionsService.findAll(new Types.ObjectId(companyId));
-    const completed = activities.filter((activity) => this.isCompleted(activity)).length;
+    const completed = activities.filter((activity) => isInspectionCompleted(activity.status)).length;
     const pending = activities.filter((activity) => !this.isCompleted(activity));
     const percentage = activities.length > 0 ? Math.round((completed / activities.length) * 100) : 0;
 
@@ -53,8 +55,8 @@ export class InspectionsProvider implements ComplianceProvider {
   }
 
   private isCompleted(activity: InspectionActivity): boolean {
-    if (activity.completedDate) return true;
-    const status = String(activity.status ?? '').toLowerCase();
-    return COMPLETED_STATUSES.includes(status);
+    // NORMALIZACIÓN: solo el status canónico decide. El método se conserva
+    // por compatibilidad estructural; `completedDate` ya no es un estado.
+    return isInspectionCompleted(activity.status);
   }
 }

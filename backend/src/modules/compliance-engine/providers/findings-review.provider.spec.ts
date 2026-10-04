@@ -17,7 +17,7 @@ function createProvider(records: any[]) {
   return new FindingsReviewProvider(buildModel(records) as any);
 }
 
-describe('FindingsReviewProvider (6.1.4)', () => {
+describe('FindingsReviewProvider (wrong-mapping 6.1.4 retirado en E2; hallazgos propios)', () => {
   it('returns 0% NO_DATA when no commitments exist', async () => {
     const provider = createProvider([]);
     const result = await provider.getCompliance(VALID_COMPANY_ID);

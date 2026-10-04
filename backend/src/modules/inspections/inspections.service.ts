@@ -7,6 +7,14 @@ import { AlertSeverity } from '../alerts/schemas/alert.schema';
 import { CreateInspectionActivityDto } from './dto/create-inspection-activity.dto';
 import { UpdateInspectionActivityDto } from './dto/update-inspection-activity.dto';
 import { InspectionActivity, InspectionActivityDocument } from './schemas/inspection-activity.schema';
+// NORMALIZACIÓN (auditoría /inspections): el estado canónico vive aquí.
+// Leer tolerante (variantes históricas), escribir SIEMPRE canónico.
+import {
+  INSPECTION_STATUS,
+  isInspectionCompleted,
+  normalizeInspectionStatus,
+  withCanonicalInspectionStatus,
+} from './utils/inspection-status.util';
 
 @Injectable()
 export class InspectionsService {
@@ -18,7 +26,12 @@ export class InspectionsService {
   ) {}
 
   async create(companyId: Types.ObjectId, dto: CreateInspectionActivityDto): Promise<InspectionActivity> {
-    const created = new this.inspectionActivityModel({ ...dto, companyId });
+    // NORMALIZACIÓN: 'completed'/'completada'/'ejecutada'/true → 'COMPLETED';
+    // 'pendiente'/'pending'/false/ausente → 'PENDING'.
+    const created = new this.inspectionActivityModel({
+      ...withCanonicalInspectionStatus(dto),
+      companyId,
+    });
     const saved = await created.save();
     await this.ensureInspectionAlert(saved);
     return saved;
@@ -43,18 +56,40 @@ export class InspectionsService {
     companyId: Types.ObjectId,
     dto: UpdateInspectionActivityDto,
   ): Promise<InspectionActivity> {
+    // NORMALIZACIÓN: el estado canónico se decide en backend, nunca en el
+    // cliente. Reglas de transición:
+    // - Cualquier variante de completado → 'COMPLETED'.
+    // - COMPLETED → PENDING: se limpia completedDate para no dejar el estado
+    //   inconsistente "status = PENDING con completedDate antigua".
+    // - PENDING → COMPLETED: se respeta el completedDate enviado por el cliente
+    //   (comportamiento previo, sin inventar fechas).
+    const update: Record<string, unknown> = { ...dto };
+    let unset: Record<string, number> | undefined;
+
+    if (dto.status !== undefined) {
+      const canonical = normalizeInspectionStatus(dto.status);
+      update.status = canonical;
+      if (canonical === INSPECTION_STATUS.PENDING) {
+        delete update.completedDate;
+        unset = { completedDate: 1 };
+      }
+    }
+
     const activity = await this.inspectionActivityModel
-      .findOneAndUpdate({ _id: id, companyId }, dto, { new: true, runValidators: true })
+      .findOneAndUpdate(
+        { _id: id, companyId },
+        unset ? { $set: update, $unset: unset } : update,
+        { new: true, runValidators: true },
+      )
       .exec();
 
     if (!activity) {
       throw new NotFoundException(`Inspection activity with id ${id} not found`);
-    }    await this.ensureInspectionAlert(activity);
+    }
+    await this.ensureInspectionAlert(activity);
 
     // Auto-generate communication when inspection is completed (audit results)
-    const rawStatus = activity.status as unknown;
-    const isCompleted = rawStatus === true || rawStatus === 'true' || rawStatus === 'completada' || rawStatus === 'Completada' || rawStatus === 'Completed' || rawStatus === 'completed';
-    if (isCompleted) {
+    if (isInspectionCompleted(activity.status)) {
       await this.autoCommService.generateCommunication({
         companyId,
         title: `Resultados de Inspección: ${activity.title}`,
@@ -75,11 +110,7 @@ export class InspectionsService {
 
 
   private async ensureInspectionAlert(activity: InspectionActivity): Promise<void> {
-    const rawStatus = activity.status as unknown;
-    const isPending =
-      rawStatus === false ||
-      rawStatus === 'false' ||
-      String(rawStatus ?? '').toLowerCase() === 'pendiente';
+    const isPending = normalizeInspectionStatus(activity.status) === INSPECTION_STATUS.PENDING;
     const isOverdue = isPending && new Date(activity.plannedDate) < new Date();
 
     if (!isOverdue) {

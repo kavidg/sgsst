@@ -56,7 +56,6 @@ import {
   signInitialEvaluationApproval,
 } from '../../api';
 import { EvaluationItem } from '../../components/EvaluationItem';
-import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { PhvaPhaseTabs } from '../../components/phva/PhvaPhaseTabs';
@@ -68,6 +67,10 @@ import { mergeCatalogItems } from './utils/mergeCatalogItems';
 import { groupCatalogItems } from './utils/groupCatalogItems';
 import { shouldUseCatalogSet, hasCatalogSectionItems, catalogItemToEvaluationItem } from './utils/shouldUseCatalogSet';
 import { usePhvaEvaluationEngine } from '../../hooks/usePhvaEvaluationEngine';
+import { usePhvaSearchIntegration } from './search/usePhvaSearchIntegration';
+import type { PhvaSearchEntry } from './search/phvaSearchConfig';
+import { usePhvaReturnRestore } from '../../hooks/usePhvaReturnRestore';
+import { buildPhvaReturnState } from '../../lib/phvaReturn';
 import type { PhvaAutoEvaluationResult } from '../../services/phva-evaluation-engine.service';
 import type { StandardSection } from '../../models/standard-catalog';
 import type { PhvaCatalogItem } from '../../services/phva-catalog.service';
@@ -1313,7 +1316,7 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
 
 export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean; token?: string }) {
   const navigate = useNavigate();
-  const { totalCompliance, sectionCompliance, setAnswerStatus, setEngineVerdict } = useDocumentsEvaluation();
+  const { setAnswerStatus, setEngineVerdict } = useDocumentsEvaluation();
 
   // FASE 2 — Motor de evaluación automática: UNA sola consulta por empresa
   // activa, compartida por todas las secciones de la página.
@@ -1362,6 +1365,17 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
   }, [catalog]);
 
   const useCatalog = !error && catalog.length > 0;
+
+  // E6 — Buscador PHVA: índice E4 + estado/atajo contextual (hook compartido
+  // por las cuatro fases). La navegación usa EXACTAMENTE lo preparado por E4
+  // (standardRoute + navigationState); sin fallbacks ni rutas inventadas.
+  const phvaSearch = usePhvaSearchIntegration({ catalog, readOnly, phase: 'PLANEAR' });
+  // Retorno contextual al PHVA: al abrir un módulo desde el buscador se adjunta
+  // el origen (fase + código + scroll) para que "← Volver al PHVA" regrese aquí.
+  usePhvaReturnRestore(true);
+  const navigateToSearchResult = (entry: PhvaSearchEntry) => {
+    navigate(entry.standardRoute, buildPhvaReturnState(entry.phase, entry.code, entry.navigationState, entry.phase === 'PLANEAR' ? window.scrollY : undefined));
+  };
 
   // FASE 7.7.F — Metadata de secciones desde el StandardCatalog. groupCatalogItems
   // agrupa los estándares del catálogo por section.id (título y porcentaje). Los
@@ -1417,46 +1431,46 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
     const catalogItem = planearCatalogByCode.get(item.code);
     // 2.5.1 — Conservación documental: navega a /document-management
     if (item.code === '2.5.1') {
-      navigate('/document-management', { state: { source: 'phva-2.5.1' } });
+      navigate('/document-management', buildPhvaReturnState('PLANEAR', item.code, { source: 'phva-2.5.1' }, window.scrollY));
       return;
     }
     // 2.6.1 — Rendición de cuentas: navega a /accountability
     if (item.code === '2.6.1') {
-      navigate('/accountability', { state: { source: 'phva-2.6.1' } });
+      navigate('/accountability', buildPhvaReturnState('PLANEAR', item.code, { source: 'phva-2.6.1' }, window.scrollY));
       return;
     }
     // 2.7.1 — Matriz legal: navega a /legal-matrix
     if (item.code === '2.7.1') {
-      navigate('/legal-matrix', { state: { source: 'phva-2.7.1' } });
+      navigate('/legal-matrix', buildPhvaReturnState('PLANEAR', item.code, { source: 'phva-2.7.1' }, window.scrollY));
       return;
     }
     // 2.8.1 — Comunicación: navega a /communication
     if (item.code === '2.8.1') {
-      navigate('/communication', { state: { source: 'phva-2.8.1' } });
+      navigate('/communication', buildPhvaReturnState('PLANEAR', item.code, { source: 'phva-2.8.1' }, window.scrollY));
       return;
     }
     // 2.9.1 — Adquisiciones: navega a /acquisitions
     if (item.code === '2.9.1') {
-      navigate('/acquisitions', { state: { source: 'phva-2.9.1' } });
+      navigate('/acquisitions', buildPhvaReturnState('PLANEAR', item.code, { source: 'phva-2.9.1' }, window.scrollY));
       return;
     }
     // 2.10.1 — Contratación: navega a /contracting
     if (item.code === '2.10.1') {
-      navigate('/contracting', { state: { source: 'phva-2.10.1' } });
+      navigate('/contracting', buildPhvaReturnState('PLANEAR', item.code, { source: 'phva-2.10.1' }, window.scrollY));
       return;
     }
     // 2.11.1 — Gestión del cambio: navega a /change-management
     if (item.code === '2.11.1') {
-      navigate('/change-management', { state: { source: 'phva-2.11.1' } });
+      navigate('/change-management', buildPhvaReturnState('PLANEAR', item.code, { source: 'phva-2.11.1' }, window.scrollY));
       return;
     }
     // 3.1.1 — Perfil sociodemográfico: navega a /sociodemographic-management
     if (item.code === '3.1.1') {
-      navigate('/sociodemographic-management', { state: { source: 'phva-3.1.1' } });
+      navigate('/sociodemographic-management', buildPhvaReturnState('PLANEAR', item.code, { source: 'phva-3.1.1' }, window.scrollY));
       return;
     }
     if (catalogItem?.moduleRoute?.startsWith('/advanced-management/')) {
-      navigate(catalogItem.moduleRoute);
+      navigate(catalogItem.moduleRoute, buildPhvaReturnState('PLANEAR', item.code, undefined, window.scrollY));
       return;
     }
     setAdvancedManagementItem(item);
@@ -1482,10 +1496,13 @@ export function PlanPage({ readOnly = false, token = '' }: { readOnly?: boolean;
             standardsCount: financialResources.length + training.length + integralManagement.length,
           },
         }}
-      />
-      <ComplianceProgress
-        total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
-        sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
+        searchOpen={phvaSearch.isPhvaSearchOpen}
+        onOpenSearch={phvaSearch.openPhvaSearch}
+        searchTriggerRef={phvaSearch.triggerRef}
+        searchEntries={phvaSearch.entries}
+        currentPhase={phvaSearch.currentPhase}
+        onCloseSearch={phvaSearch.closePhvaSearch}
+        onNavigateSearchResult={navigateToSearchResult}
       />
       {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
       <EvaluationSection

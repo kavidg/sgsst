@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 import {
   CreateRiskPayload,
   RiskModel,
   UpdateRiskPayload,
+  UserRole,
   createRisk,
   deleteRisk,
   fetchRisks,
@@ -12,6 +13,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Table } from '../components/ui/Table';
+import ControlVerificationsPanel from '../components/risks/ControlVerificationsPanel';
 import { useCompanyContext } from '../context/CompanyContext';
 import { AdvancedPageLayout } from '../components/advanced-layout/AdvancedPageLayout';
 import { AdvancedHeader, type HeaderAction } from '../components/advanced-layout/AdvancedHeader';
@@ -20,6 +22,8 @@ import { AdvancedSection } from '../components/advanced-layout/AdvancedSection';
 
 interface RisksPageProps {
   token: string;
+  /** Rol del usuario autenticado; solo oculta/muestra acciones (el backend es la autoridad). */
+  role?: UserRole;
 }
 
 type RiskFormState = CreateRiskPayload;
@@ -34,8 +38,10 @@ const emptyRisk: RiskFormState = {
   controlMeasures: '',
 };
 
-export function RisksPage({ token }: RisksPageProps) {
+export function RisksPage({ token, role }: RisksPageProps) {
   const { companyId } = useCompanyContext();
+  /** Etapa 4.1: owner/admin escriben; manager entra en modo solo lectura (el backend es la autoridad). */
+  const canManage = role === 'owner' || role === 'admin';
   const [risks, setRisks] = useState<RiskModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -161,6 +167,7 @@ export function RisksPage({ token }: RisksPageProps) {
       {error && !loading ? <pre className="error">{error}</pre> : null}
       {loading ? <p className="muted">Cargando matriz de riesgos...</p> : null}
 
+      {canManage ? (
       <AdvancedSection title="Registro de riesgos" description="Complete los campos para crear o editar un riesgo laboral">
         <form onSubmit={handleSubmit} className="form-grid">
           <div className="grid grid-2">
@@ -179,16 +186,34 @@ export function RisksPage({ token }: RisksPageProps) {
           </div>
         </form>
       </AdvancedSection>
+      ) : (
+        <p className="muted">Modo lectura: la consulta de riesgos, controles y verificaciones está disponible; la gestión está reservada a owner o admin.</p>
+      )}
 
       <AdvancedSection title="Listado de riesgos" description={`${risks.length} riesgo(s) registrado(s) en la matriz`}>
         <Table>
           <thead><tr><th className="border border-black p-3">Proceso</th><th className="border border-black p-3">Actividad</th><th className="border border-black p-3">Peligro</th><th className="border border-black p-3">Riesgo</th><th className="border border-black p-3">Nivel</th><th className="border border-black p-3">Acciones</th></tr></thead>
           <tbody>
             {risks.map((riskItem) => (
-              <tr key={riskItem._id}>
-                <td className="border border-black p-3">{riskItem.process}</td><td className="border border-black p-3">{riskItem.activity}</td><td className="border border-black p-3">{riskItem.hazard}</td><td className="border border-black p-3">{riskItem.risk}</td><td className="border border-black p-3">{riskItem.riskLevel}</td>
-                <td className="border border-black p-3"><div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(riskItem)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(riskItem._id)}>Eliminar</Button></div></td>
-              </tr>
+              <Fragment key={riskItem._id}>
+                <tr>
+                  <td className="border border-black p-3">{riskItem.process}</td><td className="border border-black p-3">{riskItem.activity}</td><td className="border border-black p-3">{riskItem.hazard}</td><td className="border border-black p-3">{riskItem.risk}</td><td className="border border-black p-3">{riskItem.riskLevel}</td>
+                  <td className="border border-black p-3">
+                    {canManage ? (
+                      <div className="actions"><Button type="button" variant="secondary" onClick={() => handleEdit(riskItem)}>Editar</Button><Button type="button" variant="danger" onClick={() => handleDelete(riskItem._id)}>Eliminar</Button></div>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+                {riskItem.controls && riskItem.controls.length > 0 ? (
+                  <tr>
+                    <td className="border border-black p-3" colSpan={6}>
+                      <ControlVerificationsPanel risk={riskItem} token={token} role={role} />
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             ))}
             {!risks.length ? <tr><td className="border border-black p-3" colSpan={6}>No hay riesgos registrados.</td></tr> : null}
           </tbody>

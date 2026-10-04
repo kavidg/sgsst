@@ -109,6 +109,9 @@ describe('PhvaAdvancedService.generateResponsibleSgsstDocument', () => {
       { findOne: async () => null, create: async () => record } as never, // employeeModel
       userModel as never,                                         // userModel
       { findOne: async () => null, create: async () => record } as never, // companyProfileModel
+      { findById: async () => null } as never, // planActivityModel
+      { findOne: async () => null } as never, // annualWorkPlanModel
+      { findById: async () => null } as never, // documentMasterModel
       { createUnique: async () => undefined, create: async () => undefined } as never, // alertsService
       { send: async () => undefined } as never,                   // autoCommService
       { getPolicyTemplate: async () => null } as never,           // policyTemplateService

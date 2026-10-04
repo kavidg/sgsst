@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
-import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { PhvaPhaseTabs } from '../../components/phva/PhvaPhaseTabs';
@@ -12,6 +11,10 @@ import { mergeCatalogItems } from './utils/mergeCatalogItems';
 import { groupCatalogItems } from './utils/groupCatalogItems';
 import { shouldUseCatalogSet, hasCatalogSectionItems, catalogItemToEvaluationItem } from './utils/shouldUseCatalogSet';
 import type { StandardSection } from '../../models/standard-catalog';
+import { usePhvaSearchIntegration } from './search/usePhvaSearchIntegration';
+import type { PhvaSearchEntry } from './search/phvaSearchConfig';
+import { usePhvaReturnRestore } from '../../hooks/usePhvaReturnRestore';
+import { buildPhvaReturnState } from '../../lib/phvaReturn';
 import type { PhvaCatalogItem } from '../../services/phva-catalog.service';
 
 type EvaluationEntry = {
@@ -257,7 +260,19 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
               headerAction={
                 // FASE 30D-3: 3.1.3 abre la pantalla propia de perfiles de cargo
                 // (JobProfiles); nunca el módulo legacy de recomendaciones médicas.
-                ['3.1.1', '3.1.2', '3.1.3', '3.1.4', '3.2.1', '3.2.2', '3.3.1', '3.3.2', '3.3.3', '4.1.1', '4.1.2', '4.1.3', '4.1.4'].includes(item.code) ? (
+                // AJUSTE PHVA 4.2.1 — acceso a Gestión Avanzada (/risks).
+                // AJUSTE PHVA 4.2.2 — acceso a Gestión Avanzada (/risks).
+                // AJUSTE PHVA 4.2.3 — acceso a Gestión Avanzada (/risks).
+                // AJUSTE PHVA 4.2.4 — acceso a Gestión Avanzada (/inspections).
+                // V1 4.2.5 — acceso a Mantenimiento (/maintenance).
+                // ETAPA 4.2.6 — acceso a EPP (/epp).
+                // ETAPA 5.1.1 — acceso a Emergencias (/emergencies).
+                // ETAPA 5.1.2 — acceso a Emergencias (/emergencies).
+                // FASE 33: 3.1.6 — acceso a Restricciones/recomendaciones
+                // médico-laborales (/work-restrictions).
+                // 3.1.5 — acceso a Custodia de historias clínicas
+                // (/occupational-medical-record-custody).
+                ['3.1.1', '3.1.2', '3.1.3', '3.1.4', '3.1.5', '3.1.6', '3.1.7', '3.1.8', '3.1.9', '3.2.1', '3.2.2', '3.2.3', '3.3.1', '3.3.2', '3.3.3', '4.1.1', '4.1.2', '4.1.3', '4.1.4', '4.2.1', '4.2.2', '4.2.3', '4.2.4', '4.2.5', '4.2.6', '5.1.1', '5.1.2'].includes(item.code) ? (
                   <Button type="button" variant="ghost" className="advanced-management-trigger" onClick={() => onOpenAdvancedManagement?.(item)}>
                     Ver Gestión Avanzada
                   </Button>
@@ -275,7 +290,6 @@ function EvaluationSection({ title, items, children, sectionId, readOnly = false
 
 export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
-  const { totalCompliance, sectionCompliance } = useDocumentsEvaluation();
 
   // ────────────────────────────────────────────────────────────────────────
   // FASE 7.4 — Migración piloto: StandardCatalog como fuente de datos.
@@ -302,6 +316,17 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
   }, [catalog]);
 
   const useCatalog = !error && catalog.length > 0;
+
+  // E6 — Buscador PHVA: índice E4 + estado/atajo contextual (hook compartido
+  // por las cuatro fases). La navegación usa EXACTAMENTE lo preparado por E4
+  // (standardRoute + navigationState); sin fallbacks ni rutas inventadas.
+  const phvaSearch = usePhvaSearchIntegration({ catalog, readOnly, phase: 'HACER' });
+  // Retorno contextual al PHVA: al abrir un módulo desde el buscador se adjunta
+  // el origen (fase + código + scroll) para que "← Volver al PHVA" regrese aquí.
+  usePhvaReturnRestore(true);
+  const navigateToSearchResult = (entry: PhvaSearchEntry) => {
+    navigate(entry.standardRoute, buildPhvaReturnState(entry.phase, entry.code, entry.navigationState, entry.phase === 'HACER' ? window.scrollY : undefined));
+  };
 
   // FASE 7.7.F — Metadata de secciones desde el StandardCatalog. groupCatalogItems
   // agrupa los estándares del catálogo por section.id (título y porcentaje). Los
@@ -378,57 +403,155 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
 
   const onOpenAdvancedManagement = (item: EvaluationEntry) => {
     if (item.code === '3.1.1') {
-      navigate('/sociodemographic-management', { state: { source: 'phva-3.1.1' } });
+      navigate('/sociodemographic-management', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.1' }, window.scrollY));
       return;
     }
     // FASE 30E: 3.1.2 (Promoción y prevención en salud) abre su pantalla propia.
     // Nunca navega al módulo legacy de exámenes ocupacionales.
     if (item.code === '3.1.2') {
-      navigate('/health-promotion', { state: { source: 'phva-3.1.2' } });
+      navigate('/health-promotion', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.2' }, window.scrollY));
       return;
     }
     if (item.code === '3.1.3') {
-      navigate('/job-profiles', { state: { source: 'phva-3.1.3' } });
+      navigate('/job-profiles', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.3' }, window.scrollY));
       return;
     }
     if (item.code === '3.1.4') {
-      navigate('/occupational-evaluation-management', { state: { source: 'phva-3.1.4' } });
+      navigate('/occupational-evaluation-management', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.4' }, window.scrollY));
+      return;
+    }
+    // 3.1.5 — Custodia de historias clínicas: módulo propio
+    // /occupational-medical-record-custody (página
+    // OccupationalMedicalRecordCustodyPage; control administrativo de custodia,
+    // sin almacenamiento de contenido clínico).
+    if (item.code === '3.1.5') {
+      navigate('/occupational-medical-record-custody', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.5' }, window.scrollY));
+      return;
+    }
+    // FASE 33: 3.1.6 — Restricciones y recomendaciones médico-laborales: módulo
+    // propio /work-restrictions (página WorkRestrictionsPage; gestión
+    // administrativa de restricciones/recomendaciones, sin contenido clínico).
+    if (item.code === '3.1.6') {
+      navigate('/work-restrictions', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.6' }, window.scrollY));
+      return;
+    }
+    // 3.1.7 — Estilos de vida y entornos saludables: comparte módulo con
+    // 3.1.2 (/health-promotion) y abre preseleccionado vía query param
+    // standard=3.1.7 (mecanismo de HealthPromotionPage — no alterar el param).
+    if (item.code === '3.1.7') {
+      navigate('/health-promotion?standard=3.1.7', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.7' }, window.scrollY));
+      return;
+    }
+    // 3.1.8 — Agua potable, servicios sanitarios y disposición de basuras:
+    // módulo propio /workplace-sanitary-conditions (página
+    // WorkplaceSanitaryConditionsPage; verificación de condiciones sanitarias,
+    // sin información individual).
+    if (item.code === '3.1.8') {
+      navigate('/workplace-sanitary-conditions', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.8' }, window.scrollY));
+      return;
+    }
+    // 3.1.9 — Eliminación adecuada de residuos sólidos, líquidos o gaseosos:
+    // módulo propio /waste-management (página WasteManagementPage; gestión
+    // operativa de residuos, sin información individual).
+    if (item.code === '3.1.9') {
+      navigate('/waste-management', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.1.9' }, window.scrollY));
       return;
     }
     if (item.code === '3.2.1') {
-      navigate('/absenteeism', { state: { source: 'phva-3.2.1' } });
+      navigate('/absenteeism', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.2.1' }, window.scrollY));
       return;
     }
     if (item.code === '3.2.2') {
-      navigate('/disease-investigation-management', { state: { source: 'phva-3.2.2' } });
+      navigate('/disease-investigation-management', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.2.2' }, window.scrollY));
+      return;
+    }
+    // E3 (3.2.3): registro y análisis estadístico de accidentalidad — panel de
+    // solo lectura (/accident-statistics) sobre la fuente operativa Incident.
+    if (item.code === '3.2.3') {
+      navigate('/accident-statistics', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.2.3' }, window.scrollY));
       return;
     }
     if (item.code === '3.3.1') {
-      navigate('/epidemiological-surveillance', { state: { source: 'phva-3.3.1' } });
+      navigate('/epidemiological-surveillance', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.3.1' }, window.scrollY));
       return;
     }
     if (item.code === '3.3.2') {
-      navigate('/health-indicators', { state: { source: 'phva-3.3.2' } });
+      navigate('/health-indicators', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.3.2' }, window.scrollY));
       return;
     }
     if (item.code === '3.3.3') {
-      navigate('/case-intervention', { state: { source: 'phva-3.3.3' } });
+      navigate('/case-intervention', buildPhvaReturnState('HACER', item.code, { source: 'phva-3.3.3' }, window.scrollY));
       return;
     }
     if (item.code === '4.1.1') {
-      navigate('/risk-methodology', { state: { source: 'phva-4.1.1' } });
+      navigate('/risk-methodology', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.1.1' }, window.scrollY));
       return;
     }
     if (item.code === '4.1.2') {
-      navigate('/worker-participation', { state: { source: 'phva-4.1.2' } });
+      navigate('/worker-participation', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.1.2' }, window.scrollY));
       return;
     }
     if (item.code === '4.1.3') {
-      navigate('/hazardous-substances', { state: { source: 'phva-4.1.3' } });
+      navigate('/hazardous-substances', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.1.3' }, window.scrollY));
       return;
     }
     if (item.code === '4.1.4') {
-      navigate('/environmental-measurements', { state: { source: 'phva-4.1.4' } });
+      navigate('/environmental-measurements', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.1.4' }, window.scrollY));
+      return;
+    }
+    // AJUSTE PHVA 4.2.1 — Implementación de medidas de control: el módulo
+    // /risks ya gestiona la evidencia (Risk.controlMeasures); se reutiliza
+    // el mismo patrón de navegación del resto de ítems PHVA.
+    if (item.code === '4.2.1') {
+      navigate('/risks', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.2.1' }, window.scrollY));
+      return;
+    }
+    // ETAPA 5C — Verificación de aplicación de medidas: /risks es la fuente de
+    // la evidencia (Risk.controls[] + ControlVerification, consumidos por el
+    // provider control-verification desde la Etapa 5B; InspectionActivity quedó
+    // exclusivamente para 4.2.4). Coincide con moduleRoute del catálogo.
+    if (item.code === '4.2.2') {
+      navigate('/risks', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.2.2' }, window.scrollY));
+      return;
+    }
+    // AJUSTE PHVA 4.2.3 — Procedimientos e instructivos: /risks es la fuente
+    // de la evidencia (Risk.controlMeasures, misma del provider procedures);
+    // se reutiliza el patrón de navegación existente.
+    if (item.code === '4.2.3') {
+      navigate('/risks', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.2.3' }, window.scrollY));
+      return;
+    }
+    // AJUSTE PHVA 4.2.4 — Inspecciones: /inspections es la fuente de la
+    // evidencia (InspectionActivity, misma del provider inspection-compliance);
+    // se reutiliza el patrón de navegación existente.
+    if (item.code === '4.2.4') {
+      navigate('/inspections', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.2.4' }, window.scrollY));
+      return;
+    }
+    // V1 4.2.5 — Mantenimiento: módulo propio /maintenance (entidad
+    // Maintenance). 4.2.4 Inspecciones sigue en /inspections sin cambios.
+    if (item.code === '4.2.5') {
+      navigate('/maintenance', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.2.5' }, window.scrollY));
+      return;
+    }
+    // ETAPA 4.2.6 — EPP: módulo propio /epp (página EppManagementPage;
+    // entregas operativas en el módulo backend /epp/deliveries).
+    if (item.code === '4.2.6') {
+      navigate('/epp', buildPhvaReturnState('HACER', item.code, { source: 'phva-4.2.6' }, window.scrollY));
+      return;
+    }
+    // ETAPA 5.1.1 — Plan de prevención, preparación y respuesta ante
+    // emergencias: módulo propio /emergencies (página EmergenciesPage;
+    // plan, matriz de amenazas y vulnerabilidades, brigadas, recursos,
+    // evacuación y simulacros en el dominio SstEmergencies).
+    if (item.code === '5.1.1') {
+      navigate('/emergencies', buildPhvaReturnState('HACER', item.code, { source: 'phva-5.1.1' }, window.scrollY));
+      return;
+    }
+    // ETAPA 5.1.2 — Brigada de emergencia: comparte el módulo /emergencies
+    // (página EmergenciesPage) con 5.1.1; rama separada para trazar el origen.
+    if (item.code === '5.1.2') {
+      navigate('/emergencies', buildPhvaReturnState('HACER', item.code, { source: 'phva-5.1.2' }, window.scrollY));
       return;
     }
   };
@@ -448,10 +571,13 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
             ].length,
           },
         }}
-      />
-      <ComplianceProgress
-        total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
-        sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
+        searchOpen={phvaSearch.isPhvaSearchOpen}
+        onOpenSearch={phvaSearch.openPhvaSearch}
+        searchTriggerRef={phvaSearch.triggerRef}
+        searchEntries={phvaSearch.entries}
+        currentPhase={phvaSearch.currentPhase}
+        onCloseSearch={phvaSearch.closePhvaSearch}
+        onNavigateSearchResult={navigateToSearchResult}
       />
       {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
       <Card title="II. Hacer (60%)">
@@ -466,7 +592,7 @@ export function DoPage({ readOnly = false }: { readOnly?: boolean }) {
         <p className="muted">Control de peligros y riesgos prioritarios</p>
       </Card>
       <EvaluationSection title={catalogSections['do-identificacion-peligros']?.title ?? 'Identificación de peligros (15%)'} items={identificacionPeligrosItems} sectionId="do-identificacion-peligros" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} />
-      <EvaluationSection title={catalogSections['do-medidas-control']?.title ?? 'Medidas de prevención y control (15%)'} items={medidasControlItems} sectionId="do-medidas-control" readOnly={readOnly} />
+      <EvaluationSection title={catalogSections['do-medidas-control']?.title ?? 'Medidas de prevención y control (15%)'} items={medidasControlItems} sectionId="do-medidas-control" readOnly={readOnly} onOpenAdvancedManagement={onOpenAdvancedManagement} />
 
       <Card title="Gestión de Amenazas (10%)">
         <p className="muted">Prevención, preparación y respuesta ante emergencias</p>

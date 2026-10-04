@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import {
   OccupationalDiseaseCaseStatusType,
   OccupationalDiseaseQualificationType,
@@ -92,7 +92,7 @@ function formatDate(value: string | undefined | null): string {
  * almacena.
  */
 export function OccupationalDiseaseStatisticalCasesPage({ token, role }: Props) {
-  const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
 
   const canWrite = role === 'owner' || role === 'admin';
   const readOnly = !canWrite;
@@ -314,7 +314,7 @@ export function OccupationalDiseaseStatisticalCasesPage({ token, role }: Props) 
           </p>
         </div>
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          <Button type="button" variant="secondary" onClick={() => navigate('/documents/do')}>
+          <Button type="button" variant="secondary" onClick={() => goBackToPhva()}>
             ← Volver al PHVA
           </Button>
           {!readOnly && (

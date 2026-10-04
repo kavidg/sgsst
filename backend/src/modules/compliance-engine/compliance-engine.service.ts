@@ -48,12 +48,32 @@ import { EppComplianceProvider } from './providers/epp-compliance.provider';
 import { ControlVerificationStandardProvider } from './providers/control-verification-standard.provider';
 import { EmergencyManagementProvider } from './providers/emergency-management.provider';
 import { ProceduresDocProvider } from './providers/procedures-doc.provider';
+// ESTÁNDAR 5.1.1: provider OFICIAL del Plan de prevención, preparación y
+// respuesta ante emergencias (reemplaza el wrong-mapping de procedures-doc).
+import { EmergencyPlanProvider } from './providers/emergency-plan-compliance.provider';
+// ESTÁNDAR 5.1.2: provider OFICIAL de la brigada de emergencia (typedMembers).
+import { EmergencyBrigadeProvider } from './providers/emergency-brigade-compliance.provider';
 import { RecordsDocProvider } from './providers/records-doc.provider';
 import { ManagementMeasurementProvider } from './providers/management-measurement.provider';
 import { ManagementReviewProvider } from './providers/management-review.provider';
+// ESTÁNDAR 6.1.2: provider OFICIAL de la Auditoría anual (dominio annual-audit E1).
+import { AnnualAuditComplianceProvider } from './providers/annual-audit-compliance.provider';
 import { InternalAuditProvider } from './providers/internal-audit.provider';
+// ESTÁNDAR 6.1.3: provider OFICIAL de la Revisión por la dirección (dominio propio E1).
+import { ManagementReviewDirectionProvider } from './providers/management-review-direction-compliance.provider';
 import { FindingsReviewProvider } from './providers/findings-review.provider';
+// ESTÁNDAR 6.1.4: provider OFICIAL de la Planificación de auditorías COPASST
+// (dominio propio E1, scoring puro dimensions:v1). findings-review queda
+// excluido del scoring de este estándar (WRONG_MAPPING; ver
+// SCORING_INELIGIBLE_MODULES) y se conserva para hallazgos/diagnósticos.
+import { CopasstAuditPlanningProvider } from './providers/copasst-audit-planning-compliance.provider';
 import { CorrectivePreventiveProvider } from './providers/corrective-preventive.provider';
+// ESTÁNDAR 7.1.1: provider OFICIAL de las Acciones preventivas y correctivas
+// (dominio propio E1, scoring puro dimensions:v1). corrective-preventive
+// (AccountabilityCommitment) queda excluido del scoring (PROXY_LEGACY; ver
+// SCORING_INELIGIBLE_MODULES) y se conserva para compatibilidad.
+import { CorrectivePreventiveActionsProvider } from './providers/corrective-preventive-actions-compliance.provider';
+import { ManagementImprovementActionsProvider } from './providers/management-improvement-actions-compliance.provider';
 import { ManagementImprovementProvider } from './providers/management-improvement.provider';
 import { IncidentActionsProvider } from './providers/incident-actions.provider';
 import { ImprovementPlanProvider } from './providers/improvement-plan.provider';
@@ -196,12 +216,30 @@ export class ComplianceEngineService {
     private readonly managementMeasurementProvider: ManagementMeasurementProvider,
     // Evaluación automática 6.1.2 — Revisión por la dirección.
     private readonly managementReviewProvider: ManagementReviewProvider,
+    // ESTÁNDAR 6.1.2 — Provider OFICIAL de la Auditoría anual (AnnualAudit).
+    // management-review (AccountabilityMeeting) permanece registrado para
+    // hallazgos/diagnósticos pero ya NO contribuye al score oficial (ver
+    // SCORING_INELIGIBLE_MODULES).
+    private readonly annualAuditProvider: AnnualAuditComplianceProvider,
     // Evaluación automática 6.1.3 — Auditoría interna SG-SST.
     private readonly internalAuditProvider: InternalAuditProvider,
-    // Evaluación automática 6.1.4 — Revisión de hallazgos.
+    // Evaluación automática 6.1.4 — Revisión de hallazgos (WRONG_MAPPING
+    // retirado en E2: ya NO puntúa 6.1.4; se conserva para hallazgos de su
+    // evidencia de compromisos). El estándar lo puntúa el provider oficial
+    // copasst-audit-planning.
     private readonly findingsReviewProvider: FindingsReviewProvider,
+    // ESTÁNDAR 6.1.4 — Provider OFICIAL de la Planificación de auditorías
+    // COPASST (dominio propio E1). Añadido al FINAL del constructor para
+    // preservar el arity de los specs con stubs posicionales (patrón
+    // 5.1.1/5.1.2/6.1.3).
+    private readonly copasstAuditPlanningProvider: CopasstAuditPlanningProvider,
     // Evaluación automática 7.1.1 — Acciones preventivas y correctivas.
     private readonly correctivePreventiveProvider: CorrectivePreventiveProvider,
+    // ESTÁNDAR 7.1.1 — Provider OFICIAL de las Acciones preventivas y
+    // correctivas (dominio propio E1). Añadido al FINAL del constructor para
+    // preservar el arity de los specs con stubs posicionales (patrón
+    // 5.1.1/5.1.2/6.1.3/6.1.4).
+    private readonly correctivePreventiveActionsProvider: CorrectivePreventiveActionsProvider,
     // Evaluación automática 7.1.2 — Acciones mejora alta dirección.
     private readonly managementImprovementProvider: ManagementImprovementProvider,
     // Evaluación automática 7.1.3 — Acciones por accidentes.
@@ -226,9 +264,31 @@ export class ComplianceEngineService {
     // FASE 34C: 3.1.9 — Eliminación adecuada de residuos sólidos, líquidos o gaseosos (EXACT).
     // Consume EXCLUSIVAMENTE las colecciones propias WasteManagementRecord + WasteTypeDeclaration.
     private readonly wasteManagementProvider: WasteManagementProvider,
+    // ESTÁNDAR 5.1.1 — Provider OFICIAL del Plan de emergencias (HACER).
+    // Fuente de verdad: SstEmergencias (legacy-aware 5.1.1/1.1.10). Última
+    // posición del constructor para NO desplazar parámetros existentes.
+    private readonly emergencyPlanProvider: EmergencyPlanProvider,
+    // ESTÁNDAR 5.1.2 — Provider OFICIAL de la Brigada de emergencia (HACER).
+    // Añadido al FINAL del constructor para preservar el arity de los specs
+    // con stubs posicionales (patrón de la etapa 5.1.1).
+    private readonly emergencyBrigadeProvider: EmergencyBrigadeProvider,
     // SCOPE-1: DiseasePrevalenceProvider (3.3.4), DiseaseIncidenceProvider
     // (3.3.5) y MedicalAbsenteeismProvider (3.3.6) desregistrados — estándares
     // fuera del alcance aprobado. Código conservado como infraestructura futura.
+    // ESTÁNDAR 6.1.3 — Provider OFICIAL de la Revisión por la dirección
+    // (dominio propio E1, scoring puro dimensions:v1). Añadido al FINAL del
+    // constructor para preservar el arity de los specs con stubs posicionales
+    // (patrón 5.1.1/5.1.2). internal-audit (DocumentMaster AUDIT) queda
+    // excluido del scoring de 6.1.3 (WRONG_MAPPING; ver
+    // SCORING_INELIGIBLE_MODULES) y se conserva para hallazgos/diagnósticos.
+    private readonly managementReviewDirectionProvider: ManagementReviewDirectionProvider,
+    // ESTÁNDAR 7.1.2 — Provider OFICIAL de las Acciones de mejora de la alta
+    // dirección (dominio propio E1, scoring puro dimensions:v1). Añadido al
+    // FINAL del constructor para preservar el arity de los specs con stubs
+    // posicionales (patrón 5.1.1/5.1.2/6.1.3/6.1.4/7.1.1). El proxy legacy
+    // 'management-improvement' (AccountabilityMeeting) queda excluido del
+    // scoring (PROXY_LEGACY; ver SCORING_INELIGIBLE_MODULES).
+    private readonly managementImprovementActionsProvider: ManagementImprovementActionsProvider,
   ) {
     this.providers = [
       this.evaluationsProvider,
@@ -307,17 +367,51 @@ export class ComplianceEngineService {
       this.controlVerificationStandardProvider,
       // FASE 16.2: 4.4.1 — Gestión de emergencias (HACER).
       this.emergencyManagementProvider,
-      // FASE 17: 5.1.1 — Procedimientos SG-SST (HACER).
-      this.proceduresDocProvider,
       // FASE 17: 5.1.2 — Registros SG-SST (HACER).
       this.recordsDocProvider,
+      // ESTÁNDAR 5.1.1 — Provider OFICIAL del Plan de emergencias (HACER).
+      // NOTA procedures-doc: evaluaba 5.1.1 como wrong-mapping (procedimientos
+      // genéricos). Su evidencia propia (4.2.3-adjacent) NO desaparece: sigue
+      // en moduleCompliance para hallazgos/diagnósticos, pero 5.1.1 ahora la
+      // puntúa EmergencyPlanProvider sobre SstEmergencias.
+      this.emergencyPlanProvider,
+      // ESTÁNDAR 5.1.2 — Provider OFICIAL de la Brigada de emergencia (HACER).
+      // La brigada vive en la MISMA colección (SstEmergencias) pero 5.1.2 es el
+      // ÚNICO propietario de sus puntos (5.1.1 solo expone brigadesPresent).
+      this.emergencyBrigadeProvider,
       // FASE 18: 6.1.x — Verificación SG-SST (VERIFICAR).
       this.managementMeasurementProvider,
       this.managementReviewProvider,
+      // ESTÁNDAR 6.1.2: provider OFICIAL (AnnualAudit) — fuente única del score.
+      this.annualAuditProvider,
       this.internalAuditProvider,
+      // ESTÁNDAR 6.1.3: provider OFICIAL (ManagementReviewDirection) — fuente
+      // ÚNICA del score. internal-audit queda excluido del scoring
+      // (WRONG_MAPPING: AnnualAudit es 6.1.2 y este dominio es 6.1.3; ver
+      // SCORING_INELIGIBLE_MODULES) y se conserva en moduleCompliance para
+      // hallazgos/diagnósticos.
+      this.managementReviewDirectionProvider,
+      // ESTÁNDAR 6.1.4: provider OFICIAL (CopasstAuditPlanning) — fuente
+      // ÚNICA del score. findings-review queda excluido del scoring
+      // (WRONG_MAPPING: media AccountabilityCommitment — rendición de
+      // cuentas — no planificación de auditorías COPASST; ver
+      // SCORING_INELIGIBLE_MODULES) y se conserva en moduleCompliance para
+      // hallazgos/diagnósticos.
+      this.copasstAuditPlanningProvider,
       this.findingsReviewProvider,
+      // ESTÁNDAR 7.1.2: provider OFICIAL (ManagementImprovementAction) —
+      // fuente ÚNICA del score de las acciones de mejora de la alta dirección.
+      // management-improvement queda excluido del scoring (PROXY_LEGACY: mide
+      // AccountabilityMeeting — reuniones de rendición de cuentas; ver
+      // SCORING_INELIGIBLE_MODULES) y se conserva en moduleCompliance.
+      this.managementImprovementActionsProvider,
       // FASE 20: 7.1.x — Verificación y mejora (ACTUAR).
       this.correctivePreventiveProvider,
+      // ESTÁNDAR 7.1.1: provider OFICIAL (CorrectivePreventiveAction) — fuente
+      // ÚNICA del score. corrective-preventive queda excluido del scoring
+      // (PROXY_LEGACY: media AccountabilityCommitment — rendición de cuentas;
+      // ver SCORING_INELIGIBLE_MODULES) y se conserva en moduleCompliance.
+      this.correctivePreventiveActionsProvider,
       this.managementImprovementProvider,
       this.incidentActionsProvider,
       this.improvementPlanProvider,
@@ -475,6 +569,15 @@ export class ComplianceEngineService {
       compliance: result.percentage,
       level: classifyComplianceLevel(result.percentage),
       lastUpdated: new Date().toISOString(),
+      // Extensión ADITIVA (4.2.6 V2): transporte directo de lo que el provider
+      // ya produce. Sin cálculo, sin renombrado, sin redondeo. Para providers
+      // sin estos campos quedan `undefined` y la serialización JSON los omite.
+      status: result.status,
+      pending: result.pending,
+      completed: result.completed,
+      overdue: result.overdue,
+      phases: result.phases as Record<string, number> | undefined,
+      metadata: result.metadata,
     };
   }
 

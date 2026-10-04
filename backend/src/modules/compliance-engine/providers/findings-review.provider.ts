@@ -7,19 +7,14 @@ import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
 
 /**
- * Evaluación automática del estándar 6.1.4
- * "Revisión de hallazgos".
+ * E4 (6.1.4) — Provider legacy "Revisión de hallazgos" (AccountabilityCommitment).
  *
- * Evalúa si existen hallazgos/compromisos documentados y su
- * estado de seguimiento y cierre.
- *
- * Criterios (25/25/25/25):
- * - Existencia de hallazgos:        25%
- * - Hallazgos en progreso/cerrados: 25%
- * - Hallazgos sin vencimiento:      25%
- * - Hallazgos con responsable:      25%
- *
- * NOTA: Contribuye a phases.check (VERIFICAR).
+ * WRONG_MAPPING 6.1.4 RETIRADO (E2): este provider ya NO puntúa 6.1.4 ni
+ * declara ese estándar — quedó excluido del scoring vía SCORING_INELIGIBLE_MODULES.
+ * La fuente OFICIAL de 6.1.4 es CopasstAuditPlanningProvider (dominio
+ * copasst-audit-planning). Este provider se conserva SOLO como evidencia de
+ * hallazgos/compromisos de rendición de cuentas en moduleCompliance
+ * (diagnósticos), con su módulo propio 'findings-review' sin estándar canónico.
  */
 @Injectable()
 export class FindingsReviewProvider implements ComplianceProvider {
@@ -44,7 +39,7 @@ export class FindingsReviewProvider implements ComplianceProvider {
           id: 'findings-review-no-data',
           module: FindingsReviewProvider.MODULE,
           title: 'Sin hallazgos/compromisos registrados',
-          description: 'No existen hallazgos o compromisos de seguimiento. El estándar 6.1.4 requiere revisión y seguimiento de hallazgos.',
+          description: 'No existen hallazgos o compromisos de seguimiento registrados. La revisión y seguimiento de hallazgos de auditoría corresponde al estándar 6.1.2 (annual-audit).',
           priority: FindingPriority.HIGH,
           status: 'OPEN', responsible: '', dueDate: '', createdAt: new Date().toISOString(),
         }],

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { ControlMeasure, ControlMeasureSchema } from './control-measure.schema';
 
 export type RiskDocument = HydratedDocument<Risk>;
 
@@ -47,6 +48,20 @@ export class Risk {
    */
   @Prop({ type: String, default: '' })
   methodologyVersion?: string;
+
+  /**
+   * ETAPA 1 (PHVA 4.2.2) — Medidas de control estructuradas.
+   *
+   * Convive con el string legacy `controlMeasures` (Estrategia 2):
+   * ambos representan las medidas del riesgo; los consumidores actuales
+   * (4.2.1, 4.2.3) siguen leyendo el string y no cambian. Los elementos
+   * de este array tienen identidad estable (`_id` de subdocumento) para
+   * que la futura `ControlVerification` pueda referenciarlos.
+   * No existe parser automático del string: el poblado es explícito
+   * (DTO estructurado o bootstrap del servicio).
+   */
+  @Prop({ type: [ControlMeasureSchema], default: [] })
+  controls?: ControlMeasure[];
 }
 
 export const RiskSchema = SchemaFactory.createForClass(Risk);

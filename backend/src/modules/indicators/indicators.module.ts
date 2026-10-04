@@ -29,6 +29,11 @@ import { Risk, RiskSchema } from '../risks/schemas/risk.schema';
 import { Document, DocumentSchema } from '../documents/schemas/document.schema';
 import { CompanyPeriodWorkData, CompanyPeriodWorkDataSchema } from '../incidents/schemas/company-period-work-data.schema';
 import { Absenteeism, AbsenteeismSchema } from '../absenteeism/schemas/absenteeism.schema';
+// E3-B (6.1.1): administración del denominador oficial de horas trabajadas.
+// IncidentsModule provee CompanyPeriodWorkDataService (con el guard de
+// períodos CLOSED); el controller se expone bajo /indicators/work-data.
+import { IncidentsModule } from '../incidents/incidents.module';
+import { CompanyPeriodWorkDataController } from './company-period-work-data.controller';
 
 @Module({
   imports: [
@@ -50,8 +55,9 @@ import { Absenteeism, AbsenteeismSchema } from '../absenteeism/schemas/absenteei
       { name: Absenteeism.name, schema: AbsenteeismSchema },
     ]),
     UsersModule,
+    IncidentsModule, // E3-B (6.1.1): provee CompanyPeriodWorkDataService
   ],
-  controllers: [IndicatorsController],
+  controllers: [IndicatorsController, CompanyPeriodWorkDataController],
   providers: [
     DataSourceResolverRegistry,
     FormulaRegistryService,

@@ -7,8 +7,26 @@ import {
   submitEppAdvanced,
   approveEppAdvanced,
   rejectEppAdvanced,
+  fetchEppApplicabilityMatrix,
+  createEppApplicability,
+  updateEppApplicability,
+  fetchEmployees,
+  type EppApplicabilityMatrixResponse as MatrixData,
+  type EmployeeModel,
 } from '../api';
+import { getOverview } from '../services/compliance-dashboard.service';
+import type {
+  DashboardFinding,
+  DashboardModuleCompliance,
+} from '../types/compliance-dashboard';
+import {
+  fetchEppDeliveries,
+} from '../api';
+import type { EppDelivery } from '../types/epp';
 import { useCompanyContext } from '../context/CompanyContext';
+import { EppDeliveriesSection } from '../components/epp/EppDeliveriesSection';
+import { EppWorkerCoverageSection } from '../components/epp/EppWorkerCoverageSection';
+import { EppResumenSection } from '../components/epp/EppResumenSection';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import {
@@ -48,7 +66,13 @@ type EppCoverageModel = {
 const SIDEBAR_ITEMS: SidebarTabItem[] = [
   { id: 'resumen', label: '📋 Resumen' },
   { id: 'catalogo', label: '📦 Catálogo EPP' },
-  { id: 'asignaciones', label: '👷 Asignaciones' },
+  { id: 'matriz', label: '🧩 Matriz por cargo' },
+  // Cobertura M2 por trabajador: vista operativa en memoria (sin endpoints nuevos).
+  { id: 'trabajadores', label: '👥 Trabajadores' },
+  // Entregas (EppDelivery) es la experiencia operativa principal de 4.2.6;
+  // "Asignaciones" queda temporalmente como legacy (SstEpp.assignments[]).
+  { id: 'entregas', label: '🚚 Entregas' },
+  { id: 'asignaciones', label: 'Asignaciones (legacy)' },
   { id: 'inspecciones', label: '🔍 Inspecciones' },
   { id: 'historial', label: '🕓 Historial' },
   { id: 'aprobacion', label: '✍ Aprobación' },
@@ -101,29 +125,57 @@ export function EppManagementPage({ token, role }: EppManagementPageProps) {
 
   const [epp, setEpp] = useState<SstEppModel | null>(null);
   const [coverage, setCoverage] = useState<EppCoverageModel | null>(null);
+  const [matrix, setMatrix] = useState<MatrixData | null>(null);
+  const [employees, setEmployees] = useState<EmployeeModel[]>([]);
+  // Resumen V2: resultado OFICIAL del Compliance Engine (module 'epp-compliance').
+  const [eppCompliance, setEppCompliance] = useState<DashboardModuleCompliance | null>(null);
+  const [eppFindings, setEppFindings] = useState<DashboardFinding[]>([]);
+  // Cobertura M2 por trabajador: entregas completas cargadas UNA vez en el
+  // padre (bulk, sin N+1) y compartidas con la pestaña Trabajadores.
+  const [allDeliveries, setAllDeliveries] = useState<EppDelivery[]>([]);
+
+  // FUENTE ÚNICA de entregas (conjunto base compartido): UNA llamada bulk que
+  // alimenta a Trabajadores y a la vista sin filtros de Entregas. member no
+  // ejecuta ninguna petición (backend 403) → conjunto vacío.
+  const reloadBaseDeliveries = useCallback(async () => {
+    if (role === 'member') return;
+    setAllDeliveries(await fetchEppDeliveries(token).catch(() => []));
+  }, [token, role]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('resumen');
   const [lastSync, setLastSync] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const canEditMatrix = role === 'owner' || role === 'admin';
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [eppData, coverageData] = await Promise.all([
+      const [eppData, coverageData, matrixData, employeesData, overviewData] = await Promise.all([
         fetchEppAdvanced(token),
         fetchEppCoverage(token),
+        fetchEppApplicabilityMatrix(token).catch(() => null), // la matriz es opcional al cargar
+        fetchEmployees(token).catch(() => [] as EmployeeModel[]), // empleados para la pestaña Entregas
+        // Resumen V2: overview opcional — su fallo no debe bloquear la página
+        getOverview(token, companyId ?? '').catch(() => null),
       ]);
       setEpp(eppData as unknown as SstEppModel);
       setCoverage(coverageData as unknown as EppCoverageModel);
+      setMatrix(matrixData);
+      setEmployees(employeesData);
+      // 'epp-compliance' es el identificador canónico del módulo EPP (Etapa 3).
+      setEppCompliance(overviewData?.moduleCompliance.find((m) => m.module === 'epp-compliance') ?? null);
+      setEppFindings(overviewData ? overviewData.findings.filter((f) => f.module === 'epp-compliance') : []);
+      // Conjunto base compartido de entregas (una sola llamada; sin N+1).
+      await reloadBaseDeliveries();
       setLastSync(new Date().toLocaleString('es-CO'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar datos de EPP');
     } finally {
       setLoading(false);
     }
-  }, [token, companyId]);
+  }, [token, companyId, reloadBaseDeliveries]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
@@ -141,7 +193,68 @@ export function EppManagementPage({ token, role }: EppManagementPageProps) {
 
   const handleSave = async () => {
     if (!epp) return;
-    await handleAction(() => updateEppAdvanced(token, epp as unknown as Record<string, unknown>));
+    // 4.2.6: el backend aplica whitelist estricta (UpdateSstEppDto +
+    // forbidNonWhitelisted). Se envían SOLO campos de gestión; scoring/identidad
+    // (complianceStatus, itemCode, companyId, history, _id) quedan fuera del
+    // contrato y los decide el backend/aprobación.
+    const { year, complianceReason, catalog, assignments, inspections } = epp;
+    await handleAction(() => updateEppAdvanced(token, { year, complianceReason, catalog, assignments, inspections }));
+  };
+
+  // ── Matriz de aplicabilidad Cargo → EPP (4.2.6) ──
+  // EppApplicability define REQUISITOS; las entregas reales viven en
+  // EppDelivery y el módulo operativo. Owner/Admin editan; Manager/Member leen.
+  const [matrixModal, setMatrixModal] = useState<{
+    jobProfileId: string; eppItemId: string; required: boolean; reason: string; scope: string;
+  } | null>(null);
+
+  const reloadMatrix = useCallback(async () => {
+    try {
+      setMatrix(await fetchEppApplicabilityMatrix(token));
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar la matriz de aplicabilidad');
+    }
+  }, [token]);
+
+  const relationFor = (jobProfileId: string, eppItemId: string) =>
+    matrix?.assignments.find((a) => a.jobProfileId === jobProfileId && a.eppItemId === eppItemId);
+
+  const toggleRelation = async (jobProfileId: string, eppItemId: string) => {
+    if (!canEditMatrix) return;
+    const relation = relationFor(jobProfileId, eppItemId);
+    if (!relation) {
+      // Crear nueva relación (modal con Cargo/EPP preseleccionados).
+      setMatrixModal({ jobProfileId, eppItemId, required: true, reason: '', scope: '' });
+      return;
+    }
+    await handleAction(async () => {
+      if (relation.active) {
+        const ok = window.confirm(`¿Desactivar el requisito "${relation.eppName}" para "${relation.jobProfileName}"? La relación se conserva para auditoría.`);
+        if (!ok) return;
+        await updateEppApplicability(token, relation.id, { active: false });
+      } else {
+        const ok = window.confirm(`¿Reactivar el requisito "${relation.eppName}" para "${relation.jobProfileName}"?`);
+        if (!ok) return;
+        await updateEppApplicability(token, relation.id, { active: true });
+      }
+    });
+    await reloadMatrix();
+  };
+
+  const handleSaveRelation = async () => {
+    if (!matrixModal) return;
+    await handleAction(async () => {
+      await createEppApplicability(token, {
+        jobProfileId: matrixModal.jobProfileId,
+        eppItemId: matrixModal.eppItemId,
+        required: matrixModal.required,
+        reason: matrixModal.reason || undefined,
+        scope: matrixModal.scope || undefined,
+      });
+      setMatrixModal(null);
+    });
+    await reloadMatrix();
   };
 
   const handleSubmit = () => handleAction(() => submitEppAdvanced(token));
@@ -201,7 +314,6 @@ export function EppManagementPage({ token, role }: EppManagementPageProps) {
         actions={actions}
         lastSaved={lastSync ? `Última actualización: ${lastSync}` : undefined}
       />
-
       <AdvancedKpiGrid
         items={[
           { label: 'Catálogo activo', value: activeCatalog.length, variant: 'info' },
@@ -226,12 +338,23 @@ export function EppManagementPage({ token, role }: EppManagementPageProps) {
           {/* RESUMEN */}
           {activeTab === 'resumen' && (
             <AdvancedSection title="Resumen de EPP" description="Estado general de la gestión de elementos de protección personal">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+              {/* Resumen V2: resultado OFICIAL del Compliance Engine (Etapa 4) */}
+              <EppResumenSection
+                compliance={eppCompliance}
+                findings={eppFindings}
+                loading={loading}
+                role={role}
+                onOpenTab={(tab) => setActiveTab(tab)}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                 <Card style={{ padding: '1rem' }}>
                   <h4 style={{ margin: '0 0 0.5rem', color: '#4a5568' }}>Cobertura General</h4>
                   <AdvancedProgressBar value={coverage?.coveragePercentage ?? 0} showPercentage />
                   <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#718096' }}>
                     {activeAssignments.length} de {activeCatalog.length} elementos asignados
+                  </p>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#a0aec0' }}>
+                    Indicador operativo legacy — el resultado oficial es el Resumen de cumplimiento 4.2.6
                   </p>
                 </Card>
                 <Card style={{ padding: '1rem' }}>
@@ -299,7 +422,201 @@ export function EppManagementPage({ token, role }: EppManagementPageProps) {
             </AdvancedSection>
           )}
 
-          {/* ASIGNACIONES */}
+          {/* MATRIZ POR CARGO (4.2.6 — EppApplicability) */}
+          {activeTab === 'matriz' && (
+            <AdvancedSection
+              title="Matriz de aplicabilidad por cargo"
+              description="Qué EPP requiere cada perfil de cargo (requisitos). Las entregas reales se registran en el módulo operativo."
+            >
+              {matrix === null ? (
+                <p style={{ color: '#718096', textAlign: 'center', padding: '2rem' }}>Cargando matriz de aplicabilidad...</p>
+              ) : matrix.jobProfiles.length === 0 ? (
+                <p style={{ color: '#718096', textAlign: 'center', padding: '2rem' }}>
+                  No hay perfiles de cargo. Cree los perfiles en “Perfiles de cargo” para definir la matriz.
+                </p>
+              ) : matrix.eppItems.length === 0 ? (
+                <p style={{ color: '#718096', textAlign: 'center', padding: '2rem' }}>
+                  No hay elementos activos en el catálogo EPP. Agregue elementos en la pestaña Catálogo.
+                </p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                        <th style={{ padding: '0.75rem', textAlign: 'left' }}>Cargo \ EPP</th>
+                        {matrix.eppItems.map((item) => (
+                          <th key={item.id} style={{ padding: '0.75rem', textAlign: 'center' }} title={item.category}>
+                            {item.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matrix.jobProfiles.map((profile) => (
+                        <tr key={profile.id} style={{ borderBottom: '1px solid #e2e8f0', opacity: profile.active ? 1 : 0.5 }}>
+                          <td style={{ padding: '0.75rem', whiteSpace: 'nowrap' }}>
+                            <strong>{profile.name}</strong>
+                            {!profile.active && <span className="badge badge--warning" style={{ marginLeft: '0.5rem' }}>inactivo</span>}
+                          </td>
+                          {matrix.eppItems.map((item) => {
+                            const relation = relationFor(profile.id, item.id);
+                            const clickable = canEditMatrix;
+                            return (
+                              <td key={item.id} style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                {relation && relation.required && relation.active ? (
+                                  <button
+                                    type="button"
+                                    disabled={!clickable}
+                                    title={relation.reason ? `${relation.reason}${relation.scope ? ` — ${relation.scope}` : ''}` : 'Requerido'}
+                                    onClick={() => void toggleRelation(profile.id, item.id)}
+                                    style={{ cursor: clickable ? 'pointer' : 'default', border: 'none', background: 'transparent' }}
+                                  >
+                                    <span className="badge badge--success">✓</span>
+                                  </button>
+                                ) : relation && !relation.active ? (
+                                  <button
+                                    type="button"
+                                    disabled={!clickable}
+                                    title="Relación desactivada (histórico conservado)"
+                                    onClick={() => void toggleRelation(profile.id, item.id)}
+                                    style={{ cursor: clickable ? 'pointer' : 'default', border: 'none', background: 'transparent' }}
+                                  >
+                                    <span className="badge badge--warning">◌</span>
+                                  </button>
+                                ) : relation && relation.required === false ? (
+                                  <span title="Explícitamente no requerido" className="badge">✗</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={!clickable}
+                                    title={clickable ? 'Definir requisito' : 'Sin requisito'}
+                                    onClick={() => void toggleRelation(profile.id, item.id)}
+                                    style={{ cursor: clickable ? 'pointer' : 'default', border: 'none', background: 'transparent', color: '#a0aec0' }}
+                                  >
+                                    —
+                                  </button>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p style={{ margin: '0.75rem 0 0', fontSize: '0.8rem', color: '#718096' }}>
+                ✓ requerido · ◌ desactivado (histórico) · ✗ explícitamente no requerido · — sin relación
+                {canEditMatrix ? ' · clic para crear/desactivar/reactivar' : ' · solo lectura'}
+              </p>
+            </AdvancedSection>
+          )}
+
+          {/* MODAL CREAR RELACIÓN */}
+          {matrixModal && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+              }}
+              onClick={() => setMatrixModal(null)}
+            >
+              <div
+                style={{ background: '#fff', borderRadius: 8, padding: '1.5rem', width: '100%', maxWidth: 480 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h4 style={{ margin: '0 0 1rem' }}>Definir requisito Cargo → EPP</h4>
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
+                    Cargo
+                    <select
+                      value={matrixModal.jobProfileId}
+                      onChange={(e) => setMatrixModal({ ...matrixModal, jobProfileId: e.target.value })}
+                      style={{ padding: '0.5rem' }}
+                    >
+                      {matrix?.jobProfiles.filter((p) => p.active).map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
+                    Elemento EPP
+                    <select
+                      value={matrixModal.eppItemId}
+                      onChange={(e) => setMatrixModal({ ...matrixModal, eppItemId: e.target.value })}
+                      style={{ padding: '0.5rem' }}
+                    >
+                      {matrix?.eppItems.map((i) => (
+                        <option key={i.id} value={i.id}>{i.name} ({i.category})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={matrixModal.required}
+                      onChange={(e) => setMatrixModal({ ...matrixModal, required: e.target.checked })}
+                    />
+                    Requerido
+                  </label>
+                  <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
+                    Motivo
+                    <input
+                      type="text"
+                      maxLength={250}
+                      value={matrixModal.reason}
+                      placeholder="Ej.: Trabajo en altura"
+                      onChange={(e) => setMatrixModal({ ...matrixModal, reason: e.target.value })}
+                      style={{ padding: '0.5rem' }}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
+                    Ámbito
+                    <input
+                      type="text"
+                      maxLength={250}
+                      value={matrixModal.scope}
+                      placeholder="Ej.: Durante soldadura"
+                      onChange={(e) => setMatrixModal({ ...matrixModal, scope: e.target.value })}
+                      style={{ padding: '0.5rem' }}
+                    />
+                  </label>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
+                  <Button onClick={() => setMatrixModal(null)} variant="secondary">Cancelar</Button>
+                  <Button onClick={() => void handleSaveRelation()} disabled={actionLoading}>Guardar requisito</Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TRABAJADORES (cobertura M2 por trabajador — vista operativa en memoria) */}
+          {activeTab === 'trabajadores' && (
+            <EppWorkerCoverageSection
+              role={role}
+              employees={employees}
+              matrix={matrix}
+              deliveries={allDeliveries}
+              onOpenTab={(tab) => setActiveTab(tab)}
+            />
+          )}
+
+          {/* ENTREGAS (EppDelivery — experiencia operativa principal 4.2.6) */}
+          {activeTab === 'entregas' && (
+            <EppDeliveriesSection
+              token={token}
+              role={role}
+              employees={employees}
+              eppItems={matrix?.eppItems ?? []}
+              baseDeliveries={allDeliveries}
+              baseLoading={loading}
+              reloadBaseDeliveries={reloadBaseDeliveries}
+            />
+          )}
+
+          {/* ASIGNACIONES (legacy SstEpp.assignments[] — se retira después de validar Entregas) */}
           {activeTab === 'asignaciones' && (
             <AdvancedSection title="Asignaciones de EPP" description="EPP asignado a trabajadores">
               {assignments.length === 0 ? (

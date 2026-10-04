@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import { ComplianceResultCard } from '../components/ComplianceResultCard';
 import { ComplianceAIInsight } from '../components/ComplianceAIInsight';
 import { Button } from '../components/ui/Button';
@@ -127,6 +128,7 @@ function GapRow({ label, filled, total }: { label: string; filled: number; total
 
 export function SociodemographicManagementPage({ token }: Props) {
   const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/plan');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -201,7 +203,7 @@ export function SociodemographicManagementPage({ token }: Props) {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-            <Button type="button" variant="secondary" onClick={() => navigate('/documents/plan')}>
+            <Button type="button" variant="secondary" onClick={() => goBackToPhva()}>
               ← Volver al Plan
             </Button>
             <Button type="button" variant="secondary" onClick={() => navigate('/employees')}>
@@ -429,7 +431,7 @@ export function SociodemographicManagementPage({ token }: Props) {
                 <Button type="button" variant="secondary" onClick={() => navigate('/intelligence-compliance')}>
                   Ver análisis de cumplimiento
                 </Button>
-                <Button type="button" variant="secondary" onClick={() => navigate('/documents/plan')}>
+                <Button type="button" variant="secondary" onClick={() => goBackToPhva()}>
                   Volver al Plan
                 </Button>
               </div>

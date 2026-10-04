@@ -10,12 +10,13 @@ import {
 } from '../api';
 import { Button } from '../components/ui/Button';
 
-type Step = 'loading' | 'error' | 'identity' | 'otp' | 'document' | 'sign' | 'completed';
+type Step = 'loading' | 'error' | 'identity' | 'otp' | 'document' | 'sign' | 'completed' | 'already-signed' | 'expired';
 
 export function WorkerSignPage() {
   const { token } = useParams<{ token: string }>();
   const [step, setStep] = useState<Step>('loading');
-  const [worker, setWorker] = useState<{ name: string; identification: string; position?: string; area?: string } | null>(null);
+  // Fase 2 — pre-identidad: solo displayName parcial; post-identidad: nombre y documento ya verificado.
+  const [worker, setWorker] = useState<{ displayName?: string; identification?: string; name?: string; identificationHint?: string; position?: string; area?: string } | null>(null);
   const [document, setDocument] = useState<any>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -40,8 +41,11 @@ export function WorkerSignPage() {
         setStep('identity');
       })
       .catch((err) => {
-        setError(err.message || 'Token inválido o expirado.');
-        setStep('error');
+        // Fase 2 — estados explícitos del enlace (sin PII adicional).
+        const message = err?.message || '';
+        if (message.includes('ya fue firmado')) setStep('already-signed');
+        else if (message.includes('expirado') || message.includes('no está disponible')) setStep('expired');
+        else { setError(message || 'Token inválido o expirado.'); setStep('error'); }
       });
   }, [token]);
 
@@ -50,7 +54,7 @@ export function WorkerSignPage() {
     try {
       const result = await validatePublicIdentity(token, identification, phone || undefined);
       if (result.valid) {
-        setWorker(result.worker);
+        setWorker({ ...result.worker, identification });
         setStep('otp');
       }
     } catch (err: any) {
@@ -68,7 +72,9 @@ export function WorkerSignPage() {
         return;
       }
       setOtpSent(true);
-      setMessage(result.message);
+      // Fase 2 — en desarrollo el backend adjunta devOtp para poder probar el
+      // flujo sin canal de entrega (en producción NUNCA viaja en la respuesta).
+      setMessage(result.devOtp ? `Código de desarrollo: ${result.devOtp}` : result.message);
     } catch (err: any) {
       setError(err.message || 'Error al enviar OTP.');
     }
@@ -221,6 +227,44 @@ export function WorkerSignPage() {
     );
   }
 
+  if (step === 'already-signed') {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
+            <h2>Este documento ya fue firmado</h2>
+            <p style={{ color: '#6b7280' }}>
+              Este enlace corresponde a un proceso completado. No es posible volver a firmar ni modificar la aceptación registrada.
+            </p>
+            <p style={{ color: '#9ca3af', fontSize: '.85rem', marginTop: '1rem' }}>
+              Conserva el código de verificación que recibiste al firmar. Si necesitas una copia, contacta al área de SST de tu empresa.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'expired') {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏱️</div>
+            <h2>Enlace expirado o no disponible</h2>
+            <p style={{ color: '#6b7280' }}>
+              Este enlace ya no está activo. No es posible identificar ni firmar con él.
+            </p>
+            <p style={{ color: '#9ca3af', fontSize: '.85rem', marginTop: '1rem' }}>
+              Solicita un nuevo enlace al área de SST de tu empresa.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (step === 'error') {
     return (
       <div style={pageStyle}>
@@ -263,7 +307,7 @@ export function WorkerSignPage() {
           <div>
             <h2 style={{ marginTop: 0 }}>Validar identidad</h2>
             <p className="muted">Ingresa tu número de identificación para comenzar.</p>
-            {worker && <p style={{ background: '#f0fdf4', padding: '.75rem', borderRadius: '6px' }}>Bienvenido, <strong>{worker.name}</strong></p>}
+            {worker && <p style={{ background: '#f0fdf4', padding: '.75rem', borderRadius: '6px' }}>Bienvenido{worker.displayName ? ` ${worker.displayName}` : ''}. Confirma tu identidad para continuar.</p>}
             <div className="form-grid">
               <label className="field">
                 <span className="label">Número de identificación</span>

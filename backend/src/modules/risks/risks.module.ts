@@ -21,6 +21,11 @@ import { EnvironmentalMeasurement, EnvironmentalMeasurementSchema } from './sche
 import { EnvironmentalMeasurementController } from './environmental-measurement.controller';
 import { EnvironmentalMeasurementService } from './environmental-measurement.service';
 import { SstInduction, SstInductionSchema } from './schemas/sst-induction.schema';
+// ETAPA 2 (PHVA 4.2.2): registro del modelo.
+// ETAPA 3 (PHVA 4.2.2): service + controller CRUD con tenant isolation.
+import { ControlVerification, ControlVerificationSchema } from './schemas/control-verification.schema';
+import { ControlVerificationService } from './control-verification.service';
+import { ControlVerificationController } from './control-verification.controller';
 import { SstInductionController } from './sst-induction.controller';
 import { SstInductionService } from './sst-induction.service';
 
@@ -36,11 +41,12 @@ import { SstInductionService } from './sst-induction.service';
       { name: EnvironmentalMeasurement.name, schema: EnvironmentalMeasurementSchema },
       { name: SstInduction.name, schema: SstInductionSchema },
       { name: Employee.name, schema: EmployeeSchema },
+      { name: ControlVerification.name, schema: ControlVerificationSchema },
     ]),
     UsersModule,
   ],
-  controllers: [RisksController, RiskMethodologyController, WorkerParticipationController, HazardousSubstanceController, EnvironmentalMeasurementController, SstInductionController],
-  providers: [RisksService, RiskMethodologyService, WorkerParticipationService, HazardousSubstanceService, EnvironmentalMeasurementService, SstInductionService, RolesGuard],
-  exports: [RisksService, RiskMethodologyService, WorkerParticipationService, HazardousSubstanceService, EnvironmentalMeasurementService, SstInductionService],
+  controllers: [RisksController, RiskMethodologyController, WorkerParticipationController, HazardousSubstanceController, EnvironmentalMeasurementController, SstInductionController, ControlVerificationController],
+  providers: [RisksService, RiskMethodologyService, WorkerParticipationService, HazardousSubstanceService, EnvironmentalMeasurementService, SstInductionService, RolesGuard, ControlVerificationService],
+  exports: [RisksService, RiskMethodologyService, WorkerParticipationService, HazardousSubstanceService, EnvironmentalMeasurementService, SstInductionService, ControlVerificationService],
 })
 export class RisksModule {}

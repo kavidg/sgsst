@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 
 /**
  * Reusable "← Volver al PHVA" button.
@@ -8,14 +8,20 @@ import { useNavigate } from 'react-router-dom';
  *
  * Usage:
  *   <PhvaBackButton />
+ *
+ * Retorno contextual: si la navegación entrante trajo un origen PHVA
+ * (location.state.phvaReturn, ver lib/phvaReturn.ts), regresa a la FASE de
+ * origen; sin origen (entrada directa) conserva el fallback histórico
+ * /documents/plan. El scroll/ítem lo restaura la página destino mediante
+ * usePhvaReturnRestore.
  */
 export function PhvaBackButton() {
-  const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/plan');
 
   return (
     <button
       type="button"
-      onClick={() => navigate('/documents/plan')}
+      onClick={goBackToPhva}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

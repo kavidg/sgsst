@@ -68,6 +68,18 @@ export interface DashboardModuleCompliance {
   compliance: number;
   level: ComplianceLevel;
   lastUpdated: string;
+  /**
+   * ETAPA 4 (4.2.6): campos ADITIVOS transportados desde
+   * ProviderComplianceResult por el Compliance Engine (Etapa 3 backend).
+   * Providers que no los producen quedan `undefined` (omitted en JSON).
+   */
+  status?: string;
+  pending?: number;
+  completed?: number;
+  overdue?: number;
+  phases?: Record<string, number>;
+  /** Metadata del provider (para 4.2.6: metadata V2 — ver EppComplianceMetadataV2). */
+  metadata?: Record<string, unknown>;
 }
 
 /** Recomendación general generada por el Compliance Engine (overview.recommendations). */
@@ -133,4 +145,63 @@ export interface DashboardRecommendation {
   implemented: boolean | null;
   /** Preparado para el futuro: actividad del plan anual generada. */
   generatedActivityId: string | null;
+}
+
+// ============================================================
+// ETAPA 4 (4.2.6) — Metadata V2 del proveedor EPP
+// ============================================================
+// Refleja SIN transformación la metadata producida por epp-scoring.ts
+// (backend/src/modules/compliance-engine/providers/epp-scoring.ts) y
+// transportada por ModuleComplianceDto desde la Etapa 3.
+// Todos los campos son opcionales: el frontend NO recalcula nada.
+
+/** Dimensión V2 (espejo de EppDimensionDetail del backend). */
+export interface EppComplianceDimensionV2 {
+  /** 0–1; null = NO evaluable (sin denominador válido). NUNCA convertir null en 0. */
+  ratio?: number | null;
+  numerator?: number;
+  denominator?: number;
+}
+
+/** Dimensión COBERTURA (espejo de EppCoverageDetail: M2 principal + M1 complementaria). */
+export interface EppComplianceCoverageMetadataV2 extends EppComplianceDimensionV2 {
+  coveredRequirements?: number;
+  applicableRequirements?: number;
+  fullyCoveredWorkers?: number;
+  workersWithRequirements?: number;
+  /** Indicador de calidad de datos (NO es una penalización). */
+  workersWithoutJobProfile?: number;
+}
+
+/**
+ * Metadata V2 de 4.2.6 (module 'epp-compliance').
+ * El score OFICIAL es moduleCompliance.compliance; esta metadata solo se
+ * muestra. Los pesos NO deben usarse para recalcular nada en el frontend.
+ */
+export interface EppComplianceMetadataV2 {
+  formula?: string;
+  standardCode?: string;
+  phase?: string;
+  weights?: {
+    program: number;
+    coverage: number;
+    validityCondition: number;
+    traceability: number;
+  };
+  dimensions?: {
+    program?: EppComplianceDimensionV2;
+    coverage?: EppComplianceCoverageMetadataV2;
+    validityCondition?: EppComplianceDimensionV2;
+    traceability?: EppComplianceDimensionV2;
+  };
+  /** Contadores reales del backend (p. ej. overdue, withEvidence, traceable…). */
+  counters?: Record<string, number>;
+}
+
+/** Type guard: verifica que una metadata genérica sea la V2 de 4.2.6. */
+export function isEppComplianceMetadataV2(value: unknown): value is EppComplianceMetadataV2 {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  if (v.formula !== 'dimensions:v2') return false;
+  return typeof v.weights === 'object' || typeof v.dimensions === 'object';
 }

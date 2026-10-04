@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import {
   CreateIncidentPayload,
   DiseaseInvestigationStats,
@@ -47,6 +48,7 @@ function formatDate(value: string | undefined | null): string {
 
 export function DiseaseInvestigationManagementPage({ token }: DiseaseInvestigationManagementPageProps) {
   const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
   const { companyId } = useCompanyContext();
   const [incidents, setIncidents] = useState<IncidentModel[]>([]);
   const [employees, setEmployees] = useState<EmployeeModel[]>([]);
@@ -279,7 +281,7 @@ export function DiseaseInvestigationManagementPage({ token }: DiseaseInvestigati
   const headerActions: HeaderAction[] = [
     {
       label: '← Volver al PHVA',
-      onClick: () => navigate('/documents/do'),
+      onClick: () => goBackToPhva(),
       variant: 'secondary',
     },
     {

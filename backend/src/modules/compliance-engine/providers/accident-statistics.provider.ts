@@ -4,34 +4,59 @@ import { Model, Types } from 'mongoose';
 import {
   Incident,
   IncidentDocument,
-  InvestigationType,
 } from '../../incidents/schemas/incident.schema';
 import { Employee, EmployeeDocument } from '../../employees/schemas/employee.schema';
 import { FindingPriority } from '../enums/finding-priority.enum';
 import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
+import {
+  ACCIDENT_STATISTICS_FORMULA,
+  ACCIDENT_STATISTICS_MODULE,
+  ACCIDENT_STATISTICS_SCORE_WEIGHTS,
+  ACCIDENT_STATISTICS_STANDARD_CODE,
+  ACCIDENT_STATISTICS_STANDARD_TITLE,
+  ACCIDENT_STATISTICS_TARGET,
+  AccidentStatisticsInput,
+  computeAccidentStatisticsScore,
+} from './accident-statistics-scoring';
 
 /**
  * Evaluación automática del estándar 3.2.3
  * "Registro y análisis estadístico de accidentes de trabajo y enfermedades laborales".
  *
- * Evalúa si la empresa mantiene registros históricos y análisis estadístico
- * de accidentalidad y enfermedades laborales conforme a la Resolución 0312.
+ * E2-lite: el provider es ADAPTADOR del scorer puro
+ * (`accident-statistics-scoring.ts` — dimensions:v1, reglas EXACTAMENTE
+ * equivalentes al scoring inline previo). Identidad en código ejecutable:
+ *   module: 'accident-statistics' · standardCode: '3.2.3'
+ *   title: 'Registro y análisis estadístico de accidentes y enfermedades laborales'
+ *   phase: 'do' · semantic: 'EXACT' · target: 90
  *
- * Criterios y pesos (25/25/25/25):
- * - C1: Existencia de registros estadísticos:   25%
- * - C2: Clasificación de eventos (AT/EL/INCIDENTE): 25%
- * - C3: Análisis temporal documentado:            25%
- * - C4: Datos de trabajadores para referencia:   25%
+ * RESPONSABILIDADES DEL PROVIDER (solo transporte/adaptación):
+ * 1. Consultar Incident tenant-scoped (UNA query, sin N+1).
+ * 2. Consultar Employee (población de referencia, UNA query countDocuments).
+ * 3. Preparar el input serializable del scorer.
+ * 4. Ejecutar el scorer puro.
+ * 5. Convertir el resultado al contrato del ComplianceEngine
+ *    (findings/pending/completed/overdue/phases/metadata).
  *
- * NO_DATA: sin registros de incidentes.
- * TARGET_MET: percentage >= 90.
- * TARGET_NOT_MET: percentage < 90.
+ * NO_DATA: 0 incidentes → finding 'accident-statistics-no-data'
+ * (regla EXACTA preservada; sin condiciones adicionales, sin caps, sin
+ * redistribución).
+ *
+ * FUENTES: Incident (operativa) + Employee (población). PROHIBIDO consultar
+ * AccountabilityMeeting/Commitment, AnnualAudit, ManagementReview, indicadores
+ * de 6.1.1 u otros estándares para calcular 3.2.3.
+ *
+ * FRONTERA (E0): 3.2.1 (reporte — absenteeism), 3.2.2 (investigación —
+ * disease-investigation) y 6.1.1 (indicadores — accident-frequency/severity/
+ * mortality) leen Incident/Employee de forma legítima, cada uno evaluando su
+ * propio requisito. Este provider puntúa EXCLUSIVAMENTE el registro y análisis
+ * estadístico.
  */
 @Injectable()
 export class AccidentStatisticsProvider implements ComplianceProvider {
-  private static readonly MODULE = 'accident-statistics';
-  private static readonly COMPLIANCE_TARGET = 90;
+  private static readonly MODULE = ACCIDENT_STATISTICS_MODULE;
+  private static readonly COMPLIANCE_TARGET = ACCIDENT_STATISTICS_TARGET;
 
   constructor(
     @InjectModel(Incident.name)
@@ -40,17 +65,50 @@ export class AccidentStatisticsProvider implements ComplianceProvider {
     private readonly employeeModel: Model<EmployeeDocument>,
   ) {}
 
+  /** Metadata oficial del provider (identidad 3.2.3 en código ejecutable). */
+  get metadata() {
+    return {
+      module: ACCIDENT_STATISTICS_MODULE,
+      standard: ACCIDENT_STATISTICS_STANDARD_CODE,
+      standardCode: ACCIDENT_STATISTICS_STANDARD_CODE,
+      title: ACCIDENT_STATISTICS_STANDARD_TITLE,
+      phase: 'do' as const,
+      semantic: 'EXACT' as const,
+      formula: ACCIDENT_STATISTICS_FORMULA,
+      target: ACCIDENT_STATISTICS_TARGET,
+      weights: { ...ACCIDENT_STATISTICS_SCORE_WEIGHTS },
+    };
+  }
+
   async getCompliance(companyId: string): Promise<ProviderComplianceResult> {
     const objectId = new Types.ObjectId(companyId);
 
-    // Get all incidents for this company
+    // ── 1. Incidentes del tenant (UNA query; sin N+1) ──
     const incidents = await this.incidentModel
       .find({ companyId: objectId })
       .sort({ date: -1 })
       .lean()
       .exec();
 
-    if (incidents.length === 0) {
+    // ── 2. Población trabajadora de referencia (UNA query count) ──
+    const workerCount = await this.employeeModel
+      .countDocuments({ companyId: objectId })
+      .exec();
+
+    // ── 3+4. Input serializable + scorer puro ──
+    const input: AccidentStatisticsInput = {
+      incidents: incidents.map((i) => ({
+        date: i.date,
+        description: i.description,
+        investigationType: i.investigationType,
+        daysLost: i.daysLost,
+      })),
+      workerCount,
+    };
+    const breakdown = computeAccidentStatisticsScore(input);
+
+    // ── 5a. NO_DATA (condición exacta preservada: 0 incidentes) ──
+    if (breakdown.noData) {
       return {
         module: AccidentStatisticsProvider.MODULE,
         percentage: 0,
@@ -75,75 +133,18 @@ export class AccidentStatisticsProvider implements ComplianceProvider {
       };
     }
 
-    const total = incidents.length;
-
-    // ── C1 — Existencia de registros estadísticos (25%) ──
-    // Having records is the baseline; completeness improves the score.
-    const withDate = incidents.filter((i) => i.date != null).length;
-    const withDescription = incidents.filter(
-      (i) => i.description && i.description.length > 5,
-    ).length;
-    const existenceScore = Math.round(
-      ((withDate / total) * 50 + (withDescription / total) * 50),
-    );
-
-    // ── C2 — Clasificación de eventos AT/EL (25%) ──
-    // Events should be classified as ACCIDENT or DISEASE.
-    const classifiedEvents = incidents.filter(
-      (i) =>
-        i.investigationType === InvestigationType.ACCIDENT ||
-        i.investigationType === InvestigationType.DISEASE,
-    );
-    const classificationScore = Math.round((classifiedEvents.length / total) * 100);
-
-    // ── C3 — Análisis temporal documentado (25%) ──
-    // Events should span multiple periods or have date-based analysis.
-    const uniqueMonths = new Set(
-      incidents
-        .filter((i) => i.date != null)
-        .map((i) => {
-          const d = new Date(i.date);
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        }),
-    );
-    // Score increases with more distinct months of data.
-    const temporalScore = Math.min(100, uniqueMonths.size * 15);
-
-    // ── C4 — Datos de trabajadores para referencia (25%) ──
-    const employeeCount = await this.employeeModel
-      .countDocuments({ companyId: objectId })
-      .exec();
-    const workerScore = employeeCount > 0 ? 100 : 0;
-
-    const percentage = Math.round(
-      existenceScore * 0.25 +
-      classificationScore * 0.25 +
-      temporalScore * 0.25 +
-      workerScore * 0.25,
-    );
-
-    // ── Build summary statistics for findings ──
-    const accidentCount = incidents.filter(
-      (i) => i.investigationType === InvestigationType.ACCIDENT,
-    ).length;
-    const diseaseCount = incidents.filter(
-      (i) => i.investigationType === InvestigationType.DISEASE,
-    ).length;
-    const totalDaysLost = incidents.reduce(
-      (sum, i) => sum + (i.daysLost ?? 0),
-      0,
-    );
-
+    // ── 5b. Findings (mismos IDs, títulos y condiciones del provider previo) ──
+    const { counters } = breakdown;
     const findings: ProviderComplianceResult['findings'] = [];
 
     findings.push({
       id: 'accident-statistics-summary',
       module: AccidentStatisticsProvider.MODULE,
-      title: `Resumen estadístico: ${total} eventos (${accidentCount} AT, ${diseaseCount} EL)`,
+      title: `Resumen estadístico: ${counters.totalEvents} eventos (${counters.accidentCount} AT, ${counters.diseaseCount} EL)`,
       description:
-        `Registro y análisis estadístico: ${total} eventos totales, ` +
-        `${accidentCount} accidentes de trabajo, ${diseaseCount} enfermedades laborales, ` +
-        `${totalDaysLost} días perdidos acumulados en ${uniqueMonths.size} período(s).`,
+        `Registro y análisis estadístico: ${counters.totalEvents} eventos totales, ` +
+        `${counters.accidentCount} accidentes de trabajo, ${counters.diseaseCount} enfermedades laborales, ` +
+        `${counters.totalDaysLost} días perdidos acumulados en ${counters.distinctMonths} período(s).`,
       priority: FindingPriority.MEDIUM,
       status: 'OPEN',
       responsible: '',
@@ -151,15 +152,13 @@ export class AccidentStatisticsProvider implements ComplianceProvider {
       createdAt: new Date().toISOString(),
     });
 
-    // Finding: unclassified events
-    const unclassified = total - classifiedEvents.length;
-    if (unclassified > 0) {
+    if (counters.unclassifiedCount > 0) {
       findings.push({
         id: 'accident-statistics-unclassified',
         module: AccidentStatisticsProvider.MODULE,
-        title: `${unclassified} evento(s) sin clasificación AT/EL`,
+        title: `${counters.unclassifiedCount} evento(s) sin clasificación AT/EL`,
         description:
-          `${unclassified} de ${total} registros no están clasificados como Accidente de Trabajo o Enfermedad Laboral.`,
+          `${counters.unclassifiedCount} de ${counters.totalEvents} registros no están clasificados como Accidente de Trabajo o Enfermedad Laboral.`,
         priority: FindingPriority.MEDIUM,
         status: 'OPEN',
         responsible: '',
@@ -168,8 +167,7 @@ export class AccidentStatisticsProvider implements ComplianceProvider {
       });
     }
 
-    // Finding: employee data missing for rate calculation
-    if (employeeCount === 0) {
+    if (counters.workerCount === 0) {
       findings.push({
         id: 'accident-statistics-no-workers',
         module: AccidentStatisticsProvider.MODULE,
@@ -184,17 +182,28 @@ export class AccidentStatisticsProvider implements ComplianceProvider {
       });
     }
 
+    // ── 5c. Contrato estándar del ComplianceEngine ──
     return {
       module: AccidentStatisticsProvider.MODULE,
-      percentage,
+      percentage: breakdown.percentage,
       status:
-        percentage >= AccidentStatisticsProvider.COMPLIANCE_TARGET
+        breakdown.percentage >= AccidentStatisticsProvider.COMPLIANCE_TARGET
           ? 'TARGET_MET'
           : 'TARGET_NOT_MET',
       findings,
-      pending: unclassified,
-      completed: classifiedEvents.length,
-      phases: { do: percentage } as Partial<Record<CompliancePhaseKey, number>>,
+      pending: counters.unclassifiedCount,
+      completed: counters.totalEvents - counters.unclassifiedCount,
+      phases: { do: breakdown.percentage } as Partial<Record<CompliancePhaseKey, number>>,
+      metadata: {
+        semantic: 'EXACT',
+        standardCode: ACCIDENT_STATISTICS_STANDARD_CODE,
+        standardTitle: ACCIDENT_STATISTICS_STANDARD_TITLE,
+        formula: ACCIDENT_STATISTICS_FORMULA,
+        target: ACCIDENT_STATISTICS_TARGET,
+        weights: { ...ACCIDENT_STATISTICS_SCORE_WEIGHTS },
+        dimensions: breakdown.dimensions,
+        counters,
+      },
     };
   }
 }

@@ -5,6 +5,251 @@ import type {
   DocumentCatalogItem,
 } from './types/document-catalog';
 import type { StandardCatalogItem, StandardSection } from './models/standard-catalog';
+import type {
+  AnnualAuditModel,
+  AnnualAuditStatus,
+  AnnualAuditHistoryModel,
+  CreateAnnualAuditPayload,
+  UpdateAnnualAuditPayload,
+  UpdateAnnualAuditStatusPayload,
+  CreateAuditFindingPayload,
+  UpdateAuditFindingPayload,
+  CreateAuditActionPayload,
+  UpdateAuditActionPayload,
+  AttachAuditEvidencePayload,
+} from './types/annual-audit';
+
+// E3 (6.1.2) — re-export de los tipos del dominio annual-audit para las páginas
+// (convención de api.ts como punto único de acceso a tipos/API).
+export type {
+  AnnualAuditModel,
+  AnnualAuditStatus,
+  AnnualAuditType,
+  AnnualAuditHistoryModel,
+  AnnualAuditHistoryAction,
+  AnnualAuditFindingModel,
+  AnnualAuditActionModel,
+  AuditFindingType,
+  AuditFindingSeverity,
+  AuditFindingStatus,
+  AuditActionStatus,
+  CreateAnnualAuditPayload,
+  UpdateAnnualAuditPayload,
+  UpdateAnnualAuditStatusPayload,
+  CreateAuditFindingPayload,
+  UpdateAuditFindingPayload,
+  CreateAuditActionPayload,
+  UpdateAuditActionPayload,
+  AttachAuditEvidencePayload,
+} from './types/annual-audit';
+// E3 (6.1.4) — re-export de los tipos del dominio copasst-audit-planning para
+// las páginas (convención de api.ts como punto único de acceso a tipos/API).
+export type {
+  CopasstAuditPlanningModel,
+  CopasstAuditPlanningStatus,
+  AuditPlanningItemStatus,
+  CopasstPlannedAuditItemModel,
+  CopasstParticipationModel,
+  CopasstParticipationParticipantModel,
+  CopasstAuditPlanningHistoryModel,
+  CopasstAuditPlanningHistoryAction,
+  CreateCopasstAuditPlanningPayload,
+  UpdateCopasstAuditPlanningPayload,
+  UpdateCopasstAuditPlanningStatusPayload,
+  CreatePlannedAuditPayload,
+  UpdatePlannedAuditPayload,
+  UpdatePlannedAuditStatusPayload,
+  CopasstParticipationPayload,
+} from './types/copasst-audit-planning';
+export {
+  COPASST_PLANNING_STATUS_LABELS,
+  PLANNING_ITEM_STATUS_LABELS,
+  COPASST_PLANNING_VALID_TRANSITIONS,
+  PLANNING_ITEM_VALID_TRANSITIONS,
+  COPASST_PLANNING_TRANSITION_LABELS,
+  COPASST_PLANNING_HISTORY_ACTION_LABELS,
+} from './types/copasst-audit-planning';
+// E3 (7.1.1) — re-export de los tipos del dominio corrective-preventive-actions
+// (convención de api.ts como punto único de acceso a tipos/API).
+export type {
+  CorrectivePreventiveActionModel,
+  ActionItemType,
+  ActionOrigin,
+  ActionPriority,
+  ActionStatus,
+  EffectivenessResult,
+  CpaEvidenceModel,
+  CpaEffectivenessVerificationModel,
+  CpaHistoryModel,
+  CpaHistoryAction,
+  CreateCpaActionPayload,
+  UpdateCpaActionPayload,
+  UpdateCpaActionStatusPayload,
+  AddCpaEvidencePayload,
+  VerifyCpaEffectivenessPayload,
+} from './types/corrective-preventive-actions';
+export {
+  CPA_TYPE_LABELS,
+  CPA_ORIGIN_LABELS,
+  CPA_PRIORITY_LABELS,
+  CPA_STATUS_LABELS,
+  CPA_EFFECTIVENESS_LABELS,
+  CPA_STATUS_VARIANTS,
+  CPA_PRIORITY_VARIANTS,
+  CPA_EFFECTIVENESS_VARIANTS,
+  CPA_VALID_TRANSITIONS,
+  CPA_TRANSITION_LABELS,
+  CPA_HISTORY_ACTION_LABELS,
+  isCpaActionOverdue,
+} from './types/corrective-preventive-actions';
+// E3 (7.1.2) — tipos del dominio management-improvement-actions (Acciones de
+// mejora de la alta dirección); espejo del contrato backend E1/E2.
+export type {
+  ManagementImprovementActionModel,
+  ImprovementActionOrigin,
+  ImprovementActionPriority,
+  ImprovementActionStatus,
+  ImplementationStatus,
+  PerceivedEffectiveness,
+  MiaEvidenceModel,
+  MiaFollowUpModel,
+  MiaHistoryModel,
+  MiaHistoryAction,
+  CreateMiaActionPayload,
+  UpdateMiaActionPayload,
+  UpdateMiaActionStatusPayload,
+  AddMiaEvidencePayload,
+  RegisterMiaFollowUpPayload,
+  MiaComplianceMetadataV1,
+} from './types/management-improvement-actions';
+// E3 (7.1.2) — re-exports de labels/variantes del dominio management-
+// improvement-actions (convención: api.ts como punto único de importación).
+export {
+  MIA_ORIGIN_LABELS,
+  MIA_PRIORITY_LABELS,
+  MIA_STATUS_LABELS,
+  MIA_IMPLEMENTATION_STATUS_LABELS,
+  MIA_PERCEIVED_EFFECTIVENESS_LABELS,
+  MIA_STATUS_VARIANTS,
+  MIA_PRIORITY_VARIANTS,
+  MIA_IMPLEMENTATION_STATUS_VARIANTS,
+  MIA_PERCEIVED_EFFECTIVENESS_VARIANTS,
+  MIA_VALID_TRANSITIONS,
+  MIA_TRANSITION_LABELS,
+  MIA_HISTORY_ACTION_LABELS,
+  isMiaActionOverdue,
+} from './types/management-improvement-actions';
+// E3 (6.1.4) — tipos del dominio copasst-audit-planning (Planificación de
+// auditorías COPASST); espejo del contrato backend E1/E2.
+import type {
+  CopasstAuditPlanningModel,
+  CopasstAuditPlanningStatus,
+  CopasstAuditPlanningHistoryModel,
+  CreateCopasstAuditPlanningPayload,
+  UpdateCopasstAuditPlanningPayload,
+  UpdateCopasstAuditPlanningStatusPayload,
+  CreatePlannedAuditPayload,
+  UpdatePlannedAuditPayload,
+  UpdatePlannedAuditStatusPayload,
+} from './types/copasst-audit-planning';
+// E3 (7.1.1) — tipos del dominio corrective-preventive-actions (Acciones
+// preventivas y correctivas); espejo del contrato backend E1/E2.
+import type {
+  CorrectivePreventiveActionModel,
+  ActionStatus,
+  CpaHistoryModel,
+  CreateCpaActionPayload,
+  UpdateCpaActionPayload,
+  UpdateCpaActionStatusPayload,
+  AddCpaEvidencePayload,
+  VerifyCpaEffectivenessPayload,
+} from './types/corrective-preventive-actions';
+// E3 (7.1.2) — tipos del dominio management-improvement-actions (Acciones de
+// mejora de la alta dirección); espejo del contrato backend E1/E2.
+import type {
+  ManagementImprovementActionModel,
+  ImprovementActionStatus,
+  MiaHistoryModel,
+  CreateMiaActionPayload,
+  UpdateMiaActionPayload,
+  UpdateMiaActionStatusPayload,
+  AddMiaEvidencePayload,
+  RegisterMiaFollowUpPayload,
+} from './types/management-improvement-actions';
+// E3 (7.1.4) — tipos del dominio improvement-plans (Plan de mejoramiento);
+// espejo del contrato backend E1/E2.
+import type {
+  ImprovementPlanModel,
+  IpHistoryModel,
+  CreateImprovementPlanPayload,
+  UpdateImprovementPlanPayload,
+  UpdateImprovementPlanStatusPayload,
+  CreatePlanActivityPayload,
+  UpdatePlanActivityPayload,
+  UpdatePlanActivityStatusPayload,
+  AddPlanActivityEvidencePayload,
+  RegisterPlanActivityFollowUpPayload,
+  AddPlanMonitoringPayload,
+} from './types/improvement-plans';
+// E3 (7.1.4) — re-export de los tipos del dominio improvement-plans para las
+// páginas (convención de api.ts como punto único de acceso a tipos/API).
+export type {
+  ImprovementPlanModel,
+  ImprovementPlanStatus,
+  ImprovementPlanActivityStatus,
+  ImprovementPlanOrigin,
+  ImprovementPlanPriority,
+  ImprovementPlanResourceType,
+  ImprovementPlanImplementationStatus,
+  ImprovementPlanPerceivedEffectiveness,
+  ImprovementPlanHistoryAction,
+  IpActivityModel,
+  IpObjectiveModel,
+  IpMonitoringModel,
+  IpResourceModel,
+  IpEvidenceModel,
+  IpFollowUpModel,
+  IpHistoryModel,
+  CreateImprovementPlanPayload,
+  UpdateImprovementPlanPayload,
+  UpdateImprovementPlanStatusPayload,
+  CreatePlanActivityPayload,
+  UpdatePlanActivityPayload,
+  UpdatePlanActivityStatusPayload,
+  AddPlanActivityEvidencePayload,
+  RegisterPlanActivityFollowUpPayload,
+  AddPlanMonitoringPayload,
+} from './types/improvement-plans';
+export {
+  IP_PLAN_STATUS_LABELS,
+  IP_ACTIVITY_STATUS_LABELS,
+  IP_ORIGIN_LABELS,
+  IP_PRIORITY_LABELS,
+  IP_RESOURCE_TYPE_LABELS,
+  IP_IMPLEMENTATION_STATUS_LABELS,
+  IP_PERCEIVED_EFFECTIVENESS_LABELS,
+  IP_PLAN_STATUS_VARIANTS,
+  IP_ACTIVITY_STATUS_VARIANTS,
+  IP_PRIORITY_VARIANTS,
+  IP_IMPLEMENTATION_STATUS_VARIANTS,
+  IP_PERCEIVED_EFFECTIVENESS_VARIANTS,
+  IP_PLAN_VALID_TRANSITIONS,
+  IP_PLAN_TRANSITION_LABELS,
+  IP_ACTIVITY_VALID_TRANSITIONS,
+  IP_ACTIVITY_TRANSITION_LABELS,
+  IP_HISTORY_ACTION_LABELS,
+  IP_DIMENSION_KEYS,
+  IP_DIMENSION_LABELS,
+  IP_DIMENSION_WEIGHT_FALLBACK,
+  IP_FINDING_ACTIONS,
+  IP_MODULE,
+  isIpPlanOverdue,
+  isIpActivityOverdue,
+  isIpPlanEditable,
+  isIpActivityEditable,
+  isIpComplianceMetadataV1,
+  ipRatioToPercent,
+} from './types/improvement-plans';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
 const ACTIVE_COMPANY_STORAGE_KEY = 'activeCompanyId';
@@ -81,17 +326,139 @@ export interface DashboardEvaluationModel {
   weight?: number;
 }
 
+// NORMALIZACIÓN: el backend persiste y devuelve el estado canónico
+// ('PENDING' | 'COMPLETED'); variantes históricas son normalizadas en lectura.
+export type InspectionActivityStatus = 'PENDING' | 'COMPLETED';
+
 export interface InspectionActivityModel {
   _id: string;
   companyId: string;
   title: string;
   description: string;
   plannedDate: string;
-  status: string;
+  status: InspectionActivityStatus;
   responsible?: string;
   frequency?: string;
   notes?: string;
   completedDate?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Maintenance (PHVA 4.2.5) — V1
+// Espejo del schema backend `Maintenance` (colección propia; NO reutiliza
+// InspectionActivity/4.2.4).
+// ─────────────────────────────────────────────────────────────────────────
+export type MaintenanceItemType = 'EQUIPMENT' | 'MACHINE' | 'TOOL' | 'INSTALLATION' | 'INFRASTRUCTURE' | 'OTHER';
+export type MaintenanceType = 'PREVENTIVE' | 'CORRECTIVE';
+export type MaintenanceStatusModel = 'PROGRAMMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+export interface MaintenanceStatusHistoryEntryModel {
+  from: MaintenanceStatusModel;
+  to: MaintenanceStatusModel;
+  changedAt: string;
+  changedBy: string;
+  comment?: string;
+}
+
+export interface MaintenanceModel {
+  _id: string;
+  companyId: string;
+  itemName: string;
+  itemType: MaintenanceItemType;
+  description: string;
+  maintenanceType: MaintenanceType;
+  plannedDate: string;
+  completedDate?: string;
+  status: MaintenanceStatusModel;
+  responsible: string;
+  provider?: string;
+  frequency?: string;
+  nextMaintenanceDate?: string;
+  observations?: string;
+  evidenceUrl?: string;
+  statusHistory: MaintenanceStatusHistoryEntryModel[];
+  active?: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateMaintenancePayload {
+  itemName: string;
+  itemType: MaintenanceItemType;
+  maintenanceType: MaintenanceType;
+  description: string;
+  plannedDate: string;
+  status?: 'PROGRAMMED' | 'IN_PROGRESS';
+  responsible: string;
+  provider?: string;
+  frequency?: string;
+  nextMaintenanceDate?: string;
+  observations?: string;
+  evidenceUrl?: string;
+}
+
+export interface UpdateMaintenancePayload {
+  itemName?: string;
+  itemType?: MaintenanceItemType;
+  maintenanceType?: MaintenanceType;
+  description?: string;
+  plannedDate?: string;
+  responsible?: string;
+  provider?: string;
+  frequency?: string;
+  nextMaintenanceDate?: string;
+  observations?: string;
+  evidenceUrl?: string;
+}
+
+export interface UpdateMaintenanceStatusPayload {
+  status: MaintenanceStatusModel;
+  comment?: string;
+  completedDate?: string;
+  evidenceUrl?: string;
+  observations?: string;
+}
+
+export function fetchMaintenances(token: string, filters: { status?: string; maintenanceType?: string; itemType?: string; from?: string; to?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.maintenanceType) params.set('maintenanceType', filters.maintenanceType);
+  if (filters.itemType) params.set('itemType', filters.itemType);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  const qs = params.toString();
+  return apiFetch<MaintenanceModel[]>(`/maintenance${qs ? `?${qs}` : ''}`, token, { method: 'GET' });
+}
+
+export function fetchMaintenanceById(token: string, id: string) {
+  return apiFetch<MaintenanceModel>(`/maintenance/${id}`, token, { method: 'GET' });
+}
+
+export function createMaintenance(token: string, payload: CreateMaintenancePayload) {
+  return apiFetch<MaintenanceModel>('/maintenance', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateMaintenance(token: string, id: string, payload: UpdateMaintenancePayload) {
+  return apiFetch<MaintenanceModel>(`/maintenance/${id}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateMaintenanceStatus(token: string, id: string, payload: UpdateMaintenanceStatusPayload) {
+  return apiFetch<MaintenanceModel>(`/maintenance/${id}/status`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteMaintenance(token: string, id: string) {
+  return apiFetch<void>(`/maintenance/${id}`, token, { method: 'DELETE' });
 }
 
 export type AlertSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -112,6 +479,14 @@ export interface AlertModel {
   submittedAt?: string;
 }
 
+/** Etapa 1: control estructurado embebido en Risk.controls[] (el texto legacy controlMeasures se conserva). */
+export interface ControlMeasureModel {
+  /** Identidad estable del control: _id serializado del subdocumento. */
+  id: string;
+  description: string;
+  isActive: boolean;
+}
+
 export interface RiskModel {
   _id: string;
   companyId: string;
@@ -123,6 +498,8 @@ export interface RiskModel {
   consequence: number;
   riskLevel: number;
   controlMeasures: string;
+  /** Etapa 1: estructura aditiva; los datos legacy solo tienen controlMeasures. */
+  controls?: ControlMeasureModel[];
 }
 
 export interface CreateRiskPayload {
@@ -143,6 +520,47 @@ export interface UpdateRiskPayload {
   probability?: number;
   consequence?: number;
   controlMeasures?: string;
+}
+
+/* ── Etapa 4 (PHVA 4.2.2): verificaciones de aplicación de medidas de control ── */
+
+export type ControlVerificationResult = 'COMPLIANT' | 'PARTIAL' | 'NON_COMPLIANT';
+
+export type FollowUpStatus = 'OPEN' | 'CLOSED';
+
+export interface ControlVerificationModel {
+  _id: string;
+  companyId: string;
+  riskId: string;
+  controlId: string;
+  controlDescriptionSnapshot: string;
+  verificationDate: string;
+  verifiedBy: string;
+  result: ControlVerificationResult;
+  observations?: string;
+  requiresFollowUp: boolean;
+  followUpDueDate?: string;
+  followUpStatus: FollowUpStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** El backend resuelve companyId/riskId/snapshot/followUpStatus; el cliente nunca los envía. */
+export interface CreateControlVerificationPayload {
+  controlId: string;
+  verificationDate: string;
+  verifiedBy: string;
+  result: ControlVerificationResult;
+  observations?: string;
+  requiresFollowUp?: boolean;
+  followUpDueDate?: string;
+}
+
+/** PATCH follow-up: únicamente los campos administrativos de seguimiento. */
+export interface UpdateControlVerificationFollowUpPayload {
+  requiresFollowUp?: boolean;
+  followUpDueDate?: string;
+  followUpStatus?: FollowUpStatus;
 }
 
 export interface IncidentModel {
@@ -438,6 +856,9 @@ export interface EmployeeModel {
   contractType: string;
   status: string;
   companyId: string;
+  // Contacto — el backend los retorna (opcionales; empleados antiguos no los tienen).
+  corporateEmail?: string;
+  mobilePhone?: string;
   /** Perfil de cargo estructurado (JobProfile) — FASE 30D-2, estándar 3.1.3. */
   jobProfileId?: string;
   // Campos sociodemográficos (3.1.1) — todos opcionales
@@ -462,6 +883,9 @@ export interface CreateEmployeePayload {
   area: string;
   contractType: string;
   status: string;
+  // Contacto (carga masiva) — opcionales; plantillas antiguas no los traen
+  corporateEmail?: string;
+  mobilePhone?: string;
   // Perfil de cargo estructurado (3.1.3) — opcional
   jobProfileId?: string;
   // Campos sociodemográficos (3.1.1) — todos opcionales
@@ -557,7 +981,10 @@ function withCompanyHeader(headers: HeadersInit = {}): HeadersInit {
   return { ...headers };
 }
 
-async function apiFetch<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+// E3 (6.1.3): exportado para servicios de dominio que viven fuera de api.ts
+// (services/management-review-direction.service.ts) — reutiliza el patrón
+// Bearer + manejo de errores sin duplicar lógica de autenticación.
+export async function apiFetch<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BACKEND_URL}${path}`, {
     ...init,
     headers: withCompanyHeader({
@@ -1904,6 +2331,33 @@ export function deleteRisk(token: string, id: string) {
   return apiFetch<void>(`/risks/${id}`, token, { method: 'DELETE' });
 }
 
+/* ── Etapa 4 (PHVA 4.2.2): rutas anidadas de verificaciones de controles ── */
+
+export function fetchControlVerifications(token: string, riskId: string) {
+  return apiFetch<ControlVerificationModel[]>(`/risks/${riskId}/verifications`, token, { method: 'GET' });
+}
+
+export function fetchControlVerification(token: string, riskId: string, verificationId: string) {
+  return apiFetch<ControlVerificationModel>(`/risks/${riskId}/verifications/${verificationId}`, token, { method: 'GET' });
+}
+
+export function createControlVerification(token: string, riskId: string, payload: CreateControlVerificationPayload) {
+  return apiFetch<ControlVerificationModel>(`/risks/${riskId}/verifications`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateControlVerificationFollowUp(
+  token: string,
+  riskId: string,
+  verificationId: string,
+  payload: UpdateControlVerificationFollowUpPayload,
+) {
+  return apiFetch<ControlVerificationModel>(
+    `/risks/${riskId}/verifications/${verificationId}/follow-up`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  );
+}
+
 export function fetchIncidents(token: string, params?: { investigationType?: string }) {
   const searchParams = new URLSearchParams();
   if (params?.investigationType) {
@@ -2462,6 +2916,70 @@ export function approveResponsibilitiesAdvanced(token: string) {
 
 export function rejectResponsibilitiesAdvanced(token: string, reason: string) {
   return apiFetch<ResponsibilitiesAdvancedModel>('/phva-advanced/responsibilities/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
+}
+
+// ==================== FASE 1 — Enviar a aceptación (1.1.2) ====================
+
+export interface ResponsibilitiesAcceptanceDispatch {
+  employeeId: string;
+  employeeName: string;
+  /** true = campaña activa equivalente reutilizada (dedup). */
+  reused: boolean;
+  campaignId: string;
+  /** Enlace público del trabajador: /sign/:token */
+  signUrl: string;
+  token: string;
+  /** FASE 3A — resultado de la entrega por email (no bloquea el flujo). */
+  emailDelivery?: {
+    attempted: boolean;
+    success: boolean;
+    status: string;
+    errorCode?: string;
+  };
+  /** FASE 3B-1 — resultado de la entrega por WhatsApp (no bloquea el flujo). */
+  whatsappDelivery?: {
+    attempted: boolean;
+    success: boolean;
+    status: string;
+    errorCode?: string;
+  };
+}
+
+export interface ResponsibilitiesAcceptanceResult {
+  version: string;
+  results: ResponsibilitiesAcceptanceDispatch[];
+  rejected: Array<{ employeeId: string; reason: string }>;
+}
+
+export interface ResponsibilitiesAcceptanceStatusModel {
+  campaignId: string;
+  documentVersion: string;
+  campaignStatus: string;
+  workerStatus: string;
+  signUrl: string;
+  identification: string;
+  employeeName: string;
+  /** FASE 3A — email y estado del último intento de entrega. */
+  email?: string;
+  emailDeliveryStatus?: string;
+  emailSentAt?: string;
+  emailErrorCode?: string;
+  /** FASE 3B-1 — teléfono y estado del último intento WhatsApp. */
+  phone?: string;
+  whatsappDeliveryStatus?: string;
+  whatsappSentAt?: string;
+  whatsappErrorCode?: string;
+}
+
+export function sendResponsibilitiesAcceptance(token: string, employeeIds: string[]) {
+  return apiFetch<ResponsibilitiesAcceptanceResult>('/phva-advanced/responsibilities/acceptance-campaign', token, {
+    method: 'POST',
+    body: JSON.stringify({ employeeIds }),
+  });
+}
+
+export function fetchResponsibilitiesAcceptanceStatus(token: string) {
+  return apiFetch<{ version: string; statuses: ResponsibilitiesAcceptanceStatusModel[] }>('/phva-advanced/responsibilities/acceptance-status', token, { method: 'GET' });
 }
 
 export type ResourceAssignmentApprovalStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'APPROVED_AND_SIGNED' | 'REJECTED' | 'ARCHIVED';
@@ -5096,8 +5614,17 @@ export interface CampaignListResponse {
 }
 
 export interface PublicWorkerInfo {
-  worker: { name: string; identification: string; position?: string; area?: string };
-  token: any;
+  // Fase 2 — pre-identificación solo se expone el mínimo (sin PII completa).
+  worker: { displayName?: string; identificationHint?: string; name?: string; identification?: string; position?: string; area?: string };
+  token: { expiresAt?: string } | any;
+}
+
+export interface PublicOtpResponse {
+  required: boolean;
+  sent?: boolean;
+  message: string;
+  /** Solo en desarrollo (NODE_ENV !== 'production'): para probar el flujo OTP. */
+  devOtp?: string;
 }
 
 export interface PublicDocumentResponse {
@@ -5199,7 +5726,7 @@ export function validatePublicIdentity(token: string, identification: string, ph
   );
 }
 export function sendPublicOtp(token: string, deliveryMethod?: string) {
-  return fetchPublic<{ required: boolean; sent: boolean; message: string }>(
+  return fetchPublic<PublicOtpResponse>(
     `${PUBLIC_SIGN_BASE}/${token}/send-otp`,
     { method: 'POST', body: JSON.stringify({ token, deliveryMethod }) },
   );
@@ -5727,10 +6254,164 @@ export const submitEppAdvanced = (token: string) => apiFetch<Record<string, unkn
 export const approveEppAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/epp/approve', token, { method: 'POST' });
 export const rejectEppAdvanced = (token: string, reason: string) => apiFetch<Record<string, unknown>>('/phva-advanced/epp/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
 
-// ==================== FASE 1: 1.1.10 EMERGENCIAS API ====================
+// ── Matriz de aplicabilidad Cargo → EPP (4.2.6) ──
+// EppApplicability define REQUISITOS (qué EPP requiere cada JobProfile);
+// EppDelivery sigue siendo la fuente de verdad de lo entregado.
+
+export interface EppApplicabilityRow {
+  _id: string;
+  companyId: string;
+  jobProfileId: string;
+  eppItemId: string;
+  required: boolean;
+  reason?: string;
+  scope?: string;
+  active: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EppApplicabilityMatrixResponse {
+  jobProfiles: Array<{ id: string; code: string; name: string; active: boolean }>;
+  eppItems: Array<{ id: string; name: string; category: string; standard: string; active: boolean }>;
+  assignments: Array<{
+    id: string;
+    jobProfileId: string;
+    jobProfileName: string;
+    eppItemId: string;
+    eppName: string;
+    category: string;
+    standard: string;
+    required: boolean;
+    reason?: string;
+    scope?: string;
+    active: boolean;
+  }>;
+}
+
+/** Matriz enriquecida para la UI (una sola consulta, sin N+1). */
+export const fetchEppApplicabilityMatrix = (token: string) =>
+  apiFetch<EppApplicabilityMatrixResponse>('/epp/applicability/matrix', token, { method: 'GET' });
+
+export interface CreateEppApplicabilityPayload {
+  jobProfileId: string;
+  eppItemId: string;
+  required?: boolean;
+  reason?: string;
+  scope?: string;
+  active?: boolean;
+}
+
+export interface UpdateEppApplicabilityPayload {
+  required?: boolean;
+  reason?: string;
+  scope?: string;
+  active?: boolean;
+}
+
+export const createEppApplicability = (token: string, payload: CreateEppApplicabilityPayload) =>
+  apiFetch<EppApplicabilityRow>('/epp/applicability', token, { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateEppApplicability = (token: string, id: string, payload: UpdateEppApplicabilityPayload) =>
+  apiFetch<EppApplicabilityRow>(`/epp/applicability/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+
+// ── Entregas reales de EPP (4.2.6 — Alternativa B, módulo operativo /epp) ──
+// EppDelivery es la ÚNICA fuente de verdad de lo entregado (cumplimiento);
+// EppApplicability solo define REQUISITOS. Tipos en types/epp.ts.
+// companyId NUNCA viaja desde el cliente: el backend lo resuelve del usuario
+// autenticado (tenant server-side). El scoring V2 es exclusivo del backend.
+import type {
+  CreateEppDeliveryPayload,
+  EppDelivery,
+  EppDeliveryFilters,
+  EppDeliveryHistoryResponse,
+  UpdateEppDeliveryPayload,
+  UpdateEppDeliveryStatusPayload,
+} from './types/epp';
+
+/** Registrar una entrega real (POST /epp/deliveries). Roles: owner, admin. */
+export const createEppDelivery = (token: string, payload: CreateEppDeliveryPayload): Promise<EppDelivery> =>
+  apiFetch<EppDelivery>('/epp/deliveries', token, { method: 'POST', body: JSON.stringify(payload) });
+
+/**
+ * Listar entregas del tenant (GET /epp/deliveries) con filtros opcionales:
+ * employeeId, eppItemId, status, from, to y overdue=true (vencidas dinámicas).
+ * Los filtros se serializan solo si están definidos (sin undefined).
+ */
+export function fetchEppDeliveries(token: string, filters?: EppDeliveryFilters): Promise<EppDelivery[]> {
+  const query = new URLSearchParams();
+  if (filters?.employeeId) query.set('employeeId', filters.employeeId);
+  if (filters?.eppItemId) query.set('eppItemId', filters.eppItemId);
+  if (filters?.status) query.set('status', filters.status);
+  if (filters?.from) query.set('from', filters.from);
+  if (filters?.to) query.set('to', filters.to);
+  if (filters?.overdue !== undefined) query.set('overdue', String(filters.overdue));
+  const qs = query.toString();
+  return apiFetch<EppDelivery[]>(`/epp/deliveries${qs ? '?' + qs : ''}`, token, { method: 'GET' });
+}
+
+/** Obtener una entrega por id (GET /epp/deliveries/:id). 404 único cross-tenant. */
+export const fetchEppDelivery = (token: string, id: string): Promise<EppDelivery> =>
+  apiFetch<EppDelivery>(`/epp/deliveries/${id}`, token, { method: 'GET' });
+
+/** Historial inmutable de la entrega (GET /epp/deliveries/:id/history). */
+export const fetchEppDeliveryHistory = (token: string, id: string): Promise<EppDeliveryHistoryResponse> =>
+  apiFetch<EppDeliveryHistoryResponse>(`/epp/deliveries/${id}/history`, token, { method: 'GET' });
+
+/**
+ * Editar contenido de la entrega (PATCH /epp/deliveries/:id).
+ * Quedan FUERA del contrato (forbidNonWhitelisted): companyId, employeeId,
+ * eppItemId, createdBy, updatedBy, history y status (transiciones SOLO vía
+ * updateEppDeliveryStatus).
+ */
+export const updateEppDelivery = (token: string, id: string, payload: UpdateEppDeliveryPayload): Promise<EppDelivery> =>
+  apiFetch<EppDelivery>(`/epp/deliveries/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+
+/**
+ * Cambiar estado (PATCH /epp/deliveries/:id/status). Solo estados resueltos
+ * (REPLACED/RETURNED/DAMAGED); la reposición del ciclo es una NUEVA entrega.
+ */
+export const updateEppDeliveryStatus = (token: string, id: string, payload: UpdateEppDeliveryStatusPayload): Promise<EppDelivery> =>
+  apiFetch<EppDelivery>(`/epp/deliveries/${id}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+
+// ==================== 5.1.1 EMERGENCIAS API (identidad canónica; legacy 1.1.10) ====================
 
 export const fetchEmergenciesAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies', token, { method: 'GET' });
 export const updateEmergenciesAdvanced = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies', token, { method: 'PATCH', body: JSON.stringify(payload) });
+// Matriz de amenazas y vulnerabilidades (5.1.1): endpoints dedicados; el
+// servidor calcula riskLevel y resuelve companyId del contexto autenticado.
+export const createEmergenciesThreat = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/threats', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateEmergenciesThreat = (token: string, threatId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/threats/${threatId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+// Borrado LÓGICO: deja la amenaza inactiva conservándola para historial.
+export const deactivateEmergenciesThreat = (token: string, threatId: string) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/threats/${threatId}`, token, { method: 'DELETE' });
+// ── Subrecursos Etapa 2 (5.1.1): contactos, recursos, brigadas, evacuación ──
+export const createEmergenciesContact = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/contacts', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateEmergenciesContact = (token: string, contactId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/contacts/${contactId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const deactivateEmergenciesContact = (token: string, contactId: string) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/contacts/${contactId}`, token, { method: 'DELETE' });
+export const createEmergenciesResource = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/equipment', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateEmergenciesResource = (token: string, equipmentId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/equipment/${equipmentId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const deactivateEmergenciesResource = (token: string, equipmentId: string) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/equipment/${equipmentId}`, token, { method: 'DELETE' });
+export const createEmergenciesBrigadeMember = (token: string, brigadeId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/brigades/${brigadeId}/members`, token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateEmergenciesBrigadeMember = (token: string, brigadeId: string, memberId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/brigades/${brigadeId}/members/${memberId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const deactivateEmergenciesBrigadeMember = (token: string, brigadeId: string, memberId: string) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/brigades/${brigadeId}/members/${memberId}`, token, { method: 'DELETE' });
+export const updateEmergenciesRoute = (token: string, routeId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/evacuation-routes/${routeId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const updateEmergenciesMeetingPoint = (token: string, pointId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/meeting-points/${pointId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const addEmergenciesEvacuationCount = (token: string, pointId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/meeting-points/${pointId}/counts`, token, { method: 'POST', body: JSON.stringify(payload) });
+// ── Subrecursos Etapa 3 (5.1.1): captura completa brigadas/rutas/puntos/simulacros ──
+export const createEmergenciesBrigade = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/brigades', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateEmergenciesBrigade = (token: string, brigadeId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/brigades/${brigadeId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const deactivateEmergenciesBrigade = (token: string, brigadeId: string) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/brigades/${brigadeId}`, token, { method: 'DELETE' });
+export const createEmergenciesRoute = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/evacuation-routes', token, { method: 'POST', body: JSON.stringify(payload) });
+export const deactivateEmergenciesRoute = (token: string, routeId: string) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/evacuation-routes/${routeId}`, token, { method: 'DELETE' });
+export const createEmergenciesMeetingPoint = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/meeting-points', token, { method: 'POST', body: JSON.stringify(payload) });
+export const deactivateEmergenciesMeetingPoint = (token: string, pointId: string) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/meeting-points/${pointId}`, token, { method: 'DELETE' });
+// Simulacros con vínculo OPCIONAL a PlanActivity del Plan Anual (planActivityId
+// validado server-side contra la empresa autenticada).
+export const createEmergenciesDrill = (token: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/drills', token, { method: 'POST', body: JSON.stringify(payload) });
+export const updateEmergenciesDrill = (token: string, drillId: string, payload: Record<string, unknown>) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/drills/${drillId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+export const deactivateEmergenciesDrill = (token: string, drillId: string) => apiFetch<Record<string, unknown>>(`/phva-advanced/emergencies/drills/${drillId}`, token, { method: 'DELETE' });
 export const submitEmergenciesAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/submit', token, { method: 'POST' });
 export const approveEmergenciesAdvanced = (token: string) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/approve', token, { method: 'POST' });
 export const rejectEmergenciesAdvanced = (token: string, reason: string) => apiFetch<Record<string, unknown>>('/phva-advanced/emergencies/reject', token, { method: 'POST', body: JSON.stringify({ reason }) });
@@ -6713,6 +7394,139 @@ export function calculateIndicatorPeriod(token: string, period: string): Promise
   return apiFetch(`/indicators/calculate/${period}`, token, { method: 'POST' });
 }
 
+// ==================== INDICATORS SG-SST (6.1.1) — E4-A ====================
+
+/** Registro de horas trabajadas por período (denominador oficial de ind-01/02/03). */
+export interface CompanyPeriodWorkDataModel {
+  _id: string;
+  companyId: string;
+  /** Período mensual YYYY-MM. */
+  period: string;
+  hoursWorked: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Estado de un período de indicadores. */
+export type IndicatorPeriodStatus = 'OPEN' | 'CLOSED';
+
+/** Período de medición de indicadores. */
+export interface IndicatorPeriodModel {
+  _id: string;
+  companyId: string;
+  /** YYYY-MM, YYYY-Qn o YYYY según frecuencia. */
+  period: string;
+  status: IndicatorPeriodStatus;
+  closedBy?: string;
+  closedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Payload de creación de definición (CreateIndicatorDto — forbidNonWhitelisted). */
+export interface CreateIndicatorPayload {
+  code: string;
+  name: string;
+  description?: string;
+  category: IndicatorCategory;
+  subcategory: IndicatorSubcategory;
+  sourceModule?: string;
+  formulaType: IndicatorFormulaType;
+  formula?: Record<string, unknown>;
+  unit?: string;
+  targetValue?: number;
+  targetOperator?: string;
+  targetMin?: number;
+  targetMax?: number;
+  frequency: IndicatorFrequency;
+  responsible?: string;
+  responsibleArea?: string;
+  isActive?: boolean;
+  applicableLevels?: string[];
+  catalogCode?: string;
+}
+
+/** Payload de actualización (UpdateIndicatorDto — todos opcionales). */
+export type UpdateIndicatorPayload = Partial<CreateIndicatorPayload>;
+
+/** Payload de medición manual (CreateMeasurementDto — fechas ISO obligatorias). */
+export interface CreateIndicatorMeasurementPayload {
+  indicatorId: string;
+  period: string;
+  periodStart: string;
+  periodEnd: string;
+  numerator?: number;
+  denominator?: number;
+  calculatedValue?: number;
+  evidence?: string;
+  notes?: string;
+}
+
+/** Crea una definición de indicador (owner/admin en backend). */
+export function createIndicator(token: string, payload: CreateIndicatorPayload): Promise<IndicatorDefinition> {
+  return apiFetch<IndicatorDefinition>('/indicators', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza una definición (owner/admin en backend). */
+export function updateIndicator(token: string, id: string, payload: UpdateIndicatorPayload): Promise<IndicatorDefinition> {
+  return apiFetch<IndicatorDefinition>(`/indicators/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Soft-delete de una definición (owner/admin en backend). */
+export function deleteIndicator(token: string, id: string): Promise<void> {
+  return apiFetch<void>(`/indicators/${id}`, token, { method: 'DELETE' });
+}
+
+/** Registra una medición MANUAL (owner/admin/manager; respeta períodos CLOSED). */
+export function createIndicatorMeasurement(token: string, indicatorId: string, payload: CreateIndicatorMeasurementPayload): Promise<Record<string, unknown>> {
+  return apiFetch(`/indicators/${indicatorId}/measurements`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Lista los períodos del tenant. */
+export function fetchIndicatorPeriods(token: string): Promise<IndicatorPeriodModel[]> {
+  return apiFetch<IndicatorPeriodModel[]>('/indicators/periods/all', token, { method: 'GET' });
+}
+
+/** Crea un período (owner/admin en backend). */
+export function createIndicatorPeriod(token: string, period: string): Promise<IndicatorPeriodModel> {
+  return apiFetch<IndicatorPeriodModel>('/indicators/periods', token, { method: 'POST', body: JSON.stringify({ period }) });
+}
+
+/** Cierra un período — lo vuelve inmutable (owner/admin en backend). */
+export function closeIndicatorPeriod(token: string, period: string): Promise<IndicatorPeriodModel> {
+  return apiFetch<IndicatorPeriodModel>(`/indicators/periods/${encodeURIComponent(period)}/close`, token, { method: 'POST' });
+}
+
+/** Garantiza los indicadores seed MVP (owner/admin en backend). */
+export function seedIndicators(token: string): Promise<{ created: number; skipped: number; codes: string[] }> {
+  return apiFetch<{ created: number; skipped: number; codes: string[] }>('/indicators/seed', token, { method: 'POST' });
+}
+
+/**
+ * Lista las horas trabajadas del tenant (denominador de 6.1.1).
+ * Filtros opcionales from/to en formato YYYY-MM. NUNCA envía companyId.
+ */
+export function fetchIndicatorsWorkData(token: string, from?: string, to?: string): Promise<CompanyPeriodWorkDataModel[]> {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const qs = params.toString();
+  return apiFetch<CompanyPeriodWorkDataModel[]>(`/indicators/work-data${qs ? `?${qs}` : ''}`, token, { method: 'GET' });
+}
+
+/** Obtiene el registro YYYY-MM del tenant (null si no existe). */
+export function fetchIndicatorsWorkDataByPeriod(token: string, period: string): Promise<CompanyPeriodWorkDataModel | null> {
+  return apiFetch<CompanyPeriodWorkDataModel | null>(`/indicators/work-data/${encodeURIComponent(period)}`, token, { method: 'GET' });
+}
+
+/**
+ * Crea/actualiza horas trabajadas del período (owner/admin en backend).
+ * Rechazado por el backend si el período está CLOSED. NO envía companyId.
+ */
+export function upsertIndicatorsWorkData(token: string, period: string, hoursWorked: number): Promise<CompanyPeriodWorkDataModel> {
+  return apiFetch<CompanyPeriodWorkDataModel>(`/indicators/work-data/${encodeURIComponent(period)}`, token, { method: 'PUT', body: JSON.stringify({ period, hoursWorked }) });
+}
+
 // ==================== WORKER PARTICIPATION (4.1.2) ====================
 
 export interface WorkerParticipationModel {
@@ -6984,6 +7798,525 @@ export function fetchRiskMethodologies(token: string): Promise<RiskMethodologyMo
 export function fetchRiskMethodology(token: string, id: string): Promise<RiskMethodologyModel> {
   return apiFetch<RiskMethodologyModel>(`/risks/methodologies/${id}`, token, { method: 'GET' });
 }
+
+// ==================== ANNUAL AUDIT (6.1.2) — E3 ====================
+
+/**
+ * API del dominio ANNUAL-AUDIT (Auditoría anual SG-SST — estándar 6.1.2).
+ *
+ * Espejo de backend/src/modules/annual-audit/annual-audit.controller.ts (E1):
+ * - READ (GET): owner/admin/manager/member.
+ * - WRITE (POST/PATCH): owner/admin — el backend es la autoridad.
+ * - NUNCA se envían companyId/createdBy/updatedBy/history: el tenant y la
+ *   autoría se resuelven server-side.
+ */
+
+/** Lista auditorías del tenant (filtro opcional por estado). */
+export function fetchAnnualAudits(token: string, status?: AnnualAuditStatus): Promise<AnnualAuditModel[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiFetch<AnnualAuditModel[]>(`/annual-audit${qs}`, token, { method: 'GET' });
+}
+
+/** Obtiene una auditoría del tenant (404 si pertenece a otra empresa). */
+export function fetchAnnualAudit(token: string, id: string): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${id}`, token, { method: 'GET' });
+}
+
+/** Crea una auditoría (owner/admin en backend). */
+export function createAnnualAudit(token: string, payload: CreateAnnualAuditPayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>('/annual-audit', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza una auditoría (owner/admin en backend; el estado va por /status). */
+export function updateAnnualAudit(token: string, id: string, payload: UpdateAnnualAuditPayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Cambia el estado con transición validada en backend (owner/admin). */
+export function updateAnnualAuditStatus(token: string, id: string, payload: UpdateAnnualAuditStatusPayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${id}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Crea un hallazgo embebido (owner/admin en backend). */
+export function createAnnualAuditFinding(token: string, auditId: string, payload: CreateAuditFindingPayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${auditId}/findings`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza un hallazgo (owner/admin en backend). */
+export function updateAnnualAuditFinding(token: string, auditId: string, findingId: string, payload: UpdateAuditFindingPayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${auditId}/findings/${findingId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Crea una acción de seguimiento del hallazgo (owner/admin en backend). */
+export function createAnnualAuditAction(token: string, auditId: string, findingId: string, payload: CreateAuditActionPayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${auditId}/findings/${findingId}/actions`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza una acción de seguimiento (owner/admin en backend). */
+export function updateAnnualAuditAction(token: string, auditId: string, findingId: string, actionId: string, payload: UpdateAuditActionPayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${auditId}/findings/${findingId}/actions/${actionId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Asocia evidencia documental al INFORME (DocumentMaster tenant-safe). */
+export function attachAnnualAuditReportEvidence(token: string, auditId: string, payload: AttachAuditEvidencePayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${auditId}/evidence/report`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Asocia evidencia de COMPETENCIA del auditor (DocumentMaster tenant-safe). */
+export function attachAnnualAuditCompetenceEvidence(token: string, auditId: string, payload: AttachAuditEvidencePayload): Promise<AnnualAuditModel> {
+  return apiFetch<AnnualAuditModel>(`/annual-audit/${auditId}/evidence/competence`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Historial append-only de la auditoría (server-side, solo lectura). */
+export function fetchAnnualAuditHistory(token: string, auditId: string): Promise<AnnualAuditHistoryModel[]> {
+  return apiFetch<AnnualAuditHistoryModel[]>(`/annual-audit/${auditId}/history`, token, { method: 'GET' });
+}
+
+// ==================== COPASST AUDIT PLANNING (6.1.4) — E3 ====================
+
+/**
+ * API del dominio COPASST-AUDIT-PLANNING (Planificación de auditorías
+ * COPASST — estándar 6.1.4, VERIFICAR).
+ *
+ * Espejo de backend/src/modules/copasst-audit-planning/copasst-audit-planning.controller.ts (E1):
+ * - READ (GET): owner/admin/manager.
+ * - WRITE (POST/PATCH): owner/admin — el backend es la autoridad.
+ * - NUNCA se envían companyId/createdBy/updatedBy/history/status: el tenant,
+ *   la autoría y el estado se resuelven server-side (forbidNonWhitelisted).
+ * - Sin DELETE: la planificación es evidencia histórica (usar CANCELLED).
+ */
+
+/** Lista planificaciones del tenant (filtro opcional por estado). */
+export function fetchCopasstAuditPlannings(token: string, status?: CopasstAuditPlanningStatus): Promise<CopasstAuditPlanningModel[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiFetch<CopasstAuditPlanningModel[]>(`/copasst-audit-planning${qs}`, token, { method: 'GET' });
+}
+
+/** Obtiene una planificación del tenant (404 si pertenece a otra empresa). */
+export function fetchCopasstAuditPlanning(token: string, id: string): Promise<CopasstAuditPlanningModel> {
+  return apiFetch<CopasstAuditPlanningModel>(`/copasst-audit-planning/${id}`, token, { method: 'GET' });
+}
+
+/** Crea una planificación (owner/admin en backend). */
+export function createCopasstAuditPlanning(token: string, payload: CreateCopasstAuditPlanningPayload): Promise<CopasstAuditPlanningModel> {
+  return apiFetch<CopasstAuditPlanningModel>('/copasst-audit-planning', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza una planificación (owner/admin en backend; el estado va por /status). */
+export function updateCopasstAuditPlanning(token: string, id: string, payload: UpdateCopasstAuditPlanningPayload): Promise<CopasstAuditPlanningModel> {
+  return apiFetch<CopasstAuditPlanningModel>(`/copasst-audit-planning/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Cambia el estado con transición validada en backend (owner/admin). */
+export function updateCopasstAuditPlanningStatus(token: string, id: string, payload: UpdateCopasstAuditPlanningStatusPayload): Promise<CopasstAuditPlanningModel> {
+  return apiFetch<CopasstAuditPlanningModel>(`/copasst-audit-planning/${id}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Agrega una auditoría/verificación planificada (owner/admin en backend). */
+export function addCopasstAuditPlanningItem(token: string, planningId: string, payload: CreatePlannedAuditPayload): Promise<CopasstAuditPlanningModel> {
+  return apiFetch<CopasstAuditPlanningModel>(`/copasst-audit-planning/${planningId}/items`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza una auditoría planificada embebida (owner/admin en backend). */
+export function updateCopasstAuditPlanningItem(token: string, planningId: string, itemId: string, payload: UpdatePlannedAuditPayload): Promise<CopasstAuditPlanningModel> {
+  return apiFetch<CopasstAuditPlanningModel>(`/copasst-audit-planning/${planningId}/items/${itemId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Cambia el estado de un item con transición validada en backend (owner/admin). */
+export function updateCopasstAuditPlanningItemStatus(token: string, planningId: string, itemId: string, payload: UpdatePlannedAuditStatusPayload): Promise<CopasstAuditPlanningModel> {
+  return apiFetch<CopasstAuditPlanningModel>(`/copasst-audit-planning/${planningId}/items/${itemId}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Historial append-only de la planificación (server-side, solo lectura). */
+export function fetchCopasstAuditPlanningHistory(token: string, planningId: string): Promise<CopasstAuditPlanningHistoryModel[]> {
+  return apiFetch<CopasstAuditPlanningHistoryModel[]>(`/copasst-audit-planning/${planningId}/history`, token, { method: 'GET' });
+}
+
+// ==================== CORRECTIVE PREVENTIVE ACTIONS (7.1.1) — E3 ====================
+
+/**
+ * API del dominio CORRECTIVE-PREVENTIVE-ACTIONS (Acciones preventivas y
+ * correctivas — estándar 7.1.1, ACTUAR).
+ *
+ * Espejo de backend/src/modules/corrective-preventive-actions/
+ * corrective-preventive-actions.controller.ts (E1):
+ * - READ (GET): owner/admin/manager.
+ * - WRITE (POST/PATCH): owner/admin — el backend es la autoridad.
+ * - NUNCA se envían companyId/createdBy/updatedBy/status/evidence/
+ *   effectivenessVerification/history: el tenant, la autoría y el estado se
+ *   resuelven server-side (forbidNonWhitelisted).
+ * - El estado va EXCLUSIVAMENTE por PATCH /:id/status; la eficacia por
+ *   POST /:id/effectiveness; la evidencia por POST /:id/evidence.
+ * - Sin DELETE: la acción es evidencia histórica (usar CANCELLED).
+ */
+
+/** Lista acciones del tenant (filtros opcionales del controller E1). */
+export function fetchCpaActions(
+  token: string,
+  filters?: {
+    status?: ActionStatus;
+    type?: string;
+    priority?: string;
+    origin?: string;
+    responsibleUserId?: string;
+  },
+): Promise<CorrectivePreventiveActionModel[]> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.type) params.set('type', filters.type);
+  if (filters?.priority) params.set('priority', filters.priority);
+  if (filters?.origin) params.set('origin', filters.origin);
+  if (filters?.responsibleUserId) params.set('responsibleUserId', filters.responsibleUserId);
+  const qs = params.toString();
+  return apiFetch<CorrectivePreventiveActionModel[]>(
+    `/corrective-preventive-actions${qs ? `?${qs}` : ''}`,
+    token,
+    { method: 'GET' },
+  );
+}
+
+/** Obtiene una acción del tenant (404 si pertenece a otra empresa). */
+export function fetchCpaAction(token: string, id: string): Promise<CorrectivePreventiveActionModel> {
+  return apiFetch<CorrectivePreventiveActionModel>(`/corrective-preventive-actions/${id}`, token, { method: 'GET' });
+}
+
+/** Crea una acción (owner/admin en backend). */
+export function createCpaAction(token: string, payload: CreateCpaActionPayload): Promise<CorrectivePreventiveActionModel> {
+  return apiFetch<CorrectivePreventiveActionModel>('/corrective-preventive-actions', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza una acción (owner/admin en backend; el estado va por /status). */
+export function updateCpaAction(token: string, id: string, payload: UpdateCpaActionPayload): Promise<CorrectivePreventiveActionModel> {
+  return apiFetch<CorrectivePreventiveActionModel>(`/corrective-preventive-actions/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Cambia el estado con transición validada en backend (owner/admin). */
+export function updateCpaActionStatus(token: string, id: string, payload: UpdateCpaActionStatusPayload): Promise<CorrectivePreventiveActionModel> {
+  return apiFetch<CorrectivePreventiveActionModel>(`/corrective-preventive-actions/${id}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Agrega/reemplaza la evidencia de la acción (owner/admin en backend). */
+export function addCpaActionEvidence(token: string, id: string, payload: AddCpaEvidencePayload): Promise<CorrectivePreventiveActionModel> {
+  return apiFetch<CorrectivePreventiveActionModel>(`/corrective-preventive-actions/${id}/evidence`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Registra la verificación de eficacia (solo COMPLETED; owner/admin). */
+export function verifyCpaActionEffectiveness(token: string, id: string, payload: VerifyCpaEffectivenessPayload): Promise<CorrectivePreventiveActionModel> {
+  return apiFetch<CorrectivePreventiveActionModel>(`/corrective-preventive-actions/${id}/effectiveness`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Historial append-only de la acción (server-side, solo lectura). */
+export function fetchCpaActionHistory(token: string, id: string): Promise<CpaHistoryModel[]> {
+  return apiFetch<CpaHistoryModel[]>(`/corrective-preventive-actions/${id}/history`, token, { method: 'GET' });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// E3 (7.1.2) — MANAGEMENT-IMPROVEMENT-ACTIONS (Acciones de mejora de la alta
+// dirección). Fuente OFICIAL del estándar 7.1.2 (dominio propio E1, provider
+// oficial E2). El proxy legacy 'management-improvement' (AccountabilityMeeting)
+// está INELIGIBLE y NO se consume desde el frontend.
+//
+// - companyId NUNCA viaja en el payload: se resuelve server-side.
+// - El estado va EXCLUSIVAMENTE por PATCH /:id/status; el seguimiento por
+//   POST /:id/follow-up; la evidencia por POST /:id/evidence.
+// - Sin DELETE: la acción es evidencia histórica (usar CANCELLED).
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Lista acciones de mejora del tenant (filtros opcionales del controller E1). */
+// E3 (7.1.3) — tipos del dominio incidents (Accidentalidad + Acciones por
+// accidentes) para la gestión avanzada. El modelo IncidentModel COMPLETO vive
+// en types/incidents.ts; el IncidentModel local (3.2.1, arriba) se conserva
+// como contrato básico para el CRUD existente.
+import {
+  IncidentHistoryModel,
+  UpdateInvestigationPayload,
+  AddInvestigationEvidencePayload,
+  CreateInvestigationActionPayload,
+  UpdateInvestigationActionPayload,
+  UpdateInvestigationActionStatusPayload,
+  AddActionEvidencePayload,
+  RegisterActionFollowUpPayload,
+  UpdateIncidentLifecyclePayload,
+} from './types/incidents';
+import type { IncidentModel as IncidentFullModel } from './types/incidents';
+export type {
+  InvestigationType,
+  IncidentLifecycleStage,
+  InvestigationProgressStatus,
+  InvestigationActionType,
+  InvestigationActionStatus,
+  InvestigationActionImplementationStatus,
+  InvestigationPerceivedEffectiveness,
+  IncidentHistoryAction,
+  IncidentEvidenceRefModel,
+  IncidentActionFollowUpModel,
+  InvestigationActionModel,
+  InvestigationTeamMemberModel,
+  InvestigationTeamMemberPayload,
+  UpdateInvestigationPayload,
+  AddInvestigationEvidencePayload,
+  CreateInvestigationActionPayload,
+  UpdateInvestigationActionPayload,
+  UpdateInvestigationActionStatusPayload,
+  AddActionEvidencePayload,
+  RegisterActionFollowUpPayload,
+  UpdateIncidentLifecyclePayload,
+  IncidentComplianceMetadataV1,
+} from './types/incidents';
+export function fetchMiaActions(
+  token: string,
+  filters?: {
+    status?: ImprovementActionStatus;
+    origin?: string;
+    priority?: string;
+    responsibleUserId?: string;
+  },
+): Promise<ManagementImprovementActionModel[]> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.origin) params.set('origin', filters.origin);
+  if (filters?.priority) params.set('priority', filters.priority);
+  if (filters?.responsibleUserId) params.set('responsibleUserId', filters.responsibleUserId);
+  const qs = params.toString();
+  return apiFetch<ManagementImprovementActionModel[]>(
+    `/management-improvement-actions${qs ? `?${qs}` : ''}`,
+    token,
+    { method: 'GET' },
+  );
+}
+
+/** Obtiene una acción de mejora del tenant (404 si pertenece a otra empresa). */
+export function fetchMiaAction(token: string, id: string): Promise<ManagementImprovementActionModel> {
+  return apiFetch<ManagementImprovementActionModel>(`/management-improvement-actions/${id}`, token, { method: 'GET' });
+}
+
+/** Crea una acción de mejora (owner/admin en backend). */
+export function createMiaAction(token: string, payload: CreateMiaActionPayload): Promise<ManagementImprovementActionModel> {
+  return apiFetch<ManagementImprovementActionModel>('/management-improvement-actions', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza una acción de mejora (owner/admin en backend; el estado va por /status). */
+export function updateMiaAction(token: string, id: string, payload: UpdateMiaActionPayload): Promise<ManagementImprovementActionModel> {
+  return apiFetch<ManagementImprovementActionModel>(`/management-improvement-actions/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Cambia el estado con transición validada en backend (owner/admin). */
+export function updateMiaActionStatus(token: string, id: string, payload: UpdateMiaActionStatusPayload): Promise<ManagementImprovementActionModel> {
+  return apiFetch<ManagementImprovementActionModel>(`/management-improvement-actions/${id}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Agrega/reemplaza la evidencia de la acción de mejora (owner/admin en backend). */
+export function addMiaActionEvidence(token: string, id: string, payload: AddMiaEvidencePayload): Promise<ManagementImprovementActionModel> {
+  return apiFetch<ManagementImprovementActionModel>(`/management-improvement-actions/${id}/evidence`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Registra seguimiento de implementación/efectividad (owner/admin en backend). */
+export function registerMiaActionFollowUp(token: string, id: string, payload: RegisterMiaFollowUpPayload): Promise<ManagementImprovementActionModel> {
+  return apiFetch<ManagementImprovementActionModel>(`/management-improvement-actions/${id}/follow-up`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Historial append-only de la acción de mejora (server-side, solo lectura). */
+export function fetchMiaActionHistory(token: string, id: string): Promise<MiaHistoryModel[]> {
+  return apiFetch<MiaHistoryModel[]>(`/management-improvement-actions/${id}/history`, token, { method: 'GET' });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// E3 (7.1.3) — INCIDENTS: gestión avanzada de Acciones por accidentes.
+// Fuente OFICIAL del estándar 7.1.3 (scorer puro dimensions:v1 del provider
+// 'incident-actions' E2). El CRUD 3.2.1 (arriba) se preserva intacto.
+//
+// - companyId NUNCA viaja en el payload: se resuelve server-side.
+// - El lifecycle canónico va EXCLUSIVAMENTE por PATCH /:id/lifecycle; el
+//   estado de la acción por PATCH /:id/actions/:actionId/status; el
+//   seguimiento por POST /:id/actions/:actionId/follow-up.
+// - DISEASE (3.2.2) convive en el dominio pero queda fuera del scoring 7.1.3.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Inicia/actualiza la investigación del caso (equipo/causas validados $in). */
+export function updateInvestigation(
+  token: string,
+  id: string,
+  payload: UpdateInvestigationPayload,
+): Promise<IncidentFullModel> {
+  return apiFetch<IncidentFullModel>(`/incidents/${id}/investigation`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Evidencia estructurada de la investigación (documentId tenant-safe / URL). */
+export function addInvestigationEvidence(
+  token: string,
+  id: string,
+  payload: AddInvestigationEvidencePayload,
+): Promise<IncidentFullModel> {
+  return apiFetch<IncidentFullModel>(`/incidents/${id}/investigation/evidence`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Crea una acción derivada de la investigación. */
+export function createInvestigationAction(
+  token: string,
+  id: string,
+  payload: CreateInvestigationActionPayload,
+): Promise<IncidentFullModel> {
+  return apiFetch<IncidentFullModel>(`/incidents/${id}/actions`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza contenido de una acción no terminal (estado va por /status). */
+export function updateInvestigationAction(
+  token: string,
+  id: string,
+  actionId: string,
+  payload: UpdateInvestigationActionPayload,
+): Promise<IncidentFullModel> {
+  return apiFetch<IncidentFullModel>(`/incidents/${id}/actions/${actionId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Cambia el estado de la acción (máquina de estados server-side). */
+export function updateInvestigationActionStatus(
+  token: string,
+  id: string,
+  actionId: string,
+  payload: UpdateInvestigationActionStatusPayload,
+): Promise<IncidentFullModel> {
+  return apiFetch<IncidentFullModel>(`/incidents/${id}/actions/${actionId}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Evidencia declarativa de la acción (documentId tenant-safe / URL). */
+export function addActionEvidence(
+  token: string,
+  id: string,
+  actionId: string,
+  payload: AddActionEvidencePayload,
+): Promise<IncidentFullModel> {
+  return apiFetch<IncidentFullModel>(`/incidents/${id}/actions/${actionId}/evidence`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Registra seguimiento de la acción (percepción de efectividad). */
+export function registerActionFollowUp(
+  token: string,
+  id: string,
+  actionId: string,
+  payload: RegisterActionFollowUpPayload,
+): Promise<IncidentFullModel> {
+  return apiFetch<IncidentFullModel>(`/incidents/${id}/actions/${actionId}/follow-up`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Cambia la etapa canónica del caso (COMPLETED/CLOSED con reglas de cierre). */
+export function updateIncidentLifecycle(
+  token: string,
+  id: string,
+  payload: UpdateIncidentLifecyclePayload,
+): Promise<IncidentFullModel> {
+  return apiFetch<IncidentFullModel>(`/incidents/${id}/lifecycle`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Historial append-only del caso (solo lectura). */
+export function fetchIncidentHistory(token: string, id: string): Promise<IncidentHistoryModel[]> {
+  return apiFetch<IncidentHistoryModel[]>(`/incidents/${id}/history`, token, { method: 'GET' });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// E3 (7.1.4) — IMPROVEMENT-PLANS (Plan de mejoramiento). Fuente OFICIAL del
+// estándar 7.1.4 (dominio propio E1, provider 'improvement-plan' E2,
+// dimensions:v1). Rutas EXACTAS del controller E1:
+//   POST   /improvement-plans
+//   GET    /improvement-plans            (?status&year&responsibleUserId)
+//   GET    /improvement-plans/:id
+//   PATCH  /improvement-plans/:id
+//   PATCH  /improvement-plans/:id/status
+//   DELETE /improvement-plans/:id        (solo DRAFT)
+//   POST   /improvement-plans/:id/activities
+//   PATCH  /improvement-plans/:id/activities/:activityId
+//   PATCH  /improvement-plans/:id/activities/:activityId/status
+//   POST   /improvement-plans/:id/activities/:activityId/evidence
+//   POST   /improvement-plans/:id/activities/:activityId/follow-up
+//   POST   /improvement-plans/:id/monitoring
+//   GET    /improvement-plans/:id/history
+//
+// - companyId NUNCA viaja en el payload: se resuelve server-side.
+// - El estado del plan SOLO cambia por PATCH /:id/status; el de la actividad
+//   por PATCH /:id/activities/:activityId/status; el seguimiento del plan por
+//   POST /:id/monitoring (independiente de las actividades).
+// - DELETE limitado a DRAFT en backend (planes en curso se CANCELLED).
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Lista planes de mejoramiento del tenant (filtros del controller E1). */
+export function fetchImprovementPlans(
+  token: string,
+  filters?: { status?: string; year?: number; responsibleUserId?: string },
+): Promise<ImprovementPlanModel[]> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.year !== undefined && !Number.isNaN(filters.year)) params.set('year', String(filters.year));
+  if (filters?.responsibleUserId) params.set('responsibleUserId', filters.responsibleUserId);
+  const qs = params.toString();
+  return apiFetch<ImprovementPlanModel[]>(
+    `/improvement-plans${qs ? `?${qs}` : ''}`,
+    token,
+    { method: 'GET' },
+  );
+}
+
+/** Obtiene un plan del tenant (404 si pertenece a otra empresa). */
+export function fetchImprovementPlan(token: string, id: string): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}`, token, { method: 'GET' });
+}
+
+/** Crea un plan de mejoramiento (owner/admin en backend). */
+export function createImprovementPlan(token: string, payload: CreateImprovementPlanPayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>('/improvement-plans', token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza un plan (owner/admin; el estado va por /status). */
+export function updateImprovementPlan(token: string, id: string, payload: UpdateImprovementPlanPayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Cambia el estado del plan con transición validada en backend (owner/admin). */
+export function updateImprovementPlanStatus(token: string, id: string, payload: UpdateImprovementPlanStatusPayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Elimina un plan en DRAFT (owner/admin; la evidencia histórica se preserva con CANCELLED). */
+export function deleteImprovementPlan(token: string, id: string): Promise<{ deleted: boolean }> {
+  return apiFetch<{ deleted: boolean }>(`/improvement-plans/${id}`, token, { method: 'DELETE' });
+}
+
+/** Crea una actividad embebida del plan (owner/admin; activityId server-side).
+ * NOTA: el prefijo `ImprovementPlan*` evita colisión con las funciones
+ * homónimas del dominio annual-work-plan definidas arriba en este archivo. */
+export function createImprovementPlanActivity(token: string, id: string, payload: CreatePlanActivityPayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}/activities`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Actualiza una actividad no terminal (estado va por /status). */
+export function updateImprovementPlanActivity(token: string, id: string, activityId: string, payload: UpdatePlanActivityPayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}/activities/${activityId}`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Cambia el estado de la actividad (COMPLETED exige executionDate en backend). */
+export function updateImprovementPlanActivityStatus(token: string, id: string, activityId: string, payload: UpdatePlanActivityStatusPayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}/activities/${activityId}/status`, token, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+/** Agrega evidencia a la actividad (documentId tenant-safe y/o URL). */
+export function addImprovementPlanActivityEvidence(token: string, id: string, activityId: string, payload: AddPlanActivityEvidencePayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}/activities/${activityId}/evidence`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Registra seguimiento de la actividad (percepción de efectividad). */
+export function registerImprovementPlanActivityFollowUp(token: string, id: string, activityId: string, payload: RegisterPlanActivityFollowUpPayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}/activities/${activityId}/follow-up`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Registra seguimiento periódico del PLAN (independiente de las actividades). */
+export function addPlanMonitoring(token: string, id: string, payload: AddPlanMonitoringPayload): Promise<ImprovementPlanModel> {
+  return apiFetch<ImprovementPlanModel>(`/improvement-plans/${id}/monitoring`, token, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+/** Historial append-only del plan (server-side, solo lectura). */
+export function fetchImprovementPlanHistory(token: string, id: string): Promise<IpHistoryModel[]> {
+  return apiFetch<IpHistoryModel[]>(`/improvement-plans/${id}/history`, token, { method: 'GET' });
+}
+
 
 export function createRiskMethodology(token: string, payload: CreateRiskMethodologyPayload): Promise<RiskMethodologyModel> {
   return apiFetch<RiskMethodologyModel>('/risks/methodologies', token, { method: 'POST', body: JSON.stringify(payload) });

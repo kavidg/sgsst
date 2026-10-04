@@ -3,6 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Risk, RiskDocument } from '../../risks/schemas/risk.schema';
 import { InspectionActivity, InspectionActivityDocument } from '../../inspections/schemas/inspection-activity.schema';
+// NORMALIZACIÓN: lectura tolerante de variantes históricas de status.
+import { isInspectionCompleted } from '../../inspections/utils/inspection-status.util';
 import { FindingPriority } from '../enums/finding-priority.enum';
 import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
@@ -73,11 +75,10 @@ export class ControlVerificationStandardProvider implements ComplianceProvider {
     const now = new Date();
     let completionScore = 0;
     if (inspections.length > 0) {
-      const completed = inspections.filter(
-        (i) => i.status === 'completada' || i.status === 'Completada',
-      ).length;
+      // NORMALIZACIÓN: status canónico (reconoce variantes históricas).
+      const completed = inspections.filter((i) => isInspectionCompleted(i.status)).length;
       const onTime = inspections.filter((i) => {
-        if (i.status === 'completada' || i.status === 'Completada') return true;
+        if (isInspectionCompleted(i.status)) return true;
         return new Date(i.plannedDate).getTime() >= now.getTime();
       }).length;
       completionScore = (completed / inspections.length * 0.6) + (onTime / inspections.length * 0.4);
@@ -123,7 +124,7 @@ export class ControlVerificationStandardProvider implements ComplianceProvider {
     }
 
     const overdue = inspections.filter(
-      (i) => i.status !== 'completada' && i.status !== 'Completada' && new Date(i.plannedDate).getTime() < now.getTime(),
+      (i) => !isInspectionCompleted(i.status) && new Date(i.plannedDate).getTime() < now.getTime(),
     ).length;
     if (overdue > 0) {
       findings.push({

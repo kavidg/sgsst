@@ -57,11 +57,59 @@ import { TrainingManagement, TrainingManagementDocument } from './schemas/phva-a
 import { PolicySignatureStatus, PolicySocializationStatus, SstPolicy, SstPolicyDocument, SstPolicyStatus } from './schemas/phva-advanced-sst-policy.schema';
 import { PolicyTemplateService } from './policy-template.service';
 import { SstObjectives, SstObjectivesDocument, SstObjectiveActivityStatus, SstObjectiveAutomaticSource, SstObjectiveMeasurementMethod, SstObjectiveStatus, SstObjectiveTaskPriority } from './schemas/phva-advanced-sst-objective.schema';
-import { SstEpp, SstEppDocument } from './schemas/phva-advanced-epp.schema';
-import { SstEmergencies, SstEmergenciesDocument } from './schemas/phva-advanced-emergencies.schema';
+import { SstEpp, SstEppDocument, SST_EPP_ITEM_CODE, SST_EPP_LEGACY_ITEM_CODES } from './schemas/phva-advanced-epp.schema';
+import { UpdateSstEppDto } from './dto/update-sst-epp.dto';
+import {
+  Brigade,
+  BrigadeMember,
+  CANONICAL_EMERGENCY_ITEM_CODE,
+  Drill,
+  EMERGENCY_LEGACY_ITEM_CODES,
+  EmergencyBrigadeFunction,
+  EmergencyContact,
+  EmergencyContactType,
+  EmergencyEquipment,
+  EmergencyEvacuationCount,
+  EmergencyImpact,
+  EmergencyPlan,
+  EmergencyPlanSocialization,
+  EmergencyProbability,
+  EmergencyResourceStatus,
+  EmergencyResourceType,
+  EmergencyRiskLevel,
+  EmergencyThreat,
+  EvacuationRoute,
+  MeetingPoint,
+  SstEmergencies,
+  SstEmergenciesDocument,
+} from './schemas/phva-advanced-emergencies.schema';
+import {
+  AddEvacuationCountDto,
+  CreateBrigadeMemberDto,
+  CreateEmergencyBrigadeDto,
+  CreateEmergencyContactDto,
+  CreateEmergencyDrillDto,
+  CreateEmergencyResourceDto,
+  CreateEmergencyThreatDto,
+  CreateEvacuationRouteDto,
+  CreateMeetingPointDto,
+  EmergencyPlanDto,
+  UpdateBrigadeMemberDto,
+  UpdateEmergencyBrigadeDto,
+  UpdateEmergencyContactDto,
+  UpdateEmergencyDrillDto,
+  UpdateEmergencyResourceDto,
+  UpdateEmergencyThreatDto,
+  UpdateEvacuationRouteDto,
+  UpdateMeetingPointDto,
+  UpdateSstEmergenciesDto,
+} from './dto/update-emergencies.dto';
 import { Training, TrainingDocument } from '../trainings/schemas/training.schema';
 import { InspectionActivity, InspectionActivityDocument } from '../inspections/schemas/inspection-activity.schema';
 import { Incident, IncidentDocument } from '../incidents/schemas/incident.schema';
+import { AnnualWorkPlan, AnnualWorkPlanDocument } from '../annual-work-plan/schemas/annual-work-plan.schema';
+import { PlanActivity, PlanActivityDocument } from '../annual-work-plan/schemas/plan-activity.schema';
+import { DocumentMaster, DocumentMasterDocument, DocumentType } from '../document-management/schemas/document-master.schema';
 import { AnnualWorkPlanService } from '../annual-work-plan/services/annual-work-plan.service';
 
 const REQUIRED_TEXT_FIELDS: Array<keyof UpdateResponsableSstDto> = [
@@ -124,6 +172,16 @@ export class PhvaAdvancedService {
     private readonly userModel: Model<UserDocument>,
     @InjectModel(CompanyProfile.name)
     private readonly companyProfileModel: Model<CompanyProfileDoc>,
+    // Etapa 3 (5.1.1) — vínculo Drill → PlanActivity y documento oficial
+    // EMERGENCY_PLAN. Modelos de otros dominios registrados localmente
+    // (patrón Training/InspectionActivity/Incident); lectura de solo
+    // validación, sin modificar AnnualWorkPlan ni DocumentManagement.
+    @InjectModel(PlanActivity.name)
+    private readonly planActivityModel: Model<PlanActivityDocument>,
+    @InjectModel(AnnualWorkPlan.name)
+    private readonly annualWorkPlanModel: Model<AnnualWorkPlanDocument>,
+    @InjectModel(DocumentMaster.name)
+    private readonly documentMasterModel: Model<DocumentMasterDocument>,
     private readonly alertsService: AlertsService,
     private readonly autoCommService: AutoCommunicationService,
     private readonly policyTemplateService: PolicyTemplateService,
@@ -3275,9 +3333,13 @@ export class PhvaAdvancedService {
   // ===================== EPP (1.2.3) =====================
 
   async findOrCreateEpp(companyId: Types.ObjectId) {
+    // Identidad canónica '4.2.6' con compatibilidad de lectura de documentos
+    // históricos creados con el itemCode legacy '1.2.3' (colisión corregida:
+    // 1.2.3 es el curso 50 horas en el catálogo). Los registros NUEVOS siempre
+    // se crean con el código canónico; no se reescriben los existentes.
     return this.eppModel.findOneAndUpdate(
-      { companyId, itemCode: '1.2.3' },
-      { $setOnInsert: { companyId, itemCode: '1.2.3' } },
+      { companyId, itemCode: { $in: [SST_EPP_ITEM_CODE, ...SST_EPP_LEGACY_ITEM_CODES] } },
+      { $setOnInsert: { companyId, itemCode: SST_EPP_ITEM_CODE } },
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     ).exec();
   }
@@ -3289,20 +3351,79 @@ export class PhvaAdvancedService {
   }
 
   async findEppByCompany(companyId: Types.ObjectId): Promise<SstEppDocument> {
-    const record = await this.eppModel.findOne({ companyId, itemCode: '1.2.3' }).exec();
+    const record = await this.eppModel
+      .findOne({ companyId, itemCode: { $in: [SST_EPP_ITEM_CODE, ...SST_EPP_LEGACY_ITEM_CODES] } })
+      .exec();
     if (!record) throw new NotFoundException('EPP not found');
     return record;
   }
 
-  async updateEpp(companyId: Types.ObjectId, user: UserDocument, dto: Record<string, unknown>) {
+  /**
+   * Actualización del catálogo/matriz EPP (SstEpp) con DTO ESTRICTO.
+   *
+   * Corrección de seguridad (auditoría 4.2.6): antes recibía
+   * Record<string, unknown> y hacía Object.assign sin whitelist, lo que
+   * permitía a un manager enviar complianceStatus: 'COMPLIES' y elevar el
+   * score del provider a 100. Ahora solo se aceptan los campos de gestión
+   * definidos en UpdateSstEppDto (el ValidationPipe global aplica whitelist
+   * + forbidNonWhitelisted); el estado de cumplimiento es responsabilidad
+   * del proceso de aprobación, no del cliente.
+   */
+  async updateEpp(companyId: Types.ObjectId, user: UserDocument, dto: UpdateSstEppDto) {
     const record = await this.findOrCreateEpp(companyId);
-    Object.assign(record, dto);
+    if (dto.complianceReason !== undefined) record.complianceReason = dto.complianceReason;
+    if (dto.year !== undefined) record.year = dto.year;
+    // Mapeo explícito DTO → subdocumentos del schema (los DTOs son planos y no
+    // instancias de las clases embebidas de Mongoose).
+    if (dto.catalog !== undefined) {
+      record.catalog = dto.catalog.map((item) => ({
+        eppId: item.eppId,
+        name: item.name,
+        category: item.category,
+        standard: item.standard ?? '',
+        requiredFor: item.requiredFor ?? '',
+        expectedLifespanMonths: item.expectedLifespanMonths ?? 1,
+        active: item.active ?? true,
+      }));
+    }
+    if (dto.assignments !== undefined) {
+      record.assignments = dto.assignments.map((a) => ({
+        assignmentId: a.assignmentId,
+        employeeId: a.employeeId,
+        employeeName: a.employeeName,
+        eppItemId: a.eppItemId,
+        eppName: a.eppName,
+        deliveryDate: a.deliveryDate ? new Date(a.deliveryDate) : new Date(),
+        ...(a.expectedReplacementDate ? { expectedReplacementDate: new Date(a.expectedReplacementDate) } : {}),
+        ...(a.actualReplacementDate ? { actualReplacementDate: new Date(a.actualReplacementDate) } : {}),
+        condition: a.condition ?? 'GOOD',
+        quantity: a.quantity ?? 1,
+        serialNumber: a.serialNumber ?? '',
+        status: a.status ?? 'ACTIVE',
+        deliveredBy: '',
+        receivedBy: '',
+        signatureUrl: '',
+        certificateUrl: '',
+      }));
+    }
+    if (dto.inspections !== undefined) {
+      record.inspections = dto.inspections.map((i) => ({
+        inspectionId: i.inspectionId,
+        date: i.date ? new Date(i.date) : new Date(),
+        inspector: i.inspector,
+        area: i.area,
+        findings: i.findings ?? '',
+        status: i.status ?? 'OPEN',
+        correctiveActions: i.correctiveActions ?? [],
+        evidence: [],
+      }));
+    }
     record.history.push({
       action: 'UPDATE',
       userId: user._id?.toString() ?? '',
       userName: user.email ?? '',
       timestamp: new Date(),
-      details: 'Actualización de EPP',
+      details: 'Actualización de catálogo/matriz EPP (campos de gestión)',
     } as never);
     return record.save();
   }
@@ -3325,12 +3446,19 @@ export class PhvaAdvancedService {
     };
   }
 
-  // ===================== EMERGENCIAS (1.1.10) =====================
+  // ===================== EMERGENCIAS (5.1.1 — Plan de emergencias; legacy 1.1.10) =====================
 
+  /**
+   * Identidad canónica '5.1.1' con compatibilidad de lectura de documentos
+   * históricos creados con el itemCode legacy '1.1.10' (colisión: en el
+   * catálogo 1.1.10 es un DUPLICATE de 1.1.3). Los registros NUEVOS siempre
+   * se crean con el código canónico; no se reescriben los existentes
+   * (migración física 1.1.10 → 5.1.1 pendiente para una etapa dedicada).
+   */
   async findOrCreateEmergencies(companyId: Types.ObjectId) {
     return this.emergenciesModel.findOneAndUpdate(
-      { companyId, itemCode: '1.1.10' },
-      { $setOnInsert: { companyId, itemCode: '1.1.10' } },
+      { companyId, itemCode: { $in: [CANONICAL_EMERGENCY_ITEM_CODE, ...EMERGENCY_LEGACY_ITEM_CODES] } },
+      { $setOnInsert: { companyId, itemCode: CANONICAL_EMERGENCY_ITEM_CODE } },
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     ).exec();
   }
@@ -3342,22 +3470,764 @@ export class PhvaAdvancedService {
   }
 
   async findEmergenciesByCompany(companyId: Types.ObjectId): Promise<SstEmergenciesDocument> {
-    const record = await this.emergenciesModel.findOne({ companyId, itemCode: '1.1.10' }).exec();
+    const record = await this.emergenciesModel
+      .findOne({ companyId, itemCode: { $in: [CANONICAL_EMERGENCY_ITEM_CODE, ...EMERGENCY_LEGACY_ITEM_CODES] } })
+      .exec();
     if (!record) throw new NotFoundException('Emergencias not found');
     return record;
   }
 
-  async updateEmergencies(companyId: Types.ObjectId, user: UserDocument, dto: Record<string, unknown>) {
+  /**
+   * Actualización del plan de emergencias (SstEmergencies) con DTO ESTRICTO.
+   *
+   * Seguridad (Etapa 5.1.1, patrón 4.2.6): antes recibía
+   * Record<string, unknown> y hacía Object.assign sin whitelist, lo que
+   * permitía modificar complianceStatus, itemCode, history e incluso
+   * sobrescribir arrays completos desde el cliente. Ahora solo se aceptan los
+   * campos de gestión definidos en UpdateSstEmergenciesDto; el estado de
+   * cumplimiento es responsabilidad del proceso de aprobación.
+   */
+  async updateEmergencies(companyId: Types.ObjectId, user: UserDocument, dto: UpdateSstEmergenciesDto) {
     const record = await this.findOrCreateEmergencies(companyId);
-    Object.assign(record, dto);
+
+    if (dto.year !== undefined) record.year = dto.year;
+    if (dto.complianceReason !== undefined) record.complianceReason = dto.complianceReason;
+
+    if (dto.plan !== undefined) {
+      record.plan = await this.applyEmergencyPlanUpdate(record.plan, dto.plan, companyId);
+    }
+
     record.history.push({
       action: 'UPDATE',
       userId: user._id?.toString() ?? '',
       userName: user.email ?? '',
       timestamp: new Date(),
-      details: 'Actualización de Emergencias',
+      details: 'Actualización del plan de emergencias (5.1.1)',
     } as never);
     return record.save();
   }
 
+  /**
+   * Aplica el parche de plan (DTO plano) sobre el subdocumento existente,
+   * conservando los campos no enviados. Los userIds se validan contra la
+   * empresa autenticada (tenant isolation) y documentId se acepta solo como
+   * vínculo referencial (la aprobación documental sigue siendo la de
+   * DocumentManagement/Approval Workflow).
+   */
+  private async applyEmergencyPlanUpdate(
+    currentPlan: EmergencyPlan,
+    dto: EmergencyPlanDto,
+    companyId: Types.ObjectId,
+  ): Promise<EmergencyPlan> {
+    const plan = currentPlan ?? new EmergencyPlan();
+
+    if (dto.planName !== undefined) plan.planName = dto.planName;
+    if (dto.version !== undefined) plan.version = dto.version;
+    if (dto.effectiveDate !== undefined) plan.effectiveDate = new Date(dto.effectiveDate);
+    if (dto.expirationDate !== undefined) plan.expirationDate = new Date(dto.expirationDate);
+    if (dto.approvedBy !== undefined) plan.approvedBy = dto.approvedBy;
+    if (dto.approvedAt !== undefined) plan.approvedAt = new Date(dto.approvedAt);
+    if (dto.documentUrl !== undefined) plan.documentUrl = dto.documentUrl;
+    if (dto.objectives !== undefined) plan.objectives = [...dto.objectives];
+    if (dto.scope !== undefined) plan.scope = dto.scope;
+    if (dto.preventiveActions !== undefined) plan.preventiveActions = [...dto.preventiveActions];
+    if (dto.generalResponseProcedure !== undefined) plan.generalResponseProcedure = dto.generalResponseProcedure;
+    if (dto.updateMechanism !== undefined) plan.updateMechanism = dto.updateMechanism;
+
+    if (dto.responsibleUserId !== undefined) {
+      await this.assertUserBelongsToCompany(dto.responsibleUserId, companyId, 'responsable');
+      plan.responsibleUserId = new Types.ObjectId(dto.responsibleUserId);
+    }
+    if (dto.approverUserId !== undefined) {
+      await this.assertUserBelongsToCompany(dto.approverUserId, companyId, 'aprobador');
+      plan.approverUserId = new Types.ObjectId(dto.approverUserId);
+    }
+    if (dto.documentId !== undefined) {
+      // Etapa 3 (5.1.1): validación tenant-safe del documento oficial
+      // (existe + misma empresa + tipo EMERGENCY_PLAN). La referencia sigue
+      // siendo puramente referencial; DocumentManagement/Approval Workflow
+      // no se modifican.
+      await this.assertEmergencyPlanDocument(dto.documentId, companyId);
+      plan.documentId = new Types.ObjectId(dto.documentId);
+    }
+
+    if (dto.socialization !== undefined) {
+      const s = dto.socialization;
+      const socialization = plan.socialization ?? new EmergencyPlanSocialization();
+      if (s.date !== undefined) socialization.date = new Date(s.date);
+      if (s.coveragePercentage !== undefined) socialization.coveragePercentage = s.coveragePercentage;
+      if (s.participants !== undefined) socialization.participants = s.participants;
+      if (s.observations !== undefined) socialization.observations = s.observations;
+      if (s.evidence !== undefined) socialization.evidence = [...s.evidence];
+      plan.socialization = socialization;
+    }
+
+    return plan;
+  }
+
+  /**
+   * Crea una amenaza en la matriz de amenazas y vulnerabilidades (5.1.1).
+   * El nivel de riesgo se calcula en el servidor a partir de probability ×
+   * impact (la valoración del cliente, si llegara, se ignora: el DTO ni
+   * siquiera la declara).
+   */
+  async createEmergencyThreat(companyId: Types.ObjectId, user: UserDocument, dto: CreateEmergencyThreatDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+
+    const probability = dto.probability ?? EmergencyProbability.LOW;
+    const impact = dto.impact ?? EmergencyImpact.LOW;
+
+    const threat: EmergencyThreat = {
+      threatId: new Types.ObjectId().toString(),
+      scenario: dto.scenario,
+      threat: dto.threat,
+      description: dto.description ?? '',
+      vulnerability: dto.vulnerability ?? '',
+      exposedPeople: dto.exposedPeople ?? '',
+      exposedAssets: dto.exposedAssets ?? '',
+      exposedProcesses: dto.exposedProcesses ?? '',
+      probability,
+      impact,
+      riskLevel: computeEmergencyRiskLevel(probability, impact),
+      preventiveMeasures: dto.preventiveMeasures ? [...dto.preventiveMeasures] : [],
+      responseMeasures: dto.responseMeasures ? [...dto.responseMeasures] : [],
+      responseProcedure: dto.responseProcedure ?? '',
+      active: dto.active ?? true,
+    } as EmergencyThreat;
+
+    record.threats.push(threat);
+    record.history.push({
+      action: 'CREATE_THREAT',
+      userId: user._id?.toString() ?? '',
+      userName: user.email ?? '',
+      timestamp: new Date(),
+      details: `Amenaza creada: ${threat.scenario} — ${threat.threat}`,
+    } as never);
+
+    await record.save();
+    return threat;
+  }
+
+  /**
+   * Actualiza una amenaza existente (búsqueda por threatId dentro del
+   * documento de la empresa autenticada: un threatId de otra empresa produce
+   * 404, mismo comportamiento de seguridad que el resto del dominio).
+   */
+  async updateEmergencyThreat(companyId: Types.ObjectId, user: UserDocument, threatId: string, dto: UpdateEmergencyThreatDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const threat = record.threats.find((t) => t.threatId === threatId);
+    if (!threat) throw new NotFoundException('Emergencia threat not found');
+
+    if (dto.scenario !== undefined) threat.scenario = dto.scenario;
+    if (dto.threat !== undefined) threat.threat = dto.threat;
+    if (dto.description !== undefined) threat.description = dto.description;
+    if (dto.vulnerability !== undefined) threat.vulnerability = dto.vulnerability;
+    if (dto.exposedPeople !== undefined) threat.exposedPeople = dto.exposedPeople;
+    if (dto.exposedAssets !== undefined) threat.exposedAssets = dto.exposedAssets;
+    if (dto.exposedProcesses !== undefined) threat.exposedProcesses = dto.exposedProcesses;
+    if (dto.preventiveMeasures !== undefined) threat.preventiveMeasures = [...dto.preventiveMeasures];
+    if (dto.responseMeasures !== undefined) threat.responseMeasures = [...dto.responseMeasures];
+    if (dto.responseProcedure !== undefined) threat.responseProcedure = dto.responseProcedure;
+    if (dto.active !== undefined) threat.active = dto.active;
+
+    if (dto.probability !== undefined || dto.impact !== undefined) {
+      const probability = dto.probability ?? (threat.probability as EmergencyProbability);
+      const impact = dto.impact ?? (threat.impact as EmergencyImpact);
+      threat.probability = probability;
+      threat.impact = impact;
+      threat.riskLevel = computeEmergencyRiskLevel(probability, impact);
+    }
+
+    record.history.push({
+      action: dto.active === false ? 'DEACTIVATE_THREAT' : 'UPDATE_THREAT',
+      userId: user._id?.toString() ?? '',
+      userName: user.email ?? '',
+      timestamp: new Date(),
+      details: `Amenaza actualizada: ${threat.scenario} — ${threat.threat}`,
+    } as never);
+
+    await record.save();
+    return threat;
+  }
+
+  /**
+   * Eliminación LÓGICA de una amenaza: active=false, conservando el registro
+   * para historial/auditoría (patrón de borrado lógico del repositorio).
+   */
+  async deactivateEmergencyThreat(companyId: Types.ObjectId, user: UserDocument, threatId: string) {
+    return this.updateEmergencyThreat(companyId, user, threatId, { active: false });
+  }
+
+  // ═══════ Etapa 2 (5.1.1): contactos, recursos, brigadas, evacuación ═══════
+
+  /** Registra una entrada en el historial del documento de emergencias. */
+  private pushEmergencyHistory(record: SstEmergenciesDocument, user: UserDocument, action: string, details: string) {
+    record.history.push({
+      action,
+      userId: user._id?.toString() ?? '',
+      userName: user.email ?? '',
+      timestamp: new Date(),
+      details,
+    } as never);
+  }
+
+  /**
+   * Valida que un Employee exista y pertenezca a la empresa autenticada
+   * (tenant isolation de brigadistas). El snapshot del nombre se genera en el
+   * servidor a partir de este empleado; NUNCA se acepta del frontend.
+   */
+  private async assertEmployeeBelongsToCompany(employeeId: string, companyId: Types.ObjectId) {
+    const employee = await this.employeeModel
+      .findOne({ _id: new Types.ObjectId(employeeId), companyId })
+      .exec();
+    if (!employee) {
+      throw new BadRequestException('El brigadista no pertenece a la empresa.');
+    }
+    return employee;
+  }
+
+  /**
+   * Espeja el estado tipado al campo legacy `status` para que los providers
+   * actuales (emergencies / emergency-management) sigan leyendo un valor
+   * coherente mientras exista la doble estructura.
+   */
+  private legacyResourceStatus(status: EmergencyResourceStatus): string {
+    switch (status) {
+      case EmergencyResourceStatus.OPERATIVE: return 'OPERATIVO';
+      case EmergencyResourceStatus.PARTIAL: return 'PARCIAL';
+      case EmergencyResourceStatus.INOPERATIVE: return 'INOPERATIVO';
+      default: return 'OPERATIVO';
+    }
+  }
+
+  // ── CONTACTOS DE EMERGENCIA (cadena de llamadas) ──
+
+  /** Crea un contacto de emergencia. `callOrder` = orden en la cadena (1 = principal). */
+  async createEmergencyContact(companyId: Types.ObjectId, user: UserDocument, dto: CreateEmergencyContactDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+
+    const contact: EmergencyContact = {
+      contactId: new Types.ObjectId().toString(),
+      type: dto.type,
+      name: dto.name,
+      phone: dto.phone,
+      secondaryPhone: dto.secondaryPhone ?? '',
+      address: dto.address ?? '',
+      notes: dto.notes ?? '',
+      callOrder: dto.callOrder ?? 1,
+      active: dto.active ?? true,
+    } as EmergencyContact;
+
+    record.contacts.push(contact);
+    this.pushEmergencyHistory(record, user, 'CREATE_CONTACT', `Contacto creado: ${contact.type} — ${contact.name}`);
+    await record.save();
+    return contact;
+  }
+
+  /** Actualiza un contacto (búsqueda dentro del documento de la empresa autenticada: un id ajeno produce 404). */
+  async updateEmergencyContact(companyId: Types.ObjectId, user: UserDocument, contactId: string, dto: UpdateEmergencyContactDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const contact = record.contacts.find((c) => c.contactId === contactId);
+    if (!contact) throw new NotFoundException('Emergency contact not found');
+
+    if (dto.type !== undefined) contact.type = dto.type;
+    if (dto.name !== undefined) contact.name = dto.name;
+    if (dto.phone !== undefined) contact.phone = dto.phone;
+    if (dto.secondaryPhone !== undefined) contact.secondaryPhone = dto.secondaryPhone;
+    if (dto.address !== undefined) contact.address = dto.address;
+    if (dto.notes !== undefined) contact.notes = dto.notes;
+    if (dto.callOrder !== undefined) contact.callOrder = dto.callOrder;
+    if (dto.active !== undefined) contact.active = dto.active;
+
+    this.pushEmergencyHistory(
+      record, user,
+      dto.active === false ? 'DEACTIVATE_CONTACT' : 'UPDATE_CONTACT',
+      `Contacto actualizado: ${contact.type} — ${contact.name}`,
+    );
+    await record.save();
+    return contact;
+  }
+
+  /** Eliminación LÓGICA de un contacto (active=false, conserva historial). */
+  async deactivateEmergencyContact(companyId: Types.ObjectId, user: UserDocument, contactId: string) {
+    return this.updateEmergencyContact(companyId, user, contactId, { active: false });
+  }
+
+  // ── RECURSOS DE EMERGENCIA (inventario de preparación; NO es Maintenance 4.2.5) ──
+
+  /** Crea un recurso de emergencia tipado (extintor, botiquín, camilla, etc.). */
+  async createEmergencyResource(companyId: Types.ObjectId, user: UserDocument, dto: CreateEmergencyResourceDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+
+    const operationalStatus = dto.operationalStatus ?? EmergencyResourceStatus.OPERATIVE;
+    const equipment: EmergencyEquipment = {
+      equipmentId: new Types.ObjectId().toString(),
+      name: dto.name,
+      // Espejo del tipo en el campo legacy para que los providers actuales
+      // (que leen `type`) vean un valor coherente.
+      type: dto.resourceType,
+      resourceType: dto.resourceType,
+      location: dto.location ?? '',
+      quantity: dto.quantity ?? 1,
+      ...(dto.lastInspectionDate ? { lastInspectionDate: new Date(dto.lastInspectionDate) } : {}),
+      ...(dto.nextInspectionDate ? { nextInspectionDate: new Date(dto.nextInspectionDate) } : {}),
+      status: this.legacyResourceStatus(operationalStatus),
+      operationalStatus,
+      certificateUrl: dto.certificateUrl ?? '',
+      evidenceUrl: dto.evidenceUrl ?? '',
+      active: dto.active ?? true,
+    } as EmergencyEquipment;
+
+    record.equipment.push(equipment);
+    this.pushEmergencyHistory(record, user, 'CREATE_RESOURCE', `Recurso creado: ${equipment.resourceType} — ${equipment.name}`);
+    await record.save();
+    return equipment;
+  }
+
+  /** Actualiza un recurso (búsqueda dentro del documento de la empresa autenticada: un id ajeno produce 404). */
+  async updateEmergencyResource(companyId: Types.ObjectId, user: UserDocument, equipmentId: string, dto: UpdateEmergencyResourceDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const equipment = record.equipment.find((e) => e.equipmentId === equipmentId);
+    if (!equipment) throw new NotFoundException('Emergency resource not found');
+
+    if (dto.resourceType !== undefined) {
+      equipment.resourceType = dto.resourceType;
+      equipment.type = dto.resourceType;
+    }
+    if (dto.name !== undefined) equipment.name = dto.name;
+    if (dto.location !== undefined) equipment.location = dto.location;
+    if (dto.quantity !== undefined) equipment.quantity = dto.quantity;
+    if (dto.lastInspectionDate !== undefined) equipment.lastInspectionDate = new Date(dto.lastInspectionDate);
+    if (dto.nextInspectionDate !== undefined) equipment.nextInspectionDate = new Date(dto.nextInspectionDate);
+    if (dto.operationalStatus !== undefined) {
+      equipment.operationalStatus = dto.operationalStatus;
+      equipment.status = this.legacyResourceStatus(dto.operationalStatus);
+    }
+    if (dto.certificateUrl !== undefined) equipment.certificateUrl = dto.certificateUrl;
+    if (dto.evidenceUrl !== undefined) equipment.evidenceUrl = dto.evidenceUrl;
+    if (dto.active !== undefined) equipment.active = dto.active;
+
+    this.pushEmergencyHistory(
+      record, user,
+      dto.active === false ? 'DEACTIVATE_RESOURCE' : 'UPDATE_RESOURCE',
+      `Recurso actualizado: ${equipment.resourceType ?? equipment.type} — ${equipment.name}`,
+    );
+    await record.save();
+    return equipment;
+  }
+
+  /** Eliminación LÓGICA de un recurso (active=false, conserva historial). */
+  async deactivateEmergencyResource(companyId: Types.ObjectId, user: UserDocument, equipmentId: string) {
+    return this.updateEmergencyResource(companyId, user, equipmentId, { active: false });
+  }
+
+  // ── BRIGADAS (miembros tipados → Employee; 5.1.2 comparte esta colección) ──
+
+  /**
+   * Agrega un brigadista tipado a una brigada. Valida que el Employee exista y
+   * pertenezca a la empresa autenticada; el snapshot del nombre se genera en
+   * el servidor para preservar evidencia histórica.
+   */
+  async createBrigadeMember(companyId: Types.ObjectId, user: UserDocument, brigadeId: string, dto: CreateBrigadeMemberDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const brigade = record.brigades.find((b) => b.brigadeId === brigadeId);
+    if (!brigade) throw new NotFoundException('Brigade not found');
+
+    const employee = await this.assertEmployeeBelongsToCompany(dto.employeeId, companyId);
+
+    const member: BrigadeMember = {
+      memberId: new Types.ObjectId().toString(),
+      employeeId: new Types.ObjectId(dto.employeeId),
+      employeeNameSnapshot: employee.name,
+      function: dto.function ?? EmergencyBrigadeFunction.OTHER,
+      isAlternate: dto.isAlternate ?? false,
+      active: dto.active ?? true,
+      ...(dto.trainingDate ? { trainingDate: new Date(dto.trainingDate) } : {}),
+      trainingType: dto.trainingType ?? '',
+      trainingEvidence: dto.trainingEvidence ?? '',
+      observations: dto.observations ?? '',
+    } as BrigadeMember;
+
+    brigade.typedMembers.push(member);
+    this.pushEmergencyHistory(record, user, 'CREATE_BRIGADE_MEMBER', `Brigadista agregado a ${brigade.name}: ${employee.name}`);
+    await record.save();
+    return member;
+  }
+
+  /** Actualiza un brigadista (brigada + miembro dentro del documento de la empresa autenticada: id ajeno produce 404). */
+  async updateBrigadeMember(companyId: Types.ObjectId, user: UserDocument, brigadeId: string, memberId: string, dto: UpdateBrigadeMemberDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const brigade = record.brigades.find((b) => b.brigadeId === brigadeId);
+    if (!brigade) throw new NotFoundException('Brigade not found');
+    const member = brigade.typedMembers.find((m) => m.memberId === memberId);
+    if (!member) throw new NotFoundException('Brigade member not found');
+
+    // El snapshot se REGENERÁ en el servidor si cambia el Employee (nunca se
+    // acepta employeeNameSnapshot del frontend como fuente de verdad).
+    if (dto.employeeId !== undefined) {
+      const employee = await this.assertEmployeeBelongsToCompany(dto.employeeId, companyId);
+      member.employeeId = new Types.ObjectId(dto.employeeId);
+      member.employeeNameSnapshot = employee.name;
+    }
+    if (dto.function !== undefined) member.function = dto.function;
+    if (dto.isAlternate !== undefined) member.isAlternate = dto.isAlternate;
+    if (dto.active !== undefined) member.active = dto.active;
+    if (dto.trainingDate !== undefined) member.trainingDate = new Date(dto.trainingDate);
+    if (dto.trainingType !== undefined) member.trainingType = dto.trainingType;
+    if (dto.trainingEvidence !== undefined) member.trainingEvidence = dto.trainingEvidence;
+    if (dto.observations !== undefined) member.observations = dto.observations;
+
+    this.pushEmergencyHistory(
+      record, user,
+      dto.active === false ? 'DEACTIVATE_BRIGADE_MEMBER' : 'UPDATE_BRIGADE_MEMBER',
+      `Brigadista actualizado en ${brigade.name}: ${member.employeeNameSnapshot}`,
+    );
+    await record.save();
+    return member;
+  }
+
+  /** Eliminación LÓGICA de un brigadista (active=false, conserva historial). */
+  async deactivateBrigadeMember(companyId: Types.ObjectId, user: UserDocument, brigadeId: string, memberId: string) {
+    return this.updateBrigadeMember(companyId, user, brigadeId, memberId, { active: false });
+  }
+
+  // ── EVACUACIÓN: rutas y puntos de encuentro ──
+
+  /** Actualiza una ruta de evacuación (responsable, capacidad, salida, señalización). */
+  async updateEvacuationRoute(companyId: Types.ObjectId, user: UserDocument, routeId: string, dto: UpdateEvacuationRouteDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const route = record.evacuationRoutes.find((r) => r.routeId === routeId);
+    if (!route) throw new NotFoundException('Evacuation route not found');
+
+    if (dto.name !== undefined) route.name = dto.name;
+    if (dto.description !== undefined) route.description = dto.description;
+    if (dto.floor !== undefined) route.floor = dto.floor;
+    if (dto.diagramUrl !== undefined) route.diagramUrl = dto.diagramUrl;
+    if (dto.estimatedTimeMinutes !== undefined) route.estimatedTimeMinutes = dto.estimatedTimeMinutes;
+    if (dto.responsible !== undefined) route.responsible = dto.responsible;
+    if (dto.estimatedCapacity !== undefined) route.estimatedCapacity = dto.estimatedCapacity;
+    if (dto.associatedExit !== undefined) route.associatedExit = dto.associatedExit;
+    if (dto.signageVerified !== undefined) route.signageVerified = dto.signageVerified;
+    if (dto.active !== undefined) route.active = dto.active;
+
+    this.pushEmergencyHistory(
+      record, user,
+      dto.active === false ? 'DELETE_ROUTE' : 'UPDATE_ROUTE',
+      dto.active === false ? `Ruta de evacuación desactivada: ${route.name}` : `Ruta de evacuación actualizada: ${route.name}`,
+    );
+    await record.save();
+    return route;
+  }
+
+  /** Actualiza un punto de encuentro (responsable, procedimiento de conteo, conteo esperado). */
+  async updateMeetingPoint(companyId: Types.ObjectId, user: UserDocument, pointId: string, dto: UpdateMeetingPointDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const point = record.meetingPoints.find((p) => p.pointId === pointId);
+    if (!point) throw new NotFoundException('Meeting point not found');
+
+    if (dto.name !== undefined) point.name = dto.name;
+    if (dto.location !== undefined) point.location = dto.location;
+    if (dto.capacity !== undefined) point.capacity = dto.capacity;
+    if (dto.coordinates !== undefined) point.coordinates = [...dto.coordinates];
+    if (dto.responsible !== undefined) point.responsible = dto.responsible;
+    if (dto.countProcedure !== undefined) point.countProcedure = dto.countProcedure;
+    if (dto.expectedCount !== undefined) point.expectedCount = dto.expectedCount;
+    if (dto.active !== undefined) point.active = dto.active;
+
+    this.pushEmergencyHistory(
+      record, user,
+      dto.active === false ? 'DELETE_MEETING_POINT' : 'UPDATE_MEETING_POINT',
+      dto.active === false ? `Punto de encuentro desactivado: ${point.name}` : `Punto de encuentro actualizado: ${point.name}`,
+    );
+    await record.save();
+    return point;
+  }
+
+  /**
+   * Registra un conteo de evacuación en un punto de encuentro (estructura
+   * preparada; NO es un sistema de asistencia en tiempo real). Si no se envía
+   * missingCount, se calcula como max(0, esperado − realizado).
+   */
+  async addEvacuationCount(companyId: Types.ObjectId, user: UserDocument, pointId: string, dto: AddEvacuationCountDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const point = record.meetingPoints.find((p) => p.pointId === pointId);
+    if (!point) throw new NotFoundException('Meeting point not found');
+
+    const count: EmergencyEvacuationCount = {
+      date: new Date(dto.date),
+      expectedCount: dto.expectedCount,
+      actualCount: dto.actualCount,
+      missingCount: dto.missingCount ?? Math.max(0, dto.expectedCount - dto.actualCount),
+      responsible: dto.responsible ?? '',
+      observations: dto.observations ?? '',
+    } as EmergencyEvacuationCount;
+
+    point.counts.push(count);
+    this.pushEmergencyHistory(record, user, 'ADD_EVACUATION_COUNT', `Conteo de evacuación en ${point.name}: ${count.actualCount}/${count.expectedCount}`);
+    await record.save();
+    return count;
+  }
+
+  // ── BRIGADAS: CRUD completo (Etapa 3) ─────────────────────────────
+  // La brigada es dominio COMPARTIDO con 5.1.2 (frontera documentada en el
+  // schema): aquí solo se gestiona la captura; el scoring lo deciden los
+  // providers futuros sin duplicar evidencia.
+
+  /** Crea una brigada. Los miembros se agregan después por sus endpoints propios. */
+  async createEmergencyBrigade(companyId: Types.ObjectId, user: UserDocument, dto: CreateEmergencyBrigadeDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+
+    const brigade: Brigade = {
+      brigadeId: new Types.ObjectId().toString(),
+      name: dto.name,
+      type: dto.type ?? 'Evacuación',
+      leader: dto.leader ?? '',
+      members: [],
+      typedMembers: [],
+      meetingFrequency: dto.meetingFrequency ?? 'Mensual',
+      ...(dto.lastMeetingDate ? { lastMeetingDate: new Date(dto.lastMeetingDate) } : {}),
+      active: true,
+    } as Brigade;
+
+    record.brigades.push(brigade);
+    this.pushEmergencyHistory(record, user, 'CREATE_BRIGADE', `Brigada creada: ${brigade.name} (${brigade.type})`);
+    await record.save();
+    return brigade;
+  }
+
+  /** Actualiza una brigada (búsqueda dentro del documento de la empresa autenticada: un id ajeno produce 404). */
+  async updateEmergencyBrigade(companyId: Types.ObjectId, user: UserDocument, brigadeId: string, dto: UpdateEmergencyBrigadeDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const brigade = record.brigades.find((b) => b.brigadeId === brigadeId);
+    if (!brigade) throw new NotFoundException('Brigade not found');
+
+    if (dto.name !== undefined) brigade.name = dto.name;
+    if (dto.type !== undefined) brigade.type = dto.type;
+    if (dto.leader !== undefined) brigade.leader = dto.leader;
+    if (dto.meetingFrequency !== undefined) brigade.meetingFrequency = dto.meetingFrequency;
+    if (dto.lastMeetingDate !== undefined) brigade.lastMeetingDate = new Date(dto.lastMeetingDate);
+    if (dto.active !== undefined) brigade.active = dto.active;
+
+    this.pushEmergencyHistory(
+      record, user,
+      dto.active === false ? 'DELETE_BRIGADE' : 'UPDATE_BRIGADE',
+      dto.active === false ? `Brigada desactivada: ${brigade.name}` : `Brigada actualizada: ${brigade.name}`,
+    );
+    await record.save();
+    return brigade;
+  }
+
+  /** Eliminación LÓGICA de una brigada (active=false, conserva miembros e historial). */
+  async deactivateEmergencyBrigade(companyId: Types.ObjectId, user: UserDocument, brigadeId: string) {
+    return this.updateEmergencyBrigade(companyId, user, brigadeId, { active: false });
+  }
+
+  // ── EVACUACIÓN: creación de rutas y puntos (la edición existía) ──
+
+  /** Crea una ruta de evacuación (responsable, capacidad, salida, señalización). */
+  async createEvacuationRoute(companyId: Types.ObjectId, user: UserDocument, dto: CreateEvacuationRouteDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+
+    const route: EvacuationRoute = {
+      routeId: new Types.ObjectId().toString(),
+      name: dto.name,
+      description: dto.description ?? '',
+      floor: dto.floor ?? '',
+      diagramUrl: dto.diagramUrl ?? '',
+      estimatedTimeMinutes: dto.estimatedTimeMinutes ?? 5,
+      responsible: dto.responsible ?? '',
+      estimatedCapacity: dto.estimatedCapacity ?? 0,
+      associatedExit: dto.associatedExit ?? '',
+      signageVerified: dto.signageVerified ?? false,
+      active: dto.active ?? true,
+    } as EvacuationRoute;
+
+    record.evacuationRoutes.push(route);
+    this.pushEmergencyHistory(record, user, 'CREATE_ROUTE', `Ruta de evacuación creada: ${route.name}`);
+    await record.save();
+    return route;
+  }
+
+  /** Eliminación LÓGICA de una ruta (active=false; nunca se borra historial de uso). */
+  async deactivateEvacuationRoute(companyId: Types.ObjectId, user: UserDocument, routeId: string) {
+    return this.updateEvacuationRoute(companyId, user, routeId, { active: false });
+  }
+
+  /** Crea un punto de encuentro (responsable, procedimiento de conteo, conteo esperado). */
+  async createMeetingPoint(companyId: Types.ObjectId, user: UserDocument, dto: CreateMeetingPointDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+
+    const point: MeetingPoint = {
+      pointId: new Types.ObjectId().toString(),
+      name: dto.name,
+      location: dto.location ?? '',
+      capacity: dto.capacity ?? 0,
+      coordinates: dto.coordinates ? [...dto.coordinates] : [],
+      responsible: dto.responsible ?? '',
+      countProcedure: dto.countProcedure ?? '',
+      expectedCount: dto.expectedCount ?? 0,
+      counts: [],
+      active: dto.active ?? true,
+    } as MeetingPoint;
+
+    record.meetingPoints.push(point);
+    this.pushEmergencyHistory(record, user, 'CREATE_MEETING_POINT', `Punto de encuentro creado: ${point.name}`);
+    await record.save();
+    return point;
+  }
+
+  /** Eliminación LÓGICA de un punto de encuentro (active=false, conserva conteos). */
+  async deactivateMeetingPoint(companyId: Types.ObjectId, user: UserDocument, pointId: string) {
+    return this.updateMeetingPoint(companyId, user, pointId, { active: false });
+  }
+
+  // ── SIMULACROS: CRUD completo + vínculo opcional con Plan Anual ──
+
+  /**
+   * Valida que una actividad del Plan Anual exista y pertenezca a la empresa
+   * autenticada. El tenant se resuelve vía annualPlanId → AnnualWorkPlan
+   * (PlanActivity no tiene companyId propio). Id ajeno → 404 tenant-safe.
+   */
+  private async assertPlanActivityBelongsToCompany(planActivityId: string, companyId: Types.ObjectId): Promise<void> {
+    const activity = await this.planActivityModel.findById(new Types.ObjectId(planActivityId)).exec();
+    if (!activity) throw new NotFoundException('Plan activity not found');
+    const plan = await this.annualWorkPlanModel
+      .findOne({ _id: activity.annualPlanId, companyId })
+      .exec();
+    if (!plan) throw new NotFoundException('Plan activity not found');
+  }
+
+  /**
+   * Valida el documento oficial del plan: debe existir, pertenecer a la
+   * empresa autenticada y ser de tipo EMERGENCY_PLAN. Id ajeno → 404
+   * (tenant-safe); tipo incorrecto → 400.
+   */
+  private async assertEmergencyPlanDocument(documentId: string, companyId: Types.ObjectId): Promise<void> {
+    const document = await this.documentMasterModel.findById(new Types.ObjectId(documentId)).exec();
+    if (!document) throw new NotFoundException('Emergency plan document not found');
+    if (document.companyId.toString() !== companyId.toString()) {
+      throw new NotFoundException('Emergency plan document not found');
+    }
+    if (document.documentType !== DocumentType.EMERGENCY_PLAN) {
+      throw new BadRequestException('El documento seleccionado no es de tipo EMERGENCY_PLAN.');
+    }
+  }
+
+  /** Aplica los campos del simulacro compartiendo la lógica create/update. */
+  private applyDrillFields(drill: Drill, dto: CreateEmergencyDrillDto | UpdateEmergencyDrillDto) {
+    if (dto.name !== undefined) drill.name = dto.name;
+    if (dto.type !== undefined) drill.type = dto.type;
+    if (dto.date !== undefined) drill.date = new Date(dto.date);
+    if (dto.participants !== undefined) drill.participants = dto.participants;
+    if (dto.expectedParticipants !== undefined) drill.expectedParticipants = dto.expectedParticipants;
+    if (dto.durationMinutes !== undefined) drill.durationMinutes = dto.durationMinutes;
+    if (dto.results !== undefined) drill.results = dto.results;
+    if (dto.findings !== undefined) drill.findings = dto.findings;
+    if (dto.improvements !== undefined) drill.improvements = dto.improvements;
+    if (dto.evidence !== undefined) drill.evidence = [...dto.evidence];
+    if (dto.status !== undefined) drill.status = dto.status;
+  }
+
+  /** Crea un simulacro con vínculo OPCIONAL a una actividad del Plan Anual. */
+  async createEmergencyDrill(companyId: Types.ObjectId, user: UserDocument, dto: CreateEmergencyDrillDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+
+    if (dto.planActivityId) {
+      await this.assertPlanActivityBelongsToCompany(dto.planActivityId, companyId);
+    }
+
+    const drill: Drill = {
+      drillId: new Types.ObjectId().toString(),
+      name: dto.name,
+      type: dto.type ?? 'Evacuación',
+      date: new Date(dto.date),
+      participants: dto.participants ?? 0,
+      expectedParticipants: dto.expectedParticipants ?? 0,
+      durationMinutes: dto.durationMinutes ?? 0,
+      results: dto.results ?? '',
+      findings: dto.findings ?? '',
+      improvements: dto.improvements ?? '',
+      evidence: dto.evidence ? [...dto.evidence] : [],
+      status: dto.status ?? 'Programado',
+      ...(dto.planActivityId ? { planActivityId: new Types.ObjectId(dto.planActivityId) } : {}),
+      active: true,
+    } as Drill;
+
+    record.drills.push(drill);
+    this.pushEmergencyHistory(record, user, 'CREATE_DRILL', `Simulacro creado: ${drill.name} (${drill.status})`);
+    await record.save();
+    return drill;
+  }
+
+  /** Actualiza un simulacro (id ajeno → 404). `planActivityId: null` desvincula del Plan Anual. */
+  async updateEmergencyDrill(companyId: Types.ObjectId, user: UserDocument, drillId: string, dto: UpdateEmergencyDrillDto) {
+    const record = await this.findOrCreateEmergencies(companyId);
+    const drill = record.drills.find((d) => d.drillId === drillId);
+    if (!drill) throw new NotFoundException('Drill not found');
+
+    if (dto.planActivityId) {
+      await this.assertPlanActivityBelongsToCompany(dto.planActivityId, companyId);
+    }
+
+    this.applyDrillFields(drill, dto);
+
+    if (dto.planActivityId !== undefined) {
+      // null → desvincular; id válido → vincular (ya validado arriba).
+      drill.planActivityId = dto.planActivityId === null ? undefined : new Types.ObjectId(dto.planActivityId);
+    }
+    if (dto.active !== undefined) drill.active = dto.active;
+
+    this.pushEmergencyHistory(
+      record, user,
+      dto.active === false ? 'DELETE_DRILL' : 'UPDATE_DRILL',
+      dto.active === false ? `Simulacro desactivado: ${drill.name}` : `Simulacro actualizado: ${drill.name}`,
+    );
+    await record.save();
+    return drill;
+  }
+
+  /** Eliminación LÓGICA de un simulacro (active=false, conserva historial). */
+  async deactivateEmergencyDrill(companyId: Types.ObjectId, user: UserDocument, drillId: string) {
+    return this.updateEmergencyDrill(companyId, user, drillId, { active: false });
+  }
+
+  /** Valida que un User pertenezca a la empresa autenticada (tenant isolation). */
+  private async assertUserBelongsToCompany(userId: string, companyId: Types.ObjectId, label: string) {
+    const user = await this.userModel.findOne({ _id: new Types.ObjectId(userId), companyId }).exec();
+    if (!user) {
+      throw new BadRequestException(`El usuario ${label} no pertenece a la empresa.`);
+    }
+  }
+
 }
+
+/**
+ * Nivel de riesgo de una amenaza de emergencia a partir de probability ×
+ * impact (matriz 3×3 → 4 niveles). Dominio PROPIO de emergencias; NO reutiliza
+ * la valoración del módulo general de riesgos laborales (Risk).
+ *
+ * Matriz: L×L=1 LOW · L×M/M×L=2 y L×H/H×L=3 MEDIUM · M×M=4 y M×H/H×M=6 HIGH
+ * · H×H=9 CRITICAL.
+ */
+export function computeEmergencyRiskLevel(
+  probability: EmergencyProbability,
+  impact: EmergencyImpact,
+): EmergencyRiskLevel {
+  const score = EMERGENCY_PROBABILITY_SCORE[probability] * EMERGENCY_IMPACT_SCORE[impact];
+  if (score >= 7) return EmergencyRiskLevel.CRITICAL;
+  if (score >= 4) return EmergencyRiskLevel.HIGH;
+  if (score >= 2) return EmergencyRiskLevel.MEDIUM;
+  return EmergencyRiskLevel.LOW;
+}
+
+const EMERGENCY_PROBABILITY_SCORE: Record<EmergencyProbability, number> = {
+  [EmergencyProbability.LOW]: 1,
+  [EmergencyProbability.MEDIUM]: 2,
+  [EmergencyProbability.HIGH]: 3,
+};
+
+const EMERGENCY_IMPACT_SCORE: Record<EmergencyImpact, number> = {
+  [EmergencyImpact.LOW]: 1,
+  [EmergencyImpact.MEDIUM]: 2,
+  [EmergencyImpact.HIGH]: 3,
+};

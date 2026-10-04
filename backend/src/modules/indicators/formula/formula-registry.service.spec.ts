@@ -386,6 +386,52 @@ describe('FORMULA-VALIDATION: Formula structure validation', () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+// E2B-WORKDATA: 'work-data' es un módulo fuente válido (E2-B 6.1.1)
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('E2B-WORKDATA: work-data aceptado por validateFormula', () => {
+  it('validateFormula acepta la fórmula real de ind-01 (RATIO_SCALED con work-data)', () => {
+    const service = buildService();
+    // Fórmula real del seed ind-01-accident-frequency. No debe lanzar
+    // "Invalid module work-data" (E2-B: faltaba en VALID_DATA_SOURCE_MODULES).
+    const formula: FormulaDefinition = {
+      type: 'RATIO_SCALED',
+      numerator: ds('incidents', 'accidentCount'),
+      denominator: ds('work-data', 'hoursWorked'),
+      scale: 200000,
+    };
+    assert.doesNotThrow(() => service.validateFormula(formula));
+  });
+
+  it('validateFormula acepta work-data como fuente única (COUNT)', () => {
+    const service = buildService();
+    const formula: FormulaDefinition = {
+      type: 'COUNT',
+      source: ds('work-data', 'hoursWorked'),
+    };
+    assert.doesNotThrow(() => service.validateFormula(formula));
+  });
+
+  it('validateFormula sigue rechazando módulos fuera de DataSourceModule', () => {
+    const service = buildService();
+    const formula = {
+      type: 'COUNT',
+      source: ds('nonexistent-module', 'count'),
+    } as unknown as FormulaDefinition;
+    assert.throws(() => service.validateFormula(formula), /Invalid module/);
+  });
+
+  it('validateFormula sigue rechazando campos inválidos de work-data', () => {
+    const service = buildService();
+    const formula = {
+      type: 'COUNT',
+      source: ds('work-data', 'notAField'),
+    } as unknown as FormulaDefinition;
+    assert.throws(() => service.validateFormula(formula), /Invalid field/);
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // IND-REGRESSION: ComplianceEngine no fue modificado
 // ═══════════════════════════════════════════════════════════════════════════

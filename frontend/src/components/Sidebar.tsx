@@ -1,64 +1,15 @@
-import { useEffect, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { UserRole } from '../api';
 import { Icons } from './Icons';
-
-type SidebarLink = {
-  to: string;
-  label: string;
-  icon: () => JSX.Element;
-};
-
-type DocumentsSubmenuLink = {
-  to: string;
-  label: string;
-};
-
-const links: SidebarLink[] = [
-  { to: '/dashboard', label: 'Panel', icon: Icons.dashboard },
-  { to: '/companies', label: 'Empresas', icon: Icons.companies },
-  { to: '/users', label: 'Usuarios', icon: Icons.users },
-  { to: '/employees', label: 'Empleados', icon: Icons.users },
-  { to: '/job-profiles', label: 'Perfiles de cargo', icon: Icons.user },
-  { to: '/health-promotion', label: 'Prom. y prevención', icon: Icons.file },
-  // FASE 32: 3.1.7 — Estilos de vida y entornos saludables (mismo módulo con
-  // frontera normativa; la clasificación 3.1.7 vive en el backend).
-  { to: '/health-promotion?standard=3.1.7', label: 'Estilos de vida', icon: Icons.file },
-  { to: '/occupational-medical-record-custody', label: 'Custodia HC', icon: Icons.file },
-  // FASE 33: 3.1.6 — Restricciones y recomendaciones médico-laborales (owner/admin).
-  { to: '/work-restrictions', label: 'Restricciones méd-lab', icon: Icons.file },
-  // FASE 34B: 3.1.8 — Agua potable, servicios sanitarios y disposición de basuras (owner/admin).
-  { to: '/workplace-sanitary-conditions', label: 'Condiciones sanitarias', icon: Icons.file },
-  // FASE 34C: 3.1.9 — Eliminación adecuada de residuos sólidos, líquidos o gaseosos (owner/admin).
-  { to: '/waste-management', label: 'Gestión de residuos', icon: Icons.file },
-  // FASE 35B: Casos estadísticos de enfermedad laboral (owner/admin; sin scoring — base 3.3.4/3.3.5).
-  { to: '/occupational-disease-statistical-cases', label: 'Enfermedad laboral (casos)', icon: Icons.file },
-  { to: '/company-configuration', label: 'Empresa', icon: Icons.building },
-  { to: '/implementation-wizard', label: 'Implementación', icon: Icons.chart },
-  // LEGACY (FASE 3.4.1): la ruta /evaluations apunta a una página legacy rota
-  // (EvaluationsPage usa contratos que ya no existen en el backend). Se oculta
-  // temporalmente del menú sin borrar código; la migración posterior decidirá
-  // si se elimina o se reconecta al módulo InitialEvaluation.
-  // { to: '/evaluations', label: 'Evaluaciones', icon: Icons.chart },
-  { to: '/incidents', label: 'Accidentalidad', icon: Icons.alert },
-  { to: '/alerts', label: 'Alertas', icon: Icons.bell },
-  { to: '/absenteeism', label: 'Ausentismos', icon: Icons.chart },
-  { to: '/risks', label: 'Riesgos', icon: Icons.shield },
-  { to: '/inspections', label: 'Inspecciones', icon: Icons.shield },
-  { to: '/epp', label: 'EPP', icon: Icons.shield },
-  { to: '/emergencies', label: 'Emergencias', icon: Icons.alert },
-  { to: '/my-communications', label: 'Mis Comunic.', icon: Icons.bell },
-  { to: '/intelligence-compliance', label: '🤖 Inteligencia', icon: Icons.chart },
-];
-
-const documentsSubmenu: DocumentsSubmenuLink[] = [
-  { to: '/documents/plan', label: 'I. Planear (25%)' },
-  { to: '/documents/do', label: 'II. Hacer (60%)' },
-  { to: '/documents/check', label: 'III. Verificar (5%)' },
-  { to: '/documents/act', label: 'IV. Actuar (10%)' },
-];
-
-const managerLinks = [{ to: '/dashboard', label: 'Panel', icon: Icons.dashboard }];
+import {
+  DocumentsSubmenuLink,
+  RAW_DOCUMENTS_SUBMENU,
+  SidebarLink,
+  filterSidebarLinks,
+  getSearchableSidebarLinks,
+} from './sidebar/sidebarConfig';
+import { MenuSearchCommandPalette } from './sidebar/MenuSearchCommandPalette';
 
 type SidebarProps = {
   role?: UserRole;
@@ -69,37 +20,54 @@ type SidebarProps = {
 };
 
 export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCollapsed }: SidebarProps) {
-  const visibleLinks = role === 'manager'
-    ? managerLinks
-    : links.filter((link) => {
-      if (link.to === '/companies') return role === 'owner';
-      if (link.to === '/job-profiles') return role === 'owner' || role === 'admin';
-      if (link.to === '/health-promotion') return role === 'owner' || role === 'admin';
-      // FASE 32: 3.1.7 — mismo módulo, alcance estilos de vida (owner/admin).
-      if (link.to === '/health-promotion?standard=3.1.7') return role === 'owner' || role === 'admin';
-      // FASE 33: 3.1.6 — Restricciones méd-lab (owner/admin).
-      if (link.to === '/work-restrictions') return role === 'owner' || role === 'admin';
-      // FASE 34B: 3.1.8 — Condiciones sanitarias (owner/admin).
-      if (link.to === '/workplace-sanitary-conditions') return role === 'owner' || role === 'admin';
-      // FASE 34C: 3.1.9 — Gestión de residuos (owner/admin).
-      if (link.to === '/waste-management') return role === 'owner' || role === 'admin';
-      // FASE 35B: Casos estadísticos de enfermedad laboral (owner/admin; lectura +manager en página).
-      if (link.to === '/occupational-disease-statistical-cases') return role === 'owner' || role === 'admin';
-      // 3.1.5 (FASE 30G): visible para owner/admin (gestión); manager accede
-      // vía PHVA — Hacer. Igual patrón que health-promotion.
-      if (link.to === '/occupational-medical-record-custody') return role === 'owner' || role === 'admin';
-      if (link.to === '/my-communications') return role === 'member';
-      return true;
-    });
+  // E1 — La configuración del menú y el filtro de roles viven ahora en
+  // components/sidebar/sidebarConfig.ts (fuente única compartida con el
+  // buscador). Mismo comportamiento: manager solo ve Panel; el resto pasa por
+  // la cadena if-else por `to` exacto (incluye query strings).
+  const visibleLinks: SidebarLink[] = filterSidebarLinks(role);
   const location = useLocation();
-  const navigate = useNavigate();
   const [openDocuments, setOpenDocuments] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (location.pathname.startsWith('/documents')) {
       setOpenDocuments(true);
     }
   }, [location.pathname]);
+
+  // E1 — Atajo global Ctrl/Cmd + K: abre/cierra el buscador desde cualquier
+  // página autenticada (el Sidebar está montado en todas vía Layout). Un solo
+  // listener global, se limpia al desmontar. No existía ningún atajo previo.
+  // E6 — Comportamiento contextual: dentro de /documents/* el atajo lo atiende
+  // el buscador PHVA (usePhvaSearchIntegration), de modo que aquí NO se abre
+  // el buscador del menú (un solo overlay, sin doble apertura). La dependencia
+  // `location.pathname` mantiene el guard sincronizado con la ruta real.
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        if (location.pathname.startsWith('/documents/')) {
+          return;
+        }
+        event.preventDefault();
+        // E7 — cerrar vía atajo devuelve el foco al trigger (mismo comportamiento
+        // que cerrar con Escape/click); corrige el hallazgo de foco de E2.
+        if (searchOpen) {
+          handleSearchClose();
+        } else {
+          setSearchOpen(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [location.pathname, searchOpen]);
+
+  const handleSearchClose = () => {
+    setSearchOpen(false);
+    // Devolver el foco al botón que abrió el buscador.
+    searchButtonRef.current?.focus();
+  };
 
   return (
     <>
@@ -117,6 +85,23 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
           </button>
         </div>
         <nav>
+          {/* E1 — Buscador del menú: botón coherente con los nav-link; en
+              colapsado queda como icono con tooltip/aria-label. No altera el
+              botón de colapsar ni el header. */}
+          <button
+            type="button"
+            ref={searchButtonRef}
+            className="nav-link menu-search-trigger"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Buscar en el menú"
+            aria-haspopup="dialog"
+            aria-expanded={searchOpen}
+            data-tooltip={collapsed ? 'Buscar en el menú' : undefined}
+          >
+            <Icons.search />
+            {!collapsed ? <span>Buscar en el menú</span> : null}
+          </button>
+
           {visibleLinks.map((link) => (
             <NavLink
               key={link.to}
@@ -133,37 +118,32 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
 
           <div className="documents-menu-group">
               <div className={`documents-parent-row ${location.pathname.startsWith('/documents') ? 'active' : ''}`.trim()}>
+                {/* AJUSTE VISUAL/NAVEGACIÓN — PHVA es solo acordeón: no navega a /documents */}
                 <button
                   type="button"
                   onClick={() => {
                     if (collapsed) {
                       onToggleCollapsed();
                     }
-                    setOpenDocuments(true);
-                    onCloseMobile();
-                    navigate('/documents');
+                    setOpenDocuments((open) => !open);
                   }}
                   className="nav-link documents-parent"
-                  data-tooltip={collapsed ? 'Documentos - Autoevaluación' : undefined}
-                  aria-label={collapsed ? 'Documentos - Autoevaluación' : undefined}
+                  aria-expanded={openDocuments}
+                  data-tooltip={collapsed ? 'PHVA' : undefined}
+                  aria-label={collapsed ? 'PHVA' : undefined}
                 >
                   <Icons.file />
-                  {!collapsed ? <span>Documentos - Autoevaluación</span> : null}
+                  {!collapsed ? (
+                    <>
+                      <span>PHVA</span>
+                      <span className={`documents-chevron ${openDocuments ? 'open' : ''}`.trim()}><Icons.chevronDown /></span>
+                    </>
+                  ) : null}
                 </button>
-                {!collapsed ? (
-                  <button
-                    type="button"
-                    className="documents-toggle"
-                    aria-label={openDocuments ? 'Ocultar PHVA' : 'Mostrar PHVA'}
-                    onClick={() => setOpenDocuments((open) => !open)}
-                  >
-                    <span className={`documents-chevron ${openDocuments ? 'open' : ''}`.trim()}><Icons.chevronDown /></span>
-                  </button>
-                ) : null}
               </div>
 
               <div className={`documents-submenu ${openDocuments ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`.trim()}>
-                {documentsSubmenu.map((submenuLink) => (
+                {RAW_DOCUMENTS_SUBMENU.map((submenuLink: DocumentsSubmenuLink) => (
                   <NavLink
                     key={submenuLink.to}
                     to={submenuLink.to}
@@ -178,6 +158,14 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
             </div>
         </nav>
       </aside>
+      {/* E1 — Command palette del buscador. Recibe las opciones YA filtradas por
+          rol (paridad con el Sidebar); no conoce reglas de negocio SG-SST. */}
+      <MenuSearchCommandPalette
+        open={searchOpen}
+        links={getSearchableSidebarLinks(role)}
+        onClose={handleSearchClose}
+        onNavigate={onCloseMobile}
+      />
     </>
   );
 }

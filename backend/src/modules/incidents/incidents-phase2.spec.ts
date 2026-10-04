@@ -48,7 +48,12 @@ function createMockModel(instances: ReturnType<typeof createMockIncident>[]) {
 function createService(instances: ReturnType<typeof createMockIncident>[]) {
   const model = createMockModel(instances);
   const autoCommService = { generateCommunication: async () => {} };
-  return new IncidentsService(model as any, autoCommService as any);
+  // E1 (7.1.3): dependencias nuevas del service (history/DocumentMaster/User);
+  // estas pruebas de stats 3.2.2 no las ejercitan → mocks inertes.
+  const historyModel = { create: async () => {} } as any;
+  const documentMasterModel = {} as any;
+  const userModel = {} as any;
+  return new IncidentsService(model as any, autoCommService as any, historyModel, documentMasterModel, userModel);
 }
 
 describe('Incidents Phase 2 — DiseaseInvestigationStats (3.2.2)', () => {

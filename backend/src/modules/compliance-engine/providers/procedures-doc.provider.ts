@@ -7,8 +7,17 @@ import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
 
 /**
- * Evaluación automática del estándar 5.1.1
- * "Procedimientos SG-SST".
+ * Evaluación automática de procedimientos documentales del SG-SST.
+ *
+ * HISTORIAL DE MAPEO (corrección 5.1.1): este provider fue registrado como
+ * evaluación del estándar 5.1.1 "Procedimientos SG-SST", pero en el catálogo
+ * normativo (catalog-60.ts) 5.1.1 es "Plan de emergencias". Era un
+ * WRONG-MAPPING: medía procedimientos genéricos de DocumentMaster, no
+ * emergencias. El provider OFICIAL de 5.1.1 es ahora EmergencyPlanProvider
+ * (emergency-plan, fuente SstEmergencias) y este provider:
+ *  - NO puntúa 5.1.1 (retirado del scoring; se conserva en moduleCompliance
+ *    para hallazgos/diagnósticos de su evidencia documental propia).
+ *  - NO se elimina: DocumentManagement y su spec siguen intactos.
  *
  * Evalúa si la empresa cuenta con procedimientos documentales
  * suficientes para soportar la implementación del SG-SST.
@@ -21,7 +30,8 @@ import { ComplianceProvider, ProviderComplianceResult } from './compliance-provi
  * - Procedimientos vigentes (no vencidos): 25%
  * - Procedimientos con responsable:        25%
  *
- * NOTA: Contribuye a phases.do (HACER).
+ * NOTA: Contribuye a phases.do (HACER) solo como evidencia propia del
+ * dominio documental; ya NO representa el estándar 5.1.1.
  */
 @Injectable()
 export class ProceduresDocProvider implements ComplianceProvider {

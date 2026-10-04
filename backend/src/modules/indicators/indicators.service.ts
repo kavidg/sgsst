@@ -564,6 +564,77 @@ export class IndicatorsService {
     };
   }
 
+  // ==================== COMPLIANCE SNAPSHOT (6.1.1) ====================
+
+  /**
+   * Snapshot READ-ONLY y tenant-scoped para el ComplianceProvider oficial de
+   * 6.1.1 (indicators). Una sola coordinación Promise.all: definiciones
+   * (activas e inactivas), mediciones (todos los períodos) y períodos.
+   *
+   * Sin N+1: 3 queries por empresa, todas con companyId del tenant y $in de
+   * ids resueltos en la misma llamada. NO crea datos, NO ejecuta seeds y NO
+   * muta colecciones (el scoring puro decide sobre este snapshot).
+   *
+   * Serialización segura: solo ObjectIds → string y campos escalares; sin
+   * funciones ni documentos Mongoose vivos.
+   */
+  async getComplianceSnapshot(companyId: Types.ObjectId): Promise<{
+    definitions: Array<Record<string, unknown>>;
+    measurements: Array<Record<string, unknown>>;
+    periods: Array<Record<string, unknown>>;
+  }> {
+    const [definitions, measurements, periods] = await Promise.all([
+      this.definitionModel.find({ companyId }).lean().exec(),
+      this.measurementModel.find({ companyId }).lean().exec(),
+      this.periodModel.find({ companyId }).lean().exec(),
+    ]);
+
+    const serializeDefinition = (d: Record<string, unknown>): Record<string, unknown> => ({
+      _id: String(d._id),
+      code: d.code,
+      name: d.name,
+      description: d.description,
+      category: d.category,
+      subcategory: d.subcategory,
+      sourceModule: d.sourceModule,
+      formulaType: d.formulaType,
+      formula: d.formula,
+      unit: d.unit,
+      targetOperator: d.targetOperator,
+      targetValue: d.targetValue,
+      targetMin: d.targetMin,
+      targetMax: d.targetMax,
+      frequency: d.frequency,
+      responsible: d.responsible,
+      responsibleArea: d.responsibleArea,
+      isActive: d.isActive,
+      catalogCode: d.catalogCode,
+    });
+
+    const serializeMeasurement = (m: Record<string, unknown>): Record<string, unknown> => ({
+      _id: String(m._id),
+      indicatorId: String(m.indicatorId),
+      period: m.period,
+      status: m.status,
+      source: m.source,
+      evidence: m.evidence,
+      notes: m.notes,
+      measuredAt: m.measuredAt instanceof Date ? m.measuredAt.toISOString() : m.measuredAt,
+    });
+
+    const serializePeriod = (p: Record<string, unknown>): Record<string, unknown> => ({
+      period: p.period,
+      status: p.status,
+      closedAt: p.closedAt instanceof Date ? p.closedAt.toISOString() : p.closedAt,
+    });
+
+    return {
+      definitions: definitions.map(serializeDefinition),
+      measurements: measurements.map(serializeMeasurement),
+      periods: periods.map(serializePeriod),
+    };
+  }
+
   // ==================== SEED ====================
 
   /**
@@ -729,6 +800,11 @@ export class IndicatorsService {
     failed: Array<{ code: string; error: string }>;
     summary: { total: number; calculated: number; noData: number; failed: number };
   }> {
+    // E3-B (6.1.1): un período CLOSED no debe ser recalculado automáticamente
+    // (las mediciones históricas de un período cerrado son inmutables). El
+    // bloqueo ocurre antes de cualquier escritura; los GET siguen permitidos.
+    await this.assertPeriodNotClosedForCalculation(companyId, period);
+
     // Ensure seed indicators exist
     await this.ensureSeedIndicators(companyId);
 
@@ -852,6 +928,27 @@ export class IndicatorsService {
 
       default:
         return IndicatorMeasurementStatus.CALCULATED;
+    }
+  }
+
+  /**
+   * E3-B (6.1.1): el recálculo automático de un período CLOSED está prohibido —
+   * sobrescribiría mediciones históricas. Se rechaza con BadRequestException
+   * (mismo patrón que verifyPeriodOpen). Períodos OPEN o sin IndicatorPeriod
+   * (tenants que calculan sin crear el período) continúan permitidos.
+   */
+  private async assertPeriodNotClosedForCalculation(
+    companyId: Types.ObjectId,
+    period: string,
+  ): Promise<void> {
+    const periodDoc = await this.periodModel
+      .findOne({ companyId, period })
+      .exec();
+
+    if (periodDoc && periodDoc.status === IndicatorPeriodStatus.CLOSED) {
+      throw new BadRequestException(
+        `Period "${period}" is closed. Cannot recalculate measurements.`,
+      );
     }
   }
 

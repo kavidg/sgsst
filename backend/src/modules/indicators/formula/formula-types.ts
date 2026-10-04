@@ -155,6 +155,9 @@ export type FormulaType = FormulaDefinition['type'];
 ];
 
 /** Módulos fuente válidos */
+// E2-B 6.1.1: 'work-data' faltaba por omisión — el union DataSourceModule y
+// VALID_FIELDS_BY_MODULE sí lo incluían, pero validateFormula rechazaba sus
+// fórmulas ("Invalid module work-data"), bloqueando ind-01/02/03.
 export const VALID_DATA_SOURCE_MODULES: DataSourceModule[] = [
   'incidents',
   'trainings',
@@ -169,6 +172,7 @@ export const VALID_DATA_SOURCE_MODULES: DataSourceModule[] = [
   'copasst-training',
   'convivencia',
   'absenteeism',
+  'work-data',
 ];
 
 /** Campos válidos por módulo */

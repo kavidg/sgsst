@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsMongoId, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ControlMeasureDto } from './control-measure.dto';
 
 export class CreateRiskDto {
   @IsString()
@@ -34,4 +35,14 @@ export class CreateRiskDto {
   @IsOptional()
   @IsString()
   methodologyVersion?: string;
+
+  /**
+   * ETAPA 1 (PHVA 4.2.2) — Opcional. Controles estructurados; convive
+   * con `controlMeasures` legacy. Si se omite, el flujo existente no cambia.
+   */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ControlMeasureDto)
+  controls?: ControlMeasureDto[];
 }

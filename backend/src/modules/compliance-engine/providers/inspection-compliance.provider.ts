@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { InspectionActivity, InspectionActivityDocument } from '../../inspections/schemas/inspection-activity.schema';
+// NORMALIZACIÓN: lectura tolerante de variantes históricas de status.
+import { isInspectionCompleted } from '../../inspections/utils/inspection-status.util';
 import { FindingPriority } from '../enums/finding-priority.enum';
 import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
@@ -52,12 +54,13 @@ export class InspectionComplianceProvider implements ComplianceProvider {
     }
 
     const total = inspections.length;
-    const completed = inspections.filter((i) => i.status === 'completada' || i.status === 'Completada').length;
+    // NORMALIZACIÓN: status canónico (reconoce completada/completed/ejecutada/etc.).
+    const completed = inspections.filter((i) => isInspectionCompleted(i.status)).length;
     const withResponsible = inspections.filter((i) => i.responsible && i.responsible.trim().length > 0).length;
 
     const now = new Date();
     const onTime = inspections.filter((i) => {
-      if (i.status === 'completada' || i.status === 'Completada') return true;
+      if (isInspectionCompleted(i.status)) return true;
       return new Date(i.plannedDate).getTime() >= now.getTime();
     }).length;
 
@@ -72,7 +75,7 @@ export class InspectionComplianceProvider implements ComplianceProvider {
     const findings: ProviderComplianceResult['findings'] = [];
 
     const overdue = inspections.filter(
-      (i) => i.status !== 'completada' && i.status !== 'Completada' && new Date(i.plannedDate).getTime() < now.getTime(),
+      (i) => !isInspectionCompleted(i.status) && new Date(i.plannedDate).getTime() < now.getTime(),
     ).length;
     if (overdue > 0) {
       findings.push({

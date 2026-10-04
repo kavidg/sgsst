@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import {
   type EpidemiologicalSurveillanceProgram,
   type SurveillanceActivity,
@@ -109,6 +110,7 @@ function createEmptyForm(): FormData {
 
 export function EpidemiologicalSurveillancePage({ token, role }: EpidemiologicalSurveillancePageProps) {
   const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
   const { companyId } = useCompanyContext();
   const [programs, setPrograms] = useState<EpidemiologicalSurveillanceProgram[]>([]);
   const [loading, setLoading] = useState(false);
@@ -328,7 +330,7 @@ export function EpidemiologicalSurveillancePage({ token, role }: Epidemiological
 
   // ── Header actions ──
   const headerActions: HeaderAction[] = [
-    { label: '← Volver al PHVA', onClick: () => navigate('/documents/do'), variant: 'secondary' },
+    { label: '← Volver al PHVA', onClick: () => goBackToPhva(), variant: 'secondary' },
     { label: 'Ver análisis', onClick: () => navigate('/intelligence-compliance'), variant: 'secondary' },
     { label: loading ? 'Cargando...' : '🔄 Recargar', onClick: () => { void loadData(); void loadIntelligence(); }, variant: 'secondary', disabled: loading },
   ];

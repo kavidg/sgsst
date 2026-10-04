@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { phvaBackTarget } from '../../lib/phvaReturn';
 import { Button } from '../ui/Button';
 
 export interface HeaderAction {
@@ -35,13 +36,29 @@ export function AdvancedHeader({
   className,
 }: AdvancedHeaderProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Retorno contextual al PHVA: cuando el backPath es una fase PHVA y la
+  // navegación entrante trajo un origen (location.state.phvaReturn), regresar
+  // a la fase de origen. Otros backPath (p. ej. "Volver a Implementación") y
+  // la entrada directa conservan el comportamiento actual.
 
   return (
     <header className={cn('al-header', className)}>
       {/* Back link */}
       {backPath && (
         <button
-          onClick={() => navigate(backPath)}
+          onClick={() =>
+            // FIX CAUSA RAÍZ: al volver a una fase PHVA reenviar location.state
+            // COMPLETO (con phvaReturn) — antes se perdía aquí y la página
+            // destino no podía restaurar el estándar de origen.
+            navigate(
+              backPath.startsWith('/documents/')
+                ? phvaBackTarget(backPath, location.state)
+                : backPath,
+              backPath.startsWith('/documents/') ? { state: location.state } : undefined,
+            )
+          }
           className="al-header__back"
         >
           {backLabel}

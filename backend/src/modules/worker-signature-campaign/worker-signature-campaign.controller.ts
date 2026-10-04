@@ -154,7 +154,19 @@ export class PublicSignController {
 
   @Get(':token')
   async getWorkerByToken(@Param('token') token: string) {
-    return this.service.getWorkerByToken(token);
+    const result = await this.service.getWorkerByToken(token);
+    // Fase 2 — antes de validar identidad NO se exponen PII (nombre completo,
+    // cargo, área). Solo el mínimo para iniciar la verificación; el nombre
+    // completo llega con validate-identity. (El documento NUNCA se devuelve;
+    // el trabajador lo escribe.)
+    const nameParts = String(result.worker.name ?? '').trim().split(/\s+/);
+    return {
+      token: { expiresAt: result.token.expiresAt },
+      worker: {
+        displayName: nameParts.length > 1 ? `${nameParts[0]} ${nameParts[nameParts.length - 1]}` : String(result.worker.name ?? ''),
+        identificationHint: String(result.worker.identification ?? '').slice(-2).padStart(4, '•'),
+      },
+    };
   }
 
   @Post(':token/validate-identity')

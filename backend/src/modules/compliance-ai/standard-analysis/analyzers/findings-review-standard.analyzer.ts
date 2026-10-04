@@ -1,13 +1,26 @@
 import { StandardAnalyzer, StandardAnalysisContext, StandardAnalysisInterpretation, StandardAnalysisMetrics, StandardAnalysisKeyIssue } from '../../dto/standard-analysis.dto';
 
+/**
+ * E2 — Analyzer legacy "Revisión de hallazgos" (AccountabilityCommitment).
+ *
+ * WRONG_MAPPING 6.1.4 RETIRADO: esta clase ya NO declara STANDARD_CODE
+ * '6.1.4' (la fuente oficial es CopasstAuditPlanningStandardAnalyzer sobre el
+ * provider `copasst-audit-planning`). Su registro fue retirado del
+ * StandardAnalysisService (patrón 5.1.1/5.1.2/6.1.1/6.1.3: la clase se
+ * conserva SIN registro, NO se elimina físicamente y NO se reasigna a otro
+ * estándar — queda SIN estándar canónico).
+ */
 export class FindingsReviewStandardAnalyzer implements StandardAnalyzer {
-  private static readonly STANDARD_CODE = '6.1.4';
+  /** Sin estándar canónico desde E2 (retiro del wrong-mapping 6.1.4). */
+  private static readonly STANDARD_CODE: string | null = null;
   private static readonly MODULE = 'findings-review';
 
-  supports(code: string): boolean { return code === FindingsReviewStandardAnalyzer.STANDARD_CODE; }
+  supports(_code: string): boolean { return FindingsReviewStandardAnalyzer.STANDARD_CODE !== null && _code === FindingsReviewStandardAnalyzer.STANDARD_CODE; }
   getModule(): string { return FindingsReviewStandardAnalyzer.MODULE; }
 
   analyze(ctx: StandardAnalysisContext): StandardAnalysisInterpretation {
+    // Nota E2: código muerto preservado (sin registro). Interpretaba la
+    // evidencia de compromisos como 6.1.4 — mapping incorrecto ya retirado.
     const { moduleCompliance, findings } = ctx;
     const pct = moduleCompliance.compliance;
     const keyIssues: StandardAnalysisKeyIssue[] = [];

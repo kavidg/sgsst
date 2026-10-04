@@ -77,6 +77,14 @@ export class Employee {
   @Prop({ required: true })
   status!: string;
 
+  /** Correo corporativo (opcional; carga masiva de empleados). */
+  @Prop({ type: String })
+  corporateEmail?: string;
+
+  /** Número de celular (opcional; carga masiva de empleados). */
+  @Prop({ type: String })
+  mobilePhone?: string;
+
   @Prop({ required: true, type: Types.ObjectId, ref: 'Company' })
   companyId!: Types.ObjectId;
 

@@ -1,0 +1,300 @@
+/*
+ * E5 — Estilos del command palette del buscador PHVA.
+ *
+ * Nombres de clase exclusivos `phva-search-*` para no colisionar con
+ * `menu-search-*` (buscador del Sidebar/E1) ni con estilos globales.
+ * Lenguaje visual del proyecto (mismos tokens de index.css): superficies
+ * blancas, bordes slate, radio 1rem, acento azul; sin Tailwind.
+ * Mobile: media query propia; sin cambios globales de layout.
+ */
+
+.phva-search-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, .55);
+  z-index: 300;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 1rem 1rem;
+}
+
+.phva-search-dialog {
+  width: 100%;
+  max-width: 640px;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 20px 50px rgba(2, 6, 23, .35);
+  overflow: hidden;
+}
+
+.phva-search-header {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .85rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.phva-search-header-icon { display: inline-flex; color: #64748b; }
+
+.phva-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 1rem;
+  color: #0f172a;
+  background: transparent;
+  padding: 0;
+}
+
+.phva-search-input::placeholder { color: #94a3b8; }
+
+.phva-search-kbd {
+  font-family: inherit;
+  font-size: .72rem;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: .45rem;
+  padding: .2rem .45rem;
+  white-space: nowrap;
+  background: #f8fafc;
+}
+
+.phva-search-close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: .95rem;
+  line-height: 1;
+  padding: .3rem .45rem;
+  border-radius: .45rem;
+}
+
+.phva-search-close:hover { background: #f1f5f9; color: #0f172a; }
+
+.phva-search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .6rem .8rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.phva-search-filter {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: .78rem;
+  padding: .3rem .7rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.phva-search-filter:hover { border-color: #cbd5e1; }
+
+.phva-search-filter.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.phva-search-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: .4rem;
+}
+
+.phva-search-results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.phva-search-result {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: .55rem .7rem;
+  border-radius: .7rem;
+  cursor: pointer;
+}
+
+.phva-search-result[data-navigable='false'] { cursor: default; }
+
+.phva-search-result[data-navigable='false'] .phva-search-result-title { color: #64748b; }
+
+.phva-search-result-active { background: #eff6ff; }
+
+.phva-search-result-code {
+  font-size: .8rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: .45rem;
+  padding: .2rem .45rem;
+  flex-shrink: 0;
+  min-width: 3.4rem;
+  text-align: center;
+}
+
+.phva-search-result-active .phva-search-result-code { background: #dbeafe; }
+
+.phva-search-result-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.phva-search-result-title {
+  font-size: .9rem;
+  color: #0f172a;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phva-search-result-meta {
+  font-size: .74rem;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phva-search-result-criteria {
+  font-size: .72rem;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phva-search-result-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: .25rem;
+  flex-shrink: 0;
+}
+
+.phva-search-result-phase {
+  font-size: .7rem;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: .45rem;
+  padding: .15rem .4rem;
+  white-space: nowrap;
+}
+
+.phva-search-result-status {
+  font-size: .7rem;
+  border-radius: .45rem;
+  padding: .15rem .4rem;
+  white-space: nowrap;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+}
+
+.phva-search-result-status.IMPLEMENTED { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+.phva-search-result-status.PARTIAL { color: #a16207; background: #fefce8; border-color: #fde68a; }
+.phva-search-result-status.PLANNED,
+.phva-search-result-status.NAV { color: #64748b; background: #f8fafc; border-color: #e2e8f0; }
+
+/* E7 — Región live visualmente oculta (conteo de resultados para SR). */
+.phva-search-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.phva-search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .2rem;
+  padding: 1.5rem 1rem 1.75rem;
+  text-align: center;
+}
+
+.phva-search-empty-title { margin: 0; color: #0f172a; font-weight: 600; }
+.phva-search-empty-hint { margin: 0; color: #64748b; font-size: .85rem; }
+
+@media (max-width: 768px) {
+  .phva-search-overlay { padding: 4vh .6rem 1rem; }
+
+  .phva-search-result { align-items: flex-start; }
+
+  .phva-search-result-badges { align-items: flex-end; }
+
+  .phva-search-filter { padding: .45rem .8rem; }
+}
+
+@media (max-height: 640px) {
+  .phva-search-overlay { padding-top: 4vh; }
+  .phva-search-dialog { max-height: 88vh; }
+}
+
+/* E6 — Integración: trigger en la barra común de fases (PhvaPhaseTabs). */
+.phva-tabs__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+}
+
+.phva-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: .8rem;
+  padding: .4rem .7rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.phva-search-trigger:hover { border-color: #cbd5e1; background: #f8fafc; }
+.phva-search-trigger:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+.phva-search-trigger__label { white-space: nowrap; }
+
+.phva-search-trigger__kbd {
+  font-family: inherit;
+  font-size: .68rem;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: .35rem;
+  padding: .1rem .35rem;
+  background: #f8fafc;
+}
+
+@media (max-width: 768px) {
+  /* En móvil el atajo no es requisito: se oculta la pista y el botón queda
+     táctil (icono + etiqueta). */
+  .phva-search-trigger__kbd { display: none; }
+}

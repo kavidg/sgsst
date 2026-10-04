@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import {
   CreateIncidentPayload,
   IncidentModel,
@@ -78,7 +78,7 @@ function severityBadge(severity: string): string {
 }
 
 export function CaseInterventionPage({ token, role }: CaseInterventionPageProps) {
-  const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
   const { companyId } = useCompanyContext();
   const [incidents, setIncidents] = useState<IncidentModel[]>([]);
   const [loading, setLoading] = useState(false);
@@ -313,7 +313,7 @@ export function CaseInterventionPage({ token, role }: CaseInterventionPageProps)
 
   // ── Header actions ──
   const headerActions: HeaderAction[] = [
-    { label: '← Volver al PHVA', onClick: () => navigate('/documents/do'), variant: 'secondary' },
+    { label: '← Volver al PHVA', onClick: () => goBackToPhva(), variant: 'secondary' },
     { label: loading ? 'Cargando...' : '🔄 Recargar', onClick: () => void loadData(), variant: 'secondary', disabled: loading },
   ];
 

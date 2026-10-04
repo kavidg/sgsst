@@ -235,7 +235,13 @@ export function EvaluationItem({
   const canOpenImprovementPlan = resultIsNoCumple && !readOnly;
 
   return (
-    <article className={`phva-card ${hasError ? 'phva-card--error' : ''}`.trim()}>
+    <article
+      className={`phva-card ${hasError ? 'phva-card--error' : ''}`.trim()}
+      // Retorno contextual al PHVA: identificador DOM estable del estándar
+      // (lib/phvaReturn.ts + hooks/usePhvaReturnRestore.ts lo usan para
+      // restaurar el viewport sobre este ítem al volver de un módulo).
+      data-phva-standard={code}
+    >
       {/* ZONA 1 · ENCABEZADO: código, fase, peso, origen y título */}
       <header className="phva-card__header">
         <div className="phva-card__meta">

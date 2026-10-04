@@ -89,6 +89,8 @@ export class EmployeesService {
         const area = employee.area?.trim();
         const contractType = employee.contractType?.trim();
         const status = employee.status?.trim();
+        const corporateEmail = employee.corporateEmail?.trim();
+        const mobilePhone = employee.mobilePhone?.trim();
 
         if (!name || !document || !position || !area || !contractType || !status) {
           errors.push({ row, message: 'Todos los campos son obligatorios.' });
@@ -121,6 +123,8 @@ export class EmployeesService {
           area,
           contractType,
           status: normalizedStatus ? 'Activo' : 'No activo',
+          ...(corporateEmail ? { corporateEmail } : {}),
+          ...(mobilePhone ? { mobilePhone } : {}),
           companyId,
         };
       })

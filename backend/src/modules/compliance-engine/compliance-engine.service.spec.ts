@@ -68,6 +68,7 @@ function buildService(): ComplianceEngineService {
     {} as never, // RecordsDocProvider
     {} as never, // ManagementMeasurementProvider
     {} as never, // ManagementReviewProvider
+    {} as never, // AnnualAuditComplianceProvider (ESTÁNDAR 6.1.2 — Auditoría anual, provider oficial)
     {} as never, // InternalAuditProvider
     {} as never, // FindingsReviewProvider
     {} as never, // CorrectivePreventiveProvider
@@ -82,10 +83,16 @@ function buildService(): ComplianceEngineService {
     {} as never, // AccidentStatisticsProvider (FASE 30C)
     {} as never, // AccidentSeverityProvider (FASE 30C)
     {} as never, // OccupationalMedicalRecordCustodyProvider (FASE 30F/30G)
+    {} as never, // ManagementReviewDirectionProvider (ESTÁNDAR 6.1.3 — Revisión por la dirección, provider oficial)
+    {} as never, // CopasstAuditPlanningProvider (ESTÁNDAR 6.1.4 — Planificación auditorías COPASST, provider oficial)
     {} as never, // LifestyleHealthyEnvironmentProvider (FASE 32)
     {} as never, // WorkRestrictionProvider (FASE 33)
     {} as never, // WorkplaceSanitaryConditionsProvider (FASE 34B)
     {} as never, // WasteManagementProvider (FASE 34C)
+    {} as never, // CorrectivePreventiveActionsProvider (ESTÁNDAR 7.1.1 — Acciones preventivas y correctivas, provider oficial)
+    {} as never, // ManagementImprovementActionsProvider (ESTÁNDAR 7.1.2 — Acciones de mejora de la alta dirección, provider oficial)
+    {} as never, // EmergencyPlanProvider (ESTÁNDAR 5.1.1 — Plan de emergencias)
+    {} as never, // EmergencyBrigadeProvider (ESTÁNDAR 5.1.2 — Brigada de emergencia, última posición)
     // SCOPE-1: DiseasePrevalenceProvider (35C-2), DiseaseIncidenceProvider
     // (35D-2) y MedicalAbsenteeismProvider (35E-2) desregistrados — fuera del
     // alcance aprobado; el constructor ya no los recibe.

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import {
   createHealthPromotionActivity,
   createLifestyleHealthyEnvironmentActivity,
@@ -189,7 +190,7 @@ function StatusBadge({ status, active }: { status: string; active: boolean }) {
 }
 
 export function HealthPromotionPage({ token, role }: Props) {
-  const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
   const [searchParams, setSearchParams] = useSearchParams();
 
   const canWrite = role === 'owner' || role === 'admin';
@@ -430,7 +431,7 @@ export function HealthPromotionPage({ token, role }: Props) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          <Button type="button" variant="secondary" onClick={() => navigate('/documents/do')}>
+          <Button type="button" variant="secondary" onClick={() => goBackToPhva()}>
             ← Volver al PHVA
           </Button>
           {!readOnly && (

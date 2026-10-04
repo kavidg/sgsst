@@ -28,14 +28,49 @@ import { InspectionComplianceStandardAnalyzer } from './analyzers/inspection-com
 import { MaintenanceStandardAnalyzer } from './analyzers/maintenance-standard.analyzer';
 import { EppComplianceStandardAnalyzer } from './analyzers/epp-compliance-standard.analyzer';
 import { EmergencyManagementStandardAnalyzer } from './analyzers/emergency-management-standard.analyzer';
-import { ProceduresDocStandardAnalyzer } from './analyzers/procedures-doc-standard.analyzer';
-import { RecordsDocStandardAnalyzer } from './analyzers/records-doc-standard.analyzer';
-import { ManagementMeasurementStandardAnalyzer } from './analyzers/management-measurement-standard.analyzer';
+// 5.1.1: el analyzer procedures-doc fue RETIRADO del registro (su único uso
+// era 5.1.1, wrong-mapping). La clase ProceduresDocStandardAnalyzer se conserva
+// en analyzers/procedures-doc-standard.analyzer.ts SIN registro, disponible
+// para una futura reasignación o eliminación. NO se reasigna automáticamente.
+import { EmergencyPlanStandardAnalyzer } from './analyzers/emergency-plan-standard.analyzer';
+// 5.1.2: el analyzer records-doc fue RETIRADO del registro (su único uso era
+// 5.1.2, wrong-mapping de "Registros SG-SST" sobre brigadas). La clase
+// RecordsDocStandardAnalyzer se conserva en analyzers/records-doc-standard.analyzer.ts
+// SIN registro, disponible para una futura reasignación o eliminación. NO se
+// reasigna automáticamente.
+import { EmergencyBrigadeStandardAnalyzer } from './analyzers/emergency-brigade-standard.analyzer';
+// 6.1.1 (E4-C): el analyzer management-measurement fue RETIRADO del registro
+// (su único uso era 6.1.1, wrong-mapping previo a que el provider `indicators`
+// fuera la fuente oficial). La clase ManagementMeasurementStandardAnalyzer se
+// conserva en analyzers/ SIN registro, disponible para futuro o eliminación.
+// NO se reasigna automáticamente (patrón 5.1.1/5.1.2).
+import { IndicatorsStandardAnalyzer } from './analyzers/indicators-standard.analyzer';
+import { AnnualAuditStandardAnalyzer } from './analyzers/annual-audit-standard.analyzer';
+// E4 (6.1.3): el analyzer legacy InternalAuditStandardAnalyzer fue RETIRADO del
+// registro (su único uso era 6.1.3, wrong-mapping: DocumentMaster AUDIT no es
+// revisión por la dirección). La clase se conserva en analyzers/ SIN registro
+// (patrón 5.1.1/5.1.2/6.1.1); NO se elimina físicamente ni se reasigna.
 import { ManagementReviewStandardAnalyzer } from './analyzers/management-review-standard.analyzer';
-import { InternalAuditStandardAnalyzer } from './analyzers/internal-audit-standard.analyzer';
-import { FindingsReviewStandardAnalyzer } from './analyzers/findings-review-standard.analyzer';
-import { CorrectivePreventiveStandardAnalyzer } from './analyzers/corrective-preventive-standard.analyzer';
-import { ManagementImprovementStandardAnalyzer } from './analyzers/management-improvement-standard.analyzer';
+// E4 (6.1.3): analyzer oficial de la Revisión por la dirección (consume la
+// metadata dimensions:v1 del provider `management-review-direction`).
+import { ManagementReviewDirectionStandardAnalyzer } from './analyzers/management-review-direction-standard.analyzer';
+// E2 (6.1.4): el analyzer findings-review fue RETIRADO del registro (su único
+// uso era 6.1.4, wrong-mapping: AccountabilityCommitment no es planificación de
+// auditorías COPASST). La clase FindingsReviewStandardAnalyzer se conserva en
+// analyzers/ SIN registro (patrón 5.1.1/5.1.2/6.1.1/6.1.3); NO se elimina
+// físicamente ni se reasigna a otro estándar.
+import { CopasstAuditPlanningStandardAnalyzer } from './analyzers/copasst-audit-planning-standard.analyzer';
+// E2 (7.1.1): el analyzer corrective-preventive fue RETIRADO del registro (su
+// único uso era 7.1.1 como proxy sobre AccountabilityCommitment). La clase
+// CorrectivePreventiveStandardAnalyzer se conserva en analyzers/ SIN registro
+// (patrón findings-review); NO se elimina físicamente ni se reasigna.
+import { CorrectivePreventiveActionsStandardAnalyzer } from './analyzers/corrective-preventive-actions-standard.analyzer';
+// ESTÁNDAR 7.1.2 — RETIRO DEL ANALYZER LEGACY: ManagementImprovementStandard
+// Analyzer (reuniones de rendición de cuentas) se conserva en analyzers/ SIN
+// registro (patrón findings-review/corrective-preventive); la fuente oficial
+// de IA para 7.1.2 es ManagementImprovementActionsStandardAnalyzer.
+// import { ManagementImprovementStandardAnalyzer } from './analyzers/management-improvement-standard.analyzer';
+import { ManagementImprovementActionsStandardAnalyzer } from './analyzers/management-improvement-actions-standard.analyzer';
 import { IncidentActionsStandardAnalyzer } from './analyzers/incident-actions-standard.analyzer';
 import { ImprovementPlanStandardAnalyzer } from './analyzers/improvement-plan-standard.analyzer';
 import { InductionReinductionStandardAnalyzer } from './analyzers/induction-reinduction-standard.analyzer';
@@ -96,14 +131,40 @@ export class StandardAnalysisService {
     this.register(new MaintenanceStandardAnalyzer());
     this.register(new EppComplianceStandardAnalyzer());
     this.register(new EmergencyManagementStandardAnalyzer());
-    this.register(new ProceduresDocStandardAnalyzer());
-    this.register(new RecordsDocStandardAnalyzer());
-    this.register(new ManagementMeasurementStandardAnalyzer());
+    // 5.1.1: analyzer oficial del Plan de prevención, preparación y respuesta
+    // ante emergencias (consume la metadata del provider `emergency-plan`).
+    this.register(new EmergencyPlanStandardAnalyzer());
+    // 5.1.2: analyzer oficial de la Brigada de emergencia (consume la metadata
+    // del provider `emergency-brigade`; reemplaza el wrong-mapping de records-doc).
+    this.register(new EmergencyBrigadeStandardAnalyzer());
+    // 6.1.1: analyzer oficial de Indicadores SG-SST (consume la metadata
+    // dimensions:v1 del provider `indicators`; reemplaza el wrong-mapping de
+    // management-measurement).
+    this.register(new IndicatorsStandardAnalyzer());
+    // E4 (6.1.2): analyzer oficial de Auditoría anual (consume la metadata
+    // dimensions:v1 del provider `annual-audit`; reemplaza la asociación
+    // incorrecta de management-review). La clase legacy
+    // ManagementReviewStandardAnalyzer permanece registrada para su contexto
+    // legítimo (revisión por la dirección) pero SIN capturar 6.1.2: el registro
+    // por orden de llegada haría que AnnualAuditStandardAnalyzer (registrado
+    // antes) gane la resolución de '6.1.2'.
+    this.register(new AnnualAuditStandardAnalyzer());
     this.register(new ManagementReviewStandardAnalyzer());
-    this.register(new InternalAuditStandardAnalyzer());
-    this.register(new FindingsReviewStandardAnalyzer());
-    this.register(new CorrectivePreventiveStandardAnalyzer());
-    this.register(new ManagementImprovementStandardAnalyzer());
+    // E4 (6.1.3): analyzer oficial de la Revisión por la dirección (única
+    // fuente de IA para este estándar; reemplaza el wrong-mapping de
+    // internal-audit, retirado del registro — ver nota de import arriba).
+    this.register(new ManagementReviewDirectionStandardAnalyzer());
+    // E2 (6.1.4): analyzer oficial de la Planificación de auditorías COPASST
+    // (única fuente de IA para este estándar; reemplaza el wrong-mapping de
+    // findings-review, retirado del registro — ver nota de import arriba).
+    this.register(new CopasstAuditPlanningStandardAnalyzer());
+    // E2 (7.1.1): analyzer OFICIAL de las Acciones preventivas y correctivas
+    // (dominio propio E1; corrective-preventive queda retirado del registro).
+    this.register(new CorrectivePreventiveActionsStandardAnalyzer());
+    // ESTÁNDAR 7.1.2: analyzer OFICIAL (dominio propio E1); el legacy
+    // ManagementImprovementStandardAnalyzer (AccountabilityMeeting) queda SIN
+    // registro (first-wins: el oficial debe ser el ÚNICO registrado).
+    this.register(new ManagementImprovementActionsStandardAnalyzer());
     this.register(new IncidentActionsStandardAnalyzer());
     this.register(new ImprovementPlanStandardAnalyzer());
     this.register(new InductionReinductionStandardAnalyzer());
@@ -118,11 +179,24 @@ export class StandardAnalysisService {
 
   /**
    * Registra un analyzer para un código de estándar.
+   *
+   * E4 (6.1.3) — FIX de frontera: el registro es FIRST-WINS. Si otro analyzer
+   * ya reclamó el código, el nuevo se ignora y se registra una advertencia.
+   * Así el orden de registro ya NO decide silenciosamente qué analyzer atiende
+   * un estándar (bug documentado: ManagementReviewStandardAnalyzer, registrado
+   * después de AnnualAuditStandardAnalyzer, terminaba capturando 6.1.2).
    */
   private register(analyzer: StandardAnalyzer): void {
     const testCodes = ['1.2.2', '2.9.1', '2.11.1', '2.7.1', '2.5.1', '2.6.1', '2.8.1', '2.10.1', '3.1.1', '3.1.2', '3.1.3', '3.1.4', '3.1.8', '3.1.9', '3.2.1', '3.2.2', '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.3.5', '3.3.6', '4.1.1', '4.1.2', '4.1.3', '4.1.4', '4.2.1', '4.2.2', '4.2.3', '4.2.4', '4.2.5', '4.2.6', '4.3.1', '4.4.1', '5.1.1', '5.1.2', '6.1.1', '6.1.2', '6.1.3', '6.1.4', '7.1.1', '7.1.2', '7.1.3', '7.1.4'];
     for (const code of testCodes) {
       if (analyzer.supports(code)) {
+        const existing = this.analyzers.get(code);
+        if (existing) {
+          this.logger.warn(
+            `Analyzer duplicado para ${code}: se conserva el registrado primero (${existing.getModule()}); se ignora ${analyzer.getModule()}.`,
+          );
+          return;
+        }
         this.analyzers.set(code, analyzer);
         break;
       }
@@ -264,11 +338,14 @@ export class StandardAnalysisService {
       'epp-compliance': 'epp-no-data',
       'control-verification-standard': 'control-verification-standard-no-data',
       'emergency-management': 'emergency-management-no-data',
-      'procedures-doc': 'procedures-doc-no-data',
+      'emergency-plan': 'emergency-plan-no-data',
+      'emergency-brigade': 'emergency-brigade-no-data',
       'records-doc': 'records-doc-no-data',
       'management-measurement': 'management-measurement-no-data',
       'management-review': 'management-review-no-data',
       'internal-audit': 'internal-audit-no-data',
+      // E4 (6.1.3): finding oficial de ausencia de datos del provider oficial.
+      'management-review-direction': 'management-review-direction-no-data',
       'findings-review': 'findings-review-no-data',
       'corrective-preventive': 'corrective-preventive-no-data',
       'management-improvement': 'management-improvement-no-data',
@@ -278,7 +355,13 @@ export class StandardAnalysisService {
       'health-indicators': 'health-indicators-no-data',
     };
     const noDataFindingId = noDataFindingIds[moduleKey] ?? 'acq-no-data';
-    const dataAvailable = !moduleFindings.some((f) => f.id === noDataFindingId);
+    // 5.1.2: la variante "brigadas existentes pero ninguna activa" es también
+    // un estado sin evidencia evaluable (status NO_DATA del provider). Se
+    // detecta con su finding oficial para que dataAvailable sea fiel.
+    const noDataFindingIdsForModule = moduleKey === 'emergency-brigade'
+      ? [noDataFindingId, 'emergency-brigade-no-active-brigade']
+      : [noDataFindingId];
+    const dataAvailable = !moduleFindings.some((f) => noDataFindingIdsForModule.includes(f.id));
 
     // 11. Construir respuesta (retrocompatible: evidence es opcional)
     return {
@@ -330,12 +413,19 @@ export class StandardAnalysisService {
       '4.2.6': 'EPP',
       '4.3.1': 'Verificación de controles',
       '4.4.1': 'Gestión de emergencias',
-      '5.1.1': 'Procedimientos SG-SST',
-      '5.1.2': 'Registros SG-SST',
+      '5.1.1': 'Plan de prevención, preparación y respuesta ante emergencias',
+      '5.1.2': 'Brigada de emergencia',
       '6.1.1': 'Medición de la gestión SST',
-      '6.1.2': 'Revisión por la dirección',
-      '6.1.3': 'Auditoría interna SG-SST',
-      '6.1.4': 'Revisión de hallazgos',
+      // E4 (6.1.2): título normativo del catálogo (era 'Revisión por la
+      // dirección' — etiqueta legacy del wrong-mapping de management-review).
+      '6.1.2': 'Auditoría anual',
+      // E4 (6.1.3): título normativo del catálogo (era 'Auditoría interna
+      // SG-SST' — etiqueta del wrong-mapping de internal-audit, retirado).
+      '6.1.3': 'Revisión alta dirección',
+      // E4 (6.1.4): título normativo del catálogo (era 'Revisión de hallazgos'
+      // — etiqueta del wrong-mapping de findings-review, retirado en E2). El
+      // analyzer oficial de 6.1.4 es CopasstAuditPlanningStandardAnalyzer.
+      '6.1.4': 'Planificación auditorías COPASST',
       '7.1.1': 'Acciones preventivas y correctivas',
       '7.1.2': 'Acciones mejora alta dirección',
       '7.1.3': 'Acciones por accidentes',

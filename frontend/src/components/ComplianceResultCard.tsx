@@ -10,6 +10,8 @@ type Props = {
   standardCode: string;
   standardTitle: string;
   actionRoute?: string;
+  /** ETAPA 5D (4.2.2): etiqueta opcional de la fuente de evidencia (informativa, no recalcula nada). */
+  sourceLabel?: string;
 };
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string; icon: string }> = {
@@ -37,7 +39,7 @@ function getProgressColor(pct: number): string {
   return '#dc2626';
 }
 
-export function ComplianceResultCard({ token, module: moduleKey, standardCode, standardTitle, actionRoute }: Props) {
+export function ComplianceResultCard({ token, module: moduleKey, standardCode, standardTitle, actionRoute, sourceLabel }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -98,6 +100,7 @@ export function ComplianceResultCard({ token, module: moduleKey, standardCode, s
           <div>
             <h4 className="crc-header__title">Cumplimiento — {standardTitle}</h4>
             <p className="crc-header__subtitle">Evaluado automáticamente por ComplianceEngine</p>
+            {sourceLabel ? <p className="crc-header__subtitle">Fuente: {sourceLabel}</p> : null}
           </div>
         </div>
         {actionRoute && (

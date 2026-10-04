@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePhvaBack } from '../hooks/usePhvaReturnRestore';
 import {
   type IndicatorDefinition,
   type IndicatorDashboardItem,
@@ -96,6 +97,7 @@ function getPeriodOptions(): string[] {
 
 export function HealthIndicatorsPage({ token, role }: HealthIndicatorsPageProps) {
   const navigate = useNavigate();
+  const goBackToPhva = usePhvaBack('/documents/do');
   const { companyId } = useCompanyContext();
   const [indicators, setIndicators] = useState<IndicatorDefinition[]>([]);
   const [dashboard, setDashboard] = useState<IndicatorDashboardResponse | null>(null);
@@ -208,7 +210,7 @@ export function HealthIndicatorsPage({ token, role }: HealthIndicatorsPageProps)
 
   // ── Header actions ──
   const headerActions: HeaderAction[] = [
-    { label: '← Volver al PHVA', onClick: () => navigate('/documents/check'), variant: 'secondary' },
+    { label: '← Volver al PHVA', onClick: () => goBackToPhva(), variant: 'secondary' },
     { label: 'Ver análisis', onClick: () => navigate('/intelligence-compliance'), variant: 'secondary' },
     { label: loading ? 'Cargando...' : '🔄 Recargar', onClick: () => { void loadIndicators(); if (activeTab === 'dashboard') void loadDashboard(); }, variant: 'secondary', disabled: loading },
   ];

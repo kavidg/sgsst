@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationItem } from '../../components/EvaluationItem';
-import { ComplianceProgress } from '../../components/ComplianceProgress';
 import { PhvaPhaseTabs } from '../../components/phva/PhvaPhaseTabs';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -10,6 +9,10 @@ import { usePhvaCatalog } from '../../hooks/usePhvaCatalog';
 import { mergeCatalogItems } from './utils/mergeCatalogItems';
 import { groupCatalogItems } from './utils/groupCatalogItems';
 import { shouldUseCatalogSet, hasCatalogSectionItems, catalogItemToEvaluationItem } from './utils/shouldUseCatalogSet';
+import { usePhvaSearchIntegration } from './search/usePhvaSearchIntegration';
+import type { PhvaSearchEntry } from './search/phvaSearchConfig';
+import { usePhvaReturnRestore } from '../../hooks/usePhvaReturnRestore';
+import { buildPhvaReturnState } from '../../lib/phvaReturn';
 import type { StandardSection } from '../../models/standard-catalog';
 import type { PhvaCatalogItem } from '../../services/phva-catalog.service';
 
@@ -64,7 +67,7 @@ const verificacionItems: EvaluationEntry[] = [
 
 export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
   const navigate = useNavigate();
-  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, totalCompliance, sectionCompliance } = useDocumentsEvaluation();
+  const { answers, missingCodes, sectionErrors, registerSection, setAnswerStatus, sectionCompliance } = useDocumentsEvaluation();
 
   // ────────────────────────────────────────────────────────────────────────
   // FASE 7.5 — Migración piloto: StandardCatalog como fuente de datos.
@@ -91,6 +94,17 @@ export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
   }, [catalog]);
 
   const useCatalog = !error && catalog.length > 0;
+
+  // E6 — Buscador PHVA: índice E4 + estado/atajo contextual (hook compartido
+  // por las cuatro fases). La navegación usa EXACTAMENTE lo preparado por E4
+  // (standardRoute + navigationState); sin fallbacks ni rutas inventadas.
+  const phvaSearch = usePhvaSearchIntegration({ catalog, readOnly, phase: 'VERIFICAR' });
+  // Retorno contextual al PHVA: al abrir un módulo desde el buscador se adjunta
+  // el origen (fase + código + scroll) para que "← Volver al PHVA" regrese aquí.
+  usePhvaReturnRestore(true);
+  const navigateToSearchResult = (entry: PhvaSearchEntry) => {
+    navigate(entry.standardRoute, buildPhvaReturnState(entry.phase, entry.code, entry.navigationState, entry.phase === 'VERIFICAR' ? window.scrollY : undefined));
+  };
 
   // FASE 7.7.F — Metadata de secciones desde el StandardCatalog. groupCatalogItems
   // agrupa los estándares del catálogo por section.id (título y porcentaje). El
@@ -138,10 +152,13 @@ export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
             standardsCount: verificacionItemsMerged.length,
           },
         }}
-      />
-      <ComplianceProgress
-        total={{ title: totalCompliance.title, percentage: totalCompliance.percentage }}
-        sections={sectionCompliance.map((section) => ({ title: section.title, percentage: section.percentage }))}
+        searchOpen={phvaSearch.isPhvaSearchOpen}
+        onOpenSearch={phvaSearch.openPhvaSearch}
+        searchTriggerRef={phvaSearch.triggerRef}
+        searchEntries={phvaSearch.entries}
+        currentPhase={phvaSearch.currentPhase}
+        onCloseSearch={phvaSearch.closePhvaSearch}
+        onNavigateSearchResult={navigateToSearchResult}
       />
       {readOnly ? <p className="muted">Modo solo visualización para manager.</p> : null}
       <Card title={catalogSections['check-verificacion']?.title ?? 'Verificación del Sistema de Gestión de Seguridad y Salud en el Trabajo (5%)'} className={sectionErrors.has('check-verificacion') ? 'card--error' : ''}>
@@ -155,6 +172,60 @@ export function CheckPage({ readOnly = false }: { readOnly?: boolean }) {
                 hasError={missingCodes.has(item.code)}
                 readOnly={readOnly}
                 onStatusChange={(code, status) => setAnswerStatus(code, status)}
+                headerAction={
+                  // E4-D (6.1.1): acceso a Gestión Avanzada (/indicators) — mismo
+                  // patrón de DoPage (5.1.1/5.1.2), aplicado SOLO a este estándar.
+                  // Navegación de consulta: disponible para los cuatro roles
+                  // (la escritura queda protegida dentro de /indicators).
+                  item.code === '6.1.1' ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="advanced-management-trigger"
+                      onClick={() => navigate('/indicators', buildPhvaReturnState('VERIFICAR', item.code, { source: 'phva-6.1.1' }, window.scrollY))}
+                    >
+                      Ver Gestión Avanzada
+                    </Button>
+                  ) : // E3 (6.1.2): acceso a Gestión Avanzada (/annual-audit) — mismo
+                    // patrón de 6.1.1, aplicado SOLO a este estándar. Disponible
+                    // para los cuatro roles (escritura protegida en backend).
+                  item.code === '6.1.2' ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="advanced-management-trigger"
+                      onClick={() => navigate('/annual-audit', buildPhvaReturnState('VERIFICAR', item.code, { source: 'phva-6.1.2' }, window.scrollY))}
+                    >
+                      Ver Gestión Avanzada
+                    </Button>
+                  ) : // E3 (6.1.3): acceso a Gestión Avanzada
+                    // (/management-review-direction) — mismo patrón de 6.1.1/6.1.2,
+                    // aplicado SOLO a este estándar. Disponible para los cuatro
+                    // roles (escritura protegida en backend).
+                  item.code === '6.1.3' ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="advanced-management-trigger"
+                      onClick={() => navigate('/management-review-direction', buildPhvaReturnState('VERIFICAR', item.code, { source: 'phva-6.1.3' }, window.scrollY))}
+                    >
+                      Ver Gestión Avanzada
+                    </Button>
+                  ) : // E3 (6.1.4): acceso a Gestión Avanzada
+                    // (/copasst-audit-planning) — mismo patrón de 6.1.1/6.1.2/6.1.3,
+                    // aplicado SOLO a este estándar. Disponible para los cuatro
+                    // roles (escritura protegida en backend).
+                  item.code === '6.1.4' ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="advanced-management-trigger"
+                      onClick={() => navigate('/copasst-audit-planning', buildPhvaReturnState('VERIFICAR', item.code, { source: 'phva-6.1.4' }, window.scrollY))}
+                    >
+                      Ver Gestión Avanzada
+                    </Button>
+                  ) : null
+                }
               />
               {index < verificacionItemsMerged.length - 1 ? <hr className="evaluation-list__divider" /> : null}
             </div>

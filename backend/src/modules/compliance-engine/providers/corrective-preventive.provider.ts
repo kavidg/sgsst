@@ -7,19 +7,15 @@ import { CompliancePhaseKey } from '../interfaces/compliance-engine.interface';
 import { ComplianceProvider, ProviderComplianceResult } from './compliance-provider.interface';
 
 /**
- * Evaluación automática del estándar 7.1.1
- * "Acciones preventivas y correctivas".
+ * E2 (7.1.1) — Provider legacy "Acciones preventivas y correctivas"
+ * (AccountabilityCommitment — proxy degradado).
  *
- * Evalúa si existen acciones preventivas y correctivas definidas,
- * ejecutadas y verificadas.
- *
- * Criterios (25/25/25/25):
- * - Existencia de acciones:               25%
- * - Acciones ejecutadas/cerradas:          25%
- * - Acciones sin vencimiento:              25%
- * - Acciones con responsable:              25%
- *
- * NOTA: Contribuye a phases.act (ACTUAR).
+ * PROXY_LEGACY retirado del scoring (E2): este provider ya NO puntúa 7.1.1 —
+ * quedó excluido vía SCORING_INELIGIBLE_MODULES. La fuente OFICIAL de 7.1.1
+ * es CorrectivePreventiveActionsProvider (dominio corrective-preventive-
+ * actions, scoring dimensions:v1). Este provider se conserva SOLO como
+ * compatibilidad en moduleCompliance (hallazgos de sus compromisos), con su
+ * módulo propio sin estándar canónico asignado.
  */
 @Injectable()
 export class CorrectivePreventiveProvider implements ComplianceProvider {
@@ -44,7 +40,7 @@ export class CorrectivePreventiveProvider implements ComplianceProvider {
           id: 'corrective-preventive-no-data',
           module: CorrectivePreventiveProvider.MODULE,
           title: 'Sin acciones preventivas/correctivas registradas',
-          description: 'No existen acciones preventivas o correctivas. El estándar 7.1.1 requiere acciones definidas, ejecutadas y verificadas.',
+          description: 'No existen compromisos de rendición de cuentas registrados. La gestión oficial de acciones preventivas y correctivas (7.1.1) vive en el módulo corrective-preventive-actions.',
           priority: FindingPriority.HIGH,
           status: 'OPEN', responsible: '', dueDate: '', createdAt: new Date().toISOString(),
         }],
