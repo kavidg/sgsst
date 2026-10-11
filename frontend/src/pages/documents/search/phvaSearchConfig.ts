@@ -30,6 +30,32 @@ import type { PhvaCatalogItem } from '../../../services/phva-catalog.service';
 /** Fases del ciclo PHVA (mismos valores que el StandardCatalog). */
 export type PhvaSearchPhase = 'PLANEAR' | 'HACER' | 'VERIFICAR' | 'ACTUAR';
 
+/**
+ * Etiquetas legibles de fase (mismos textos de presentación usados por E5 en
+ * PhvaSearchCommandPalette). Solo presentación: no altera valores de fase.
+ */
+export const PHVA_PHASE_LABELS: Record<PhvaSearchPhase, string> = {
+  PLANEAR: 'Planear',
+  HACER: 'Hacer',
+  VERIFICAR: 'Verificar',
+  ACTUAR: 'Actuar',
+};
+
+/**
+ * Evento DOM para solicitar la apertura del BUSCADOR GLOBAL (única paleta,
+ * montada en el Sidebar). El trigger "Buscar en PHVA" de las páginas lo
+ * dispara vía usePhvaSearchIntegration; el Sidebar lo escucha y abre su
+ * paleta. `detail.returnFocusTo` (elemento opcional) indica a qué elemento
+ * devolver el foco al cerrar (p. ej. el propio trigger de PHVA).
+ */
+export const OPEN_GLOBAL_SEARCH_EVENT = 'sgsst:open-global-search';
+
+/** Detalle del evento de apertura del buscador global. */
+export interface OpenGlobalSearchEventDetail {
+  /** Elemento al que devolver el foco al cerrar la paleta (opcional). */
+  returnFocusTo?: HTMLElement | null;
+}
+
 /** Guard interno: el backend garantiza estos valores (`PhvaPhase`). */
 const PHVA_PHASES: readonly string[] = ['PLANEAR', 'HACER', 'VERIFICAR', 'ACTUAR'];
 

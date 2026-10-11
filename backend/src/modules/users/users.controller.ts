@@ -153,6 +153,27 @@ export class UsersController {
     return this.usersService.removeMemberForManager(user.uid, userId, request.companyId);
   }
 
+  @Get('company')
+  @UseGuards(CompanyAccessGuard)
+  async findCompanyUsers(
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @Req() request: RequestWithUser,
+  ): Promise<User[]> {
+    if (!user) {
+      throw new UnauthorizedException('Missing authenticated user');
+    }
+
+    // AUDIT-USERS-LIST — Mismo patrón F2 que GET /users/members: sin contexto
+    // de empresa → 403 'Missing active company context' (NUNCA un ObjectId
+    // vacío). La empresa viene exclusivamente de request.companyId (resuelta
+    // por CompanyAccessGuard); el endpoint no recibe companyId externo.
+    if (!request.companyId) {
+      throw new ForbiddenException('Missing active company context');
+    }
+
+    return this.usersService.listCompanyUsersForAdmin(user.uid, request.companyId);
+  }
+
   @Get('by-firebase/:uid')
   async findByFirebaseUid(
     @CurrentUser() authenticatedUser: AuthenticatedUser | undefined,

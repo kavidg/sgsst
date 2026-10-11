@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 import { Types } from 'mongoose';
 
 import { RequestWithUser } from '../auth/auth.types';
-import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { UsersService } from '../users/users.service';
 import { DocumentGenerationService } from '../document-generation/services/document-generation.service';
 import { StorageService } from '../document-generation/services/storage.service';
@@ -77,7 +76,6 @@ describe('TemplatesController.generate (migrado al Document Generation Engine)',
     const controller = new TemplatesController(
       {} as unknown as TemplatesService,
       usersService,
-      {} as unknown as FirebaseAdminService,
       documentGenerationService,
       storageService,
     );

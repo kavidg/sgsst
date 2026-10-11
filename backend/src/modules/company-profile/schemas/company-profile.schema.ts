@@ -60,6 +60,10 @@ export class CompanyProfileDocument {
   @Prop()
   fileUrl?: string;
 
+  /** DOC-UPLOAD — Ruta del archivo en Firebase Storage (documentos subidos reales). */
+  @Prop()
+  storagePath?: string;
+
   @Prop({ default: false })
   isVerified!: boolean;
 

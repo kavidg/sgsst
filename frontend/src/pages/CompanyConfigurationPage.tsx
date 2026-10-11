@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import * as XLSX from 'xlsx';
 import {
@@ -13,9 +13,11 @@ import {
   upsertContact,
   addCompanyDocument,
   deleteCompanyDocument,
+  getCompanyDocumentSignedUrl,
   fetchEmployees,
   EmployeeModel,
 } from '../api';
+import { COLOMBIA_DEPARTMENTS } from '../lib/colombia-locations';
 
 const COMPANY_SIZE_OPTIONS = ['Microempresa', 'Pequeña', 'Mediana', 'Grande'];
 const RISK_LEVEL_OPTIONS = ['I', 'II', 'III', 'IV', 'V'];
@@ -142,6 +144,8 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
   const [newContact, setNewContact] = useState({ type: '', name: '', position: '', phone: '', email: '' });
   // New Document form
   const [newDoc, setNewDoc] = useState({ type: '', name: '', fileUrl: '' });
+  const [newDocFile, setNewDocFile] = useState<File | null>(null);
+  const [docUploading, setDocUploading] = useState(false);
 
   const notify = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
   const showError = (msg: string) => { setError(msg); setTimeout(() => setError(''), 4000); };
@@ -206,14 +210,36 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
     } catch (err) { showError(err instanceof Error ? err.message : 'Error'); }
   };
 
-  const handleAddDocument = async () => {
-    if (!newDoc.type || !newDoc.name.trim()) { showError('Tipo y nombre son obligatorios'); return; }
+  // FASE 1 — Visualización segura bajo demanda: los documentos con storagePath
+  // (provider privado, ej. R2) abren mediante una URL firmada TEMPORAL pedida
+  // al backend justo al pulsar el botón (no se guarda en estado ni en MongoDB);
+  // los históricos con fileUrl pública de Firebase conservan su acceso directo.
+  const handleOpenDocument = async (index: number, doc: { fileUrl?: string; storagePath?: string }) => {
     try {
-      const updated = await addCompanyDocument(token, newDoc);
+      if (doc.storagePath) {
+        const { signedUrl } = await getCompanyDocumentSignedUrl(token, index);
+        window.open(signedUrl, '_blank', 'noopener');
+        return;
+      }
+      if (doc.fileUrl) window.open(doc.fileUrl, '_blank', 'noopener');
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'No se pudo abrir el documento');
+    }
+  };
+
+  // DOC-UPLOAD — El archivo viaja como File (multipart), sin FileReader ni Base64.
+  const handleAddDocument = async () => {
+    if (!newDoc.type) { showError('Selecciona el tipo de documento'); return; }
+    if (!newDocFile) { showError('Selecciona el archivo a cargar'); return; }
+    try {
+      setDocUploading(true);
+      const updated = await addCompanyDocument(token, newDoc.type, newDocFile);
       setProfile(updated);
       setNewDoc({ type: '', name: '', fileUrl: '' });
-      notify('Documento registrado');
-    } catch (err) { showError(err instanceof Error ? err.message : 'Error'); }
+      setNewDocFile(null);
+      notify('Documento cargado correctamente');
+    } catch (err) { showError(err instanceof Error ? err.message : 'Error al cargar el documento'); }
+    finally { setDocUploading(false); }
   };
 
   const handleRemoveDocument = async (index: number) => {
@@ -249,6 +275,53 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
   const updateField = (field: string, value: unknown) => {
     setProfile((prev) => prev ? { ...prev, [field]: value } : prev);
   };
+
+  // AUDIT-LOC — Normaliza para comparación tolerante (minúsculas + sin diacríticos NFD):
+  // "bogota" y "Bogotá" deben reconocerse como equivalentes al hidratar.
+  const normalizeLocation = (value: string): string =>
+    value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // AUDIT-LOC — Resuelve un valor guardado (posiblemente histórico) contra el catálogo.
+  // NO borra ni sobrescribe: si no hay match se devuelve undefined y el valor original
+  // se conserva visible como opción "(valor actual)".
+  const resolveCatalogName = (value: string | undefined, names: readonly string[]): string | undefined => {
+    if (!value) return undefined;
+    const exact = names.find((name) => name === value);
+    if (exact) return exact;
+    const normalized = normalizeLocation(value);
+    return names.find((name) => normalizeLocation(name) === normalized);
+  };
+
+  // AUDIT-LOC — Derivados del estado (fuente única: profile vía sel()).
+  const storedDepartment = sel('department');
+  const matchedDepartment = resolveCatalogName(storedDepartment, COLOMBIA_DEPARTMENTS.map((d) => d.name));
+  const departmentEntry = COLOMBIA_DEPARTMENTS.find((d) => d.name === matchedDepartment);
+  const cityOptions = departmentEntry?.cities ?? [];
+  const storedCity = sel('city');
+  const matchedCity = resolveCatalogName(storedCity, cityOptions);
+  const unmatchedDepartment = storedDepartment && !matchedDepartment ? storedDepartment : undefined;
+  const unmatchedCity = storedCity && !matchedCity ? storedCity : undefined;
+
+  // LABOR-FIELD — Fuente de verdad del Total Empleados: módulo Empleados.
+  // Cuenta SOLO los activos (valor exacto del estado en este módulo: 'Activo').
+  // Derivado de `employees` — sin estado duplicado.
+  const activeEmployeesCount = useMemo(
+    () => employees.filter((employee) => employee.status === 'Activo').length,
+    [employees],
+  );
+
+  // LABOR-FIELD — Sincroniza profile.totalEmployees con el conteo real (el campo
+  // participa en completionPercentage). UN solo PATCH, únicamente cuando el valor
+  // almacenado difiere del calculado: sin escrituras en cada render y sin loop
+  // (handleUpdate setea la respuesta, que vuelve a evaluar el guard y se detiene).
+  useEffect(() => {
+    if (!profile) return;
+    if ((profile.totalEmployees ?? 0) === activeEmployeesCount) return;
+    void handleUpdate({ totalEmployees: activeEmployeesCount });
+    // handleUpdate se recrea en cada render pero su identidad no afecta la
+    // condición de salida; las dependencias de datos son profile/activeEmployeesCount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, activeEmployeesCount]);
 
   if (!profile) {
     return <div className="card"><p className="muted">{loading ? 'Cargando configuración de empresa...' : 'No hay datos de configuración disponibles.'}</p></div>;
@@ -330,10 +403,16 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
             <div className="grid grid-3">
               <label className="field"><span className="label">Dirección</span><input className="input" value={sel('address') as string || ''} onChange={(e) => { updateField('address', e.target.value); }}
             onBlur={(e) => { void handleUpdate({ address: e.target.value }); }} /></label>
-              <label className="field"><span className="label">Ciudad</span><input className="input" value={sel('city') as string || ''} onChange={(e) => { updateField('city', e.target.value); }}
-            onBlur={(e) => { void handleUpdate({ city: e.target.value }); }} /></label>
-              <label className="field"><span className="label">Departamento</span><input className="input" value={sel('department') as string || ''} onChange={(e) => { updateField('department', e.target.value); }}
-            onBlur={(e) => { void handleUpdate({ department: e.target.value }); }} /></label>
+              <label className="field"><span className="label">Ciudad</span><select className="input" disabled={!sel('department')} value={matchedCity ?? unmatchedCity ?? ''} onChange={(e) => { updateField('city', e.target.value); void handleUpdate({ city: e.target.value }); }}>
+                <option value="">Seleccionar ciudad</option>
+                {cityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
+                {unmatchedCity ? <option value={unmatchedCity}>{unmatchedCity} (valor actual)</option> : null}
+              </select></label>
+              <label className="field"><span className="label">Departamento</span><select className="input" value={matchedDepartment ?? unmatchedDepartment ?? ''} onChange={(e) => { const department = e.target.value; updateField('department', department); updateField('city', ''); void handleUpdate({ department, city: '' }); }}>
+                <option value="">Seleccionar departamento</option>
+                {COLOMBIA_DEPARTMENTS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+                {unmatchedDepartment ? <option value={unmatchedDepartment}>{unmatchedDepartment} (valor actual)</option> : null}
+              </select></label>
             </div>
             <div className="grid grid-3">
               <label className="field"><span className="label">País</span><input className="input" value={sel('country') as string || 'Colombia'} onChange={(e) => { updateField('country', e.target.value); }}
@@ -464,8 +543,7 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
           <h3>Información Laboral</h3>
           <div className="form-grid">
             <div className="grid grid-3">
-              <label className="field"><span className="label">Total Empleados *</span><input className="input" type="number" min={0} value={profile.totalEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('totalEmployees', v); }}
-            onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ totalEmployees: v }); }} /></label>
+              <label className="field"><span className="label">Total Empleados *</span><input className="input" type="number" min={0} value={activeEmployeesCount} readOnly title="Calculado automáticamente desde los empleados activos registrados en el módulo Empleados" /></label>
               <label className="field"><span className="label">Directos</span><input className="input" type="number" min={0} value={profile.directEmployees || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('directEmployees', v); }}
             onBlur={(e) => { const v = parseInt(e.target.value) || 0; void handleUpdate({ directEmployees: v }); }} /></label>
               <label className="field"><span className="label">Contratistas</span><input className="input" type="number" min={0} value={profile.contractors || ''} onChange={(e) => { const v = parseInt(e.target.value) || 0; updateField('contractors', v); }}
@@ -664,16 +742,16 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
           <p className="muted">Estos documentos se integran con el Sistema de Gestión Documental.</p>
           <div className="form-grid" style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
             <div className="grid grid-3">
-              <label className="field"><span className="label">Tipo *</span>
+              <label className="field"><span className="label">Tipo de documento *</span>
                 <select className="input" value={newDoc.type} onChange={(e) => setNewDoc({ ...newDoc, type: e.target.value })}>
                   <option value="">Seleccionar</option>
                   {DOCUMENT_TYPES.map((dt) => <option key={dt.value} value={dt.value}>{dt.label}</option>)}
                 </select>
               </label>
-              <label className="field"><span className="label">Nombre *</span><input className="input" value={newDoc.name} onChange={(e) => setNewDoc({ ...newDoc, name: e.target.value })} placeholder="Nombre del documento" /></label>
-              <label className="field"><span className="label">URL (opcional)</span><input className="input" value={newDoc.fileUrl} onChange={(e) => setNewDoc({ ...newDoc, fileUrl: e.target.value })} placeholder="https://..." /></label>
+              <label className="field"><span className="label">Archivo *</span><input className="input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,application/pdf,image/jpeg,image/png" disabled={docUploading} onChange={(e) => { setNewDocFile(e.target.files?.[0] ?? null); }} /></label>
+              <label className="field"><span className="label">Archivo seleccionado</span><span className="muted">{newDocFile ? newDocFile.name : 'Ningún archivo seleccionado'}</span></label>
             </div>
-            <Button type="button" onClick={handleAddDocument}>+ Registrar Documento</Button>
+            <Button type="button" disabled={docUploading} onClick={handleAddDocument}>{docUploading ? 'Cargando...' : '+ Cargar documento'}</Button>
           </div>
           <div className="responsive-table">
             <table className="table">
@@ -682,10 +760,13 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
                 {profile.companyDocuments.map((d, idx) => (
                   <tr key={idx}>
                     <td><span className="doc-type-badge doc-type-badge--default">{DOCUMENT_TYPES.find((dt) => dt.value === d.type)?.label || d.type}</span></td>
-                    <td>{d.fileUrl ? <a href={d.fileUrl} target="_blank" rel="noreferrer">{d.name}</a> : d.name}</td>
+                    <td>{d.name}</td>
                     <td>{d.isVerified ? '✅ Sí' : '❌ No'}</td>
                     <td>{d.uploadedAt ? new Date(d.uploadedAt).toLocaleDateString() : '—'}</td>
-                    <td><Button type="button" variant="danger" onClick={() => handleRemoveDocument(idx)}>Eliminar</Button></td>
+                    <td><div className="actions">
+                      {(d.storagePath || d.fileUrl) ? <button type="button" className="button-like" onClick={() => void handleOpenDocument(idx, d)}>Ver documento</button> : null}
+                      <Button type="button" variant="danger" disabled={docUploading} onClick={() => handleRemoveDocument(idx)}>Eliminar</Button>
+                    </div></td>
                   </tr>
                 ))}
               </tbody>
@@ -723,7 +804,6 @@ export default function CompanyConfigurationPage({ token }: { token: string }) {
 
       <div className="advanced-management__footer">
         <span className="muted">Última actualización: {profile.updatedAt ? new Date(profile.updatedAt).toLocaleString() : '—'}</span>
-        <Button type="button" variant="ghost" onClick={() => void load()}>Recargar</Button>
       </div>
     </div>
   );

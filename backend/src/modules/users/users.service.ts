@@ -81,6 +81,28 @@ export class UsersService {
     return this.userModel.find({ role: 'member', companyId: activeCompanyId }).sort({ createdAt: -1 }).exec();
   }
 
+  async listCompanyUsersForAdmin(requestingUserUid: string, activeCompanyId: Types.ObjectId): Promise<User[]> {
+    await this.ensureOwnerOrAdmin(requestingUserUid);
+
+    // AUDIT-USERS-LIST — Listado "Usuarios de mi empresa" para el panel del
+    // admin. La empresa SIEMPRE proviene del contexto autenticado
+    // (request.companyId resuelto por CompanyAccessGuard): el endpoint no
+    // acepta companyId por query/params/body. Fuente de datos: User.companyId
+    // (CompanyUser permanece como mecanismo de autorización, no de display).
+    // Roles gestionables por el admin: member + manager (el propio admin y el
+    // owner quedan fuera del listado). Orden: más recientes primero, igual que
+    // los listados existentes. Proyección sin firebaseUid (dato sensible que
+    // no va a la UI).
+    return this.userModel
+      .find({
+        companyId: activeCompanyId,
+        role: { $in: ['member', 'manager'] },
+      })
+      .sort({ createdAt: -1 })
+      .select('email firstName lastName role isActive companyId createdAt updatedAt')
+      .exec();
+  }
+
   async createUserForOwner(ownerUid: string, role: ManagedRole, dto: CreateUserDto): Promise<User> {
     await this.ensureOwner(ownerUid);
 
@@ -353,7 +375,13 @@ export class UsersService {
         throw new BadRequestException('Owners must provide companyId when creating admin users');
       }
 
-      const company = await this.companyModel.findById(dto.companyId).exec();
+      // AUDIT-USERS — El owner es global pero SOLO puede usar empresas PROPIAS
+      // (Company.ownerId === owner._id), alineado con resolveOwnerCompanyId
+      // (POST /users/admins). Antes: findById sin ownerId dejaba pasar una
+      // empresa ajena. Empresa ajena ⇒ no encontrada para este owner.
+      const company = await this.companyModel
+        .findOne({ _id: dto.companyId, ownerId: requestingUser._id })
+        .exec();
 
       if (!company) {
         throw new NotFoundException(`Company with id ${dto.companyId} not found`);

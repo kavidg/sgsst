@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
 import { RolesGuard } from '../questions/roles.guard';
 import { TemplatesModule } from '../templates/templates.module';
@@ -13,6 +14,11 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 // Documental vía DocumentPublicationService. forwardRef por el ciclo de
 // módulos (document-management ↔ approval-workflow ↔ phva-advanced → aquí).
 import { DocumentManagementModule } from '../document-management/document-management.module';
+// FASE 1 — abstracción de storage: provider inyectable (legacy Firebase por
+// defecto; Cloudflare R2 con STORAGE_PROVIDER=r2). Los módulos de negocio solo
+// conocen StorageService.
+import { STORAGE_PROVIDER, StorageProvider } from './storage/storage-provider.interface';
+import { createStorageProvider } from './storage/storage-provider.factory';
 import { DocumentGenerationController } from './document-generation.controller';
 import { DocumentCatalogController } from './document-catalog.controller';
 import { DocumentInstance, DocumentInstanceSchema } from './schemas/document-instance.schema';
@@ -58,6 +64,12 @@ import { VariableResolverService } from './services/variable-resolver.service';
   ],
   controllers: [DocumentGenerationController, DocumentCatalogController],
   providers: [
+    {
+      provide: STORAGE_PROVIDER,
+      useFactory: (firebaseAdminService: FirebaseAdminService): StorageProvider =>
+        createStorageProvider(firebaseAdminService),
+      inject: [FirebaseAdminService],
+    },
     DocumentGenerationService,
     TemplateSourceService,
     StorageService,

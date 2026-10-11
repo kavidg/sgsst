@@ -484,7 +484,7 @@ describe('AUDIT-1 — Tenant isolation del AI Orchestrator', () => {
         exec: async () => null,
       }),
     } as never;
-    const guard = new CompanyAccessGuard(userModel, companyUserModel);
+    const guard = new CompanyAccessGuard(userModel, companyUserModel, { findOne: () => ({ select: () => ({ exec: async () => null }), exec: async () => null }) } as never);
 
     const request = {
       user: { uid: 'uid-A' },
@@ -514,7 +514,7 @@ describe('AUDIT-1 — Tenant isolation del AI Orchestrator', () => {
         exec: async () => ({ companyId: '64b0000000000000000000a1' }),
       }),
     } as never;
-    const guard = new CompanyAccessGuard(userModel, companyUserModel);
+    const guard = new CompanyAccessGuard(userModel, companyUserModel, { findOne: () => ({ select: () => ({ exec: async () => null }), exec: async () => null }) } as never);
 
     const request = {
       user: { uid: 'uid-A' },

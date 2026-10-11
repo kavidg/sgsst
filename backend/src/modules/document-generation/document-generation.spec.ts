@@ -11,6 +11,8 @@ import { DocxRenderer } from './services/renderer.service';
 import { DocumentGenerationService } from './services/document-generation.service';
 import { RendererService } from './services/renderer.service';
 import { StorageService } from './services/storage.service';
+import { StorageProvider } from './storage/storage-provider.interface';
+import { LegacyFirebaseStorageProvider } from './storage/legacy-firebase-storage.provider';
 import { TemplateSourceService } from './services/template-source.service';
 import { VariableResolverService } from './services/variable-resolver.service';
 import { DocumentRenderer, RendererFormat } from './types/renderer.types';
@@ -157,13 +159,15 @@ describe('DocumentInstance schema', () => {
   });
 });
 
-describe('StorageService (mock)', () => {
+describe('StorageService (mock, provider legacy por defecto)', () => {
   it('getPublicUrl construye la URL pública desde el bucket', () => {
     const previousBucket = process.env.FIREBASE_STORAGE_BUCKET;
     process.env.FIREBASE_STORAGE_BUCKET = 'sgsst-test-bucket';
 
     try {
-      const storage = new StorageService({} as unknown as FirebaseAdminService);
+      const storage = new StorageService(
+        new LegacyFirebaseStorageProvider({} as unknown as FirebaseAdminService),
+      );
       const url = storage.getPublicUrl('document-generation/company/doc.pdf');
       assert.equal(url, 'https://storage.googleapis.com/sgsst-test-bucket/document-generation/company/doc.pdf');
     } finally {
@@ -180,7 +184,9 @@ describe('StorageService (mock)', () => {
     delete process.env.FIREBASE_STORAGE_BUCKET;
 
     try {
-      const storage = new StorageService({} as unknown as FirebaseAdminService);
+      const storage = new StorageService(
+        new LegacyFirebaseStorageProvider({} as unknown as FirebaseAdminService),
+      );
       assert.throws(
         () => storage.getPublicUrl('x/y.pdf'),
         /Missing FIREBASE_STORAGE_BUCKET/,
@@ -190,6 +196,33 @@ describe('StorageService (mock)', () => {
         process.env.FIREBASE_STORAGE_BUCKET = previousBucket;
       }
     }
+  });
+
+  it('upload delega en el provider y no expone URL pública en providers privados (R2)', async () => {
+    const uploaded: Array<{ storagePath: string; contentType?: string }> = [];
+    const provider: StorageProvider = {
+      name: 'r2',
+      supportsPublicUrls: false,
+      upload: async (request) => {
+        uploaded.push({ storagePath: request.storagePath, contentType: request.contentType });
+      },
+      download: async () => Buffer.from(''),
+      delete: async () => undefined,
+      exists: async () => true,
+      getSignedUrl: async () => 'https://signed.example/x',
+    };
+    const storage = new StorageService(provider);
+
+    const result = await storage.upload(Buffer.from('doc'), 'Acta.pdf', 'companies/abc/company-documents', {
+      contentType: 'application/pdf',
+    });
+
+    assert.match(uploaded[0].storagePath, /^companies\/abc\/company-documents\/\d+-Acta\.pdf$/);
+    assert.equal(uploaded[0].contentType, 'application/pdf');
+    assert.equal(result.fileUrl, '');
+    assert.equal(result.storagePath, uploaded[0].storagePath);
+
+    assert.throws(() => storage.getPublicUrl('x/y.pdf'), /es privado/);
   });
 });
 

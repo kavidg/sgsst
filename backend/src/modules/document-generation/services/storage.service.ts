@@ -1,106 +1,121 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { getStorage } from 'firebase-admin/storage';
-import { FirebaseAdminService } from '../../auth/firebase-admin.service';
+import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 
-/** Resultado de un upload a Firebase Storage. */
+import {
+  DEFAULT_SIGNED_URL_TTL_SECONDS,
+  PublicUrlCapability,
+  STORAGE_PROVIDER,
+  StorageProvider,
+  resolveSignedUrlTtlSeconds,
+} from '../storage/storage-provider.interface';
+import { buildStoragePath, inferContentType } from '../storage/storage.utils';
+
+/** Resultado de un upload. `fileUrl` es '' en providers privados (ej: R2). */
 export interface StorageUploadResult {
   fileUrl: string;
   storagePath: string;
 }
 
+/** Resultado de una signed URL bajo demanda. NUNCA persistir `signedUrl`. */
+export interface StorageSignedUrlResult {
+  signedUrl: string;
+  expiresIn: number;
+}
+
+export interface StorageUploadOptions {
+  /** MIME type real del archivo (p. ej. file.mimetype de multer). */
+  contentType?: string;
+}
+
 /**
- * Servicio centralizado de Storage (Firebase Storage).
+ * FACHADA de almacenamiento — agnóstica del proveedor.
  *
- * Encapsula la lógica repetida que hoy existe en templates.controller,
- * documents.controller y phva-advanced.controller (getStorage → bucket →
- * save → makePublic). Fase 0: ningún controller existente se migra todavía;
- * este servicio queda como la base para futuras fases.
+ * FASE 1: delega en un StorageProvider inyectado (legacy Firebase por defecto,
+ * Cloudflare R2 con STORAGE_PROVIDER=r2). Los módulos de negocio NO conocen
+ * el proveedor.
+ *
+ * Compatibilidad con consumidores existentes:
+ * - upload/download/delete mantienen su firma actual.
+ * - getPublicUrl se conserva para el modo legacy (URLs públicas históricas);
+ *   en providers privados (R2) no existe URL pública estable y lanza error
+ *   controlado — la lectura debe hacerse con getSignedUrl().
+ * - Nuevos: exists() y getSignedUrl().
  */
 @Injectable()
 export class StorageService {
-  constructor(private readonly firebaseAdminService: FirebaseAdminService) {}
+  constructor(@Inject(STORAGE_PROVIDER) private readonly provider: StorageProvider) {}
 
   /**
-   * Sube un buffer a Firebase Storage y lo deja público.
+   * Sube un buffer y devuelve la ruta de storage (y la URL pública SOLO en
+   * providers públicos; '' en privados — la URL firmada se pide bajo demanda).
    *
    * @param fileBuffer - Contenido binario del archivo.
    * @param filename - Nombre original del archivo (se sanitiza).
-   * @param folder - Carpeta destino dentro del bucket.
+   * @param folder - Carpeta destino (p. ej. `companies/{companyId}/company-documents`).
+   * @param options - ContentType real del archivo; si falta, se infiere por extensión.
    */
-  async upload(fileBuffer: Buffer, filename: string, folder: string): Promise<StorageUploadResult> {
-    const bucket = this.getBucket();
-    const sanitizedName = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const storagePath = `${folder}/${Date.now()}-${sanitizedName}`;
-    const bucketFile = bucket.file(storagePath);
+  async upload(
+    fileBuffer: Buffer,
+    filename: string,
+    folder: string,
+    options?: StorageUploadOptions,
+  ): Promise<StorageUploadResult> {
+    const storagePath = buildStoragePath(folder, filename);
 
-    await bucketFile.save(fileBuffer, {
-      metadata: { contentType: this.inferContentType(filename) },
-      resumable: false,
+    await this.provider.upload({
+      buffer: fileBuffer,
+      storagePath,
+      contentType: options?.contentType ?? inferContentType(filename),
     });
 
-    await bucketFile.makePublic();
-
     return {
-      fileUrl: this.getPublicUrl(storagePath),
+      fileUrl: this.provider.supportsPublicUrls
+        ? this.getPublicUrl(storagePath)
+        : '',
       storagePath,
     };
   }
 
-  /**
-   * Descarga el contenido de un archivo desde Firebase Storage.
-   */
+  /** Descarga el contenido de un archivo. */
   async download(path: string): Promise<Buffer> {
-    const bucket = this.getBucket();
-    const [fileBuffer] = await bucket.file(path).download();
-    return fileBuffer;
+    return this.provider.download(path);
   }
 
-  /**
-   * Elimina un archivo de Firebase Storage.
-   */
+  /** Elimina un archivo del proveedor activo. */
   async delete(path: string): Promise<void> {
-    const bucket = this.getBucket();
-    await bucket.file(path).delete();
+    await this.provider.delete(path);
+  }
+
+  /** Indica si un archivo existe en el proveedor activo. */
+  async exists(path: string): Promise<boolean> {
+    return this.provider.exists(path);
   }
 
   /**
-   * Construye la URL pública de un archivo almacenado.
+   * Genera una URL temporal de LECTURA (bajo demanda, NUNCA persistida).
+   * TTL: STORAGE_SIGNED_URL_TTL_SECONDS o 300s por defecto.
+   */
+  async getSignedUrl(path: string, ttlSeconds?: number): Promise<StorageSignedUrlResult> {
+    const expiresIn = ttlSeconds ?? resolveSignedUrlTtlSeconds();
+    const signedUrl = await this.provider.getSignedUrl(path, expiresIn);
+    return { signedUrl, expiresIn };
+  }
+
+  /**
+   * COMPATIBILIDAD LEGACY — URL pública estable. Solo válida en el provider
+   * legacy (Firebase con objetos públicos). En providers privados (R2) no
+   * existe: usar getSignedUrl().
    */
   getPublicUrl(path: string): string {
-    const bucketName = this.getBucketName();
-    return `https://storage.googleapis.com/${bucketName}/${path}`;
+    if (!this.provider.supportsPublicUrls) {
+      throw new InternalServerErrorException(
+        `El provider "${this.provider.name}" es privado: no hay URL pública estable. Use getSignedUrl().`,
+      );
+    }
+    return (this.provider as StorageProvider & PublicUrlCapability).getPublicUrl(path);
   }
 
-  private getBucket() {
-    const app = this.firebaseAdminService.getApp();
-    return getStorage(app).bucket(this.getBucketName());
-  }
-
-  private getBucketName(): string {
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-
-    if (!bucketName) {
-      throw new InternalServerErrorException('Missing FIREBASE_STORAGE_BUCKET configuration');
-    }
-
-    return bucketName;
-  }
-
-  private inferContentType(filename: string): string {
-    const normalized = filename.toLowerCase();
-
-    if (normalized.endsWith('.pdf')) {
-      return 'application/pdf';
-    }
-
-    if (normalized.endsWith('.docx')) {
-      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    }
-
-    if (normalized.endsWith('.doc')) {
-      return 'application/msword';
-    }
-
-    return 'application/octet-stream';
+  /** TTL por defecto centralizado (exposto para documentación/tests). */
+  get defaultSignedUrlTtlSeconds(): number {
+    return DEFAULT_SIGNED_URL_TTL_SECONDS;
   }
 }

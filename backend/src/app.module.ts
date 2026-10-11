@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './modules/auth/auth.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuthModelsModule } from './modules/auth/auth-models.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { UsersModule } from './modules/users/users.module';
 import { EvaluationsModule } from './evaluations/evaluations.module';
@@ -104,6 +105,10 @@ import { EppModule } from './modules/epp/epp.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    // Registra globalmente User/Company/CompanyUser (modelos de
+    // CompanyAccessGuard): sin esto, módulos que registran el guard sin
+    // CompanyModel en su forFeature rompen el arranque por DI.
+    AuthModelsModule,
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({

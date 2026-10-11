@@ -193,6 +193,11 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
     return ALL_STEP_IDS.map((stepId) => {
       const ov = overview?.steps.find((s) => s.stepId === stepId);
       const db = dashboard?.steps.find((s) => s.stepId === stepId);
+      let moduleRoute = ov?.moduleRoute || db?.moduleRoute || '';
+      // Override incorrect backend route for responsible_sst
+      if (stepId === 'responsible_sst') {
+        moduleRoute = '/advanced-management/1.1.1';
+      }
       return {
         stepId,
         status: ov?.status ?? db?.status ?? 'PENDING',
@@ -201,7 +206,7 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
         percentage: ov?.percentage ?? db?.percentage ?? db?.score ?? 0,
         criteria: ov?.criteria ?? db?.criteria ?? [],
         pendingCriteria: ov?.pendingCriteria ?? db?.pendingCriteria ?? [],
-        moduleRoute: ov?.moduleRoute || db?.moduleRoute || '',
+        moduleRoute,
         details: db?.details,
         validatedAt: db?.validatedAt,
         estimatedImpact: ov?.estimatedImpact ?? null,
@@ -405,7 +410,7 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
                   {p.estimatedImpact && <span className="wiz-impact">{p.estimatedImpact}</span>}
                   <span className={`wiz-risk ${riskMeta.cls}`}>{riskMeta.label}</span>
                   {p.moduleRoute && (
-                    <Button type="button" variant="secondary" onClick={() => handleGoToRoute(p.moduleRoute)}>
+                    <Button type="button" variant="secondary" onClick={() => handleGoToRoute(p.stepId === 'responsible_sst' ? '/advanced-management/1.1.1' : p.moduleRoute)}>
                       Ir al módulo
                     </Button>
                   )}
@@ -540,7 +545,6 @@ export default function ImplementationWizardPage({ token }: { token: string }) {
 
       <div className="advanced-management__footer">
         <span className="muted">{totalSteps} pasos · {completedSteps} completados · Puntaje: {overallScore}%</span>
-        <Button type="button" variant="ghost" onClick={() => void load()}>Recargar</Button>
       </div>
     </AdvancedPageLayout>
   );

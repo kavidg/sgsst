@@ -267,9 +267,13 @@ export interface UserModel {
   jobTitle: string;
   avatarUrl: string;
   signatureUrl: string;
-  companyId: string;
+  /** El owner (Superadmin global) NO tiene empresa asociada: opcional. */
+  companyId?: string | null;
   role: UserRole;
   isActive: boolean;
+  /** AUDIT-USERS-LIST — Timestamps del backend (timestamps: true). */
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CompanyModel {
@@ -974,10 +978,41 @@ interface UpdateEvaluationPayload {
   observation?: string;
 }
 
+/**
+ * F1 — Clave del CONTEXTO de operación del owner (Superadmin). NO es una
+ * asignación permanente de empresa: solo refleja la empresa activa que el
+ * owner seleccionó en el panel mientras su sesión está abierta (se limpia al
+ * cerrar sesión y al seleccionar otra empresa).
+ */
+const OWNER_ACTIVE_COMPANY_STORAGE_KEY = 'sgsst.owner.activeCompanyId';
+
+/** Registra (o limpia) la empresa activa del owner para el header x-company-id. */
+export function setOwnerActiveCompanyId(companyId: string | null | undefined): void {
+  if (companyId) {
+    localStorage.setItem(OWNER_ACTIVE_COMPANY_STORAGE_KEY, companyId);
+    return;
+  }
+  localStorage.removeItem(OWNER_ACTIVE_COMPANY_STORAGE_KEY);
+}
+
+/** Empresa activa del owner (contexto de operación; null si no hay selección). */
+export function getOwnerActiveCompanyId(): string | null {
+  return localStorage.getItem(OWNER_ACTIVE_COMPANY_STORAGE_KEY);
+}
+
 function withCompanyHeader(headers: HeadersInit = {}): HeadersInit {
-  // AUDIT-16: x-company-id header removed — backend uses CompanyAccessGuard
-  // + request.companyId for tenant isolation. This function now only passes
-  // through the provided headers without injecting tenant headers.
+  // F1 — El owner (Superadmin) es global: NO tiene user.companyId en el
+  // backend, así que su empresa activa (contexto de la operación actual) viaja
+  // explícitamente en x-company-id. CompanyAccessGuard valida Company.ownerId
+  // antes de fijar request.companyId (una empresa ajena se rechaza con 403:
+  // el frontend NO es fuente de seguridad). Sin empresa activa NO se envía el
+  // header ni se inventa un companyId.
+  // admin/manager/member NO cambian: su tenant se auto-deriva de
+  // user.companyId (AUDIT-16) y aquí no se inyecta nada para ellos.
+  const ownerActiveCompanyId = getOwnerActiveCompanyId();
+  if (ownerActiveCompanyId) {
+    return { ...headers, 'x-company-id': ownerActiveCompanyId };
+  }
   return { ...headers };
 }
 
@@ -1192,6 +1227,13 @@ export function deleteAdmin(token: string, id: string) {
 
 export function fetchMembers(token: string) {
   return apiFetch<UserModel[]>('/users/members', token, { method: 'GET' });
+}
+
+// AUDIT-USERS-LIST — Listado "Usuarios de mi empresa" (member + manager). La
+// empresa la resuelve el backend vía CompanyAccessGuard: NO se envía companyId
+// por query/body/params.
+export function fetchCompanyUsers(token: string) {
+  return apiFetch<UserModel[]>('/users/company', token, { method: 'GET' });
 }
 
 export function createMember(token: string, payload: CreateUserPayload) {
@@ -4954,7 +4996,10 @@ export interface CompanyContactModel {
 export interface CompanyProfileDocumentModel {
   type: string;
   name: string;
+  /** Histórico: URL pública de Firebase (registros anteriores a FASE 1). */
   fileUrl?: string;
+  /** FASE 1: ruta del archivo en el provider activo (lectura vía signed URL). */
+  storagePath?: string;
   isVerified: boolean;
   uploadedAt?: string;
 }
@@ -5048,12 +5093,28 @@ export function upsertContact(token: string, payload: { type: string; name: stri
   return apiFetch<CompanyProfileModel>('/company-profile/contacts', token, { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export function addCompanyDocument(token: string, payload: { type: string; name: string; fileUrl?: string }) {
-  return apiFetch<CompanyProfileModel>('/company-profile/documents', token, { method: 'POST', body: JSON.stringify(payload) });
+// DOC-UPLOAD — Carga real: el archivo viaja como multipart/form-data (el
+// navegador establece el boundary; no se fija Content-Type manualmente).
+export function addCompanyDocument(token: string, type: string, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('type', type);
+  return apiFetchFormData<CompanyProfileModel>('/company-profile/documents', token, formData, { method: 'POST' });
 }
 
 export function deleteCompanyDocument(token: string, index: number) {
   return apiFetch<CompanyProfileModel>(`/company-profile/documents/${index}`, token, { method: 'DELETE' });
+}
+
+// FASE 1 — Visualización segura: solicita una URL firmada TEMPORAL del archivo
+// de un documento de empresa (el storagePath vive en el backend; nunca se
+// envía desde el cliente). Usar SOLO bajo demanda al abrir el documento.
+export function getCompanyDocumentSignedUrl(token: string, index: number) {
+  return apiFetch<{ signedUrl: string; expiresIn: number }>(
+    `/company-profile/documents/${index}/signed-url`,
+    token,
+    { method: 'GET' },
+  );
 }
 
 export function setSstResponsible(token: string, userId: string) {

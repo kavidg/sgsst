@@ -10,6 +10,8 @@ import {
   getSearchableSidebarLinks,
 } from './sidebar/sidebarConfig';
 import { MenuSearchCommandPalette } from './sidebar/MenuSearchCommandPalette';
+import { PhvaGlobalSearchEntries } from './sidebar/PhvaGlobalSearchEntries';
+import { OpenGlobalSearchEventDetail, OPEN_GLOBAL_SEARCH_EVENT } from '../pages/documents/search/phvaSearchConfig';
 
 type SidebarProps = {
   role?: UserRole;
@@ -28,6 +30,10 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
   const location = useLocation();
   const [openDocuments, setOpenDocuments] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // E7 — Elemento que solicitó abrir el buscador global (p. ej. el trigger
+  // "Buscar en PHVA" de una página). Al cerrar, el foco vuelve a él si aún
+  // existe en el documento; si no, al botón de búsqueda del Sidebar.
+  const [globalSearchOpener, setGlobalSearchOpener] = useState<HTMLElement | null>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -36,36 +42,54 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
     }
   }, [location.pathname]);
 
-  // E1 — Atajo global Ctrl/Cmd + K: abre/cierra el buscador desde cualquier
-  // página autenticada (el Sidebar está montado en todas vía Layout). Un solo
-  // listener global, se limpia al desmontar. No existía ningún atajo previo.
-  // E6 — Comportamiento contextual: dentro de /documents/* el atajo lo atiende
-  // el buscador PHVA (usePhvaSearchIntegration), de modo que aquí NO se abre
-  // el buscador del menú (un solo overlay, sin doble apertura). La dependencia
-  // `location.pathname` mantiene el guard sincronizado con la ruta real.
+  // E7 — Atajo global Ctrl/Cmd + K: abre/cierra el BUSCADADOR GLOBAL (única
+  // paleta, grupos MENÚ + PHVA) desde CUALQUIER página autenticada, incluida
+  // /documents/* (antes el atajo lo cedía al buscador PHVA local; hoy la
+  // paleta global ya incluye PHVA, así que no hay segundo atajo ni segunda
+  // paleta). Un solo listener; se limpia al desmontar.
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        if (location.pathname.startsWith('/documents/')) {
-          return;
-        }
         event.preventDefault();
-        // E7 — cerrar vía atajo devuelve el foco al trigger (mismo comportamiento
-        // que cerrar con Escape/click); corrige el hallazgo de foco de E2.
+        // E7 — cerrar vía atajo devuelve el foco al opener (o al trigger del
+        // Sidebar), mismo comportamiento que cerrar con Escape/click.
         if (searchOpen) {
           handleSearchClose();
         } else {
+          setGlobalSearchOpener(null);
           setSearchOpen(true);
         }
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [location.pathname, searchOpen]);
+  }, [searchOpen, globalSearchOpener]);
+
+  // E7 — Los triggers de las páginas PHVA ("Buscar en PHVA") solicitan la
+  // apertura del buscador global vía evento DOM (no conocen este componente).
+  // Se recuerda el elemento solicitante para devolverle el foco al cerrar.
+  useEffect(() => {
+    const handleOpenGlobalSearch = (event: Event) => {
+      const detail = (event as CustomEvent<OpenGlobalSearchEventDetail>).detail;
+      setGlobalSearchOpener(
+        detail?.returnFocusTo instanceof HTMLElement ? detail.returnFocusTo : null,
+      );
+      setSearchOpen(true);
+    };
+    window.addEventListener(OPEN_GLOBAL_SEARCH_EVENT, handleOpenGlobalSearch);
+    return () => window.removeEventListener(OPEN_GLOBAL_SEARCH_EVENT, handleOpenGlobalSearch);
+  }, []);
 
   const handleSearchClose = () => {
     setSearchOpen(false);
-    // Devolver el foco al botón que abrió el buscador.
+    // Devolver el foco: primero al elemento que abrió (si sigue montado);
+    // si no, al botón de búsqueda del Sidebar (comportamiento E1/E7).
+    const opener = globalSearchOpener;
+    setGlobalSearchOpener(null);
+    if (opener && opener.isConnected) {
+      opener.focus();
+      return;
+    }
     searchButtonRef.current?.focus();
   };
 
@@ -85,21 +109,24 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
           </button>
         </div>
         <nav>
-          {/* E1 — Buscador del menú: botón coherente con los nav-link; en
-              colapsado queda como icono con tooltip/aria-label. No altera el
-              botón de colapsar ni el header. */}
+          {/* E1/E7 — Trigger del BUSCADOR GLOBAL: misma ubicación y estilo del
+              botón del menú; en colapsado queda como icono con tooltip. Abre
+              la única paleta (grupos MENÚ + PHVA). */}
           <button
             type="button"
             ref={searchButtonRef}
             className="nav-link menu-search-trigger"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Buscar en el menú"
+            onClick={() => {
+              setGlobalSearchOpener(null);
+              setSearchOpen(true);
+            }}
+            aria-label="Buscar en el menú y en el PHVA"
             aria-haspopup="dialog"
             aria-expanded={searchOpen}
-            data-tooltip={collapsed ? 'Buscar en el menú' : undefined}
+            data-tooltip={collapsed ? 'Buscar' : undefined}
           >
             <Icons.search />
-            {!collapsed ? <span>Buscar en el menú</span> : null}
+            {!collapsed ? <span>Buscar</span> : null}
           </button>
 
           {visibleLinks.map((link) => (
@@ -158,14 +185,32 @@ export function Sidebar({ role, mobileOpen, onCloseMobile, collapsed, onToggleCo
             </div>
         </nav>
       </aside>
-      {/* E1 — Command palette del buscador. Recibe las opciones YA filtradas por
-          rol (paridad con el Sidebar); no conoce reglas de negocio SG-SST. */}
-      <MenuSearchCommandPalette
-        open={searchOpen}
-        links={getSearchableSidebarLinks(role)}
-        onClose={handleSearchClose}
-        onNavigate={onCloseMobile}
-      />
+      {/* E7 — ÚNICA command palette global. Recibe las opciones de MENÚ YA
+          filtradas por rol (paridad con el Sidebar) y, para roles ≠ member,
+          el índice PHVA YA filtrado por rol (PhvaGlobalSearchEntries →
+          usePhvaCatalog + buildPhvaSearchIndex; member conserva su
+          comportamiento actual y ni siquiera descarga el catálogo). */}
+      {role === 'member' ? (
+        <MenuSearchCommandPalette
+          open={searchOpen}
+          links={getSearchableSidebarLinks(role)}
+          onClose={handleSearchClose}
+          onNavigate={onCloseMobile}
+        />
+      ) : (
+        <PhvaGlobalSearchEntries role={role ?? 'owner'}>
+          {({ phvaEntries, phvaLoading }) => (
+            <MenuSearchCommandPalette
+              open={searchOpen}
+              links={getSearchableSidebarLinks(role)}
+              phvaEntries={phvaEntries}
+              phvaLoading={phvaLoading}
+              onClose={handleSearchClose}
+              onNavigate={onCloseMobile}
+            />
+          )}
+        </PhvaGlobalSearchEntries>
+      )}
     </>
   );
 }

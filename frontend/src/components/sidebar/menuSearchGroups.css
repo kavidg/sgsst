@@ -1,0 +1,25 @@
+/*
+ * Buscador global (E7) — Encabezados de grupo (MENÚ / PHVA) de la paleta.
+ * Solo estilos NUEVOS de los headers: el resto de la paleta reutiliza las
+ * clases .menu-search-* existentes definidas en src/index.css (fuera de este
+ * alcance, sin modificaciones).
+ */
+
+.menu-search-group-header {
+  padding: 0.45rem 0.65rem 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  user-select: none;
+  list-style: none;
+}
+
+.menu-search-group-note {
+  padding: 0.15rem 0.65rem 0.35rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  list-style: none;
+  user-select: none;
+}

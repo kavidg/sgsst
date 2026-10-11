@@ -5,7 +5,6 @@ import {
   Delete,
   ForbiddenException,
   Get,
-  InternalServerErrorException,
   NotFoundException,
   Param,
   Patch,
@@ -16,11 +15,9 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { getStorage } from 'firebase-admin/storage';
 import { Types } from 'mongoose';
 import { RequestWithUser } from '../auth/auth.types';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
-import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { ApprovalDecision } from '../approval-workflow/enums/approval-decision.enum';
 import { ApprovalEntity } from '../approval-workflow/enums/approval-entity.enum';
@@ -80,7 +77,6 @@ export class PhvaAdvancedController {
   constructor(
     private readonly phvaAdvancedService: PhvaAdvancedService,
     private readonly usersService: UsersService,
-    private readonly firebaseAdminService: FirebaseAdminService,
     private readonly approvalWorkflowService: ApprovalWorkflowService,
     // Fase 1 (1.1.7) — service de dominio de Capacitación COPASST.
     private readonly copasstTrainingService: PhvaAdvancedCopasstTrainingService,
@@ -131,7 +127,14 @@ export class PhvaAdvancedController {
 
     const companyId = this.resolveCompanyId(request);
     const user = await this.resolveUserFromRequest(request);
-    const fileUrl = await this.uploadToFirebaseStorage(companyId, file);
+    // FASE 1 — upload consolidado en StorageService (path histórico intacto:
+    // phva-advanced/{companyId}/responsable-sst/{ts}-{nombre}).
+    const { fileUrl } = await this.storageService.upload(
+      file.buffer,
+      file.originalname,
+      `phva-advanced/${companyId.toString()}/responsable-sst`,
+      { contentType: file.mimetype },
+    );
 
     const isLicenseDoc = ['SST_LICENSE_PDF', 'SST_LICENSE_SCANNED', 'SST_LICENSE_RESOLUTION', 'SST_LICENSE_SUPPORTING'].includes(dto.type);
 
@@ -1760,36 +1763,6 @@ export class PhvaAdvancedController {
     return user;
   }
 
-  private async uploadToFirebaseStorage(companyId: Types.ObjectId, file: UploadedBinaryFile): Promise<string> {
-    const app = this.firebaseAdminService.getApp();
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET ?? this.resolveStorageBucketName(app);
-
-    if (!bucketName) {
-      throw new InternalServerErrorException('Missing Firebase Storage bucket configuration');
-    }
-
-    const bucket = getStorage(app).bucket(bucketName);
-    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = `phva-advanced/${companyId.toString()}/responsable-sst/${Date.now()}-${sanitizedName}`;
-    const bucketFile = bucket.file(filePath);
-
-    try {
-      await bucketFile.save(file.buffer, {
-        metadata: { contentType: file.mimetype },
-        resumable: false,
-      });
-      await bucketFile.makePublic();
-      return `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown upload error';
-      throw new InternalServerErrorException(`Failed to upload PHVA advanced document: ${errorMessage}`);
-    }
-  }
-
-  private resolveStorageBucketName(app: ReturnType<FirebaseAdminService['getApp']>): string | undefined {
-    const options = app.options as { storageBucket?: string };
-    return options.storageBucket;
-  }
 }
 
 type UploadedBinaryFile = {

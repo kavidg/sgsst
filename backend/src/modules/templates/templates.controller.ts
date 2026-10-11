@@ -4,7 +4,6 @@ import {
   Controller,
   ForbiddenException,
   Get,
-  InternalServerErrorException,
   Patch,
   Param,
   Post,
@@ -15,10 +14,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { getStorage } from 'firebase-admin/storage';
 import { Types } from 'mongoose';
 import { RequestWithUser } from '../auth/auth.types';
-import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { DocumentGenerationService } from '../document-generation/services/document-generation.service';
 import { StorageService } from '../document-generation/services/storage.service';
@@ -36,7 +33,6 @@ export class TemplatesController {
   constructor(
     private readonly templatesService: TemplatesService,
     private readonly usersService: UsersService,
-    private readonly firebaseAdminService: FirebaseAdminService,
     private readonly documentGenerationService: DocumentGenerationService,
     private readonly storageService: StorageService,
   ) {}
@@ -56,7 +52,14 @@ export class TemplatesController {
     this.assertDocxFile(file);
 
     const user = await this.resolveUserFromRequest(request);
-    const { fileUrl, storagePath } = await this.uploadToFirebaseStorage(user.companyId, file);
+    // FASE 1 — upload consolidado en StorageService (path histórico intacto:
+    // templates/{companyId}/{ts}-{nombre}; makePublic queda en el provider legacy).
+    const { fileUrl, storagePath } = await this.storageService.upload(
+      file.buffer,
+      file.originalname,
+      `templates/${user.companyId.toString()}`,
+      { contentType: file.mimetype },
+    );
 
     return this.templatesService.create({
       companyId: user.companyId,
@@ -163,33 +166,6 @@ export class TemplatesController {
     return user;
   }
 
-  private async uploadToFirebaseStorage(companyId: Types.ObjectId, file: UploadedBinaryFile) {
-    const app = this.firebaseAdminService.getApp();
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-
-    if (!bucketName) {
-      throw new InternalServerErrorException('Missing FIREBASE_STORAGE_BUCKET configuration');
-    }
-
-    const bucket = getStorage(app).bucket(bucketName);
-    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const storagePath = `templates/${companyId.toString()}/${Date.now()}-${sanitizedName}`;
-    const bucketFile = bucket.file(storagePath);
-
-    await bucketFile.save(file.buffer, {
-      metadata: {
-        contentType: file.mimetype,
-      },
-      resumable: false,
-    });
-
-    await bucketFile.makePublic();
-
-    return {
-      fileUrl: `https://storage.googleapis.com/${bucket.name}/${storagePath}`,
-      storagePath,
-    };
-  }
 }
 
 type UploadedBinaryFile = {

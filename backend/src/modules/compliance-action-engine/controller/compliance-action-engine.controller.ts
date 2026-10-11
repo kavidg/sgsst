@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Req, UseGuards } from '@nestjs/common';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
 import { CompanyAccessGuard } from '../../auth/company-access.guard';
 import { Roles } from '../../questions/roles.decorator';
@@ -17,10 +17,14 @@ export class ComplianceActionEngineController {
    *
    * AUDIT-13: Migrado de @Param('companyId') a request.companyId.
    */
+  // F2 — Sin contexto de empresa se responde con error HTTP claro: NUNCA se
+  // propaga '' al service (new ObjectId('') → BSONError).
   @Get('recommendations')
   @Roles('owner', 'admin', 'manager')
   async getRecommendations(@Req() request: RequestWithUser): Promise<ActionRecommendationDto[]> {
-    const companyId = request.companyId?.toString() ?? '';
-    return this.complianceActionEngineService.getRecommendations(companyId);
+    if (!request.companyId) {
+      throw new ForbiddenException('Missing active company context');
+    }
+    return this.complianceActionEngineService.getRecommendations(request.companyId.toString());
   }
 }

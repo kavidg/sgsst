@@ -1,10 +1,22 @@
 /**
- * E6 — Integración del buscador PHVA en las páginas de fase
- * (PlanPage / DoPage / CheckPage / ActPage).
+ * E6 → E7 — Integración del buscador PHVA con el BUSCADOR GLOBAL ÚNICO.
  *
- * Hook compartido: UNA sola implementación para las cuatro páginas (§3).
- * Reutiliza íntegramente E4 (buildPhvaSearchIndex) y el componente de E5;
- * no crea fetch, no duplica catálogo y no conoce Sidebar/E1.
+ * A partir de E7 ya NO existe una paleta PHVA independiente ni un atajo
+ * Ctrl/Cmd+K local: la única experiencia de búsqueda vive en el Sidebar
+ * (MenuSearchCommandPalette con grupos MENÚ + PHVA). Este hook conserva su API
+ * exacta para las cuatro páginas (PlanPage/DoPage/CheckPage/ActPage, que no
+ * cambian) pero su comportamiento ahora es:
+ *
+ *   - `entries`: índice E4 (`buildPhvaSearchIndex`) a partir del catálogo que
+ *     YA consume la página (sin refetch). Se sigue entregando a PhvaPhaseTabs
+ *     para habilitar el trigger.
+ *   - `openPhvaSearch`: SOLICITA la apertura del buscador global vía el evento
+ *     DOM `OPEN_GLOBAL_SEARCH_EVENT` (escuchado por el Sidebar), adjuntando el
+ *     trigger en `detail.returnFocusTo` para conservar el retorno de foco.
+ *   - `isPhvaSearchOpen`: siempre false (nunca hay paleta local → nunca hay
+ *     doble overlay ni doble paleta).
+ *   - `closePhvaSearch`: conservado por compatibilidad; solo devuelve el foco
+ *     al trigger (la paleta global se cierra por sí misma).
  *
  * Rol: las páginas reciben `readOnly = role === 'manager'` (App.tsx), de modo
  * que se deriva:
@@ -12,21 +24,19 @@
  *   - !readOnly → 'owner'|'admin' → índice completo;
  *   - member nunca monta estas páginas (guard de App.tsx), y E4 además
  *     devuelve [] para member: doble coherencia sin inventar autorización.
- *
- * Shortcut Ctrl/Cmd+K (§13/§15): SOLO se registra cuando pathname empieza por
- * `/documents/` (useLocation de react-router, no window.location). Fuera de
- * /documents/* este hook no tiene listener y el Ctrl/Cmd+K lo atiende el
- * listener único existente del Sidebar (E1) → comportamiento contextual sin
- * listeners duplicados ni doble apertura.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useMemo, useRef } from 'react';
 import type { PhvaCatalogItem } from '../../../services/phva-catalog.service';
-import type { PhvaSearchEntry, PhvaSearchPhase } from './phvaSearchConfig';
-import { buildPhvaSearchIndex } from './phvaSearchConfig';
+import {
+  OpenGlobalSearchEventDetail,
+  PhvaSearchEntry,
+  PhvaSearchPhase,
+  OPEN_GLOBAL_SEARCH_EVENT,
+  buildPhvaSearchIndex,
+} from './phvaSearchConfig';
 
-/** Rutas del módulo PHVA donde este hook toma el Ctrl/Cmd+K. */
+/** Prefijo de las rutas del módulo PHVA (exportado por compatibilidad E6). */
 export const PHVA_SEARCH_ROUTE_PREFIX = '/documents/';
 
 type UsePhvaSearchIntegrationOptions = {
@@ -34,13 +44,11 @@ type UsePhvaSearchIntegrationOptions = {
   catalog: PhvaCatalogItem[];
   /** readOnly de la página (App.tsx: readOnly === manager). */
   readOnly: boolean;
-  /** Fase de la página actual (filtro inicial/preferido del palette). */
+  /** Fase de la página actual (metadato del índice; filtro era de E5). */
   phase: PhvaSearchPhase;
 };
 
 export function usePhvaSearchIntegration({ catalog, readOnly, phase }: UsePhvaSearchIntegrationOptions) {
-  const location = useLocation();
-  const [isPhvaSearchOpen, setIsPhvaSearchOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Índice E4 a partir del catálogo que YA consume la página (§4/§9).
@@ -49,35 +57,25 @@ export function usePhvaSearchIntegration({ catalog, readOnly, phase }: UsePhvaSe
     [catalog, readOnly],
   );
 
-  const insidePhva = location.pathname.startsWith(PHVA_SEARCH_ROUTE_PREFIX);
+  // E7 — Sin listener local de Ctrl/Cmd+K (lo atiende el Sidebar, ÚNICO atajo).
+  // El trigger "Buscar en PHVA" solo SOLICITA abrir el buscador global. La
+  // petición viaja por evento DOM para no acoplar las páginas al Sidebar
+  // (las páginas no se modifican y no conocen el buscador global).
+  const openPhvaSearch = () => {
+    const detail: OpenGlobalSearchEventDetail = { returnFocusTo: triggerRef.current };
+    window.dispatchEvent(new CustomEvent<OpenGlobalSearchEventDetail>(OPEN_GLOBAL_SEARCH_EVENT, { detail }));
+  };
 
-  // Atajo contextual: listener activo SOLO dentro de /documents/*. Cuando está
-  // activo, el evento no alcanza al listener del Sidebar (se agotó aquí, mismo
-  // target window) → nunca hay doble apertura ni dos overlays (§15).
-  useEffect(() => {
-    if (!insidePhva) {
-      return;
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setIsPhvaSearchOpen((open) => !open);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [insidePhva]);
-
-  // Cierre con retorno de foco al trigger (§16). El rAF evita robar el foco
-  // cuando el palette se cierra tras NAVEGAR (el foco pasa a la nueva página).
+  // Conservado por compatibilidad con la API que consumen las páginas. La
+  // paleta global se cierra sola; aquí solo se devuelve el foco al trigger.
   const closePhvaSearch = () => {
-    setIsPhvaSearchOpen(false);
     requestAnimationFrame(() => triggerRef.current?.focus());
   };
 
   return {
-    isPhvaSearchOpen,
-    openPhvaSearch: () => setIsPhvaSearchOpen(true),
+    // Siempre false: la paleta es única y global (Sidebar) — nunca local.
+    isPhvaSearchOpen: false,
+    openPhvaSearch,
     closePhvaSearch,
     entries,
     currentPhase: phase,

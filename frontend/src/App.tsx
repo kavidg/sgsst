@@ -13,9 +13,11 @@ import {
   deleteMember,
   fetchAdmins,
   fetchCompanies,
+  fetchCompanyUsers,
   fetchMembers,
   fetchMyCompanies,
   fetchUserByFirebaseUid,
+  setOwnerActiveCompanyId,
   updateAdmin,
   updateCompany,
   updateMember,
@@ -25,6 +27,7 @@ import { Button } from './components/ui/Button';
 import { Card } from './components/ui/Card';
 import { Input } from './components/ui/Input';
 import { Select } from './components/ui/Select';
+import { Table } from './components/ui/Table';
 import { FirebaseUser, getIdToken, signInWithEmailAndPassword, signOut } from './firebase';
 import { DashboardPage } from './pages/DashboardPage';
 import { EmployeesPage } from './pages/EmployeesPage';
@@ -267,6 +270,13 @@ function App() {
   const [newMemberRole, setNewMemberRole] = useState<CreatableRole | ''>('');
   const [newMemberCompanyId, setNewMemberCompanyId] = useState('');
 
+  // AUDIT-USERS-LIST — Listado "Usuarios de mi empresa" (admin): member+manager
+  // con carga/error LOCALES (no reutilizan el loading global para no bloquear
+  // la página completa mientras llega el listado).
+  const [companyUsers, setCompanyUsers] = useState<UserModel[]>([]);
+  const [companyUsersLoading, setCompanyUsersLoading] = useState(false);
+  const [companyUsersError, setCompanyUsersError] = useState(false);
+
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyNit, setNewCompanyNit] = useState('');
   const [newCompanyStandardsType, setNewCompanyStandardsType] = useState('');
@@ -281,6 +291,18 @@ function App() {
 
   const handleSelectCompany = async (companyId: string) => {
     setCompanyId(companyId);
+    // F1 — Contexto de operación del owner: se registra SÍNCRONAMENTE antes de
+    // disparar las llamadas para que viajen con x-company-id (el efecto de
+    // sincronización corre después del render y llegaría tarde).
+    if (profile?.role === 'owner') {
+      setOwnerActiveCompanyId(companyId);
+    }
+    // Sincroniza el standardsType de la empresa elegida (misma lógica que el
+    // efecto de sesión FASE 7.2): evita mezclar catálogos entre empresas.
+    const selected = companies.find((company) => company._id === companyId);
+    if (selected?.standardsType) {
+      setStandardsType(selected.standardsType);
+    }
     if (idToken) {
       await refreshOwnerData(idToken, companyId);
     }
@@ -324,22 +346,35 @@ function App() {
   };
 
   const loadAdminResources = async (token: string, selectedCompanyId: string) => {
-    const [myCompanyData, memberData] = await Promise.all([
-      fetchMyCompanies(token),
-      selectedCompanyId ? fetchMembers(token) : Promise.resolve([]),
-    ]);
+    setCompanyUsersLoading(true);
+    try {
+      const [myCompanyData, memberData, companyUsersResult] = await Promise.all([
+        fetchMyCompanies(token),
+        selectedCompanyId ? fetchMembers(token) : Promise.resolve([]),
+        // AUDIT-USERS-LIST — Listado member+manager de la empresa del admin.
+        // El backend deriva la empresa del contexto (CompanyAccessGuard). Si
+        // el listado falla, NO tumba la carga del resto del panel.
+        fetchCompanyUsers(token)
+          .then((users) => ({ ok: true as const, users }))
+          .catch(() => ({ ok: false as const, users: [] as UserModel[] })),
+      ]);
 
-    const companyData: CompanyModel[] = myCompanyData.map((company) => ({
-      _id: company.id,
-      name: company.name,
-      nit: company.nit,
-      ownerId: '',
-    }));
+      const companyData: CompanyModel[] = myCompanyData.map((company) => ({
+        _id: company.id,
+        name: company.name,
+        nit: company.nit,
+        ownerId: '',
+      }));
 
-    setMyCompanies(myCompanyData);
-    setCompanies(companyData);
-    setMembers(memberData);
-    setAdmins([]);
+      setMyCompanies(myCompanyData);
+      setCompanies(companyData);
+      setMembers(memberData);
+      setCompanyUsers(companyUsersResult.users);
+      setCompanyUsersError(!companyUsersResult.ok);
+      setAdmins([]);
+    } finally {
+      setCompanyUsersLoading(false);
+    }
   };
 
   const loadManagerResources = async (token: string) => {
@@ -397,6 +432,10 @@ function App() {
       setProfile(userProfile);
       setMyCompanies(availableCompanies);
 
+      // F1 — Contexto de operación del owner ANTES de disparar llamadas:
+      // empresa activa (o null si no hay selección; NUNCA se inventa una).
+      setOwnerActiveCompanyId(userProfile.role === 'owner' ? selectedCompany : null);
+
       if (userProfile.role === 'owner') {
         await loadOwnerResources(token, selectedCompany);
       }
@@ -419,6 +458,9 @@ function App() {
   const handleLogout = async () => {
     await signOut();
     setCompanyId('');
+    setStandardsType('60');
+    // F1 — El contexto del owner NO sobrevive a la sesión.
+    setOwnerActiveCompanyId(null);
     setCurrentUser(null);
     setIdToken('');
     setProfile(null);
@@ -428,6 +470,23 @@ function App() {
     setMembers([]);
     setCompanies([]);
     setMyCompanies([]);
+    // AUDIT-USERS-LIST — El listado del admin tampoco sobrevive a la sesión.
+    setCompanyUsers([]);
+    setCompanyUsersLoading(false);
+    setCompanyUsersError(false);
+    // AUDIT-USERS — Los formularios de creación de usuarios NO sobreviven a la
+    // sesión: el estado residual (p. ej. la empresa seleccionada por el owner
+    // previo) hacía que un admin enviara un companyId ajeno al crear un manager
+    // y el backend lo rechazara.
+    setNewMemberCompanyId('');
+    setNewMemberRole('');
+    setNewMemberEmail('');
+    setNewMemberPassword('');
+    setNewMemberConfirmPassword('');
+    setNewAdminCompanyId('');
+    setNewAdminEmail('');
+    setNewAdminPassword('');
+    setNewAdminConfirmPassword('');
   };
 
   useEffect(() => {
@@ -444,6 +503,14 @@ function App() {
       })
       .catch(() => undefined);
   }, [activeCompanyId, idToken]);
+
+  // F1 — Catch-all: mantiene x-company-id del owner sincronizado con la
+  // empresa activa (cambio de selección, cambio de rol, cierre de sesión).
+  // Sin empresa activa no se envía el header (los módulos company-bound no
+  // se ejecutan gracias al gating del panel).
+  useEffect(() => {
+    setOwnerActiveCompanyId(profile?.role === 'owner' ? activeCompanyId : null);
+  }, [profile?.role, activeCompanyId]);
 
   // FASE 7.2 — Sincroniza el standardsType de la empresa activa cuando los
   // datos de la empresa (que incluyen standardsType) están disponibles.
@@ -519,11 +586,17 @@ function App() {
         return;
       }
 
+      // AUDIT-USERS — El companyId solo se envía cuando el actor es owner
+      // (dueño de las empresas que lista el selector). Para admin/manager el
+      // backend lo DERIVA de la identidad del actor (resolveTargetCompanyId),
+      // y si viajara uno explícito responde 403 'Admins cannot assign companyId
+      // when creating users'. No se confía en que el estado esté limpio: un
+      // logout/login sin recargar puede dejar newMemberCompanyId residual.
       await createUser(idToken, {
         email: newMemberEmail,
         password: newMemberPassword,
         role: newMemberRole,
-        companyId: newMemberCompanyId || undefined,
+        companyId: profile?.role === 'owner' ? (newMemberCompanyId || undefined) : undefined,
       });
       setNewMemberEmail('');
       setNewMemberPassword('');
@@ -631,20 +704,69 @@ function App() {
                 Este usuario solo podrá ver indicadores y reportes, no podrá editar información.
               </p>
             ) : null}
+            {profile?.role !== 'owner' && newMemberRole ? (
+              <p style={{ margin: 0, color: '#4a5568' }}>
+                El usuario se creará en tu empresa.
+              </p>
+            ) : null}
             <Button type="submit" disabled={loading || (profile?.role === 'owner' && !newMemberCompanyId)}>Guardar Usuario</Button>
           </form>
-          <h3>Listado usuarios</h3>
-          {members.map((member) => (
-            <div key={member._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
-              <p>{member.email}</p>
-              {profile?.role === 'owner' ? (
-                <Select defaultValue={member.companyId} onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
-                  {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
-                </Select>
+          {profile?.role === 'admin' ? (
+            <>
+              {/* AUDIT-USERS-LIST — Listado "Usuarios de mi empresa": member+manager
+                  de la empresa derivada del contexto del admin (el admin no puede
+                  elegir empresa; el backend la resuelve). */}
+              <h3>Usuarios de mi empresa</h3>
+              {companyUsersLoading ? <p className="muted">Cargando usuarios...</p> : null}
+              {companyUsersError ? <p className="error">Error al cargar usuarios.</p> : null}
+              {!companyUsersLoading && !companyUsersError && companyUsers.length === 0 ? (
+                <p className="muted">No hay usuarios creados todavía.</p>
               ) : null}
-              <Button type="button" variant="danger" onClick={() => deleteMember(idToken, member._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</Button>
-            </div>
-          ))}
+              {!companyUsersLoading && !companyUsersError && companyUsers.length > 0 ? (
+                <Table>
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Email</th>
+                      <th>Rol</th>
+                      <th>Estado</th>
+                      <th>Creado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {companyUsers.map((user) => (
+                      <tr key={user._id}>
+                        <td>{[user.firstName, user.lastName].filter((part) => part?.trim()).join(' ') || user.email}</td>
+                        <td>{user.email}</td>
+                        <td>{user.role === 'manager' ? 'Manager' : user.role === 'member' ? 'Miembro' : user.role}</td>
+                        <td>{user.isActive ? 'Activo' : 'Inactivo'}</td>
+                        <td>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              ) : null}
+            </>
+          ) : null}
+          {/* AUDIT-USERS-LIST — Listado histórico de members: ahora SOLO owner.
+              Para el admin lo reemplaza la tabla "Usuarios de mi empresa"
+              (evita duplicar el listado de members). */}
+          {profile?.role === 'owner' ? (
+            <>
+              <h3>Listado usuarios</h3>
+              {members.map((member) => (
+                <div key={member._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
+                  <p>{member.email}</p>
+                  {profile?.role === 'owner' ? (
+                    <Select defaultValue={member.companyId ?? ''} onChange={(event) => updateMember(idToken, member._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
+                      {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
+                    </Select>
+                  ) : null}
+                  <Button type="button" variant="danger" onClick={() => deleteMember(idToken, member._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</Button>
+                </div>
+              ))}
+            </>
+          ) : null}
 
           {profile?.role === 'owner' ? (
             <>
@@ -662,7 +784,7 @@ function App() {
               {admins.map((admin) => (
                 <div key={admin._id} className="card" style={{ padding: '.75rem', marginTop: '.5rem' }}>
                   <p>{admin.email}</p>
-                  <Select defaultValue={admin.companyId} onChange={(event) => updateAdmin(idToken, admin._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
+                  <Select defaultValue={admin.companyId ?? ''} onChange={(event) => updateAdmin(idToken, admin._id, { companyId: event.target.value }).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>
                     {companies.map((company) => <option key={company._id} value={company._id}>{company.name}</option>)}
                   </Select>
                   <Button type="button" variant="danger" onClick={() => deleteAdmin(idToken, admin._id).then(() => refreshOwnerData()).catch((e) => setError(e.message))}>Eliminar</Button>

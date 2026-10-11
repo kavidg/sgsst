@@ -10,6 +10,7 @@
  *
  * Tipado estricto, sin any.
  */
+import { getOwnerActiveCompanyId } from '../api';
 import {
   ComplianceDashboardData,
   DashboardRecommendation,
@@ -23,11 +24,15 @@ interface EngineErrorMessage {
 
 /** Wrapper de fetch GET con el patrón de api.ts (Authorization Bearer). */
 async function engineFetch<T>(path: string, token: string): Promise<T> {
+  // F1 — mismo contrato que withCompanyHeader: solo el owner con empresa
+  // activa envía x-company-id (contexto de operación, validado por el guard).
+  const ownerActiveCompanyId = getOwnerActiveCompanyId();
   const response = await fetch(`${BACKEND_URL}${path}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
+      ...(ownerActiveCompanyId ? { 'x-company-id': ownerActiveCompanyId } : {}),
     },
   });
 

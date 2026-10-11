@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Post, Get, Patch, Body, Param, Req, UseGuards } from '@nestjs/common';
 import { ImplementationWizardService } from './implementation-wizard.service';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { CompanyAccessGuard } from '../auth/company-access.guard';
@@ -14,7 +14,10 @@ export class ImplementationWizardController {
 
   private parseCompanyId(request: RequestWithUser): Types.ObjectId {
     // AUDIT-9: CompanyAccessGuard ya validó membresía y seteó request.companyId.
-    if (!request.companyId) throw new Error('Company ID no encontrado');
+    // F2 — error HTTP controlado (nunca un Error genérico de JS).
+    if (!request.companyId) {
+      throw new ForbiddenException('Missing active company context');
+    }
     return request.companyId;
   }
 
